@@ -6,12 +6,11 @@ import {
   simulateSplit,
   calculateProportionalRefunds,
 } from '../../src/utils/split-engine.js'
-import type { SplitRule } from '../../src/types/index.js'
 import { ValidationError } from '../../src/utils/errors.js'
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
-function makeSplitRule(overrides: Partial<SplitRule> = {}): SplitRule {
+function makeSplitRule(overrides = {}) {
   return {
     id: 'rule-1',
     tenantId: 'tenant-abc',
@@ -87,8 +86,8 @@ describe('calculateRecipientAmounts', () => {
     const result = calculateRecipientAmounts(8000, rule)
 
     expect(result).toHaveLength(2)
-    expect(result[0]!.accountId).toBe('acct_merchant')
-    expect(result[1]!.accountId).toBe('acct_affiliate')
+    expect(result[0].accountId).toBe('acct_merchant')
+    expect(result[1].accountId).toBe('acct_affiliate')
   })
 
   it('last recipient gets remainder to avoid rounding loss', () => {
@@ -119,7 +118,7 @@ describe('calculateRecipientAmounts', () => {
       recipients: [{ accountId: 'acct_solo', label: 'Solo', percentage: 100 }],
     })
     const results = calculateRecipientAmounts(5000, rule)
-    expect(results[0]!.amount).toBe(5000)
+    expect(results[0].amount).toBe(5000)
   })
 
   it('total distributed equals input amount', () => {
@@ -183,7 +182,7 @@ describe('simulateSplit', () => {
     })
     const sim = simulateSplit(10000, 'eur', rule)
     expect(sim.platformFee).toBe(0)
-    expect(sim.recipients[0]!.amount).toBe(sim.netAmount)
+    expect(sim.recipients[0].amount).toBe(sim.netAmount)
   })
 
   it('all recipient amounts are positive integers', () => {
@@ -207,8 +206,8 @@ describe('calculateProportionalRefunds', () => {
   it('calculates full refund proportionally', () => {
     const result = calculateProportionalRefunds(10000, 10000, transfers)
     // Full refund: each transfer reversed by 100%
-    const merchantRefund = result.find((r) => r.transferId === 'tr_merchant')!
-    const affiliateRefund = result.find((r) => r.transferId === 'tr_affiliate')!
+    const merchantRefund = result.find((r) => r.transferId === 'tr_merchant')
+    const affiliateRefund = result.find((r) => r.transferId === 'tr_affiliate')
     expect(merchantRefund.refundAmount).toBe(8000)
     expect(affiliateRefund.refundAmount).toBe(500)
   })
@@ -234,7 +233,7 @@ describe('calculateProportionalRefunds', () => {
   it('never refunds more than original transfer amount', () => {
     const result = calculateProportionalRefunds(10000, 10000, transfers)
     for (const { transferId, refundAmount } of result) {
-      const original = transfers.find((t) => t.transferId === transferId)!
+      const original = transfers.find((t) => t.transferId === transferId)
       expect(refundAmount).toBeLessThanOrEqual(original.amount)
     }
   })

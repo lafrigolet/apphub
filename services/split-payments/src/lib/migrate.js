@@ -7,7 +7,7 @@ import { logger } from './logger.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const MIGRATIONS_DIR = join(__dirname, '../../migrations')
 
-export async function runMigrations(): Promise<void> {
+export async function runMigrations() {
   const client = await pool.connect()
 
   try {
@@ -21,7 +21,7 @@ export async function runMigrations(): Promise<void> {
     `)
 
     // Get already-applied migrations
-    const { rows } = await client.query<{ filename: string }>(
+    const { rows } = await client.query(
       'SELECT filename FROM payments.migrations ORDER BY filename',
     )
     const applied = new Set(rows.map((r) => r.filename))
@@ -60,8 +60,8 @@ export async function runMigrations(): Promise<void> {
   }
 }
 
-// Run directly: tsx src/lib/migrate.ts
-const isMain = process.argv[1]?.endsWith('migrate.ts') || process.argv[1]?.endsWith('migrate.js')
+// Run directly
+const isMain = process.argv[1]?.endsWith('migrate.js')
 if (isMain) {
   runMigrations()
     .then(() => {

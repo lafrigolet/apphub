@@ -7,5 +7,4 @@ export const stripe = new Stripe(env.PAYMENTS_STRIPE_SECRET_KEY, {
     name: 'SplitPay Platform',
     version: '0.1.0',
   },
-  typescript: true,
 })

@@ -35,17 +35,16 @@ import * as paymentRepo from '../../src/repositories/payment.repository.js'
 import * as accountService from '../../src/services/connect-account.service.js'
 import * as paymentService from '../../src/services/payment.service.js'
 import * as db from '../../src/lib/db.js'
-import type Stripe from 'stripe'
 
 const mockClient = { query: vi.fn(), release: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(db.pool.connect).mockResolvedValue(mockClient as never)
+  vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
   mockClient.query.mockResolvedValue({ rows: [], rowCount: 1 })
 })
 
-function makeEvent(type: string, data: object): Stripe.Event {
+function makeEvent(type, data) {
   return {
     id: 'evt_test_123',
     type,
@@ -56,7 +55,7 @@ function makeEvent(type: string, data: object): Stripe.Event {
     livemode: false,
     pending_webhooks: 0,
     request: null,
-  } as Stripe.Event
+  }
 }
 
 describe('handleWebhookEvent', () => {

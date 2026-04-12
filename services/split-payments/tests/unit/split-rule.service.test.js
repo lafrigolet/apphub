@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock all external modules before importing the service
+// Mock all external modules
 vi.mock('../../src/lib/db.js', () => ({
   pool: { connect: vi.fn() },
   withTenant: vi.fn(),
@@ -23,11 +23,10 @@ import * as service from '../../src/services/split-rule.service.js'
 import * as repo from '../../src/repositories/split-rule.repository.js'
 import * as redis from '../../src/lib/redis.js'
 import * as db from '../../src/lib/db.js'
-import type { SplitRule, TenantContext } from '../../src/types/index.js'
 
-const ctx: TenantContext = { tenantId: 'tenant-abc', subTenantId: null }
+const ctx = { tenantId: 'tenant-abc', subTenantId: null }
 
-const mockRule: SplitRule = {
+const mockRule = {
   id: 'rule-uuid-1',
   tenantId: 'tenant-abc',
   subTenantId: null,
@@ -49,7 +48,7 @@ beforeEach(() => {
 describe('split-rule.service', () => {
   describe('createSplitRule', () => {
     it('calls withTenant and repo.createSplitRule', async () => {
-      vi.mocked(db.withTenant).mockImplementation(async (_tid, _stid, fn) => fn({} as never))
+      vi.mocked(db.withTenant).mockImplementation(async (_tid, _stid, fn) => fn({}))
       vi.mocked(repo.createSplitRule).mockResolvedValue(mockRule)
 
       const input = {
@@ -78,11 +77,8 @@ describe('split-rule.service', () => {
 
     it('fetches from DB on cache miss and stores in cache', async () => {
       vi.mocked(redis.cacheGet).mockResolvedValue(null)
-      const mockClient = {} as never
-      vi.mocked(db.pool.connect).mockResolvedValue({
-        ...mockClient,
-        release: vi.fn(),
-      } as never)
+      const mockClient = { release: vi.fn() }
+      vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
       vi.mocked(repo.findSplitRuleById).mockResolvedValue(mockRule)
 
       const result = await service.getSplitRule(ctx, 'rule-uuid-1')
@@ -99,7 +95,7 @@ describe('split-rule.service', () => {
   describe('listSplitRules', () => {
     it('returns all active rules for tenant', async () => {
       const mockClient = { release: vi.fn() }
-      vi.mocked(db.pool.connect).mockResolvedValue(mockClient as never)
+      vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
       vi.mocked(repo.listSplitRules).mockResolvedValue([mockRule])
 
       const result = await service.listSplitRules(ctx)
@@ -110,7 +106,7 @@ describe('split-rule.service', () => {
 
   describe('deactivateSplitRule', () => {
     it('deactivates rule and clears cache', async () => {
-      vi.mocked(db.withTenant).mockImplementation(async (_tid, _stid, fn) => fn({} as never))
+      vi.mocked(db.withTenant).mockImplementation(async (_tid, _stid, fn) => fn({}))
       vi.mocked(repo.deactivateSplitRule).mockResolvedValue(undefined)
 
       await service.deactivateSplitRule(ctx, 'rule-uuid-1')

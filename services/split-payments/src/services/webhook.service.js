@@ -3,12 +3,10 @@ import { pool } from '../lib/db.js'
 import { env } from '../lib/env.js'
 import { logger } from '../lib/logger.js'
 import * as paymentRepo from '../repositories/payment.repository.js'
-import * as accountRepo from '../repositories/connect-account.repository.js'
 import { createAdditionalTransfers } from './payment.service.js'
 import { syncAccountFromStripe } from './connect-account.service.js'
-import type Stripe from 'stripe'
 
-export function constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {
+export function constructWebhookEvent(payload, signature) {
   return stripe.webhooks.constructEvent(
     payload,
     signature,
@@ -16,32 +14,32 @@ export function constructWebhookEvent(payload: Buffer, signature: string): Strip
   )
 }
 
-export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
+export async function handleWebhookEvent(event) {
   logger.info({ eventId: event.id, type: event.type }, 'Processing webhook event')
 
   switch (event.type) {
     case 'payment_intent.succeeded':
-      await handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent)
+      await handlePaymentIntentSucceeded(event.data.object)
       break
 
     case 'payment_intent.payment_failed':
-      await handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent)
+      await handlePaymentIntentFailed(event.data.object)
       break
 
     case 'payment_intent.canceled':
-      await handlePaymentIntentCanceled(event.data.object as Stripe.PaymentIntent)
+      await handlePaymentIntentCanceled(event.data.object)
       break
 
     case 'account.updated':
-      await handleAccountUpdated(event.data.object as Stripe.Account)
+      await handleAccountUpdated(event.data.object)
       break
 
     case 'charge.dispute.created':
-      await handleDisputeCreated(event.data.object as Stripe.Dispute)
+      await handleDisputeCreated(event.data.object)
       break
 
     case 'charge.dispute.closed':
-      await handleDisputeClosed(event.data.object as Stripe.Dispute)
+      await handleDisputeClosed(event.data.object)
       break
 
     default:
@@ -49,7 +47,7 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
   }
 }
 
-async function handlePaymentIntentSucceeded(intent: Stripe.PaymentIntent): Promise<void> {
+async function handlePaymentIntentSucceeded(intent) {
   const client = await pool.connect()
   try {
     await paymentRepo.updatePaymentStatus(client, intent.id, 'succeeded')
@@ -69,7 +67,7 @@ async function handlePaymentIntentSucceeded(intent: Stripe.PaymentIntent): Promi
   }
 }
 
-async function handlePaymentIntentFailed(intent: Stripe.PaymentIntent): Promise<void> {
+async function handlePaymentIntentFailed(intent) {
   const client = await pool.connect()
   try {
     await paymentRepo.updatePaymentStatus(client, intent.id, 'failed')
@@ -79,7 +77,7 @@ async function handlePaymentIntentFailed(intent: Stripe.PaymentIntent): Promise<
   }
 }
 
-async function handlePaymentIntentCanceled(intent: Stripe.PaymentIntent): Promise<void> {
+async function handlePaymentIntentCanceled(intent) {
   const client = await pool.connect()
   try {
     await paymentRepo.updatePaymentStatus(client, intent.id, 'canceled')
@@ -89,7 +87,7 @@ async function handlePaymentIntentCanceled(intent: Stripe.PaymentIntent): Promis
   }
 }
 
-async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
+async function handleAccountUpdated(account) {
   try {
     await syncAccountFromStripe(account.id)
   } catch (err) {
@@ -97,7 +95,7 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
   }
 }
 
-async function handleDisputeCreated(dispute: Stripe.Dispute): Promise<void> {
+async function handleDisputeCreated(dispute) {
   const client = await pool.connect()
   try {
     await client.query(
@@ -121,7 +119,7 @@ async function handleDisputeCreated(dispute: Stripe.Dispute): Promise<void> {
   }
 }
 
-async function handleDisputeClosed(dispute: Stripe.Dispute): Promise<void> {
+async function handleDisputeClosed(dispute) {
   const client = await pool.connect()
   try {
     await client.query(

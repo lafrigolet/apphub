@@ -1,4 +1,3 @@
-import type { SplitRule, SplitSimulation } from '../types/index.js'
 import { ValidationError } from './errors.js'
 
 /** Stripe fee: 2.9% + 30 cents (EUR/USD). Configurable per region. */
@@ -9,7 +8,7 @@ const STRIPE_FEE_FIXED = 30 // in smallest currency unit
  * Calculate Stripe's processing fee for a given amount.
  * Amount is in smallest currency unit (cents).
  */
-export function calculateStripeFee(amount: number): number {
+export function calculateStripeFee(amount) {
   return Math.round(amount * STRIPE_FEE_PERCENT + STRIPE_FEE_FIXED)
 }
 
@@ -17,7 +16,7 @@ export function calculateStripeFee(amount: number): number {
  * Calculate the platform's application fee (retained before distributing to recipients).
  * Uses integer arithmetic to avoid floating-point errors.
  */
-export function calculatePlatformFee(netAmount: number, platformFeePercent: number): number {
+export function calculatePlatformFee(netAmount, platformFeePercent) {
   return Math.round((netAmount * platformFeePercent) / 100)
 }
 
@@ -27,17 +26,14 @@ export function calculatePlatformFee(netAmount: number, platformFeePercent: numb
  *
  * All amounts are in smallest currency unit (e.g. cents).
  */
-export function calculateRecipientAmounts(
-  netAfterPlatformFee: number,
-  rule: Pick<SplitRule, 'recipients' | 'platformFeePercent'>,
-): Array<{ accountId: string; label: string; percentage: number; amount: number }> {
+export function calculateRecipientAmounts(netAfterPlatformFee, rule) {
   const recipients = rule.recipients
   let distributed = 0
   const result = []
 
   for (let i = 0; i < recipients.length; i++) {
-    const recipient = recipients[i]!
-    let amount: number
+    const recipient = recipients[i]
+    let amount
 
     if (i === recipients.length - 1) {
       // Last recipient gets the remainder to avoid rounding loss
@@ -62,11 +58,7 @@ export function calculateRecipientAmounts(
  * Simulate a full split for a given amount and rule.
  * Used by the /simulate endpoint to show merchants the breakdown before charging.
  */
-export function simulateSplit(
-  grossAmount: number,
-  currency: string,
-  rule: SplitRule,
-): SplitSimulation {
+export function simulateSplit(grossAmount, currency, rule) {
   if (grossAmount <= 0) {
     throw new ValidationError('Amount must be greater than zero')
   }
@@ -97,11 +89,7 @@ export function simulateSplit(
  * Calculate the proportional refund amount for each Transfer, given a partial refund.
  * Ensures refunds never exceed the original transfer amount.
  */
-export function calculateProportionalRefunds(
-  originalAmount: number,
-  refundAmount: number,
-  transfers: Array<{ transferId: string; amount: number }>,
-): Array<{ transferId: string; refundAmount: number }> {
+export function calculateProportionalRefunds(originalAmount, refundAmount, transfers) {
   if (refundAmount > originalAmount) {
     throw new ValidationError('Refund amount cannot exceed original payment amount')
   }
@@ -113,8 +101,8 @@ export function calculateProportionalRefunds(
   const result = []
 
   for (let i = 0; i < transfers.length; i++) {
-    const transfer = transfers[i]!
-    let amount: number
+    const transfer = transfers[i]
+    let amount
 
     if (i === transfers.length - 1) {
       amount = totalToReverse - distributed

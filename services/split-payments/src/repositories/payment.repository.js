@@ -1,24 +1,6 @@
-import type pg from 'pg'
-import type { PaymentRecord, TenantContext } from '../types/index.js'
 import { NotFoundError } from '../utils/errors.js'
 
-interface PaymentRow {
-  id: string
-  tenant_id: string
-  sub_tenant_id: string | null
-  stripe_payment_intent_id: string
-  amount: number
-  currency: string
-  status: string
-  split_rule_id: string
-  merchant_account_id: string
-  platform_fee: number
-  metadata: Record<string, string>
-  created_at: Date
-  updated_at: Date
-}
-
-function rowToPayment(row: PaymentRow): PaymentRecord {
+function rowToPayment(row) {
   return {
     id: row.id,
     tenantId: row.tenant_id,
@@ -36,12 +18,8 @@ function rowToPayment(row: PaymentRow): PaymentRecord {
   }
 }
 
-export async function insertPayment(
-  client: pg.PoolClient,
-  ctx: TenantContext,
-  data: Omit<PaymentRecord, 'id' | 'createdAt' | 'updatedAt'>,
-): Promise<PaymentRecord> {
-  const { rows } = await client.query<PaymentRow>(
+export async function insertPayment(client, ctx, data) {
+  const { rows } = await client.query(
     `INSERT INTO payments.transactions
        (tenant_id, sub_tenant_id, stripe_payment_intent_id, amount, currency,
         status, split_rule_id, merchant_account_id, platform_fee, metadata)
@@ -53,15 +31,11 @@ export async function insertPayment(
       data.platformFee, JSON.stringify(data.metadata),
     ],
   )
-  return rowToPayment(rows[0]!)
+  return rowToPayment(rows[0])
 }
 
-export async function findPaymentById(
-  client: pg.PoolClient,
-  ctx: TenantContext,
-  id: string,
-): Promise<PaymentRecord> {
-  const { rows } = await client.query<PaymentRow>(
+export async function findPaymentById(client, ctx, id) {
+  const { rows } = await client.query(
     `SELECT * FROM payments.transactions WHERE id = $1 AND tenant_id = $2`,
     [id, ctx.tenantId],
   )
@@ -69,22 +43,15 @@ export async function findPaymentById(
   return rowToPayment(rows[0])
 }
 
-export async function findPaymentByStripeId(
-  client: pg.PoolClient,
-  stripePaymentIntentId: string,
-): Promise<PaymentRecord | null> {
-  const { rows } = await client.query<PaymentRow>(
+export async function findPaymentByStripeId(client, stripePaymentIntentId) {
+  const { rows } = await client.query(
     `SELECT * FROM payments.transactions WHERE stripe_payment_intent_id = $1`,
     [stripePaymentIntentId],
   )
   return rows[0] ? rowToPayment(rows[0]) : null
 }
 
-export async function updatePaymentStatus(
-  client: pg.PoolClient,
-  stripePaymentIntentId: string,
-  status: string,
-): Promise<void> {
+export async function updatePaymentStatus(client, stripePaymentIntentId, status) {
   await client.query(
     `UPDATE payments.transactions
      SET status = $1, updated_at = now()
@@ -93,13 +60,8 @@ export async function updatePaymentStatus(
   )
 }
 
-export async function listPayments(
-  client: pg.PoolClient,
-  ctx: TenantContext,
-  limit = 20,
-  cursor?: string,
-): Promise<PaymentRecord[]> {
-  const params: unknown[] = [ctx.tenantId, limit]
+export async function listPayments(client, ctx, limit = 20, cursor) {
+  const params = [ctx.tenantId, limit]
   let cursorClause = ''
 
   if (cursor) {
@@ -107,7 +69,7 @@ export async function listPayments(
     cursorClause = `AND created_at < (SELECT created_at FROM payments.transactions WHERE id = $${params.length})`
   }
 
-  const { rows } = await client.query<PaymentRow>(
+  const { rows } = await client.query(
     `SELECT * FROM payments.transactions
      WHERE tenant_id = $1 ${cursorClause}
      ORDER BY created_at DESC

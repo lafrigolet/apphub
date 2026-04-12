@@ -17,35 +17,35 @@ const IDEMPOTENCY_TTL = 60 * 60 * 24 // 24 hours in seconds
  * Check if an idempotency key has already been processed.
  * Returns the cached response if it exists, null otherwise.
  */
-export async function checkIdempotency(key: string): Promise<string | null> {
+export async function checkIdempotency(key) {
   return redis.get(`idempotency:${key}`)
 }
 
 /**
  * Store the result of an idempotent operation.
  */
-export async function storeIdempotency(key: string, result: unknown): Promise<void> {
+export async function storeIdempotency(key, result) {
   await redis.setex(`idempotency:${key}`, IDEMPOTENCY_TTL, JSON.stringify(result))
 }
 
 /**
  * Cache a value with a TTL in seconds.
  */
-export async function cacheSet(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+export async function cacheSet(key, value, ttlSeconds) {
   await redis.setex(`cache:${key}`, ttlSeconds, JSON.stringify(value))
 }
 
 /**
  * Get a cached value. Returns null if not found or expired.
  */
-export async function cacheGet<T>(key: string): Promise<T | null> {
+export async function cacheGet(key) {
   const raw = await redis.get(`cache:${key}`)
-  return raw ? (JSON.parse(raw) as T) : null
+  return raw ? JSON.parse(raw) : null
 }
 
 /**
  * Invalidate a cache entry.
  */
-export async function cacheDelete(key: string): Promise<void> {
+export async function cacheDelete(key) {
   await redis.del(`cache:${key}`)
 }

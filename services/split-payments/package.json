@@ -4,43 +4,36 @@
   "description": "Stripe Connect split payments microservice",
   "private": true,
   "type": "module",
-  "main": "dist/app.js",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
-    "db:migrate": "tsx src/lib/migrate.ts",
-    "clean": "rm -rf dist coverage"
+    "db:migrate": "node src/lib/migrate.js",
+    "clean": "rm -rf coverage"
   },
   "dependencies": {
-    "express": "^5.0.0",
+    "fastify": "^5.0.0",
+    "@fastify/helmet": "^12.0.0",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "fastify-type-provider-zod": "^4.0.0",
+    "fastify-plugin": "^5.0.0",
     "stripe": "^16.0.0",
     "pg": "^8.12.0",
     "ioredis": "^5.4.1",
     "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0",
     "pino": "^9.3.0",
     "pino-pretty": "^11.2.0",
-    "uuid": "^10.0.0",
-    "helmet": "^7.1.0",
-    "cors": "^2.8.5",
-    "express-rate-limit": "^7.3.1"
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/pg": "^8.11.6",
-    "@types/cors": "^2.8.17",
-    "@types/uuid": "^10.0.0",
-    "@types/node": "^20.14.0",
-    "tsx": "^4.16.0",
-    "typescript": "^5.4.0",
     "vitest": "^2.0.0",
     "@vitest/coverage-v8": "^2.0.0",
-    "supertest": "^7.0.0",
-    "@types/supertest": "^6.0.2"
+    "supertest": "^7.0.0"
   }
 }

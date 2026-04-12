@@ -1,15 +1,10 @@
 import { pool, withTenant } from '../lib/db.js'
 import { stripe } from '../lib/stripe.js'
-import { env } from '../lib/env.js'
 import { StripeError } from '../utils/errors.js'
 import { logger } from '../lib/logger.js'
 import * as repo from '../repositories/connect-account.repository.js'
-import type { ConnectAccount, CreateConnectAccountInput, TenantContext } from '../types/index.js'
 
-export async function createConnectAccount(
-  ctx: TenantContext,
-  input: CreateConnectAccountInput,
-): Promise<{ account: ConnectAccount; onboardingUrl: string }> {
+export async function createConnectAccount(ctx, input) {
   // Create Stripe Connect account
   let stripeAccount
   try {
@@ -57,12 +52,7 @@ export async function createConnectAccount(
   return { account, onboardingUrl: accountLink.url }
 }
 
-export async function refreshOnboardingLink(
-  ctx: TenantContext,
-  accountId: string,
-  returnUrl: string,
-  refreshUrl: string,
-): Promise<{ onboardingUrl: string }> {
+export async function refreshOnboardingLink(ctx, accountId, returnUrl, refreshUrl) {
   const client = await pool.connect()
   try {
     const account = await repo.findConnectAccountById(client, ctx, accountId)
@@ -80,7 +70,7 @@ export async function refreshOnboardingLink(
   }
 }
 
-export async function listConnectAccounts(ctx: TenantContext): Promise<ConnectAccount[]> {
+export async function listConnectAccounts(ctx) {
   const client = await pool.connect()
   try {
     return repo.listConnectAccounts(client, ctx)
@@ -89,12 +79,12 @@ export async function listConnectAccounts(ctx: TenantContext): Promise<ConnectAc
   }
 }
 
-export async function syncAccountFromStripe(stripeAccountId: string): Promise<void> {
+export async function syncAccountFromStripe(stripeAccountId) {
   const client = await pool.connect()
   try {
     const stripeAccount = await stripe.accounts.retrieve(stripeAccountId)
 
-    let status: ConnectAccount['status'] = 'pending'
+    let status = 'pending'
     if (stripeAccount.charges_enabled && stripeAccount.payouts_enabled) {
       status = 'active'
     } else if (stripeAccount.requirements?.disabled_reason) {

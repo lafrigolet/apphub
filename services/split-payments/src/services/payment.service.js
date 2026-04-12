@@ -4,25 +4,14 @@ import { checkIdempotency, storeIdempotency } from '../lib/redis.js'
 import * as paymentRepo from '../repositories/payment.repository.js'
 import * as splitRuleRepo from '../repositories/split-rule.repository.js'
 import { simulateSplit, calculateRecipientAmounts, calculateProportionalRefunds } from '../utils/split-engine.js'
-import { NotFoundError, StripeError, IdempotencyConflictError } from '../utils/errors.js'
+import { StripeError } from '../utils/errors.js'
 import { logger } from '../lib/logger.js'
-import type {
-  CreatePaymentIntentInput,
-  CreateRefundInput,
-  PaymentRecord,
-  TenantContext,
-  PaginatedResult,
-} from '../types/index.js'
 
-export async function createPaymentIntent(
-  ctx: TenantContext,
-  input: CreatePaymentIntentInput,
-): Promise<{ clientSecret: string; paymentId: string }> {
+export async function createPaymentIntent(ctx, input) {
   // Check idempotency
   const cached = await checkIdempotency(input.idempotencyKey)
   if (cached) {
-    const parsed = JSON.parse(cached) as { clientSecret: string; paymentId: string }
-    return parsed
+    return JSON.parse(cached)
   }
 
   const client = await pool.connect()
@@ -39,8 +28,6 @@ export async function createPaymentIntent(
     }
 
     // Create Stripe PaymentIntent
-    // Primary recipient gets funds via transfer_data.destination
-    // Platform retains application_fee_amount
     let stripeIntent
     try {
       stripeIntent = await stripe.paymentIntents.create(
@@ -80,9 +67,6 @@ export async function createPaymentIntent(
       metadata: input.metadata ?? {},
     })
 
-    // Create Transfers for additional recipients (beyond the first)
-    // These are created after the PaymentIntent is confirmed via webhook
-    // For now we store the intent to create them in metadata
     if (simulation.recipients.length > 1) {
       logger.info(
         { paymentId: payment.id, recipientCount: simulation.recipients.length },
@@ -91,7 +75,7 @@ export async function createPaymentIntent(
     }
 
     const result = {
-      clientSecret: stripeIntent.client_secret!,
+      clientSecret: stripeIntent.client_secret,
       paymentId: payment.id,
     }
 
@@ -102,10 +86,7 @@ export async function createPaymentIntent(
   }
 }
 
-export async function createAdditionalTransfers(
-  stripePaymentIntentId: string,
-  chargeId: string,
-): Promise<void> {
+export async function createAdditionalTransfers(stripePaymentIntentId, chargeId) {
   const client = await pool.connect()
   try {
     const payment = await paymentRepo.findPaymentByStripeId(client, stripePaymentIntentId)
@@ -115,18 +96,14 @@ export async function createAdditionalTransfers(
     }
 
     // Reload split rule to get all recipients
-    const { rows } = await client.query<{ recipients: string; platform_fee_percent: string }>(
+    const { rows } = await client.query(
       `SELECT recipients, platform_fee_percent FROM payments.split_rules WHERE id = $1`,
       [payment.splitRuleId],
     )
     const ruleRow = rows[0]
     if (!ruleRow) return
 
-    const recipients = JSON.parse(ruleRow.recipients) as Array<{
-      accountId: string
-      label: string
-      percentage: number
-    }>
+    const recipients = JSON.parse(ruleRow.recipients)
 
     // Skip first recipient (already handled by transfer_data.destination)
     const additionalRecipients = recipients.slice(1)
@@ -168,7 +145,7 @@ export async function createAdditionalTransfers(
   }
 }
 
-export async function getPayment(ctx: TenantContext, id: string): Promise<PaymentRecord> {
+export async function getPayment(ctx, id) {
   const client = await pool.connect()
   try {
     return paymentRepo.findPaymentById(client, ctx, id)
@@ -177,11 +154,7 @@ export async function getPayment(ctx: TenantContext, id: string): Promise<Paymen
   }
 }
 
-export async function listPayments(
-  ctx: TenantContext,
-  limit = 20,
-  cursor?: string,
-): Promise<PaginatedResult<PaymentRecord>> {
+export async function listPayments(ctx, limit = 20, cursor) {
   const client = await pool.connect()
   try {
     const items = await paymentRepo.listPayments(client, ctx, limit + 1, cursor)
@@ -197,12 +170,9 @@ export async function listPayments(
   }
 }
 
-export async function createRefund(
-  ctx: TenantContext,
-  input: CreateRefundInput,
-): Promise<{ refundId: string }> {
+export async function createRefund(ctx, input) {
   const cached = await checkIdempotency(input.idempotencyKey)
-  if (cached) return JSON.parse(cached) as { refundId: string }
+  if (cached) return JSON.parse(cached)
 
   const client = await pool.connect()
   try {

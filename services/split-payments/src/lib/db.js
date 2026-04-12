@@ -19,11 +19,7 @@ pool.on('error', (err) => {
  * Execute a query scoped to the current tenant.
  * Sets session-level GUCs used by Row Level Security policies.
  */
-export async function withTenant<T>(
-  tenantId: string,
-  subTenantId: string | null,
-  fn: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withTenant(tenantId, subTenantId, fn) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')

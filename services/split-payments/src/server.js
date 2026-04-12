@@ -5,30 +5,36 @@ import { pool } from './lib/db.js'
 import { redis } from './lib/redis.js'
 import { runMigrations } from './lib/migrate.js'
 
-async function start(): Promise<void> {
+async function start() {
   // Run DB migrations before accepting traffic
   await runMigrations()
 
   const app = createApp()
 
-  const server = app.listen(env.PAYMENTS_PORT, () => {
+  try {
+    await app.listen({ port: env.PAYMENTS_PORT, host: '0.0.0.0' })
     logger.info(
       { port: env.PAYMENTS_PORT, env: env.NODE_ENV },
       'split-payments service started',
     )
-  })
+  } catch (err) {
+    logger.error({ err }, 'Failed to start Fastify')
+    process.exit(1)
+  }
 
   // Graceful shutdown
-  const shutdown = async (signal: string) => {
+  const shutdown = async (signal) => {
     logger.info({ signal }, 'Shutdown signal received')
-    server.close(async () => {
+    try {
+      await app.close()
       await pool.end()
       await redis.quit()
       logger.info('Graceful shutdown complete')
       process.exit(0)
-    })
-    // Force exit after 10 seconds
-    setTimeout(() => process.exit(1), 10_000)
+    } catch (err) {
+      logger.error({ err }, 'Error during shutdown')
+      process.exit(1)
+    }
   }
 
   process.on('SIGTERM', () => shutdown('SIGTERM'))

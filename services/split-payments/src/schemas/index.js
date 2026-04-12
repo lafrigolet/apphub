@@ -1,12 +1,5 @@
 import { z } from 'zod'
 
-// ── Tenant context ─────────────────────────────────────────────────────────
-
-export interface TenantContext {
-  tenantId: string
-  subTenantId: string | null
-}
-
 // ── Split rules ────────────────────────────────────────────────────────────
 
 export const SplitRecipientSchema = z.object({
@@ -32,21 +25,6 @@ export const CreateSplitRuleSchema = z.object({
     { message: 'platformFeePercent + sum of recipient percentages must equal 100' },
   )
 
-export type SplitRecipient = z.infer<typeof SplitRecipientSchema>
-export type CreateSplitRuleInput = z.infer<typeof CreateSplitRuleSchema>
-
-export interface SplitRule {
-  id: string
-  tenantId: string
-  subTenantId: string | null
-  name: string
-  platformFeePercent: number
-  recipients: SplitRecipient[]
-  active: boolean
-  createdAt: Date
-  updatedAt: Date
-}
-
 // ── Payments ───────────────────────────────────────────────────────────────
 
 export const CreatePaymentIntentSchema = z.object({
@@ -65,24 +43,6 @@ export const CreatePaymentIntentSchema = z.object({
   returnUrl: z.string().url().optional(),
 })
 
-export type CreatePaymentIntentInput = z.infer<typeof CreatePaymentIntentSchema>
-
-export interface PaymentRecord {
-  id: string
-  tenantId: string
-  subTenantId: string | null
-  stripePaymentIntentId: string
-  amount: number
-  currency: string
-  status: string
-  splitRuleId: string
-  merchantAccountId: string
-  platformFee: number
-  metadata: Record<string, string>
-  createdAt: Date
-  updatedAt: Date
-}
-
 // ── Refunds ────────────────────────────────────────────────────────────────
 
 export const CreateRefundSchema = z.object({
@@ -92,8 +52,6 @@ export const CreateRefundSchema = z.object({
   reason: z.enum(['duplicate', 'fraudulent', 'requested_by_customer']).optional(),
   idempotencyKey: z.string().min(1).max(255),
 })
-
-export type CreateRefundInput = z.infer<typeof CreateRefundSchema>
 
 // ── Connect accounts ───────────────────────────────────────────────────────
 
@@ -105,56 +63,3 @@ export const CreateConnectAccountSchema = z.object({
   returnUrl: z.string().url(),
   refreshUrl: z.string().url(),
 })
-
-export type CreateConnectAccountInput = z.infer<typeof CreateConnectAccountSchema>
-
-export interface ConnectAccount {
-  id: string
-  tenantId: string
-  subTenantId: string | null
-  stripeAccountId: string
-  email: string
-  status: 'pending' | 'active' | 'restricted' | 'disabled'
-  payoutsEnabled: boolean
-  chargesEnabled: boolean
-  createdAt: Date
-  updatedAt: Date
-}
-
-// ── Simulation ─────────────────────────────────────────────────────────────
-
-export interface SplitSimulation {
-  grossAmount: number
-  currency: string
-  stripeFee: number
-  netAmount: number
-  platformFee: number
-  recipients: Array<{
-    label: string
-    accountId: string
-    percentage: number
-    amount: number
-  }>
-}
-
-// ── Pagination ─────────────────────────────────────────────────────────────
-
-export interface PaginatedResult<T> {
-  data: T[]
-  cursor: string | null
-  hasMore: boolean
-}
-
-// ── API response shapes ────────────────────────────────────────────────────
-
-export interface ApiSuccess<T> {
-  data: T
-}
-
-export interface ApiError {
-  error: {
-    code: string
-    message: string
-    details?: unknown
-  }
-}

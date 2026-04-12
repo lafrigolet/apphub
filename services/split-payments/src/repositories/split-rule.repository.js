@@ -1,20 +1,6 @@
-import type pg from 'pg'
-import type { SplitRule, CreateSplitRuleInput, TenantContext } from '../types/index.js'
 import { NotFoundError } from '../utils/errors.js'
 
-interface SplitRuleRow {
-  id: string
-  tenant_id: string
-  sub_tenant_id: string | null
-  name: string
-  platform_fee_percent: string
-  recipients: string
-  active: boolean
-  created_at: Date
-  updated_at: Date
-}
-
-function rowToSplitRule(row: SplitRuleRow): SplitRule {
+function rowToSplitRule(row) {
   return {
     id: row.id,
     tenantId: row.tenant_id,
@@ -28,27 +14,19 @@ function rowToSplitRule(row: SplitRuleRow): SplitRule {
   }
 }
 
-export async function createSplitRule(
-  client: pg.PoolClient,
-  ctx: TenantContext,
-  input: CreateSplitRuleInput,
-): Promise<SplitRule> {
-  const { rows } = await client.query<SplitRuleRow>(
+export async function createSplitRule(client, ctx, input) {
+  const { rows } = await client.query(
     `INSERT INTO payments.split_rules
        (tenant_id, sub_tenant_id, name, platform_fee_percent, recipients)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
     [ctx.tenantId, ctx.subTenantId, input.name, input.platformFeePercent, JSON.stringify(input.recipients)],
   )
-  return rowToSplitRule(rows[0]!)
+  return rowToSplitRule(rows[0])
 }
 
-export async function findSplitRuleById(
-  client: pg.PoolClient,
-  ctx: TenantContext,
-  id: string,
-): Promise<SplitRule> {
-  const { rows } = await client.query<SplitRuleRow>(
+export async function findSplitRuleById(client, ctx, id) {
+  const { rows } = await client.query(
     `SELECT * FROM payments.split_rules
      WHERE id = $1 AND tenant_id = $2 AND active = true`,
     [id, ctx.tenantId],
@@ -57,11 +35,8 @@ export async function findSplitRuleById(
   return rowToSplitRule(rows[0])
 }
 
-export async function listSplitRules(
-  client: pg.PoolClient,
-  ctx: TenantContext,
-): Promise<SplitRule[]> {
-  const { rows } = await client.query<SplitRuleRow>(
+export async function listSplitRules(client, ctx) {
+  const { rows } = await client.query(
     `SELECT * FROM payments.split_rules
      WHERE tenant_id = $1 AND active = true
      ORDER BY created_at DESC`,
@@ -70,11 +45,7 @@ export async function listSplitRules(
   return rows.map(rowToSplitRule)
 }
 
-export async function deactivateSplitRule(
-  client: pg.PoolClient,
-  ctx: TenantContext,
-  id: string,
-): Promise<void> {
+export async function deactivateSplitRule(client, ctx, id) {
   const { rowCount } = await client.query(
     `UPDATE payments.split_rules
      SET active = false, updated_at = now()

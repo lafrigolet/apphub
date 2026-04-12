@@ -69,17 +69,16 @@ import * as splitRuleRepo from '../../src/repositories/split-rule.repository.js'
 import * as paymentRepo from '../../src/repositories/payment.repository.js'
 import * as db from '../../src/lib/db.js'
 import { stripe } from '../../src/lib/stripe.js'
-import type { SplitRule, PaymentRecord } from '../../src/types/index.js'
 
-// Helper: create a valid JWT-like token with tenant claims (not verified in tests)
-function makeToken(tenantId: string, subTenantId: string | null = null): string {
+// Helper: create a valid JWT-like token with tenant claims
+function makeToken(tenantId, subTenantId = null) {
   const payload = Buffer.from(
     JSON.stringify({ tenant_id: tenantId, sub_tenant_id: subTenantId, exp: 9999999999 }),
   ).toString('base64url')
   return `Bearer header.${payload}.sig`
 }
 
-const mockSplitRule: SplitRule = {
+const mockSplitRule = {
   id: '550e8400-e29b-41d4-a716-446655440000',
   tenantId: 'tenant-abc',
   subTenantId: null,
@@ -91,7 +90,7 @@ const mockSplitRule: SplitRule = {
   updatedAt: new Date('2025-01-01'),
 }
 
-const mockPayment: PaymentRecord = {
+const mockPayment = {
   id: '550e8400-e29b-41d4-a716-446655440001',
   tenantId: 'tenant-abc',
   subTenantId: null,
@@ -107,17 +106,18 @@ const mockPayment: PaymentRecord = {
   updatedAt: new Date('2025-01-01'),
 }
 
-let app: ReturnType<typeof createApp>
+let app
 
-beforeAll(() => {
+beforeAll(async () => {
   app = createApp()
+  await app.ready()
 })
 
 // ── Health check ───────────────────────────────────────────────────────────
 
 describe('GET /health', () => {
   it('returns 200 with service info', async () => {
-    const res = await request(app).get('/health')
+    const res = await request(app.server).get('/health')
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({ status: 'ok', service: 'split-payments' })
   })
@@ -127,7 +127,7 @@ describe('GET /health', () => {
 
 describe('Unknown routes', () => {
   it('returns 404 for unknown paths', async () => {
-    const res = await request(app).get('/v1/unknown-route')
+    const res = await request(app.server).get('/v1/unknown-route')
     expect(res.status).toBe(404)
     expect(res.body.error.code).toBe('NOT_FOUND')
   })
@@ -137,12 +137,12 @@ describe('Unknown routes', () => {
 
 describe('Auth middleware', () => {
   it('returns 401 when Authorization header is missing', async () => {
-    const res = await request(app).get('/v1/split-rules')
+    const res = await request(app.server).get('/v1/split-rules')
     expect(res.status).toBe(401)
   })
 
   it('returns 401 for malformed token', async () => {
-    const res = await request(app)
+    const res = await request(app.server)
       .get('/v1/split-rules')
       .set('Authorization', 'Bearer not.a.valid.token')
     expect(res.status).toBe(401)
@@ -154,10 +154,10 @@ describe('Auth middleware', () => {
 describe('GET /v1/split-rules', () => {
   it('returns list of split rules', async () => {
     const mockClient = { release: vi.fn() }
-    vi.mocked(db.pool.connect).mockResolvedValue(mockClient as never)
+    vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
     vi.mocked(splitRuleRepo.listSplitRules).mockResolvedValue([mockSplitRule])
 
-    const res = await request(app)
+    const res = await request(app.server)
       .get('/v1/split-rules')
       .set('Authorization', makeToken('tenant-abc'))
 
@@ -169,7 +169,7 @@ describe('GET /v1/split-rules', () => {
 
 describe('POST /v1/split-rules', () => {
   it('creates a split rule and returns 201', async () => {
-    vi.mocked(db.withTenant).mockImplementation(async (_tid, _stid, fn) => fn({} as never))
+    vi.mocked(db.withTenant).mockImplementation(async (_tid, _stid, fn) => fn({}))
     vi.mocked(splitRuleRepo.createSplitRule).mockResolvedValue(mockSplitRule)
 
     const body = {
@@ -178,7 +178,7 @@ describe('POST /v1/split-rules', () => {
       recipients: [{ accountId: 'acct_merchant', label: 'Merchant', percentage: 85 }],
     }
 
-    const res = await request(app)
+    const res = await request(app.server)
       .post('/v1/split-rules')
       .set('Authorization', makeToken('tenant-abc'))
       .send(body)
@@ -195,7 +195,7 @@ describe('POST /v1/split-rules', () => {
       // 15 + 50 = 65, not 100
     }
 
-    const res = await request(app)
+    const res = await request(app.server)
       .post('/v1/split-rules')
       .set('Authorization', makeToken('tenant-abc'))
       .send(body)
@@ -207,10 +207,10 @@ describe('POST /v1/split-rules', () => {
 
 describe('POST /v1/split-rules/simulate', () => {
   it('returns split simulation', async () => {
-    vi.mocked(db.pool.connect as ReturnType<typeof vi.fn>).mockResolvedValue({ release: vi.fn() })
+    vi.mocked(db.pool.connect).mockResolvedValue({ release: vi.fn() })
     vi.mocked(splitRuleRepo.findSplitRuleById).mockResolvedValue(mockSplitRule)
 
-    const res = await request(app)
+    const res = await request(app.server)
       .post('/v1/split-rules/simulate')
       .set('Authorization', makeToken('tenant-abc'))
       .send({ splitRuleId: '550e8400-e29b-41d4-a716-446655440000', amount: 10000, currency: 'eur' })
@@ -227,14 +227,14 @@ describe('POST /v1/split-rules/simulate', () => {
 describe('POST /v1/payments', () => {
   it('creates a payment intent and returns 201', async () => {
     const mockClient = { release: vi.fn() }
-    vi.mocked(db.pool.connect).mockResolvedValue(mockClient as never)
+    vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
     vi.mocked(splitRuleRepo.findSplitRuleById).mockResolvedValue(mockSplitRule)
     vi.mocked(paymentRepo.insertPayment).mockResolvedValue(mockPayment)
     vi.mocked(stripe.paymentIntents.create).mockResolvedValue({
       id: 'pi_test_123',
       client_secret: 'pi_test_123_secret',
       status: 'requires_payment_method',
-    } as never)
+    })
 
     const body = {
       amount: 10000,
@@ -244,7 +244,7 @@ describe('POST /v1/payments', () => {
       idempotencyKey: 'test-key-001',
     }
 
-    const res = await request(app)
+    const res = await request(app.server)
       .post('/v1/payments')
       .set('Authorization', makeToken('tenant-abc'))
       .send(body)
@@ -255,7 +255,7 @@ describe('POST /v1/payments', () => {
   })
 
   it('returns 422 for invalid amount', async () => {
-    const res = await request(app)
+    const res = await request(app.server)
       .post('/v1/payments')
       .set('Authorization', makeToken('tenant-abc'))
       .send({
@@ -273,10 +273,10 @@ describe('POST /v1/payments', () => {
 describe('GET /v1/payments', () => {
   it('returns paginated payment list', async () => {
     const mockClient = { release: vi.fn() }
-    vi.mocked(db.pool.connect).mockResolvedValue(mockClient as never)
+    vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
     vi.mocked(paymentRepo.listPayments).mockResolvedValue([mockPayment])
 
-    const res = await request(app)
+    const res = await request(app.server)
       .get('/v1/payments')
       .set('Authorization', makeToken('tenant-abc'))
 
