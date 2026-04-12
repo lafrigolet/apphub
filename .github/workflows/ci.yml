@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test & lint
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: splitpay
+          POSTGRES_PASSWORD: splitpay
+          POSTGRES_DB: splitpay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://splitpay:splitpay@localhost:5432/splitpay
+          REDIS_URL: redis://localhost:6379
+          PAYMENTS_STRIPE_SECRET_KEY: sk_test_placeholder
+          PAYMENTS_STRIPE_WEBHOOK_SECRET: whsec_placeholder
+          PAYMENTS_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+          JWT_SECRET: ci_test_secret_at_least_32_chars_long
+
+  docker:
+    name: Docker build check
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build split-payments image
+        run: |
+          docker build \
+            --target production \
+            -t splitpay/split-payments:ci \
+            services/split-payments/

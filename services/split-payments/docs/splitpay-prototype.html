@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SplitPay — Stripe Connect Portal</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['DM Sans', 'sans-serif'],
+        mono: ['DM Mono', 'monospace'],
+      },
+      colors: {
+        stripe: '#635BFF',
+        'stripe-dark': '#4F46E5',
+        'stripe-light': '#EEF0FF',
+        ink: '#0A0A0F',
+        'ink-2': '#1C1C2A',
+        mist: '#F4F4F8',
+        'mist-2': '#EAEAF2',
+        sage: '#00C896',
+        'sage-dark': '#00A07A',
+        ember: '#FF6B35',
+        'ember-light': '#FFF0EB',
+        slate: '#6B7280',
+        'slate-light': '#F9FAFB',
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: #F4F4F8; color: #0A0A0F; }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(99,91,255,0.3); }
+    70% { box-shadow: 0 0 0 8px rgba(99,91,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(99,91,255,0); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes checkmark {
+    0% { stroke-dashoffset: 50; }
+    100% { stroke-dashoffset: 0; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .fade-up { animation: fadeUp 0.4s ease both; }
+  .fade-in { animation: fadeIn 0.3s ease both; }
+  .slide-in { animation: slideIn 0.35s ease both; }
+  .delay-1 { animation-delay: 0.05s; }
+  .delay-2 { animation-delay: 0.1s; }
+  .delay-3 { animation-delay: 0.15s; }
+  .delay-4 { animation-delay: 0.2s; }
+  .delay-5 { animation-delay: 0.25s; }
+
+  .shimmer {
+    background: linear-gradient(90deg, #eaeaf2 25%, #f4f4f8 50%, #eaeaf2 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Sidebar nav */
+  .nav-item { transition: all 0.18s ease; }
+  .nav-item:hover { background: rgba(99,91,255,0.08); color: #635BFF; }
+  .nav-item.active { background: rgba(99,91,255,0.12); color: #635BFF; font-weight: 500; }
+  .nav-item.active .nav-icon { color: #635BFF; }
+
+  /* Cards */
+  .card { background: white; border: 1px solid #EAEAF2; border-radius: 12px; transition: box-shadow 0.2s ease; }
+  .card:hover { box-shadow: 0 4px 20px rgba(10,10,15,0.06); }
+  .card-flat { background: white; border: 1px solid #EAEAF2; border-radius: 12px; }
+
+  /* Buttons */
+  .btn-primary { background: #635BFF; color: white; border-radius: 8px; padding: 10px 20px; font-weight: 500; font-size: 14px; transition: all 0.18s ease; cursor: pointer; border: none; }
+  .btn-primary:hover { background: #4F46E5; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,91,255,0.35); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary { background: white; color: #0A0A0F; border: 1px solid #EAEAF2; border-radius: 8px; padding: 10px 20px; font-weight: 500; font-size: 14px; transition: all 0.18s ease; cursor: pointer; }
+  .btn-secondary:hover { border-color: #635BFF; color: #635BFF; }
+  .btn-ghost { background: transparent; color: #6B7280; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; transition: all 0.18s ease; cursor: pointer; }
+  .btn-ghost:hover { background: #F4F4F8; color: #0A0A0F; }
+  .btn-danger { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 20px; font-weight: 500; font-size: 14px; transition: all 0.18s ease; cursor: pointer; }
+  .btn-danger:hover { background: #FEE2E2; }
+
+  /* Inputs */
+  .input { border: 1px solid #EAEAF2; border-radius: 8px; padding: 10px 14px; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.18s; width: 100%; background: white; color: #0A0A0F; }
+  .input:focus { border-color: #635BFF; box-shadow: 0 0 0 3px rgba(99,91,255,0.12); }
+  .input::placeholder { color: #9CA3AF; }
+
+  /* Select */
+  select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+
+  /* Badge */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+  .badge-green { background: #ECFDF5; color: #059669; }
+  .badge-yellow { background: #FFFBEB; color: #D97706; }
+  .badge-red { background: #FEF2F2; color: #DC2626; }
+  .badge-blue { background: #EEF0FF; color: #635BFF; }
+  .badge-gray { background: #F3F4F6; color: #6B7280; }
+
+  /* Progress bar */
+  .progress-track { background: #EAEAF2; border-radius: 100px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg, #635BFF, #00C896); transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+
+  /* Split bar */
+  .split-preview { height: 8px; border-radius: 100px; overflow: hidden; display: flex; }
+
+  /* Modal overlay */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(10,10,15,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); animation: fadeIn 0.2s ease; }
+  .modal-box { background: white; border-radius: 16px; width: 100%; max-width: 480px; animation: fadeUp 0.3s ease; overflow: hidden; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; z-index: 100; animation: fadeUp 0.35s ease; }
+
+  /* Step indicator */
+  .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .step-dot.done { background: #00C896; color: white; }
+  .step-dot.active { background: #635BFF; color: white; animation: pulse-ring 2s infinite; }
+  .step-dot.pending { background: #EAEAF2; color: #9CA3AF; }
+
+  /* Table rows */
+  .tr-hover:hover { background: #F9FAFB; }
+
+  /* Sidebar */
+  #sidebar { width: 240px; flex-shrink: 0; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #EAEAF2; border-radius: 100px; }
+
+  /* Stripe card input simulation */
+  .stripe-input { border: 1px solid #EAEAF2; border-radius: 8px; padding: 12px 14px; font-family: 'DM Mono', monospace; font-size: 15px; letter-spacing: 0.05em; background: white; width: 100%; outline: none; transition: border-color 0.18s; color: #0A0A0F; }
+  .stripe-input:focus { border-color: #635BFF; box-shadow: 0 0 0 3px rgba(99,91,255,0.12); }
+
+  /* Sandbox banner */
+  .sandbox-banner { background: linear-gradient(90deg, #FFF7ED, #FFFBEB); border-bottom: 1px solid #FDE68A; }
+
+  /* KYC step form */
+  .kyc-card { border: 2px solid transparent; border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.18s; background: white; }
+  .kyc-card:hover { border-color: #EAEAF2; }
+  .kyc-card.selected { border-color: #635BFF; background: #EEF0FF; }
+
+  /* Chart bars */
+  .bar { border-radius: 4px 4px 0 0; transition: height 0.6s cubic-bezier(0.4,0,0.2,1); }
+
+  /* Spinner */
+  .spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+  /* Divider */
+  .divider { height: 1px; background: #EAEAF2; }
+
+  /* Label */
+  label.field-label { display: block; font-size: 12px; font-weight: 500; color: #6B7280; margin-bottom: 6px; letter-spacing: 0.02em; text-transform: uppercase; }
+
+  /* Range slider */
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 100px; background: #EAEAF2; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #635BFF; cursor: pointer; box-shadow: 0 2px 6px rgba(99,91,255,0.4); }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- SANDBOX BANNER -->
+<div class="sandbox-banner px-4 py-2 flex items-center justify-between text-xs">
+  <div class="flex items-center gap-2">
+    <span class="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
+    <span class="font-medium text-amber-700">MODO SANDBOX</span>
+    <span class="text-amber-600">— Los datos son de prueba. No se procesarán pagos reales.</span>
+  </div>
+  <button onclick="showToast('Cambiando a producción...', 'info')" class="text-amber-700 font-medium hover:underline">Activar Producción →</button>
+</div>
+
+<!-- APP SHELL -->
+<div class="flex min-h-[calc(100vh-36px)]">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="bg-white border-r border-mist-2 flex flex-col py-6 px-3">
+    <!-- Logo -->
+    <div class="px-3 mb-8">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-stripe flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <span class="font-semibold text-[15px] text-ink">SplitPay</span>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 flex flex-col gap-1">
+      <p class="px-3 text-[10px] font-600 text-slate uppercase tracking-wider mb-1">Principal</p>
+      <button onclick="showView('dashboard')" id="nav-dashboard" class="nav-item active w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button onclick="showView('transactions')" id="nav-transactions" class="nav-item w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        Transacciones
+      </button>
+      <button onclick="showView('payouts')" id="nav-payouts" class="nav-item w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        Liquidaciones
+      </button>
+      <button onclick="showView('disputes')" id="nav-disputes" class="nav-item w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        Disputas
+        <span class="ml-auto badge badge-red py-0.5 px-2 text-[10px]">2</span>
+      </button>
+
+      <p class="px-3 text-[10px] font-600 text-slate uppercase tracking-wider mb-1 mt-4">Configuración</p>
+      <button onclick="showView('splits')" id="nav-splits" class="nav-item w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l5.1 5.1M4 4l5 5"/></svg>
+        Reglas de Split
+      </button>
+      <button onclick="showView('merchants')" id="nav-merchants" class="nav-item w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Merchants
+      </button>
+      <button onclick="showView('checkout')" id="nav-checkout" class="nav-item w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+        Checkout Demo
+      </button>
+      <button onclick="showView('onboarding')" id="nav-onboarding" class="nav-item w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate">
+        <svg class="nav-icon w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+        Onboarding KYC
+      </button>
+    </nav>
+
+    <!-- User -->
+    <div class="mt-4 px-3">
+      <div class="divider mb-4"></div>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-stripe-light flex items-center justify-center text-xs font-600 text-stripe">MR</div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-500 text-ink truncate">Marta Rodríguez</p>
+          <p class="text-[10px] text-slate">Admin · Plataforma</p>
+        </div>
+        <button class="text-slate hover:text-ink" title="Ajustes">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 overflow-auto">
+    <div id="view-container" class="p-8 max-w-[1100px] mx-auto"></div>
+  </main>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast hidden">
+  <div id="toast-inner" class="flex items-center gap-3 bg-ink text-white px-4 py-3 rounded-xl shadow-xl text-sm font-500">
+    <span id="toast-icon"></span>
+    <span id="toast-msg"></span>
+  </div>
+</div>
+
+<!-- MODAL CONTAINER -->
+<div id="modal-container"></div>
+
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+const state = {
+  currentView: 'dashboard',
+  splitRules: [
+    { id: 1, name: 'Marketplace Estándar', platform: 15, merchant: 80, affiliate: 5, active: true },
+    { id: 2, name: 'Premium Partner', platform: 10, merchant: 90, affiliate: 0, active: true },
+    { id: 3, name: 'Co-venta Franquicia', platform: 20, merchant: 65, affiliate: 15, active: false },
+  ],
+  merchants: [
+    { id: 'acct_A1B2C3', name: 'Casa del Agua Madrid', status: 'active', rule: 'Marketplace Estándar', balance: 3240.50, volume: 18450, joined: '2024-11-15' },
+    { id: 'acct_D4E5F6', name: 'Eco Spa Barcelona', status: 'active', rule: 'Premium Partner', balance: 890.00, volume: 6200, joined: '2025-01-08' },
+    { id: 'acct_G7H8I9', name: 'Wellness Center Valencia', status: 'pending', rule: 'Marketplace Estándar', balance: 0, volume: 0, joined: '2025-03-10' },
+    { id: 'acct_J0K1L2', name: 'Balneario Las Flores', status: 'restricted', rule: 'Co-venta Franquicia', balance: 120.00, volume: 4100, joined: '2024-09-22' },
+  ],
+  transactions: [
+    { id: 'pi_3Nx1', amount: 89.00, merchant: 'Casa del Agua Madrid', method: 'Visa •••• 4242', status: 'succeeded', date: '2025-04-11 14:32', split: { platform: 13.35, merchant: 71.20, affiliate: 4.45, stripe: 2.88 } },
+    { id: 'pi_3Nx2', amount: 245.00, merchant: 'Eco Spa Barcelona', method: 'Apple Pay', status: 'succeeded', date: '2025-04-11 13:15', split: { platform: 24.50, merchant: 220.50, affiliate: 0, stripe: 7.41 } },
+    { id: 'pi_3Nx3', amount: 34.50, merchant: 'Casa del Agua Madrid', method: 'Visa •••• 5678', status: 'refunded', date: '2025-04-11 11:00', split: { platform: 5.18, merchant: 27.60, affiliate: 1.73, stripe: 1.12 } },
+    { id: 'pi_3Nx4', amount: 178.00, merchant: 'Casa del Agua Madrid', method: 'Google Pay', status: 'succeeded', date: '2025-04-10 17:45', split: { platform: 26.70, merchant: 142.40, affiliate: 8.90, stripe: 5.47 } },
+    { id: 'pi_3Nx5', amount: 56.00, merchant: 'Eco Spa Barcelona', method: 'SEPA •••• 9012', status: 'processing', date: '2025-04-10 16:20', split: { platform: 5.60, merchant: 50.40, affiliate: 0, stripe: 1.82 } },
+  ],
+  disputes: [
+    { id: 'dp_1A2B', amount: 89.00, merchant: 'Casa del Agua Madrid', reason: 'Cargo no reconocido', status: 'needs_response', deadline: '2025-04-15', transaction: 'pi_3Nx1' },
+    { id: 'dp_3C4D', amount: 178.00, merchant: 'Casa del Agua Madrid', reason: 'Producto no recibido', status: 'needs_response', deadline: '2025-04-18', transaction: 'pi_3Nx4' },
+  ],
+  payouts: [
+    { id: 'po_A1', merchant: 'Casa del Agua Madrid', amount: 3240.50, status: 'paid', date: '2025-04-10', transactions: 24 },
+    { id: 'po_B2', merchant: 'Eco Spa Barcelona', amount: 890.00, status: 'in_transit', date: '2025-04-11', transactions: 8 },
+    { id: 'po_C3', merchant: 'Balneario Las Flores', amount: 120.00, status: 'pending', date: '2025-04-13', transactions: 3 },
+  ],
+  onboardingStep: 1,
+  checkoutStep: 1,
+};
+
+// ═══════════════════════════════════════
+// ROUTER
+// ═══════════════════════════════════════
+function showView(name) {
+  state.currentView = name;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.remove('active');
+    el.classList.add('text-slate');
+  });
+  const navEl = document.getElementById('nav-' + name);
+  if (navEl) { navEl.classList.add('active'); navEl.classList.remove('text-slate'); }
+  const views = { dashboard, transactions, payouts, disputes, splits, merchants, checkout, onboarding };
+  const vc = document.getElementById('view-container');
+  vc.innerHTML = '';
+  vc.innerHTML = views[name]();
+  bindEvents(name);
+}
+
+function bindEvents(name) {
+  if (name === 'splits') bindSplits();
+  if (name === 'checkout') bindCheckout();
+  if (name === 'onboarding') bindOnboarding();
+  if (name === 'transactions') bindTransactions();
+  if (name === 'disputes') bindDisputes();
+}
+
+// ═══════════════════════════════════════
+// VIEWS
+// ═══════════════════════════════════════
+
+// ── DASHBOARD ──────────────────────────
+function dashboard() {
+  const chartBars = [40,65,50,80,70,90,60,85,72,95,68,88].map((h, i) => {
+    const isToday = i === 11;
+    return `<div class="flex flex-col items-center gap-1">
+      <div class="bar w-6 ${isToday ? 'bg-stripe' : 'bg-mist-2'}" style="height:${h}px" title="${h*12}€"></div>
+      <span class="text-[9px] text-slate">${['Ab','Ab','Ab','Ab','Ab','Ab','Ab','Ab','Ab','Ab','Ab','Hoy'][i]}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-600 text-ink">Dashboard</h1>
+        <p class="text-sm text-slate mt-0.5">Hoy, 11 de abril de 2025 · Modo sandbox</p>
+      </div>
+      <button onclick="showView('checkout')" class="btn-primary flex items-center gap-2">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Nuevo cobro
+      </button>
+    </div>
+
+    <!-- Metrics -->
+    <div class="grid grid-cols-4 gap-4 mb-8">
+      ${[
+        { label: 'Volumen hoy', value: '€ 4.218', delta: '+12%', up: true },
+        { label: 'Transacciones', value: '38', delta: '+4', up: true },
+        { label: 'Tasa de éxito', value: '97.3%', delta: '+0.4%', up: true },
+        { label: 'Saldo disponible', value: '€ 4.130', delta: 'liquidar', up: null },
+      ].map((m, i) => `
+        <div class="card-flat p-5 fade-up delay-${i+1}">
+          <p class="text-xs text-slate uppercase tracking-wider font-500 mb-3">${m.label}</p>
+          <p class="text-2xl font-600 text-ink mb-1" style="font-variant-numeric:tabular-nums">${m.value}</p>
+          ${m.up !== null ? `<span class="text-xs font-500 ${m.up ? 'text-sage-dark' : 'text-ember'}">${m.up ? '↑' : '↓'} ${m.delta} vs ayer</span>` : `<button onclick="showView('payouts')" class="text-xs text-stripe font-500 hover:underline">Ver ${m.delta} →</button>`}
+        </div>`).join('')}
+    </div>
+
+    <div class="grid grid-cols-3 gap-6 mb-8">
+      <!-- Chart -->
+      <div class="col-span-2 card p-6 fade-up delay-3">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h3 class="font-500 text-ink text-[15px]">Volumen de cobros</h3>
+            <p class="text-xs text-slate mt-0.5">Últimos 12 días</p>
+          </div>
+          <span class="badge badge-blue">Sandbox</span>
+        </div>
+        <div class="flex items-end gap-2 h-[100px]">${chartBars}</div>
+      </div>
+
+      <!-- Balance breakdown -->
+      <div class="card p-6 fade-up delay-4">
+        <h3 class="font-500 text-ink text-[15px] mb-4">Distribución de ingresos</h3>
+        <div class="space-y-3">
+          ${[
+            { label: 'Merchants', pct: 80, color: 'bg-stripe', amount: '€3.374' },
+            { label: 'Plataforma', pct: 15, color: 'bg-sage', amount: '€633' },
+            { label: 'Afiliados', pct: 5, color: 'bg-ember', amount: '€211' },
+          ].map(r => `
+            <div>
+              <div class="flex justify-between text-xs mb-1.5">
+                <span class="text-slate">${r.label}</span>
+                <span class="font-500 text-ink">${r.amount} <span class="text-slate">(${r.pct}%)</span></span>
+              </div>
+              <div class="progress-track">
+                <div class="${r.color} progress-fill" style="width:${r.pct}%;background:none" class="${r.color}"></div>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div class="divider my-4"></div>
+        <p class="text-xs text-slate">Basado en la regla <span class="font-500 text-ink">Marketplace Estándar</span></p>
+      </div>
+    </div>
+
+    <!-- Recent transactions -->
+    <div class="card fade-up delay-5">
+      <div class="flex items-center justify-between px-6 pt-5 pb-4">
+        <h3 class="font-500 text-ink text-[15px]">Transacciones recientes</h3>
+        <button onclick="showView('transactions')" class="text-xs text-stripe font-500 hover:underline">Ver todas →</button>
+      </div>
+      <table class="w-full">
+        <thead><tr class="border-t border-mist-2">
+          ${['ID','Merchant','Método','Importe','Estado','Fecha'].map(h => `<th class="px-6 py-3 text-left text-[10px] font-500 text-slate uppercase tracking-wider">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${state.transactions.slice(0,4).map(tx => `
+            <tr class="tr-hover border-t border-mist-2 cursor-pointer" onclick="openTxModal('${tx.id}')">
+              <td class="px-6 py-3.5 font-mono text-xs text-slate">${tx.id}</td>
+              <td class="px-6 py-3.5 text-sm font-500 text-ink">${tx.merchant}</td>
+              <td class="px-6 py-3.5 text-sm text-slate">${tx.method}</td>
+              <td class="px-6 py-3.5 text-sm font-600 text-ink" style="font-variant-numeric:tabular-nums">€ ${tx.amount.toFixed(2)}</td>
+              <td class="px-6 py-3.5">${statusBadge(tx.status)}</td>
+              <td class="px-6 py-3.5 text-xs text-slate">${tx.date}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ── TRANSACTIONS ───────────────────────
+function transactions() {
+  return `<div class="fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-600 text-ink">Transacciones</h1>
+        <p class="text-sm text-slate mt-0.5">${state.transactions.length} transacciones encontradas</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="showToast('Exportando CSV...', 'success')" class="btn-secondary flex items-center gap-2">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Exportar CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card-flat p-4 mb-6 flex gap-3 flex-wrap">
+      <input class="input w-48" placeholder="Buscar por ID o merchant…" id="tx-search" oninput="filterTx()">
+      <select class="input w-40" id="tx-status" onchange="filterTx()">
+        <option value="">Todos los estados</option>
+        <option>succeeded</option>
+        <option>refunded</option>
+        <option>processing</option>
+        <option>failed</option>
+      </select>
+      <select class="input w-40">
+        <option>Últimos 7 días</option>
+        <option>Último mes</option>
+        <option>Rango personalizado</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <table class="w-full" id="tx-table">
+        <thead><tr class="border-b border-mist-2">
+          ${['ID Transacción','Merchant','Método de pago','Importe','Split neto merchant','Estado','Fecha'].map(h => `<th class="px-5 py-3 text-left text-[10px] font-500 text-slate uppercase tracking-wider">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody id="tx-body">
+          ${renderTxRows(state.transactions)}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderTxRows(txs) {
+  return txs.map(tx => `
+    <tr class="tr-hover border-t border-mist-2 cursor-pointer" onclick="openTxModal('${tx.id}')">
+      <td class="px-5 py-3.5 font-mono text-xs text-stripe">${tx.id}</td>
+      <td class="px-5 py-3.5 text-sm font-500 text-ink">${tx.merchant}</td>
+      <td class="px-5 py-3.5 text-sm text-slate">${tx.method}</td>
+      <td class="px-5 py-3.5 text-sm font-600 text-ink">€ ${tx.amount.toFixed(2)}</td>
+      <td class="px-5 py-3.5 text-sm text-sage-dark font-500">€ ${tx.split.merchant.toFixed(2)}</td>
+      <td class="px-5 py-3.5">${statusBadge(tx.status)}</td>
+      <td class="px-5 py-3.5 text-xs text-slate">${tx.date}</td>
+    </tr>`).join('');
+}
+
+function bindTransactions() {}
+
+function filterTx() {
+  const q = document.getElementById('tx-search').value.toLowerCase();
+  const s = document.getElementById('tx-status').value;
+  const filtered = state.transactions.filter(tx =>
+    (!q || tx.id.includes(q) || tx.merchant.toLowerCase().includes(q)) &&
+    (!s || tx.status === s)
+  );
+  document.getElementById('tx-body').innerHTML = renderTxRows(filtered);
+}
+
+function openTxModal(id) {
+  const tx = state.transactions.find(t => t.id === id);
+  if (!tx) return;
+  const total = tx.split.platform + tx.split.merchant + tx.split.affiliate + tx.split.stripe;
+  openModal(`
+    <div class="p-6">
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <p class="text-[10px] font-500 text-slate uppercase tracking-wider mb-1">Detalle de transacción</p>
+          <h2 class="text-xl font-600 text-ink">€ ${tx.amount.toFixed(2)}</h2>
+          <p class="font-mono text-xs text-slate mt-1">${tx.id}</p>
+        </div>
+        <div>${statusBadge(tx.status)}</div>
+      </div>
+
+      <div class="bg-mist rounded-xl p-4 mb-5 space-y-2.5">
+        ${[
+          ['Merchant', tx.merchant],
+          ['Método de pago', tx.method],
+          ['Fecha', tx.date],
+        ].map(([k,v]) => `<div class="flex justify-between text-sm"><span class="text-slate">${k}</span><span class="font-500 text-ink">${v}</span></div>`).join('')}
+      </div>
+
+      <p class="text-xs font-500 text-slate uppercase tracking-wider mb-3">Desglose del split</p>
+      <div class="space-y-2 mb-5">
+        ${[
+          ['Merchant recibe', tx.split.merchant, 'text-sage-dark', 'bg-sage'],
+          ['Comisión plataforma', tx.split.platform, 'text-stripe', 'bg-stripe'],
+          ['Comisión afiliado', tx.split.affiliate, 'text-ember', 'bg-ember'],
+          ['Fee Stripe', tx.split.stripe, 'text-slate', 'bg-slate'],
+        ].filter(r => r[1] > 0).map(([label, amt, tc, bg]) => `
+          <div class="flex items-center gap-3">
+            <div class="w-2.5 h-2.5 rounded-full ${bg}" style="opacity:0.7"></div>
+            <span class="text-sm text-slate flex-1">${label}</span>
+            <span class="text-sm font-600 ${tc}">€ ${amt.toFixed(2)}</span>
+            <span class="text-xs text-slate w-10 text-right">${(amt/tx.amount*100).toFixed(1)}%</span>
+          </div>`).join('')}
+      </div>
+
+      <!-- Visual split bar -->
+      <div class="split-preview mb-2" style="height:8px; border-radius:100px; overflow:hidden; display:flex;">
+        ${[
+          [tx.split.merchant, '#635BFF'],
+          [tx.split.platform, '#00C896'],
+          [tx.split.affiliate, '#FF6B35'],
+          [tx.split.stripe, '#9CA3AF'],
+        ].filter(r => r[0] > 0).map(([amt, color]) =>
+          `<div style="width:${(amt/tx.amount*100).toFixed(1)}%; background:${color};"></div>`
+        ).join('')}
+      </div>
+
+      ${tx.status === 'succeeded' ? `
+        <div class="divider my-5"></div>
+        <div class="flex gap-2">
+          <button onclick="openRefundModal('${tx.id}'); closeModal();" class="btn-danger flex-1">Emitir reembolso</button>
+          <button onclick="closeModal()" class="btn-secondary flex-1">Cerrar</button>
+        </div>` : `
+        <div class="divider my-5"></div>
+        <button onclick="closeModal()" class="btn-secondary w-full">Cerrar</button>`}
+    </div>
+  `);
+}
+
+function openRefundModal(txId) {
+  const tx = state.transactions.find(t => t.id === txId);
+  openModal(`
+    <div class="p-6">
+      <h2 class="text-lg font-600 text-ink mb-1">Emitir reembolso</h2>
+      <p class="text-sm text-slate mb-5">Los splits se revertirán proporcionalmente a cada beneficiario.</p>
+      <label class="field-label">Tipo de reembolso</label>
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="kyc-card selected" id="ref-full" onclick="selectRefund('full')">
+          <p class="font-500 text-sm text-ink">Total</p>
+          <p class="text-xs text-slate mt-1">€ ${tx.amount.toFixed(2)}</p>
+        </div>
+        <div class="kyc-card" id="ref-partial" onclick="selectRefund('partial')">
+          <p class="font-500 text-sm text-ink">Parcial</p>
+          <p class="text-xs text-slate mt-1">Importe personalizado</p>
+        </div>
+      </div>
+      <div id="partial-input" class="hidden mb-5">
+        <label class="field-label">Importe a reembolsar</label>
+        <div class="relative"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate text-sm">€</span><input class="input pl-7" type="number" max="${tx.amount}" placeholder="0.00"></div>
+      </div>
+      <label class="field-label">Motivo (opcional)</label>
+      <select class="input mb-5">
+        <option>Producto dañado</option><option>Error en el pedido</option><option>Solicitud del cliente</option><option>Otro</option>
+      </select>
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 text-xs text-amber-700">
+        ⚠️ El plazo estimado de devolución al cliente es de 5–10 días hábiles.
+      </div>
+      <div class="flex gap-2">
+        <button onclick="processRefund('${txId}')" class="btn-danger flex-1">Confirmar reembolso</button>
+        <button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
+      </div>
+    </div>
+  `);
+}
+
+function selectRefund(type) {
+  document.getElementById('ref-full').classList.toggle('selected', type === 'full');
+  document.getElementById('ref-partial').classList.toggle('selected', type === 'partial');
+  document.getElementById('partial-input').classList.toggle('hidden', type === 'full');
+}
+
+function processRefund(txId) {
+  closeModal();
+  const tx = state.transactions.find(t => t.id === txId);
+  if (tx) tx.status = 'refunded';
+  showToast('Reembolso procesado correctamente', 'success');
+  showView('transactions');
+}
+
+// ── PAYOUTS ────────────────────────────
+function payouts() {
+  const merchantBalance = state.merchants.find(m => m.name === 'Casa del Agua Madrid');
+  return `<div class="fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-600 text-ink">Liquidaciones</h1>
+        <p class="text-sm text-slate mt-0.5">Gestión de payouts a merchants Connect</p>
+      </div>
+    </div>
+
+    <!-- Balance cards -->
+    <div class="grid grid-cols-3 gap-4 mb-8">
+      <div class="card-flat p-5 fade-up delay-1">
+        <p class="text-xs text-slate uppercase tracking-wider font-500 mb-2">Saldo disponible</p>
+        <p class="text-2xl font-600 text-ink mb-2">€ 4.130,50</p>
+        <p class="text-xs text-sage-dark font-500">Listo para liquidar</p>
+      </div>
+      <div class="card-flat p-5 fade-up delay-2">
+        <p class="text-xs text-slate uppercase tracking-wider font-500 mb-2">En tránsito</p>
+        <p class="text-2xl font-600 text-ink mb-2">€ 890,00</p>
+        <p class="text-xs text-slate">Disponible en 2 días</p>
+      </div>
+      <div class="card-flat p-5 fade-up delay-3">
+        <p class="text-xs text-slate uppercase tracking-wider font-500 mb-2">Próximo payout auto</p>
+        <p class="text-2xl font-600 text-ink mb-2">13 Abr</p>
+        <p class="text-xs text-stripe font-500 cursor-pointer hover:underline" onclick="openPayoutConfigModal()">Cambiar frecuencia →</p>
+      </div>
+    </div>
+
+    <div class="card fade-up delay-4">
+      <div class="flex items-center justify-between px-6 pt-5 pb-4">
+        <h3 class="font-500 text-ink text-[15px]">Historial de liquidaciones</h3>
+        <button onclick="showToast('Exportando historial...', 'success')" class="btn-ghost text-xs flex items-center gap-1">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Exportar
+        </button>
+      </div>
+      <table class="w-full">
+        <thead><tr class="border-t border-mist-2">
+          ${['ID Payout','Merchant','Transacciones','Importe','Estado','Fecha estimada'].map(h => `<th class="px-6 py-3 text-left text-[10px] font-500 text-slate uppercase tracking-wider">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${state.payouts.map(po => `
+            <tr class="tr-hover border-t border-mist-2">
+              <td class="px-6 py-3.5 font-mono text-xs text-slate">${po.id}</td>
+              <td class="px-6 py-3.5 text-sm font-500 text-ink">${po.merchant}</td>
+              <td class="px-6 py-3.5 text-sm text-slate">${po.transactions} pagos</td>
+              <td class="px-6 py-3.5 text-sm font-600 text-ink">€ ${po.amount.toLocaleString('es-ES', {minimumFractionDigits:2})}</td>
+              <td class="px-6 py-3.5">${payoutBadge(po.status)}</td>
+              <td class="px-6 py-3.5 text-xs text-slate">${po.date}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function openPayoutConfigModal() {
+  openModal(`
+    <div class="p-6">
+      <h2 class="text-lg font-600 text-ink mb-1">Frecuencia de liquidación</h2>
+      <p class="text-sm text-slate mb-5">Configura cuándo quieres recibir tus fondos disponibles.</p>
+      <div class="space-y-3 mb-6">
+        ${[['Diario automático','Cada día laborable'],['Semanal','Elige el día de la semana'],['Mensual','El primer día del mes'],['Manual','Tú decides cuándo liquidar']].map(([t,d], i) => `
+          <label class="flex items-center gap-4 kyc-card ${i===0?'selected':''} cursor-pointer" onclick="document.querySelectorAll('.kyc-card').forEach(el=>el.classList.remove('selected'));this.classList.add('selected')">
+            <input type="radio" name="freq" class="accent-stripe" ${i===0?'checked':''}>
+            <div><p class="text-sm font-500 text-ink">${t}</p><p class="text-xs text-slate">${d}</p></div>
+          </label>`).join('')}
+      </div>
+      <div class="flex gap-2">
+        <button onclick="closeModal(); showToast('Frecuencia actualizada', 'success')" class="btn-primary flex-1">Guardar cambios</button>
+        <button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
+      </div>
+    </div>
+  `);
+}
+
+// ── DISPUTES ───────────────────────────
+function disputes() {
+  return `<div class="fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-600 text-ink">Disputas y chargebacks</h1>
+        <p class="text-sm text-slate mt-0.5">${state.disputes.length} disputas abiertas requieren atención</p>
+      </div>
+    </div>
+
+    <!-- Warning -->
+    <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3 fade-up delay-1">
+      <svg class="text-red-500 mt-0.5 flex-shrink-0" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>
+      <div>
+        <p class="text-sm font-600 text-red-700">2 disputas requieren respuesta urgente</p>
+        <p class="text-xs text-red-600 mt-0.5">El banco del cliente puede fallar a su favor si no se aportan evidencias antes del plazo.</p>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      ${state.disputes.map((d, i) => {
+        const daysLeft = Math.ceil((new Date(d.deadline) - new Date('2025-04-11')) / 86400000);
+        return `
+        <div class="card p-6 fade-up delay-${i+2}">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-600 text-ink text-[15px]">€ ${d.amount.toFixed(2)}</span>
+                <span class="badge badge-red">${d.status === 'needs_response' ? 'Respuesta requerida' : 'En revisión'}</span>
+              </div>
+              <p class="text-sm text-slate">${d.merchant} · ${d.reason}</p>
+              <p class="font-mono text-xs text-slate mt-1">Transacción: ${d.transaction}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-xs text-slate mb-1">Plazo de respuesta</p>
+              <p class="font-600 text-ink">${d.deadline}</p>
+              <p class="text-xs font-500 ${daysLeft <= 3 ? 'text-red-500' : 'text-amber-500'}">${daysLeft} días restantes</p>
+            </div>
+          </div>
+          <!-- Deadline progress -->
+          <div class="progress-track mb-4">
+            <div class="progress-fill" style="width:${Math.max(10, (daysLeft/14)*100)}%; background:${daysLeft <= 3 ? '#DC2626' : '#F59E0B'};"></div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="openEvidenceModal('${d.id}')" class="btn-primary flex items-center gap-2 text-sm">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              Adjuntar evidencia
+            </button>
+            <button onclick="showToast('Disputa aceptada. El importe se deducirá del saldo.', 'info')" class="btn-ghost text-sm">Aceptar disputa</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function bindDisputes() {}
+
+function openEvidenceModal(disputeId) {
+  openModal(`
+    <div class="p-6">
+      <h2 class="text-lg font-600 text-ink mb-1">Aportar evidencias</h2>
+      <p class="text-sm text-slate mb-5">Sube documentos que demuestren que el cargo fue legítimo.</p>
+      <div class="space-y-4 mb-5">
+        ${[['Descripción del producto/servicio','Explica qué se vendió y cuándo se entregó'],['Comunicación con el cliente','Capturas de emails, chats o registros de contacto'],['Prueba de entrega','Número de seguimiento, firma de recepción, etc.']].map(([t,d]) => `
+          <div>
+            <label class="field-label">${t}</label>
+            <p class="text-xs text-slate mb-2">${d}</p>
+            <div class="border-2 border-dashed border-mist-2 rounded-lg p-4 text-center cursor-pointer hover:border-stripe transition-colors" onclick="showToast('Archivo adjuntado ✓', 'success')">
+              <svg class="mx-auto mb-2 text-slate" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              <p class="text-xs text-slate">Arrastra o <span class="text-stripe font-500">selecciona archivo</span></p>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="flex gap-2">
+        <button onclick="closeModal(); showToast('Evidencias enviadas a Stripe ✓', 'success')" class="btn-primary flex-1">Enviar evidencias</button>
+        <button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
+      </div>
+    </div>
+  `);
+}
+
+// ── SPLITS ─────────────────────────────
+function splits() {
+  return `<div class="fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-600 text-ink">Reglas de Split</h1>
+        <p class="text-sm text-slate mt-0.5">Configura cómo se distribuye cada cobro entre los beneficiarios</p>
+      </div>
+      <button onclick="openNewSplitModal()" class="btn-primary flex items-center gap-2">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Nueva plantilla
+      </button>
+    </div>
+
+    <!-- Simulator -->
+    <div class="card p-6 mb-6 fade-up delay-1">
+      <h3 class="font-500 text-ink text-[15px] mb-1">Simulador de split en tiempo real</h3>
+      <p class="text-xs text-slate mb-5">Introduce un importe y ve cómo se distribuye con la regla activa.</p>
+      <div class="grid grid-cols-2 gap-8">
+        <div>
+          <label class="field-label">Importe del cobro (€)</label>
+          <input class="input mb-4 text-lg font-500" type="number" id="sim-amount" value="100" oninput="updateSimulator()" step="10" min="1">
+          <label class="field-label">Regla a simular</label>
+          <select class="input" id="sim-rule" onchange="updateSimulator()">
+            ${state.splitRules.map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
+          </select>
+        </div>
+        <div id="sim-result" class="bg-mist rounded-xl p-4">
+          <!-- filled by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Rules list -->
+    <div class="space-y-4">
+      ${state.splitRules.map((r, i) => `
+        <div class="card p-6 fade-up delay-${i+2}">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full ${r.active ? 'bg-sage' : 'bg-slate'} mt-1"></div>
+              <div>
+                <h3 class="font-600 text-ink text-[15px]">${r.name}</h3>
+                <p class="text-xs text-slate mt-0.5">${r.active ? 'Activa' : 'Desactivada'}</p>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="showToast('Plantilla duplicada', 'success')" class="btn-ghost text-xs">Duplicar</button>
+              <button onclick="openEditSplitModal(${r.id})" class="btn-secondary text-xs">Editar</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            ${[['Merchant', r.merchant + '%', 'text-stripe', 'bg-stripe'],
+               ['Plataforma', r.platform + '%', 'text-sage-dark', 'bg-sage'],
+               ['Afiliado', r.affiliate + '%', 'text-ember', 'bg-ember']
+              ].map(([l,v,tc,bg]) => `
+              <div class="bg-mist rounded-lg p-3 text-center">
+                <p class="text-xs text-slate mb-1">${l}</p>
+                <p class="text-xl font-600 ${tc}">${v}</p>
+              </div>`).join('')}
+          </div>
+          <!-- Visual bar -->
+          <div class="split-preview">
+            <div style="width:${r.merchant}%; background:#635BFF;"></div>
+            <div style="width:${r.platform}%; background:#00C896;"></div>
+            <div style="width:${r.affiliate}%; background:#FF6B35;"></div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function bindSplits() {
+  updateSimulator();
+}
+
+function updateSimulator() {
+  const amt = parseFloat(document.getElementById('sim-amount').value) || 100;
+  const ruleId = parseInt(document.getElementById('sim-rule').value);
+  const rule = state.splitRules.find(r => r.id === ruleId);
+  if (!rule) return;
+  const stripe_fee = (amt * 0.029 + 0.30).toFixed(2);
+  const net = (amt - parseFloat(stripe_fee)).toFixed(2);
+  const merchant = (net * rule.merchant / 100).toFixed(2);
+  const platform = (net * rule.platform / 100).toFixed(2);
+  const affiliate = (net * rule.affiliate / 100).toFixed(2);
+  document.getElementById('sim-result').innerHTML = `
+    <p class="text-xs font-500 text-slate uppercase tracking-wider mb-3">Distribución para € ${amt.toFixed(2)}</p>
+    <div class="space-y-2.5">
+      ${[
+        ['Bruto cobrado', `€ ${amt.toFixed(2)}`, 'font-600 text-ink'],
+        ['Fee Stripe (2.9% + 0.30€)', `- € ${stripe_fee}`, 'text-slate'],
+        ['Neto disponible', `€ ${net}`, 'font-500 text-ink border-t border-mist-2 pt-2'],
+        ['→ Merchant ('+rule.merchant+'%)', `€ ${merchant}`, 'text-stripe font-600'],
+        ['→ Plataforma ('+rule.platform+'%)', `€ ${platform}`, 'text-sage-dark font-500'],
+        ...(rule.affiliate > 0 ? [['→ Afiliado ('+rule.affiliate+'%)', `€ ${affiliate}`, 'text-ember font-500']] : []),
+      ].map(([l,v,cls]) => `<div class="flex justify-between text-sm ${cls}"><span>${l}</span><span>${v}</span></div>`).join('')}
+    </div>`;
+}
+
+function openNewSplitModal() { openEditSplitModal(null); }
+function openEditSplitModal(id) {
+  const rule = id ? state.splitRules.find(r => r.id === id) : { name: '', merchant: 80, platform: 15, affiliate: 5, active: true };
+  openModal(`
+    <div class="p-6">
+      <h2 class="text-lg font-600 text-ink mb-5">${id ? 'Editar plantilla' : 'Nueva plantilla de split'}</h2>
+      <label class="field-label">Nombre de la plantilla</label>
+      <input class="input mb-5" value="${rule.name}" placeholder="Ej: Marketplace Premium" id="rule-name">
+      <div class="space-y-5 mb-5">
+        ${[['Merchant','rule-merchant',rule.merchant,'#635BFF'],['Plataforma','rule-platform',rule.platform,'#00C896'],['Afiliado','rule-affiliate',rule.affiliate,'#FF6B35']].map(([l,rid,val,color]) => `
+          <div>
+            <div class="flex justify-between mb-2">
+              <label class="field-label mb-0">${l}</label>
+              <span class="text-sm font-600" style="color:${color}" id="${rid}-out">${val}%</span>
+            </div>
+            <input type="range" min="0" max="100" value="${val}" id="${rid}" oninput="syncRule()" style="accent-color:${color}">
+          </div>`).join('')}
+      </div>
+      <div id="rule-sum-warning" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-xs text-red-700">
+        ⚠️ La suma debe ser exactamente 100%. Ajusta los valores.
+      </div>
+      <div id="rule-sum-ok" class="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-xs text-green-700 hidden">
+        ✓ La suma es 100%. Correcto.
+      </div>
+      <div class="flex gap-2">
+        <button onclick="saveRule(${id})" class="btn-primary flex-1">Guardar</button>
+        <button onclick="closeModal()" class="btn-secondary flex-1">Cancelar</button>
+      </div>
+    </div>
+  `);
+}
+
+function syncRule() {
+  ['rule-merchant','rule-platform','rule-affiliate'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) document.getElementById(id+'-out').textContent = el.value + '%';
+  });
+  const sum = ['rule-merchant','rule-platform','rule-affiliate'].reduce((acc, id) => {
+    const el = document.getElementById(id); return acc + (el ? parseInt(el.value) : 0);
+  }, 0);
+  document.getElementById('rule-sum-warning').classList.toggle('hidden', sum === 100);
+  document.getElementById('rule-sum-ok').classList.toggle('hidden', sum !== 100);
+}
+
+function saveRule(id) {
+  closeModal();
+  showToast(id ? 'Plantilla actualizada ✓' : 'Nueva plantilla creada ✓', 'success');
+  showView('splits');
+}
+
+// ── MERCHANTS ─────────────────────────
+function merchants() {
+  return `<div class="fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-600 text-ink">Merchants Connect</h1>
+        <p class="text-sm text-slate mt-0.5">${state.merchants.length} cuentas registradas</p>
+      </div>
+      <button onclick="showView('onboarding')" class="btn-primary flex items-center gap-2">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Nuevo merchant
+      </button>
+    </div>
+
+    <div class="card fade-up delay-1">
+      <div class="px-6 py-4 border-b border-mist-2 flex gap-3">
+        <input class="input w-64" placeholder="Buscar merchant..." id="merch-search" oninput="filterMerchants()">
+        <select class="input w-40" id="merch-status" onchange="filterMerchants()">
+          <option value="">Todos</option>
+          <option>active</option>
+          <option>pending</option>
+          <option>restricted</option>
+        </select>
+      </div>
+      <table class="w-full" id="merch-table">
+        <thead><tr class="border-b border-mist-2">
+          ${['Merchant','ID Stripe','Estado','Regla de Split','Saldo','Volumen total','Acciones'].map(h => `<th class="px-6 py-3 text-left text-[10px] font-500 text-slate uppercase tracking-wider">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody id="merch-body">${renderMerchantRows(state.merchants)}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderMerchantRows(ms) {
+  return ms.map(m => `
+    <tr class="tr-hover border-t border-mist-2">
+      <td class="px-6 py-4">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-stripe-light flex items-center justify-center text-xs font-600 text-stripe">${m.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
+          <div><p class="text-sm font-500 text-ink">${m.name}</p><p class="text-xs text-slate">Desde ${m.joined}</p></div>
+        </div>
+      </td>
+      <td class="px-6 py-4 font-mono text-xs text-slate">${m.id}</td>
+      <td class="px-6 py-4">${merchantBadge(m.status)}</td>
+      <td class="px-6 py-4 text-sm text-slate">${m.rule}</td>
+      <td class="px-6 py-4 text-sm font-600 text-ink">€ ${m.balance.toFixed(2)}</td>
+      <td class="px-6 py-4 text-sm text-slate">€ ${m.volume.toLocaleString()}</td>
+      <td class="px-6 py-4">
+        <div class="flex gap-1">
+          <button onclick="openMerchantModal('${m.id}')" class="btn-ghost text-xs py-1 px-2">Ver ficha</button>
+          ${m.status === 'active' ? `<button onclick="showToast('Cuenta ${m.name} bloqueada', 'info')" class="btn-ghost text-xs py-1 px-2 text-red-500">Bloquear</button>` : `<button onclick="showToast('Cuenta ${m.name} activada', 'success')" class="btn-ghost text-xs py-1 px-2 text-sage-dark">Activar</button>`}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function filterMerchants() {
+  const q = document.getElementById('merch-search').value.toLowerCase();
+  const s = document.getElementById('merch-status').value;
+  const filtered = state.merchants.filter(m =>
+    (!q || m.name.toLowerCase().includes(q) || m.id.includes(q)) &&
+    (!s || m.status === s)
+  );
+  document.getElementById('merch-body').innerHTML = renderMerchantRows(filtered);
+}
+
+function openMerchantModal(id) {
+  const m = state.merchants.find(x => x.id === id);
+  const txs = state.transactions.filter(t => t.merchant === m.name);
+  openModal(`
+    <div class="p-6">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-12 h-12 rounded-xl bg-stripe-light flex items-center justify-center text-base font-600 text-stripe">${m.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
+        <div>
+          <h2 class="text-lg font-600 text-ink">${m.name}</h2>
+          <p class="font-mono text-xs text-slate mt-0.5">${m.id}</p>
+        </div>
+        <div class="ml-auto">${merchantBadge(m.status)}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        ${[['Saldo disponible',`€ ${m.balance.toFixed(2)}`],['Volumen total',`€ ${m.volume.toLocaleString()}`],['Regla split',m.rule],['Alta en plataforma',m.joined]].map(([k,v]) => `
+          <div class="bg-mist rounded-lg p-3"><p class="text-xs text-slate mb-1">${k}</p><p class="font-600 text-ink text-sm">${v}</p></div>`).join('')}
+      </div>
+      <p class="text-xs font-500 text-slate uppercase tracking-wider mb-3">Últimas transacciones</p>
+      ${txs.length ? txs.slice(0,3).map(tx => `
+        <div class="flex items-center justify-between py-2 border-b border-mist-2 text-sm">
+          <span class="font-mono text-xs text-slate">${tx.id}</span>
+          <span class="font-600 text-ink">€ ${tx.amount.toFixed(2)}</span>
+          <span>${statusBadge(tx.status)}</span>
+        </div>`).join('') : '<p class="text-sm text-slate">Sin transacciones aún.</p>'}
+      <div class="flex gap-2 mt-5">
+        <button onclick="closeModal(); showView('payouts')" class="btn-primary flex-1 text-sm">Ver liquidaciones</button>
+        <button onclick="closeModal()" class="btn-secondary flex-1 text-sm">Cerrar</button>
+      </div>
+    </div>
+  `);
+}
+
+// ── CHECKOUT DEMO ─────────────────────
+function checkout() {
+  return `<div class="fade-up">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-600 text-ink">Checkout Demo</h1>
+        <p class="text-sm text-slate mt-0.5">Prototipo interactivo del flujo de pago para compradores</p>
+      </div>
+      <span class="badge badge-yellow">Tarjetas de test Stripe</span>
+    </div>
+
+    <div class="grid grid-cols-2 gap-8 max-w-[800px] mx-auto">
+      <!-- Order summary -->
+      <div class="card-flat p-6 fade-up delay-1">
+        <h3 class="font-500 text-ink text-[15px] mb-4">Resumen del pedido</h3>
+        <div class="space-y-3 mb-5">
+          ${[['Kit Tratamiento Capilar Premium', 59.00],['Mascarilla Hidratante x2', 24.00],['Aceite Esencial Argán', 18.00]].map(([n,p]) => `
+            <div class="flex items-center justify-between py-2 border-b border-mist-2">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-stripe-light flex items-center justify-center text-[10px] text-stripe font-600">SdA</div>
+                <span class="text-sm text-ink">${n}</span>
+              </div>
+              <span class="text-sm font-600 text-ink">€ ${p.toFixed(2)}</span>
+            </div>`).join('')}
+        </div>
+        <div class="space-y-1.5 text-sm mb-5">
+          <div class="flex justify-between"><span class="text-slate">Subtotal</span><span>€ 101.00</span></div>
+          <div class="flex justify-between"><span class="text-slate">Envío</span><span class="text-sage-dark font-500">Gratis</span></div>
+          <div class="flex justify-between font-600 text-ink pt-2 border-t border-mist-2 mt-2"><span>Total</span><span>€ 101.00</span></div>
+        </div>
+        <!-- Split preview -->
+        <div class="bg-stripe-light rounded-xl p-4">
+          <p class="text-xs font-500 text-stripe uppercase tracking-wider mb-3">Distribución del pago</p>
+          <div class="space-y-2 text-xs">
+            ${[['Casa del Agua Madrid', '80%', '€ 78.87'],['Plataforma SplitPay', '15%', '€ 14.79'],['Afiliado', '5%', '€ 4.93']].map(([l,p,a]) => `
+              <div class="flex justify-between"><span class="text-slate">${l} <span class="text-stripe">(${p})</span></span><span class="font-500 text-ink">${a}</span></div>`).join('')}
+          </div>
+          <div class="split-preview mt-3">
+            <div style="width:80%; background:#635BFF;"></div>
+            <div style="width:15%; background:#00C896;"></div>
+            <div style="width:5%; background:#FF6B35;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment form -->
+      <div id="checkout-form-area" class="fade-up delay-2">
+        ${renderCheckoutStep(state.checkoutStep)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCheckoutStep(step) {
+  if (step === 1) return `
+    <div class="card-flat p-6">
+      <div class="flex items-center gap-2 mb-5">
+        <div class="step-dot active">1</div>
+        <div class="text-xs text-slate mx-2">────</div>
+        <div class="step-dot pending">2</div>
+        <div class="text-xs text-slate mx-2">────</div>
+        <div class="step-dot pending">✓</div>
+      </div>
+      <h3 class="font-500 text-ink text-[15px] mb-5">Datos de contacto</h3>
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="field-label">Nombre</label><input class="input" placeholder="Ana" value="Ana"></div>
+          <div><label class="field-label">Apellidos</label><input class="input" placeholder="García" value="García"></div>
+        </div>
+        <div><label class="field-label">Email</label><input class="input" type="email" placeholder="ana@email.com" value="ana@email.com"></div>
+        <div><label class="field-label">Teléfono</label><input class="input" type="tel" placeholder="+34 600 000 000" value="+34 611 234 567"></div>
+      </div>
+      <button onclick="nextCheckoutStep(2)" class="btn-primary w-full mt-6">Continuar al pago →</button>
+      <p class="text-[10px] text-slate text-center mt-3">Pago seguro con encriptación SSL</p>
+    </div>`;
+
+  if (step === 2) return `
+    <div class="card-flat p-6">
+      <div class="flex items-center gap-2 mb-5">
+        <div class="step-dot done">✓</div>
+        <div class="text-xs text-slate mx-2">────</div>
+        <div class="step-dot active">2</div>
+        <div class="text-xs text-slate mx-2">────</div>
+        <div class="step-dot pending">✓</div>
+      </div>
+      <h3 class="font-500 text-ink text-[15px] mb-5">Método de pago</h3>
+      <!-- Payment method selector -->
+      <div class="grid grid-cols-3 gap-2 mb-5">
+        ${[['💳','Tarjeta','card'],['🍎','Apple Pay','apple'],['G','Google Pay','google']].map(([ic,l,v], i) => `
+          <button onclick="selectPayMethod('${v}')" id="pm-${v}" class="kyc-card text-center py-3 ${i===0?'selected':''}">
+            <div class="text-lg mb-1">${ic}</div>
+            <div class="text-xs font-500 text-ink">${l}</div>
+          </button>`).join('')}
+      </div>
+      <div id="card-inputs">
+        <label class="field-label">Número de tarjeta</label>
+        <input class="stripe-input mb-3" placeholder="4242 4242 4242 4242" value="4242 4242 4242 4242" maxlength="19">
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div><label class="field-label">Caducidad</label><input class="stripe-input" placeholder="MM/AA" value="12/27"></div>
+          <div><label class="field-label">CVC</label><input class="stripe-input" placeholder="•••" value="424"></div>
+        </div>
+        <div class="bg-mist rounded-lg p-3 text-xs text-slate mb-4 flex items-center gap-2">
+          <svg width="12" height="12" fill="none" stroke="#6B7280" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+          Tarjeta de test: <span class="font-mono font-500 text-ink">4242 4242 4242 4242</span>
+        </div>
+      </div>
+      <div class="text-xs text-slate mb-4 flex items-start gap-2">
+        <input type="checkbox" id="policy-check" class="mt-0.5 accent-stripe">
+        <label for="policy-check">Acepto los <span class="text-stripe">términos de compra</span> y la <span class="text-stripe">política de devolución de 30 días</span> de Casa del Agua Madrid.</label>
+      </div>
+      <button onclick="processCheckoutPayment()" class="btn-primary w-full" id="pay-btn">
+        Pagar € 101,00
+      </button>
+      <button onclick="nextCheckoutStep(1)" class="btn-ghost w-full mt-2 text-sm">← Volver</button>
+    </div>`;
+
+  if (step === 3) return `
+    <div class="card-flat p-6 text-center">
+      <div class="w-16 h-16 rounded-full bg-green-50 border-2 border-sage flex items-center justify-center mx-auto mb-5">
+        <svg width="28" height="28" fill="none" stroke="#00A07A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" stroke-dasharray="50" stroke-dashoffset="0" style="animation: checkmark 0.6s ease forwards;"></polyline></svg>
+      </div>
+      <h3 class="text-xl font-600 text-ink mb-2">¡Pago completado!</h3>
+      <p class="text-sm text-slate mb-5">Hemos enviado el recibo a <span class="font-500 text-ink">ana@email.com</span></p>
+      <div class="bg-mist rounded-xl p-4 text-left mb-5 space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-slate">Referencia</span><span class="font-mono font-500 text-ink">pi_3Nx_new</span></div>
+        <div class="flex justify-between"><span class="text-slate">Importe cobrado</span><span class="font-600 text-ink">€ 101,00</span></div>
+        <div class="flex justify-between"><span class="text-slate">Método</span><span class="text-ink">Visa •••• 4242</span></div>
+        <div class="flex justify-between"><span class="text-slate">Fecha</span><span class="text-ink">11 Abr 2025 · 15:42</span></div>
+      </div>
+      <button onclick="state.checkoutStep=1; showView('checkout')" class="btn-secondary w-full mb-2">Nueva compra de prueba</button>
+      <button onclick="showView('transactions')" class="btn-ghost w-full text-sm">Ver en transacciones →</button>
+    </div>`;
+}
+
+function selectPayMethod(v) {
+  document.querySelectorAll('[id^="pm-"]').forEach(el => el.classList.remove('selected'));
+  document.getElementById('pm-'+v).classList.add('selected');
+  const ci = document.getElementById('card-inputs');
+  if (ci) ci.classList.toggle('hidden', v !== 'card');
+}
+
+function nextCheckoutStep(n) {
+  state.checkoutStep = n;
+  document.getElementById('checkout-form-area').innerHTML = renderCheckoutStep(n);
+}
+
+function processCheckoutPayment() {
+  const btn = document.getElementById('pay-btn');
+  btn.innerHTML = '<div class="spinner mx-auto"></div>';
+  btn.disabled = true;
+  setTimeout(() => {
+    state.checkoutStep = 3;
+    state.transactions.unshift({ id: 'pi_3Nx_new', amount: 101.00, merchant: 'Casa del Agua Madrid', method: 'Visa •••• 4242', status: 'succeeded', date: '2025-04-11 15:42', split: { platform: 14.79, merchant: 78.87, affiliate: 4.93, stripe: 3.24 } });
+    document.getElementById('checkout-form-area').innerHTML = renderCheckoutStep(3);
+  }, 1800);
+}
+
+function bindCheckout() {}
+
+// ── ONBOARDING ────────────────────────
+function onboarding() {
+  const step = state.onboardingStep;
+  const steps = ['Tipo de cuenta','Datos fiscales','Cuenta bancaria','Verificación','Activación'];
+  return `<div class="fade-up max-w-[640px] mx-auto">
+    <div class="mb-8">
+      <h1 class="text-2xl font-600 text-ink mb-1">Onboarding KYC</h1>
+      <p class="text-sm text-slate">Activación de cuenta Stripe Connect · Nuevo merchant</p>
+    </div>
+
+    <!-- Step indicator -->
+    <div class="flex items-center gap-0 mb-8">
+      ${steps.map((s, i) => {
+        const n = i+1;
+        const isDone = n < step;
+        const isActive = n === step;
+        return `
+          <div class="flex items-center ${i < steps.length-1 ? 'flex-1' : ''}">
+            <div class="flex flex-col items-center gap-1">
+              <div class="step-dot ${isDone ? 'done' : isActive ? 'active' : 'pending'}">${isDone ? '✓' : n}</div>
+              <span class="text-[10px] ${isActive ? 'text-stripe font-500' : 'text-slate'} whitespace-nowrap">${s}</span>
+            </div>
+            ${i < steps.length-1 ? `<div class="flex-1 h-px ${isDone ? 'bg-sage' : 'bg-mist-2'} mb-3 mx-2"></div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>
+
+    <div class="card-flat p-6 fade-up delay-1">
+      ${renderKycStep(step)}
+    </div>
+  </div>`;
+}
+
+function renderKycStep(step) {
+  if (step === 1) return `
+    <h3 class="font-600 text-ink text-[15px] mb-1">Tipo de cuenta</h3>
+    <p class="text-sm text-slate mb-5">¿Cómo opera tu negocio?</p>
+    <div class="space-y-3 mb-6">
+      ${[['Empresa (S.L., S.A.)', 'Persona jurídica con CIF', 'business'],['Autónomo / Freelance', 'Persona física con NIF', 'individual'],['Asociación sin ánimo de lucro', 'ONGs, asociaciones, fundaciones', 'nonprofit']].map(([t,d,v]) => `
+        <div class="kyc-card ${v==='business'?'selected':''}" onclick="document.querySelectorAll('.kyc-card').forEach(e=>e.classList.remove('selected'));this.classList.add('selected')">
+          <p class="font-500 text-sm text-ink">${t}</p>
+          <p class="text-xs text-slate mt-0.5">${d}</p>
+        </div>`).join('')}
+    </div>
+    <button onclick="goKycStep(2)" class="btn-primary w-full">Continuar →</button>`;
+
+  if (step === 2) return `
+    <h3 class="font-600 text-ink text-[15px] mb-1">Datos fiscales y de contacto</h3>
+    <p class="text-sm text-slate mb-5">Requeridos por Stripe para verificación KYC.</p>
+    <div class="space-y-4 mb-6">
+      <div><label class="field-label">Nombre o razón social</label><input class="input" value="Wellness Center Valencia S.L."></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="field-label">CIF / NIF</label><input class="input" value="B12345678"></div>
+        <div><label class="field-label">País</label><select class="input"><option>España</option><option>Francia</option><option>Italia</option></select></div>
+      </div>
+      <div><label class="field-label">Dirección</label><input class="input" value="Calle Gran Vía 45, Valencia"></div>
+      <div><label class="field-label">Email de contacto</label><input class="input" type="email" value="hola@wellnesscenter.es"></div>
+      <div><label class="field-label">Sitio web (opcional)</label><input class="input" placeholder="https://"></div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="goKycStep(1)" class="btn-secondary flex-1">← Atrás</button>
+      <button onclick="goKycStep(3)" class="btn-primary flex-1">Continuar →</button>
+    </div>`;
+
+  if (step === 3) return `
+    <h3 class="font-600 text-ink text-[15px] mb-1">Cuenta bancaria</h3>
+    <p class="text-sm text-slate mb-5">Aquí recibirás tus liquidaciones.</p>
+    <div class="space-y-4 mb-6">
+      <div><label class="field-label">Titular de la cuenta</label><input class="input" value="Wellness Center Valencia S.L."></div>
+      <div><label class="field-label">IBAN</label><input class="input font-mono" placeholder="ES00 0000 0000 0000 0000 0000" value="ES91 2100 0418 4502 0005 1332"></div>
+      <div><label class="field-label">Frecuencia de payout</label>
+        <select class="input">
+          <option>Diario automático</option>
+          <option>Semanal (lunes)</option>
+          <option>Mensual</option>
+          <option>Manual</option>
+        </select>
+      </div>
+    </div>
+    <div class="bg-mist rounded-lg p-3 mb-5 text-xs text-slate flex items-start gap-2">
+      <svg width="12" height="12" class="mt-0.5 flex-shrink-0" fill="none" stroke="#6B7280" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      El IBAN se validará automáticamente mediante un micro-depósito de prueba en 1–2 días hábiles.
+    </div>
+    <div class="flex gap-2">
+      <button onclick="goKycStep(2)" class="btn-secondary flex-1">← Atrás</button>
+      <button onclick="goKycStep(4)" class="btn-primary flex-1">Continuar →</button>
+    </div>`;
+
+  if (step === 4) return `
+    <h3 class="font-600 text-ink text-[15px] mb-1">Verificación de identidad</h3>
+    <p class="text-sm text-slate mb-5">Requerida por la normativa PSD2 y KYC de Stripe.</p>
+    <div class="space-y-3 mb-6">
+      ${[['DNI / NIE (anverso)', 'Sube una foto clara del frente del documento'],['DNI / NIE (reverso)', 'Foto del reverso del documento']].map(([t,d]) => `
+        <div>
+          <label class="field-label">${t}</label>
+          <div class="border-2 border-dashed border-mist-2 rounded-lg p-5 text-center cursor-pointer hover:border-stripe transition-colors" onclick="this.innerHTML='<div class=\'text-sage-dark font-500 text-sm\'>✓ Archivo adjunto</div>';showToast('Documento adjuntado ✓', 'success')">
+            <svg class="mx-auto mb-2 text-slate" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <p class="text-xs text-slate">${d}</p>
+            <p class="text-[10px] text-slate mt-1">PDF, JPG, PNG · máx 10 MB</p>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="flex gap-2">
+      <button onclick="goKycStep(3)" class="btn-secondary flex-1">← Atrás</button>
+      <button onclick="goKycStep(5)" class="btn-primary flex-1">Enviar para revisión →</button>
+    </div>`;
+
+  if (step === 5) return `
+    <div class="text-center py-4">
+      <div class="w-16 h-16 rounded-full bg-stripe-light flex items-center justify-center mx-auto mb-5">
+        <svg width="28" height="28" fill="none" stroke="#635BFF" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 class="text-xl font-600 text-ink mb-2">Solicitud enviada</h3>
+      <p class="text-sm text-slate mb-5 max-w-[320px] mx-auto">Stripe revisará tu información en un plazo de <strong>1–2 días hábiles</strong>. Te notificaremos por email cuando la cuenta esté activa.</p>
+      <div class="bg-mist rounded-xl p-4 text-left mb-6 space-y-3">
+        ${[['Estado KYC', 'En revisión', 'badge-yellow'],['Capacidad de cobros', 'Pendiente de activación', 'badge-gray'],['Capacidad de payouts', 'Pendiente de activación', 'badge-gray']].map(([l,v,b]) => `
+          <div class="flex justify-between items-center text-sm"><span class="text-slate">${l}</span><span class="badge ${b}">${v}</span></div>`).join('')}
+      </div>
+      <button onclick="state.onboardingStep=1; showView('merchants')" class="btn-primary w-full mb-2">Ver listado de merchants</button>
+      <button onclick="state.onboardingStep=1; showView('onboarding')" class="btn-ghost w-full text-sm">Nuevo onboarding de prueba</button>
+    </div>`;
+}
+
+function bindOnboarding() {}
+function goKycStep(n) {
+  state.onboardingStep = n;
+  showView('onboarding');
+}
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function statusBadge(s) {
+  const map = { succeeded: ['badge-green','Completado'], processing: ['badge-yellow','Procesando'], refunded: ['badge-gray','Reembolsado'], failed: ['badge-red','Fallido'] };
+  const [cls, label] = map[s] || ['badge-gray', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function merchantBadge(s) {
+  const map = { active: ['badge-green','Activo'], pending: ['badge-yellow','Pendiente'], restricted: ['badge-red','Restringido'], blocked: ['badge-red','Bloqueado'] };
+  const [cls, label] = map[s] || ['badge-gray', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function payoutBadge(s) {
+  const map = { paid: ['badge-green','Pagado'], in_transit: ['badge-yellow','En tránsito'], pending: ['badge-gray','Pendiente'], failed: ['badge-red','Fallido'] };
+  const [cls, label] = map[s] || ['badge-gray', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// ═══════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════
+function openModal(html) {
+  const mc = document.getElementById('modal-container');
+  mc.innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-box max-h-[90vh] overflow-y-auto">${html}</div></div>`;
+}
+
+function closeModal() {
+  const mc = document.getElementById('modal-container');
+  mc.innerHTML = '';
+}
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+let toastTimer;
+function showToast(msg, type = 'success') {
+  clearTimeout(toastTimer);
+  const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
+  const colors = { success: 'bg-ink', error: 'bg-red-700', info: 'bg-stripe', warning: 'bg-amber-600' };
+  const t = document.getElementById('toast');
+  const ti = document.getElementById('toast-inner');
+  document.getElementById('toast-icon').textContent = icons[type] || '✓';
+  document.getElementById('toast-msg').textContent = msg;
+  ti.className = `flex items-center gap-3 ${colors[type]} text-white px-4 py-3 rounded-xl shadow-xl text-sm font-500`;
+  t.classList.remove('hidden');
+  t.style.animation = 'none';
+  t.offsetHeight; // reflow
+  t.style.animation = '';
+  toastTimer = setTimeout(() => t.classList.add('hidden'), 3000);
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+showView('dashboard');
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "splitpay-platform",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Multi-tenant split payments platform built on Stripe Connect",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "@splitpay/eslint-config": "workspace:*"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

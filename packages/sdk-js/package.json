@@ -1,0 +1,17 @@
+{
+  "name": "@splitpay/sdk-js",
+  "version": "0.1.0",
+  "description": "JavaScript client SDK for SplitPay microservices",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

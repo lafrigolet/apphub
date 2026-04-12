@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+  # ── Infrastructure ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: splitpay
+      POSTGRES_PASSWORD: splitpay
+      POSTGRES_DB: splitpay
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U splitpay']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Microservices ──────────────────────────────────────────────
+  split-payments:
+    build:
+      context: ./services/split-payments
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: development
+      PAYMENTS_PORT: 3001
+      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PAYMENTS_STRIPE_SECRET_KEY: ${PAYMENTS_STRIPE_SECRET_KEY}
+      PAYMENTS_STRIPE_PUBLISHABLE_KEY: ${PAYMENTS_STRIPE_PUBLISHABLE_KEY}
+      PAYMENTS_STRIPE_WEBHOOK_SECRET: ${PAYMENTS_STRIPE_WEBHOOK_SECRET}
+      PAYMENTS_STRIPE_PLATFORM_ACCOUNT_ID: ${PAYMENTS_STRIPE_PLATFORM_ACCOUNT_ID}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+    volumes:
+      - ./services/split-payments/src:/app/src:ro
+      - ./services/split-payments/migrations:/app/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Gateway ────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - split-payments
+
+volumes:
+  postgres_data:
+  redis_data:
