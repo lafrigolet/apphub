@@ -107,6 +107,8 @@ export function calculateProportionalRefunds(
   }
 
   const ratio = refundAmount / originalAmount
+  const totalToReverse = Math.round(transfers.reduce((sum, t) => sum + t.amount, 0) * ratio)
+
   let distributed = 0
   const result = []
 
@@ -115,13 +117,12 @@ export function calculateProportionalRefunds(
     let amount: number
 
     if (i === transfers.length - 1) {
-      amount = refundAmount - distributed
+      amount = totalToReverse - distributed
     } else {
       amount = Math.round(transfer.amount * ratio)
       distributed += amount
     }
 
-    // Never refund more than the original transfer amount
     result.push({
       transferId: transfer.transferId,
       refundAmount: Math.min(amount, transfer.amount),

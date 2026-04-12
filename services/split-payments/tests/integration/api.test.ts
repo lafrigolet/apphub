@@ -80,7 +80,7 @@ function makeToken(tenantId: string, subTenantId: string | null = null): string 
 }
 
 const mockSplitRule: SplitRule = {
-  id: 'rule-uuid-1',
+  id: '550e8400-e29b-41d4-a716-446655440000',
   tenantId: 'tenant-abc',
   subTenantId: null,
   name: 'Test Rule',
@@ -92,14 +92,14 @@ const mockSplitRule: SplitRule = {
 }
 
 const mockPayment: PaymentRecord = {
-  id: 'pay-uuid-1',
+  id: '550e8400-e29b-41d4-a716-446655440001',
   tenantId: 'tenant-abc',
   subTenantId: null,
   stripePaymentIntentId: 'pi_test_123',
   amount: 10000,
   currency: 'eur',
   status: 'requires_payment_method',
-  splitRuleId: 'rule-uuid-1',
+  splitRuleId: '550e8400-e29b-41d4-a716-446655440000',
   merchantAccountId: 'acct_merchant',
   platformFee: 1500,
   metadata: {},
@@ -163,7 +163,7 @@ describe('GET /v1/split-rules', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data).toHaveLength(1)
-    expect(res.body.data[0].id).toBe('rule-uuid-1')
+    expect(res.body.data[0].id).toBe('550e8400-e29b-41d4-a716-446655440000')
   })
 })
 
@@ -213,7 +213,7 @@ describe('POST /v1/split-rules/simulate', () => {
     const res = await request(app)
       .post('/v1/split-rules/simulate')
       .set('Authorization', makeToken('tenant-abc'))
-      .send({ splitRuleId: 'rule-uuid-1', amount: 10000, currency: 'eur' })
+      .send({ splitRuleId: '550e8400-e29b-41d4-a716-446655440000', amount: 10000, currency: 'eur' })
 
     expect(res.status).toBe(200)
     expect(res.body.data.grossAmount).toBe(10000)
@@ -239,7 +239,7 @@ describe('POST /v1/payments', () => {
     const body = {
       amount: 10000,
       currency: 'eur',
-      splitRuleId: 'rule-uuid-1',
+      splitRuleId: '550e8400-e29b-41d4-a716-446655440000',
       merchantAccountId: 'acct_merchant',
       idempotencyKey: 'test-key-001',
     }
@@ -251,7 +251,7 @@ describe('POST /v1/payments', () => {
 
     expect(res.status).toBe(201)
     expect(res.body.data.clientSecret).toBe('pi_test_123_secret')
-    expect(res.body.data.paymentId).toBe('pay-uuid-1')
+    expect(res.body.data.paymentId).toBe('550e8400-e29b-41d4-a716-446655440001')
   })
 
   it('returns 422 for invalid amount', async () => {
@@ -261,7 +261,7 @@ describe('POST /v1/payments', () => {
       .send({
         amount: -100,
         currency: 'eur',
-        splitRuleId: 'rule-uuid-1',
+        splitRuleId: '550e8400-e29b-41d4-a716-446655440000',
         merchantAccountId: 'acct_merchant',
         idempotencyKey: 'key-002',
       })

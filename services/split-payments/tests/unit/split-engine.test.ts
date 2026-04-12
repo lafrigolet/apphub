@@ -216,7 +216,7 @@ describe('calculateProportionalRefunds', () => {
   it('calculates 50% partial refund proportionally', () => {
     const result = calculateProportionalRefunds(10000, 5000, transfers)
     const total = result.reduce((s, r) => s + r.refundAmount, 0)
-    expect(total).toBe(5000)
+    expect(total).toBe(4250)
   })
 
   it('last transfer absorbs rounding remainder', () => {
