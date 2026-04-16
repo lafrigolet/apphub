@@ -62,8 +62,8 @@ services:
 
   portal:
     build:
-      context: ./apps/portal
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/portal/Dockerfile
       target: development
     restart: unless-stopped
     ports:
