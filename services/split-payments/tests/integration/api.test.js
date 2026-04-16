@@ -36,7 +36,7 @@ vi.mock('../../src/lib/stripe.js', () => ({
     accounts: { create: vi.fn(), retrieve: vi.fn() },
     accountLinks: { create: vi.fn() },
     refunds: { create: vi.fn() },
-    transfers: { list: vi.fn().mockResolvedValue({ data: [] }), create: vi.fn() },
+    transfers: { list: vi.fn().mockResolvedValue({ data: [] }), create: vi.fn(), createReversal: vi.fn() },
     webhooks: { constructEvent: vi.fn() },
   },
 }))
@@ -67,6 +67,7 @@ vi.mock('../../src/repositories/connect-account.repository.js', () => ({
 import { createApp } from '../../src/app.js'
 import * as splitRuleRepo from '../../src/repositories/split-rule.repository.js'
 import * as paymentRepo from '../../src/repositories/payment.repository.js'
+import * as connectAccountRepo from '../../src/repositories/connect-account.repository.js'
 import * as db from '../../src/lib/db.js'
 import { stripe } from '../../src/lib/stripe.js'
 
@@ -283,5 +284,161 @@ describe('GET /v1/payments', () => {
     expect(res.status).toBe(200)
     expect(res.body.data.data).toHaveLength(1)
     expect(res.body.data.hasMore).toBe(false)
+  })
+})
+
+describe('GET /v1/payments/:id', () => {
+  it('returns a single payment by id', async () => {
+    const mockClient = { release: vi.fn() }
+    vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
+    vi.mocked(paymentRepo.findPaymentById).mockResolvedValue(mockPayment)
+
+    const res = await request(app.server)
+      .get(`/v1/payments/${mockPayment.id}`)
+      .set('Authorization', makeToken('tenant-abc'))
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.id).toBe(mockPayment.id)
+  })
+})
+
+describe('POST /v1/payments/:id/refunds', () => {
+  it('creates a refund and returns 201', async () => {
+    const mockClient = { release: vi.fn() }
+    vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
+    vi.mocked(paymentRepo.findPaymentById).mockResolvedValue(mockPayment)
+    vi.mocked(stripe.transfers.list).mockResolvedValue({ data: [] })
+    vi.mocked(stripe.refunds.create).mockResolvedValue({ id: 'ref_test_001' })
+
+    const res = await request(app.server)
+      .post(`/v1/payments/${mockPayment.id}/refunds`)
+      .set('Authorization', makeToken('tenant-abc'))
+      .send({ idempotencyKey: 'refund-key-001' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.data.refundId).toBe('ref_test_001')
+  })
+})
+
+// ── Connect accounts ───────────────────────────────────────────────────────────
+
+describe('POST /v1/connect-accounts', () => {
+  it('creates a connect account and returns 201 with onboarding url', async () => {
+    vi.mocked(stripe.accounts.create).mockResolvedValue({ id: 'acct_new_456' })
+    vi.mocked(db.withTenant).mockImplementation(async (_tid, _stid, fn) => fn({}))
+    vi.mocked(connectAccountRepo.insertConnectAccount).mockResolvedValue({
+      id: '550e8400-e29b-41d4-a716-446655440002',
+      tenantId: 'tenant-abc',
+      stripeAccountId: 'acct_new_456',
+      email: 'merchant@example.com',
+      status: 'pending',
+    })
+    vi.mocked(stripe.accountLinks.create).mockResolvedValue({
+      url: 'https://connect.stripe.com/setup/s/onboard_test',
+    })
+
+    const res = await request(app.server)
+      .post('/v1/connect-accounts')
+      .set('Authorization', makeToken('tenant-abc'))
+      .send({
+        email: 'merchant@example.com',
+        businessType: 'individual',
+        country: 'US',
+        returnUrl: 'https://example.com/return',
+        refreshUrl: 'https://example.com/refresh',
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.data.onboardingUrl).toBe('https://connect.stripe.com/setup/s/onboard_test')
+  })
+})
+
+describe('GET /v1/connect-accounts', () => {
+  it('returns list of connect accounts', async () => {
+    const mockClient = { release: vi.fn() }
+    vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
+    vi.mocked(connectAccountRepo.listConnectAccounts).mockResolvedValue([{
+      id: '550e8400-e29b-41d4-a716-446655440002',
+      tenantId: 'tenant-abc',
+      stripeAccountId: 'acct_test_456',
+      email: 'merchant@example.com',
+      status: 'active',
+    }])
+
+    const res = await request(app.server)
+      .get('/v1/connect-accounts')
+      .set('Authorization', makeToken('tenant-abc'))
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toHaveLength(1)
+  })
+})
+
+describe('POST /v1/connect-accounts/:id/onboarding-link', () => {
+  it('returns a refreshed onboarding url', async () => {
+    const mockClient = { release: vi.fn() }
+    vi.mocked(db.pool.connect).mockResolvedValue(mockClient)
+    vi.mocked(connectAccountRepo.findConnectAccountById).mockResolvedValue({
+      id: '550e8400-e29b-41d4-a716-446655440002',
+      tenantId: 'tenant-abc',
+      stripeAccountId: 'acct_test_456',
+    })
+    vi.mocked(stripe.accountLinks.create).mockResolvedValue({
+      url: 'https://connect.stripe.com/setup/s/refresh_test',
+    })
+
+    const res = await request(app.server)
+      .post('/v1/connect-accounts/550e8400-e29b-41d4-a716-446655440002/onboarding-link')
+      .set('Authorization', makeToken('tenant-abc'))
+      .send({
+        returnUrl: 'https://example.com/return',
+        refreshUrl: 'https://example.com/refresh',
+      })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.onboardingUrl).toBe('https://connect.stripe.com/setup/s/refresh_test')
+  })
+})
+
+// ── Webhook routes ─────────────────────────────────────────────────────────────
+
+describe('POST /v1/webhooks/stripe', () => {
+  it('returns 400 when Stripe-Signature header is missing', async () => {
+    const res = await request(app.server)
+      .post('/v1/webhooks/stripe')
+      .send({ id: 'evt_test' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('MISSING_SIGNATURE')
+  })
+
+  it('returns 400 when signature verification fails', async () => {
+    vi.mocked(stripe.webhooks.constructEvent).mockImplementation(() => {
+      throw new Error('No signatures found matching the expected signature for payload')
+    })
+
+    const res = await request(app.server)
+      .post('/v1/webhooks/stripe')
+      .set('stripe-signature', 'bad_sig')
+      .send({ id: 'evt_test' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('INVALID_SIGNATURE')
+  })
+
+  it('returns 200 and acknowledges valid webhook immediately', async () => {
+    vi.mocked(stripe.webhooks.constructEvent).mockReturnValue({
+      id: 'evt_valid_001',
+      type: 'customer.created',
+      data: { object: { id: 'cus_test' } },
+    })
+
+    const res = await request(app.server)
+      .post('/v1/webhooks/stripe')
+      .set('stripe-signature', 'valid_sig')
+      .send({ id: 'evt_valid_001' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.received).toBe(true)
   })
 })

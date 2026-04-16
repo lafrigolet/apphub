@@ -30,11 +30,12 @@ vi.mock('../../src/services/connect-account.service.js', () => ({
   syncAccountFromStripe: vi.fn(),
 }))
 
-import { handleWebhookEvent } from '../../src/services/webhook.service.js'
+import { handleWebhookEvent, constructWebhookEvent } from '../../src/services/webhook.service.js'
 import * as paymentRepo from '../../src/repositories/payment.repository.js'
 import * as accountService from '../../src/services/connect-account.service.js'
 import * as paymentService from '../../src/services/payment.service.js'
 import * as db from '../../src/lib/db.js'
+import { stripe } from '../../src/lib/stripe.js'
 
 const mockClient = { query: vi.fn(), release: vi.fn() }
 
@@ -156,11 +157,60 @@ describe('handleWebhookEvent', () => {
     })
   })
 
+  describe('charge.dispute.closed', () => {
+    it('updates dispute status in DB', async () => {
+      await handleWebhookEvent(
+        makeEvent('charge.dispute.closed', { id: 'dp_test_2', status: 'lost' }),
+      )
+
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE payments.disputes'),
+        ['lost', 'dp_test_2'],
+      )
+    })
+  })
+
+  describe('account.updated error path', () => {
+    it('does not throw when syncAccountFromStripe rejects', async () => {
+      vi.mocked(accountService.syncAccountFromStripe).mockRejectedValue(new Error('Stripe unreachable'))
+
+      await expect(
+        handleWebhookEvent(makeEvent('account.updated', { id: 'acct_error' })),
+      ).resolves.not.toThrow()
+    })
+  })
+
   describe('unhandled event types', () => {
     it('does not throw for unknown event types', async () => {
       await expect(
         handleWebhookEvent(makeEvent('customer.created', { id: 'cus_test' })),
       ).resolves.not.toThrow()
     })
+  })
+})
+
+// ── constructWebhookEvent ─────────────────────────────────────────────────────
+
+describe('constructWebhookEvent', () => {
+  it('delegates to stripe.webhooks.constructEvent', () => {
+    const fakeEvent = { id: 'evt_test', type: 'payment_intent.succeeded', data: {} }
+    vi.mocked(stripe.webhooks.constructEvent).mockReturnValue(fakeEvent)
+
+    const result = constructWebhookEvent(Buffer.from('{"id":"evt_test"}'), 't=123,v1=abc')
+
+    expect(stripe.webhooks.constructEvent).toHaveBeenCalledWith(
+      Buffer.from('{"id":"evt_test"}'),
+      't=123,v1=abc',
+      expect.any(String),
+    )
+    expect(result).toBe(fakeEvent)
+  })
+
+  it('propagates errors thrown by stripe.webhooks.constructEvent', () => {
+    vi.mocked(stripe.webhooks.constructEvent).mockImplementation(() => {
+      throw new Error('Invalid signature')
+    })
+
+    expect(() => constructWebhookEvent(Buffer.from('payload'), 'bad_sig')).toThrow('Invalid signature')
   })
 })
