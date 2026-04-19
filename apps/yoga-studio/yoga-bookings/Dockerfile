@@ -1,0 +1,28 @@
+# ── Base ──────────────────────────────────────────────────────
+FROM node:20-alpine AS base
+RUN npm install -g pnpm@9
+WORKDIR /app
+
+# ── Development ───────────────────────────────────────────────
+FROM base AS development
+ENV NODE_ENV=development
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install
+COPY . .
+CMD ["pnpm", "dev"]
+
+# ── Production ────────────────────────────────────────────────
+FROM base AS production
+ENV NODE_ENV=production
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile --prod
+COPY . .
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+EXPOSE 3013
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3013/health || exit 1
+
+CMD ["node", "src/server.js"]

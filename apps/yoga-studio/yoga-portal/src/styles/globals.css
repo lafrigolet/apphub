@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+@layer base {
+  body {
+    font-family: 'DM Sans', sans-serif;
+    @apply bg-sand-50 text-sage-900;
+  }
+}
+
+/* Hero gradient */
+.hero-bg {
+  background: linear-gradient(135deg, #122418 0%, #1e3d28 40%, #2e5d3b 70%, #3a7a20 100%);
+  position: relative;
+  overflow: hidden;
+}
+.hero-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 70% 40%, rgba(139,203,110,0.12) 0%, transparent 70%);
+}
+
+/* Modal animation */
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-enter { animation: modalIn 0.22s ease; }
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.3s ease forwards; }
+
+/* Progress bar */
+.prog-bar { height: 4px; @apply bg-sage-100 rounded-full overflow-hidden; }
+.prog-fill { height: 100%; @apply bg-sage-600 rounded-full transition-all duration-500; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-sage-200 rounded-full; }
+
+/* Sidebar */
+.sidebar-item { @apply flex items-center gap-3 px-3 py-2 text-sage-200 transition-all duration-150 cursor-pointer rounded-lg no-underline; }
+.sidebar-item:hover { background: rgba(255,255,255,0.07); color: white; }
+.sidebar-item.active { background: rgba(255,255,255,0.13); @apply text-white; }
+
+/* Table row hover */
+.trow { @apply transition-colors; }
+.trow:hover { @apply bg-sage-50; }

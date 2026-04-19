@@ -1,4 +1,5 @@
 packages:
   - 'apps/*'
+  - 'apps/yoga-studio/*'
   - 'services/*'
   - 'packages/*'
