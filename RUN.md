@@ -1,526 +1,336 @@
-# RUN.md — Cómo ejecutar la plataforma
+# RUN.md — How to run the AppHub platform
 
-## Índice
+## Index
 
-1. [Requisitos](#1-requisitos)
-2. [Primera vez](#2-primera-vez)
-3. [Variables de entorno](#3-variables-de-entorno)
-4. [Arrancar sin claves de Stripe](#4-arrancar-sin-claves-de-stripe)
-5. [Arrancar con Stripe en modo test](#5-arrancar-con-stripe-en-modo-test)
-6. [Modos de ejecución](#6-modos-de-ejecución)
-7. [Verificar que funciona](#7-verificar-que-funciona)
-8. [Ejecutar los tests](#8-ejecutar-los-tests)
-9. [Comandos frecuentes](#9-comandos-frecuentes)
-10. [Resolución de problemas](#10-resolución-de-problemas)
+1. [Requirements](#1-requirements)
+2. [First-time setup](#2-first-time-setup)
+3. [Environment variables](#3-environment-variables)
+4. [Run without Stripe keys](#4-run-without-stripe-keys)
+5. [Run with Stripe in test mode](#5-run-with-stripe-in-test-mode)
+6. [Execution modes](#6-execution-modes)
+7. [Verify everything works](#7-verify-everything-works)
+8. [Run tests](#8-run-tests)
+9. [Common commands](#9-common-commands)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
-## 1. Requisitos
+## 1. Requirements
 
-| Herramienta | Versión mínima | Cómo instalar |
+| Tool | Min version | Install |
 |---|---|---|
-| Node.js | 20 LTS | https://nodejs.org o `nvm install 20` |
+| Node.js | 20 LTS | https://nodejs.org or `nvm install 20` |
 | Docker | 24+ | https://docs.docker.com/get-docker/ |
-| Docker Compose | v2 (incluido con Docker Desktop) | — |
+| Docker Compose | v2 (included with Docker Desktop) | — |
 | pnpm | 9+ | `npm install -g pnpm@9` |
 
-> **¿Qué es pnpm?** Es un gestor de paquetes para Node.js, igual que `npm`.
-> Se usa aquí porque gestiona mejor los monorepos con múltiples paquetes.
-> Si lo prefieres, puedes usar `npm` — ver sección [Usar npm en lugar de pnpm](#usar-npm-en-lugar-de-pnpm).
-
-Verifica que tienes todo antes de continuar:
+Verify before continuing:
 
 ```bash
-node --version    # debe mostrar v20.x.x o superior
-docker --version  # debe mostrar Docker version 24.x.x o superior
-pnpm --version    # debe mostrar 9.x.x o superior
+node --version    # v20.x.x or higher
+docker --version  # Docker version 24.x.x or higher
+pnpm --version    # 9.x.x or higher
 ```
 
 ---
 
-## 2. Primera vez
+## 2. First-time setup
 
 ```bash
-# 1. Descomprime el proyecto
-unzip splitpay-platform.zip
-cd splitpay-platform
-
-# 2. Instala las dependencias de todos los paquetes
+# 1. Clone and install dependencies
+git clone https://github.com/your-org/apphub.git
+cd apphub
 pnpm install
 
-# 3. Crea el fichero de variables de entorno
+# 2. Create the environment file
 cp .env.example .env
+
+# 3. Add local DNS aliases (required for subdomain routing)
+echo "127.0.0.1  apphub.local"           | sudo tee -a /etc/hosts
+echo "127.0.0.1  yoga.apphub.local"      | sudo tee -a /etc/hosts
+echo "127.0.0.1  splitpay.apphub.local"  | sudo tee -a /etc/hosts
 ```
 
-Ahora edita `.env` con tus valores. Continúa en la sección siguiente.
+Now edit `.env` with your values. Continue to the next section.
 
 ---
 
-## 3. Variables de entorno
+## 3. Environment variables
 
-El fichero `.env` en la raíz del proyecto contiene toda la configuración.
-**Nunca lo subas a Git** — ya está incluido en `.gitignore`.
+The `.env` file at the root of the project contains all configuration.
+**Never commit it to Git** — it is already in `.gitignore`.
 
-### Variables obligatorias
+### Required variables
 
 ```bash
-# Base de datos — los valores por defecto funcionan con docker-compose.yml
-DATABASE_URL=postgresql://splitpay:splitpay@localhost:5432/splitpay
+# Database — defaults work with docker-compose.yml
+DATABASE_URL=postgresql://apphub:apphub@localhost:5432/apphub
 
-# Redis — el valor por defecto funciona con docker-compose.yml
+# Redis — default works with docker-compose.yml
 REDIS_URL=redis://localhost:6379
 
-# Secreto para firmar JWT — pon cualquier cadena larga y aleatoria
-JWT_SECRET=cambia_esto_por_una_cadena_larga_y_aleatoria_minimo_32_caracteres
+# Platform JWT secret — shared across all services (min 32 chars)
+PLATFORM_JWT_SECRET=change_me_at_least_32_characters_long
 
-# Entorno
 NODE_ENV=development
 LOG_LEVEL=debug
 ```
 
-### Variables de Stripe
+### Stripe variables
 
 ```bash
-PAYMENTS_STRIPE_SECRET_KEY=sk_test_...
-PAYMENTS_STRIPE_PUBLISHABLE_KEY=pk_test_...
-PAYMENTS_STRIPE_WEBHOOK_SECRET=whsec_...
+PLATFORM_STRIPE_SECRET_KEY=sk_test_...
+PLATFORM_STRIPE_WEBHOOK_SECRET=whsec_...
+SPLITPAY_STRIPE_SECRET_KEY=sk_test_...
+SPLITPAY_STRIPE_WEBHOOK_SECRET=whsec_...
 ```
-
-> Ver sección [4](#4-arrancar-sin-claves-de-stripe) si no tienes claves de Stripe todavía,
-> o sección [5](#5-arrancar-con-stripe-en-modo-test) para obtenerlas gratuitamente.
 
 ---
 
-## 4. Arrancar sin claves de Stripe
+## 4. Run without Stripe keys
 
-Puedes arrancar la plataforma completamente sin tener cuenta en Stripe.
-Solo necesitas que las claves tengan el formato correcto para pasar la validación de arranque.
-
-Edita `.env` con estos placeholders:
+You can start the platform without a Stripe account. Use these placeholders in `.env`:
 
 ```bash
-PAYMENTS_STRIPE_SECRET_KEY=<your-stripe-test-secret-key>
-PAYMENTS_STRIPE_PUBLISHABLE_KEY=pk_test_placeholder0000000000000000000
-PAYMENTS_STRIPE_WEBHOOK_SECRET=<your-stripe-webhook-secret>
-JWT_SECRET=desarrollo_local_pon_aqui_cualquier_cadena_de_32_chars
-DATABASE_URL=postgresql://splitpay:splitpay@localhost:5432/splitpay
+PLATFORM_STRIPE_SECRET_KEY=<your-stripe-test-secret-key>
+PLATFORM_STRIPE_WEBHOOK_SECRET=<your-stripe-webhook-secret>
+SPLITPAY_STRIPE_SECRET_KEY=<your-stripe-test-secret-key>
+SPLITPAY_STRIPE_WEBHOOK_SECRET=<your-stripe-webhook-secret>
+PLATFORM_JWT_SECRET=development_local_change_this_to_32chars
+DATABASE_URL=postgresql://apphub:apphub@localhost:5432/apphub
 REDIS_URL=redis://localhost:6379
 NODE_ENV=development
 LOG_LEVEL=debug
 ```
 
-### Qué funciona sin Stripe
-
-| Endpoint | ¿Funciona? |
-|---|---|
-| `GET /health` | ✅ Sí |
-| `GET /v1/split-rules` | ✅ Sí |
-| `POST /v1/split-rules` | ✅ Sí |
-| `DELETE /v1/split-rules/:id` | ✅ Sí |
-| `POST /v1/split-rules/simulate` | ✅ Sí — lógica pura, no usa Stripe |
-| `GET /v1/payments` | ✅ Sí |
-| `GET /v1/payments/:id` | ✅ Sí |
-| `POST /v1/payments` | ❌ Falla al crear PaymentIntent en Stripe |
-| `POST /v1/payments/:id/refunds` | ❌ Falla al emitir reembolso en Stripe |
-| `POST /v1/connect-accounts` | ❌ Falla al crear cuenta Connect en Stripe |
-| `POST /v1/webhooks/stripe` | ❌ Rechaza eventos (firma inválida) |
-
-Arranca con:
-
-```bash
-docker compose up -d postgres redis
-pnpm --filter @splitpay/split-payments db:migrate
-pnpm --filter @splitpay/split-payments dev
-```
+Endpoints that call Stripe (payment creation, webhooks) will fail, but all other
+endpoints (auth, classes, bookings, bonuses, reporting, split rules) work normally.
 
 ---
 
-## 5. Arrancar con Stripe en modo test
+## 5. Run with Stripe in test mode
 
-### Obtener las claves (gratuito, sin datos bancarios)
+1. Create a free account at https://stripe.com
+2. Go to https://dashboard.stripe.com/test/apikeys
+3. Copy the **Secret key** (`sk_test_…`) into `.env`
 
-1. Crea una cuenta gratuita en https://stripe.com
-2. Ve a https://dashboard.stripe.com/test/apikeys
-3. Copia la **Secret key** (`sk_test_...`) y la **Publishable key** (`pk_test_...`)
-4. Pégalas en `.env`
-
-### Configurar webhooks locales con la Stripe CLI
-
-Para que Stripe pueda notificar a tu máquina local cuando ocurre un pago,
-necesitas la Stripe CLI que crea un túnel temporal:
+For local webhooks, use the Stripe CLI:
 
 ```bash
-# Instala la Stripe CLI
-# macOS:
-brew install stripe/stripe-cli/stripe
-
-# Windows (con scoop):
-scoop install stripe
-
-# Linux / manual: https://stripe.com/docs/stripe-cli#install
-
-# Autentícate
+# Install the Stripe CLI — https://stripe.com/docs/stripe-cli
 stripe login
 
-# Abre una terminal separada y déjala corriendo
-stripe listen --forward-to localhost:3001/v1/webhooks/stripe
+# Keep this running in a separate terminal
+stripe listen --forward-to yoga.apphub.local:8080/api/payments/webhooks/stripe
+# Copy the printed whsec_… and set it as PLATFORM_STRIPE_WEBHOOK_SECRET
 ```
-
-La Stripe CLI imprimirá algo así:
-
-```
-> Ready! Your webhook signing secret is whsec_abc123def456...
-```
-
-Copia ese valor y ponlo en `.env`:
-
-```bash
-PAYMENTS_STRIPE_WEBHOOK_SECRET=whsec_abc123def456...
-```
-
-> La Stripe CLI debe estar corriendo en su propia terminal mientras desarrollas.
-> Si la cierras, los webhooks dejarán de llegar aunque el servicio siga activo.
 
 ---
 
-## 6. Modos de ejecución
+## 6. Execution modes
 
-### Opción A — Solo el servicio (recomendado para desarrollo)
+### Option A — Full stack via Docker Compose (recommended)
 
-Infraestructura (PostgreSQL + Redis) gestionada por Docker,
-servicio corriendo directamente en tu máquina con recarga automática al guardar:
-
-```bash
-# Terminal 1 — infraestructura
-docker compose up -d postgres redis
-
-# Ejecuta las migraciones (solo la primera vez o tras añadir migraciones)
-pnpm --filter @splitpay/split-payments db:migrate
-
-# Terminal 2 — servicio con hot reload
-pnpm --filter @splitpay/split-payments dev
-
-# Terminal 3 — webhooks de Stripe (opcional, solo si tienes claves)
-stripe listen --forward-to localhost:3001/v1/webhooks/stripe
-```
-
-### Opción B — Todo con Docker Compose
-
-Todo corre dentro de Docker, incluyendo el servicio:
+Everything — infra, platform services, app services, frontends — runs inside Docker.
 
 ```bash
-# Construye las imágenes y arranca todo
 docker compose up -d
 
-# Ejecuta las migraciones dentro del contenedor
-docker compose exec split-payments pnpm db:migrate
-
-# Sigue los logs
-docker compose logs -f split-payments
+# Follow logs
+docker compose logs -f platform-auth
+docker compose logs -f yoga-classes
 ```
 
-> En este modo no hay hot reload. Cada cambio en el código requiere
-> reconstruir la imagen: `docker compose up -d --build split-payments`
+### Option B — Infrastructure in Docker, service on host (hot reload)
 
-### Opción C — Solo las migraciones y los tests (sin arrancar el servicio)
+```bash
+# Terminal 1 — infrastructure only
+docker compose up -d postgres redis nginx
+
+# Terminal 2 — run a specific service with watch mode
+pnpm --filter @yoga-studio/yoga-classes dev
+```
+
+### Option C — Tests only (no service needed)
 
 ```bash
 docker compose up -d postgres redis
-pnpm --filter @splitpay/split-payments db:migrate
-pnpm --filter @splitpay/split-payments test
-```
-
-### Usar npm en lugar de pnpm
-
-Si prefieres no instalar pnpm, puedes usar npm directamente dentro del servicio:
-
-```bash
-docker compose up -d postgres redis
-
-cd services/split-payments
-npm install
-npm run db:migrate
-npm run dev
+pnpm --filter "@yoga-studio/*" test
 ```
 
 ---
 
-## 7. Verificar que funciona
+## 7. Verify everything works
 
-Una vez arrancado el servicio, prueba estos endpoints:
-
-### Health check (sin autenticación)
+### Health check (no auth required)
 
 ```bash
-curl http://localhost:3001/health
+curl http://apphub.local:8080/health
+# → {"status":"ok"}
+
+curl http://yoga.apphub.local:8080/api/auth/health
+# → {"status":"ok","service":"platform-auth"}
 ```
 
-Respuesta esperada:
-
-```json
-{
-  "status": "ok",
-  "service": "split-payments",
-  "timestamp": "2025-04-12T10:00:00.000Z"
-}
-```
-
-### A través del gateway Nginx (si está arrancado)
+### Register a yoga user
 
 ```bash
-curl http://localhost:8080/health
-```
-
-### Crear una regla de split (requiere token JWT)
-
-Para los endpoints protegidos necesitas un JWT con `tenant_id` en el payload.
-En desarrollo puedes generar uno manualmente con esta línea de Node:
-
-```bash
-node -e "
-const p = Buffer.from(JSON.stringify({
-  tenant_id: 'tenant-test-001',
-  sub_tenant_id: null,
-  exp: 9999999999
-})).toString('base64url');
-console.log('Bearer header.' + p + '.sig');
-"
-```
-
-Copia el resultado y úsalo como cabecera `Authorization`:
-
-```bash
-curl -X POST http://localhost:3001/v1/split-rules \
+curl -X POST http://yoga.apphub.local:8080/api/auth/register \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer header.eyJ0ZW5hbnRfaWQi..." \
   -d '{
-    "name": "Marketplace estándar",
-    "platformFeePercent": 15,
-    "recipients": [
-      { "accountId": "acct_test_merchant", "label": "Comercio", "percentage": 85 }
-    ]
+    "app_id": "yoga-studio",
+    "email": "test@yoga.es",
+    "password": "Secur3P@ss!",
+    "name": "Test User"
   }'
+# Response includes a JWT with app_id: "yoga-studio"
 ```
 
-### Simulador de split (no llama a Stripe)
+### Verify cross-app token rejection
+
+Use the yoga JWT obtained above against a split-pay endpoint:
 
 ```bash
-curl -X POST http://localhost:3001/v1/split-rules/simulate \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer header.eyJ0ZW5hbnRfaWQi..." \
-  -d '{
-    "splitRuleId": "<id-de-la-regla-creada>",
-    "amount": 10000,
-    "currency": "eur"
-  }'
-```
-
-Respuesta esperada (muestra cómo se distribuiría un pago de 100€):
-
-```json
-{
-  "data": {
-    "grossAmount": 10000,
-    "currency": "eur",
-    "stripeFee": 320,
-    "netAmount": 9680,
-    "platformFee": 1452,
-    "recipients": [
-      {
-        "label": "Comercio",
-        "accountId": "acct_test_merchant",
-        "percentage": 85,
-        "amount": 8228
-      }
-    ]
-  }
-}
-```
-
-### Prototipo de frontend
-
-Abre directamente en el navegador (no requiere que el servicio esté corriendo):
-
-```
-services/split-payments/docs/splitpay-prototype.html
+curl http://splitpay.apphub.local:8080/api/app/merchants \
+  -H "Authorization: Bearer <yoga-jwt>"
+# → 403 APP_MISMATCH
 ```
 
 ---
 
-## 8. Ejecutar los tests
+## 8. Run tests
 
-Los tests no necesitan Stripe ni Redis activos — todas las dependencias externas
-están mockeadas.
-
-```bash
-# Todos los tests
-pnpm --filter @splitpay/split-payments test
-
-# Con informe de cobertura (genera un HTML en services/split-payments/coverage/)
-pnpm --filter @splitpay/split-payments test:coverage
-
-# Modo watch — re-ejecuta al guardar cambios
-pnpm --filter @splitpay/split-payments test:watch
-
-# Solo los tests unitarios
-pnpm --filter @splitpay/split-payments test tests/unit
-
-# Solo los tests de integración de la API
-pnpm --filter @splitpay/split-payments test tests/integration
-```
-
-Ver el informe de cobertura en el navegador:
+Tests mock all external dependencies (DB, Redis, Stripe). No running services needed
+beyond PostgreSQL and Redis.
 
 ```bash
-open services/split-payments/coverage/index.html   # macOS
-xdg-open services/split-payments/coverage/index.html  # Linux
+# All yoga-studio service tests
+pnpm --filter "@yoga-studio/*" test
+
+# All split-pay tests
+pnpm --filter "@split-pay/*" test
+
+# Specific service
+pnpm --filter @yoga-studio/yoga-classes test
+
+# Watch mode
+pnpm --filter @yoga-studio/yoga-classes test -- --watch
+
+# Full monorepo
+pnpm test
 ```
 
 ---
 
-## 9. Comandos frecuentes
+## 9. Common commands
 
-### Gestión del servicio
+### Service management
 
 ```bash
-# Arrancar solo la infraestructura
-docker compose up -d postgres redis
-
-# Arrancar todo (infra + servicio)
+# Start everything
 docker compose up -d
 
-# Parar todo
+# Stop everything
 docker compose down
 
-# Parar todo y borrar los datos de la BD (reset completo)
+# Stop and wipe the database (full reset)
 docker compose down -v
 
-# Ver logs en tiempo real
-docker compose logs -f split-payments
+# View logs
+docker compose logs -f yoga-classes
 
-# Reiniciar solo el servicio
-docker compose restart split-payments
+# Restart one service
+docker compose restart yoga-classes
 
-# Reconstruir la imagen tras cambios en Dockerfile
-docker compose up -d --build split-payments
+# Rebuild after Dockerfile change
+docker compose up -d --build yoga-classes
 ```
 
-### Base de datos
+### Database
 
 ```bash
-# Ejecutar migraciones pendientes
-pnpm --filter @splitpay/split-payments db:migrate
+# Connect to PostgreSQL
+docker compose exec postgres psql -U apphub -d apphub
 
-# Conectar a PostgreSQL directamente
-docker compose exec postgres psql -U splitpay -d splitpay
+# List tables in a schema
+docker compose exec postgres psql -U apphub -d apphub -c "\dt yoga_classes.*"
 
-# Ver las tablas del schema de pagos
-docker compose exec postgres psql -U splitpay -d splitpay \
-  -c "\dt payments.*"
-
-# Ver las migraciones aplicadas
-docker compose exec postgres psql -U splitpay -d splitpay \
-  -c "SELECT * FROM payments.migrations ORDER BY applied_at;"
+# View applied migrations
+docker compose exec postgres psql -U apphub -d apphub \
+  -c "SELECT * FROM yoga_classes.migrations ORDER BY applied_at;"
 ```
 
 ### Monorepo
 
 ```bash
-# Instalar dependencias de todos los paquetes
+# Install all package dependencies
 pnpm install
 
-# Comprobar tipos TypeScript en todo el monorepo
-pnpm typecheck
-
-# Linting en todo el monorepo
+# Lint everything
 pnpm lint
 
-# Tests en todo el monorepo
+# Test everything
 pnpm test
 
-# Limpiar builds y node_modules
+# Clean builds and node_modules
 pnpm clean
 ```
 
 ---
 
-## 10. Resolución de problemas
+## 10. Troubleshooting
 
-### El servicio no arranca: "Invalid environment variables"
+### Subdomain returns 404 or wrong response
 
-El fichero `.env` tiene claves con formato incorrecto o faltan variables.
-Asegúrate de que:
-- `PAYMENTS_STRIPE_SECRET_KEY` empieza por `sk_test_` o `sk_live_`
-- `PAYMENTS_STRIPE_PUBLISHABLE_KEY` empieza por `pk_test_` o `pk_live_`
-- `PAYMENTS_STRIPE_WEBHOOK_SECRET` empieza por `whsec_`
-- `JWT_SECRET` tiene al menos 32 caracteres
+Check that `/etc/hosts` has the aliases and that NGINX is running:
 
-Si no tienes claves de Stripe, usa los placeholders de la [sección 4](#4-arrancar-sin-claves-de-stripe).
+```bash
+docker compose ps nginx
+```
 
-### Error: "connection refused" al arrancar
+### Service won't start: "Invalid environment variables"
 
-PostgreSQL o Redis no están listos todavía. Espera unos segundos y verifica:
+The `.env` file has missing or malformed values. Common checks:
+- `PLATFORM_STRIPE_SECRET_KEY` starts with `sk_test_` or `sk_live_`
+- `PLATFORM_STRIPE_WEBHOOK_SECRET` starts with `whsec_`
+- `PLATFORM_JWT_SECRET` is at least 32 characters
+
+### Error: "connection refused"
+
+PostgreSQL or Redis is not ready yet. Check:
 
 ```bash
 docker compose ps
-# Ambos deben mostrar "healthy"
-```
-
-Si no muestran `healthy` después de 30 segundos:
-
-```bash
+# Both should show "healthy"
 docker compose logs postgres
-docker compose logs redis
 ```
 
 ### Error: "relation does not exist"
 
-Las migraciones no se han ejecutado. Córrelas:
+Migrations have not run. They run automatically on service startup — check service logs:
 
 ```bash
-pnpm --filter @splitpay/split-payments db:migrate
+docker compose logs platform-auth
 ```
 
-### Puerto 3001 ya en uso
+### 403 APP_MISMATCH
+
+The JWT was issued for a different `app_id` than the service expects. Verify:
+- The login request included the correct `app_id` in the body
+- The service has `EXPECTED_APP_ID` set correctly in docker-compose.yml
+
+### Port already in use
 
 ```bash
 # macOS / Linux
-lsof -ti:3001 | xargs kill
+lsof -ti:3012 | xargs kill
 
 # Windows (PowerShell)
-Get-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess | Stop-Process
+Get-Process -Id (Get-NetTCPConnection -LocalPort 3012).OwningProcess | Stop-Process
 ```
 
-### Webhooks con error 400 "INVALID_SIGNATURE"
-
-El valor de `PAYMENTS_STRIPE_WEBHOOK_SECRET` en `.env` no coincide con
-el que imprimió `stripe listen`. Pasos:
-
-1. Para el proceso `stripe listen` con `Ctrl+C`
-2. Vuelve a ejecutarlo: `stripe listen --forward-to localhost:3001/v1/webhooks/stripe`
-3. Copia el nuevo `whsec_...` que imprime
-4. Actualiza `.env`
-5. Reinicia el servicio: `pnpm --filter @splitpay/split-payments dev`
-
-### pnpm no reconocido
+### pnpm not found
 
 ```bash
 npm install -g pnpm@9
-```
-
-Si no quieres instalar pnpm, usa npm directamente dentro del directorio
-del servicio como se describe en la [sección 6](#usar-npm-en-lugar-de-pnpm).
-
-### Los tests fallan con "Cannot find module"
-
-```bash
-pnpm install
-```
-
-Si sigue fallando:
-
-```bash
-pnpm clean
-pnpm install
-pnpm --filter @splitpay/split-payments test
 ```
