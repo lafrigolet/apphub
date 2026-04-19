@@ -4,5 +4,4 @@ packages:
   - 'apps/split-pay/*'          # splitpay-portal + splitpay-core
   - 'apps/__app-template__/*'   # template (never deployed)
   - 'platform/*'                # shared platform services
-  - 'services/*'                # legacy services (split-payments → being migrated)
   - 'packages/*'                # eslint-config, sdk-js, platform-sdk, tsconfig

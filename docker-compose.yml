@@ -446,9 +446,6 @@ services:
       - platform-auth
       - splitpay-core
 
-  # ── Legacy split-payments (kept during migration, port 3001 now unused) ──
-  # split-payments:  ← DEPRECATED — use splitpay-core on port 3020 instead
-
   # ── Gateway ────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
