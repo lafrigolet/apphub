@@ -130,17 +130,38 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 - **Turborepo** — incremental builds and test runs
 - **Docker Compose** — identical environment in local, CI, and staging
 
+## Container topology
+
+| Docker service | What runs inside | Ports |
+|---|---|---|
+| `platform-auth` | platform/auth (Node) | 3000 |
+| `platform-payments` | platform/payments (Node) | 3001 |
+| `platform-notifications` | platform/notifications (Node) | 3002 |
+| `platform-catalog` | platform/catalog (Node) | 3003 |
+| `platform-basket` | platform/basket (Node) | 3004 |
+| `platform-tenant-config` | platform/tenant-config (Node) | 3005 |
+| `yoga-studio` | All 5 yoga services + yoga-portal via PM2 | 3011–3014, 3017, 5174 |
+| `splitpay-core` | split-pay/splitpay-core (Node) | 3020 |
+| `portal` | AppHub admin (Vite dev) | 5173 |
+| `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
+| `postgres` | PostgreSQL 16 | 5432 |
+| `redis` | Redis 7 | 6379 |
+| `nginx` | NGINX gateway | 8080 |
+
+All yoga services and their portal share one container managed by PM2. Internal
+service-to-service calls within yoga-studio use `http://localhost:<port>`.
+
 ## Port allocation
 
 | Range | Owner |
 |---|---|
-| 3000–3005 | Platform services (auth, payments, notifications, catalog, basket, tenant-config) |
+| 3000–3005 | Platform services |
 | 3006–3009 | Reserved for future platform services |
-| 3010–3019 | Yoga Studio app services |
+| 3011–3017 | Yoga Studio app services (inside `yoga-studio` container) |
 | 3020–3029 | Split Pay app services |
 | 3030+ | Future app services |
 | 5173 | AppHub admin portal |
-| 5174 | Yoga Studio portal |
+| 5174 | Yoga Studio portal (inside `yoga-studio` container) |
 | 5175 | Split Pay portal |
 | 5176+ | Future app portals |
 

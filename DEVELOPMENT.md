@@ -101,10 +101,16 @@ docker compose up -d
 
 # View logs for a specific service
 docker compose logs -f platform-auth
-docker compose logs -f yoga-classes
+docker compose logs -f yoga-studio        # all yoga services + portal together
+
+# Tail PM2 process logs inside the yoga-studio container
+docker compose exec yoga-studio pm2 logs
+
+# Check PM2 process status
+docker compose exec yoga-studio pm2 status
 
 # Rebuild a service after Dockerfile changes
-docker compose up -d --build yoga-classes
+docker compose up -d --build yoga-studio
 
 # Stop everything
 docker compose down
@@ -117,38 +123,38 @@ docker compose down -v
 
 ```bash
 # Connect to PostgreSQL directly
-docker compose exec postgres psql -U apphub -d apphub
+docker compose exec postgres psql -U splitpay -d splitpay
 
 # Inspect a schema
-docker compose exec postgres psql -U apphub -d apphub -c "\dt yoga_classes.*"
-docker compose exec postgres psql -U apphub -d apphub -c "\dt platform_auth.*"
+docker compose exec postgres psql -U splitpay -d splitpay -c "\dt yoga_classes.*"
+docker compose exec postgres psql -U splitpay -d splitpay -c "\dt platform_auth.*"
 
 # Run migrations for a specific service (dev only — auto-runs on startup)
-docker compose exec yoga-classes node src/migrate.js
+docker compose exec yoga-studio sh -c "cd apps/yoga-studio/yoga-classes && node src/lib/migrate.js"
 ```
 
 ## Ports
 
-| Service | Port |
-|---|---|
-| platform-auth | 3000 |
-| platform-payments | 3001 |
-| platform-notifications | 3002 |
-| platform-catalog | 3003 |
-| platform-basket | 3004 |
-| platform-tenant-config | 3005 |
-| yoga-users | 3011 |
-| yoga-classes | 3012 |
-| yoga-bookings | 3013 |
-| yoga-bonuses | 3014 |
-| yoga-reporting | 3017 |
-| splitpay-core | 3020 |
-| portal (AppHub admin) | 5173 |
-| yoga-portal | 5174 |
-| splitpay-portal | 5175 |
-| PostgreSQL | 5432 |
-| Redis | 6379 |
-| NGINX gateway | 8080 |
+| Container | Service | Port |
+|---|---|---|
+| platform-auth | platform/auth | 3000 |
+| platform-payments | platform/payments | 3001 |
+| platform-notifications | platform/notifications | 3002 |
+| platform-catalog | platform/catalog | 3003 |
+| platform-basket | platform/basket | 3004 |
+| platform-tenant-config | platform/tenant-config | 3005 |
+| yoga-studio | yoga-users | 3011 |
+| yoga-studio | yoga-classes | 3012 |
+| yoga-studio | yoga-bookings | 3013 |
+| yoga-studio | yoga-bonuses | 3014 |
+| yoga-studio | yoga-reporting | 3017 |
+| splitpay-core | splitpay-core | 3020 |
+| portal | AppHub admin | 5173 |
+| yoga-studio | yoga-portal | 5174 |
+| splitpay-portal | splitpay-portal | 5175 |
+| postgres | PostgreSQL | 5432 |
+| redis | Redis | 6379 |
+| nginx | NGINX gateway | 8080 |
 
 ## Common issues
 

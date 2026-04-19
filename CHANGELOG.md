@@ -7,6 +7,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Yoga Studio PM2 single-container consolidation**
+  - `apps/yoga-studio/Dockerfile` — one image for all yoga processes
+  - `apps/yoga-studio/ecosystem.config.cjs` — PM2 process definitions for yoga-users,
+    yoga-classes, yoga-bookings, yoga-bonuses, yoga-reporting, yoga-portal
+  - Single `yoga-studio` Docker service replaces the previous 6 separate containers
+  - Internal service calls use `http://localhost:<port>` instead of Docker hostnames
+
+### Changed
+- `docker-compose.yml` — replaced yoga-users, yoga-classes, yoga-bookings, yoga-bonuses,
+  yoga-reporting, yoga-portal services with a single `yoga-studio` service
+- `infra/nginx/conf.d/upstream.conf` — all yoga upstream servers now point to `yoga-studio`
+  hostname on their respective ports
+- `YOGA_BONUSES_INTERNAL_URL` and `YOGA_CLASSES_INTERNAL_URL` changed from Docker hostnames
+  to `http://localhost` URLs
+
+---
+
+### Added (platform restructure)
 - **AppHub multi-app platform restructure**
   - `platform/` shared microservices: auth (3000), payments (3001), notifications (3002),
     catalog (3003), basket (3004), tenant-config (3005)

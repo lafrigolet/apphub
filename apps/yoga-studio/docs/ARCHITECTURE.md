@@ -108,7 +108,42 @@ RLS policies enforce `app_id = 'yoga-studio'` AND `tenant_id` AND optionally
 
 ---
 
-## Service directory structure
+## Container layout
+
+All yoga services and the portal run in a **single Docker container** (`yoga-studio`)
+managed by PM2. This reduces Docker overhead while preserving microservice isolation at
+the code level.
+
+```
+apps/yoga-studio/
+├── Dockerfile              # builds one image for all yoga processes
+├── ecosystem.config.cjs    # PM2 process definitions
+├── yoga-users/
+├── yoga-classes/
+├── yoga-bookings/
+├── yoga-bonuses/
+├── yoga-reporting/
+└── yoga-portal/
+```
+
+### PM2 process table
+
+| PM2 name | Script | Port |
+|---|---|---|
+| yoga-users | yoga-users/src/server.js | 3011 |
+| yoga-classes | yoga-classes/src/server.js | 3012 |
+| yoga-bookings | yoga-bookings/src/server.js | 3013 |
+| yoga-bonuses | yoga-bonuses/src/server.js | 3014 |
+| yoga-reporting | yoga-reporting/src/server.js | 3017 |
+| yoga-portal | vite dev --host | 5174 |
+
+Because all processes share the same container, internal service-to-service calls use
+`http://localhost:<port>` instead of Docker hostnames:
+
+- `YOGA_BONUSES_INTERNAL_URL=http://localhost:3014`
+- `YOGA_CLASSES_INTERNAL_URL=http://localhost:3012`
+
+### Service directory structure
 
 ```
 apps/yoga-studio/{service}/
@@ -121,7 +156,6 @@ apps/yoga-studio/{service}/
 │   ├── __tests__/       # Vitest test files
 │   └── app.js           # Fastify app factory
 ├── migrations/          # SQL migration files (immutable)
-├── Dockerfile
 └── package.json
 ```
 
@@ -136,7 +170,13 @@ docker compose up -d
 # Hit the yoga portal
 open http://yoga.apphub.local:8080
 
-# Run all yoga tests (238 tests across 5 services)
+# Watch all yoga process logs (PM2 inside container)
+docker compose exec yoga-studio pm2 logs
+
+# Check process status
+docker compose exec yoga-studio pm2 status
+
+# Run all yoga tests (across 5 services)
 pnpm --filter "@yoga-studio/*" test
 ```
 

@@ -92,6 +92,54 @@ Every JWT issued by `platform/auth` carries:
 - Platform schemas: `platform_auth`, `platform_payments`, … (prefix `platform_`)
 - App schemas: `yoga_classes`, `splitpay_core`, … (prefix `{app}_`)
 
+## Commands
+
+### Bootstrap app `<app-name>`
+
+When the user says **"Bootstrap app `<name>`"**, create a minimal portal for that app
+(landing page only — no backend services) by executing these steps in order:
+
+1. **Determine next available ports** — check `docker-compose.yml` and `infra/nginx/conf.d/upstream.conf`
+   for the highest frontend port in use (5173+) and increment by 1.
+
+2. **Create portal files** under `apps/<name>/<name>-portal/`:
+   - `package.json` — name `@<name>/<name>-portal`; deps: react 18, react-dom, react-router-dom;
+     devDeps: vite, @vitejs/plugin-react, tailwindcss, autoprefixer, postcss
+   - `vite.config.js` — port from step 1, `allowedHosts: ['<name>.apphub.local']`,
+     proxy `/api` → `http://nginx:80`, `server.host: true`
+   - `index.html` — minimal HTML shell with `<div id="root">` and `src/main.jsx` module script
+   - `src/main.jsx` — React 18 `createRoot` entry
+   - `src/App.jsx` — centered "Welcome!" page using Tailwind
+   - `tailwind.config.js` — content glob `['./index.html', './src/**/*.{js,jsx}']`
+   - `postcss.config.js` — standard tailwindcss + autoprefixer plugins
+   - `Dockerfile` — root-context build: copy workspace manifests + portal `package.json`,
+     `pnpm install --no-frozen-lockfile --filter @<name>/<name>-portal`,
+     copy source files, `CMD ["pnpm", "dev"]`
+
+3. **Add NGINX upstream** in `infra/nginx/conf.d/upstream.conf`:
+   ```nginx
+   upstream <name>_portal { server <name>-portal:<port>; }
+   ```
+
+4. **Add NGINX server block** `infra/nginx/conf.d/<name>.conf`:
+   - `server_name <name>.apphub.local <name>.apphub.com`
+   - `include /etc/nginx/snippets/platform-routes.conf`
+   - `location /` → proxy to `<name>_portal` with WebSocket upgrade headers
+
+5. **Add to `pnpm-workspace.yaml`** — append `'apps/<name>/*'`
+
+6. **Add to `docker-compose.yml`**:
+   - New service `<name>-portal`: `context: .`, correct Dockerfile path, port mapping,
+     `VITE_API_BASE_URL: http://<name>.apphub.local:8080`, no `depends_on` needed beyond nginx
+   - Add `<name>-portal` to nginx `depends_on`
+
+7. **Verify** by telling the user to:
+   - Add `127.0.0.1 <name>.apphub.local` to Windows `C:\Windows\System32\drivers\etc\hosts`
+   - Run `docker compose up -d --build <name>-portal nginx`
+   - Open `http://<name>.apphub.local:8080`
+
+---
+
 ## Where to start when adding a new app
 
 1. `cp -r apps/__app-template__/ apps/my-app/` — rename dirs, update `package.json` names

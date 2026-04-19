@@ -11,6 +11,7 @@ export default defineConfig({
   },
   server: {
     host: true,
+    allowedHosts: ['yoga.apphub.local'],
     port: 5174,
     strictPort: true,
     watch: { usePolling: true },
