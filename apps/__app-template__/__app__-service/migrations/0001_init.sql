@@ -1,0 +1,13 @@
+-- STEP: create your app-specific tables here
+-- Example:
+-- CREATE TABLE IF NOT EXISTS __app___service.items (
+--   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   tenant_id     UUID NOT NULL,
+--   sub_tenant_id UUID,
+--   name          TEXT NOT NULL,
+--   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX ON __app___service.items (tenant_id);
+-- ALTER TABLE __app___service.items ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY __app___service_isolation ON __app___service.items
+--   USING (app_id = current_setting('app.app_id', true) AND tenant_id = current_setting('app.tenant_id', true)::uuid);
