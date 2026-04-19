@@ -4,16 +4,30 @@ WORKDIR /app
 
 FROM base AS development
 ENV NODE_ENV=development
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install
-COPY . .
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/split-pay/splitpay-core/package.json ./apps/split-pay/splitpay-core/package.json
+
+RUN pnpm install --no-frozen-lockfile --filter @split-pay/splitpay-core
+
+COPY apps/split-pay/splitpay-core/src ./apps/split-pay/splitpay-core/src
+COPY apps/split-pay/splitpay-core/migrations ./apps/split-pay/splitpay-core/migrations
+
+WORKDIR /app/apps/split-pay/splitpay-core
 CMD ["pnpm", "dev"]
 
 FROM base AS production
 ENV NODE_ENV=production
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile --prod
-COPY . .
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/split-pay/splitpay-core/package.json ./apps/split-pay/splitpay-core/package.json
+
+RUN pnpm install --no-frozen-lockfile --prod --filter @split-pay/splitpay-core
+
+COPY apps/split-pay/splitpay-core/src ./apps/split-pay/splitpay-core/src
+COPY apps/split-pay/splitpay-core/migrations ./apps/split-pay/splitpay-core/migrations
+
+WORKDIR /app/apps/split-pay/splitpay-core
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 EXPOSE 3020

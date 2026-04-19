@@ -34,8 +34,8 @@ services:
   # ── Platform Services (ports 3000–3005) ────────────────────────
   platform-auth:
     build:
-      context: ./platform/auth
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: platform/auth/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -49,16 +49,17 @@ services:
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./platform/auth/src:/app/src:ro
-      - ./platform/auth/migrations:/app/migrations:ro
+      - ./platform/auth/src:/app/platform/auth/src:ro
+      - ./platform/auth/migrations:/app/platform/auth/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   platform-payments:
     build:
-      context: ./platform/payments
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: platform/payments/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -73,16 +74,17 @@ services:
       PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./platform/payments/src:/app/src:ro
-      - ./platform/payments/migrations:/app/migrations:ro
+      - ./platform/payments/src:/app/platform/payments/src:ro
+      - ./platform/payments/migrations:/app/platform/payments/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   platform-notifications:
     build:
-      context: ./platform/notifications
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: platform/notifications/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -97,16 +99,17 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@apphub.com}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./platform/notifications/src:/app/src:ro
-      - ./platform/notifications/migrations:/app/migrations:ro
+      - ./platform/notifications/src:/app/platform/notifications/src:ro
+      - ./platform/notifications/migrations:/app/platform/notifications/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   platform-catalog:
     build:
-      context: ./platform/catalog
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: platform/catalog/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -119,16 +122,17 @@ services:
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./platform/catalog/src:/app/src:ro
-      - ./platform/catalog/migrations:/app/migrations:ro
+      - ./platform/catalog/src:/app/platform/catalog/src:ro
+      - ./platform/catalog/migrations:/app/platform/catalog/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   platform-basket:
     build:
-      context: ./platform/basket
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: platform/basket/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -140,14 +144,15 @@ services:
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./platform/basket/src:/app/src:ro
+      - ./platform/basket/src:/app/platform/basket/src:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       redis: { condition: service_healthy }
 
   platform-tenant-config:
     build:
-      context: ./platform/tenant-config
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: platform/tenant-config/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -160,8 +165,9 @@ services:
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./platform/tenant-config/src:/app/src:ro
-      - ./platform/tenant-config/migrations:/app/migrations:ro
+      - ./platform/tenant-config/src:/app/platform/tenant-config/src:ro
+      - ./platform/tenant-config/migrations:/app/platform/tenant-config/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -179,14 +185,14 @@ services:
       NODE_ENV: development
       VITE_API_BASE_URL: http://apphub.local:8080
     volumes:
-      - ./apps/portal/src:/app/src:ro
-      - ./apps/portal/index.html:/app/index.html:ro
+      - ./apps/portal/src:/app/apps/portal/src:ro
+      - ./apps/portal/index.html:/app/apps/portal/index.html:ro
 
   # ── Yoga Studio (ports 3011–3017, frontend 5174) ───────────────
   yoga-auth:
     build:
-      context: ./apps/yoga-studio/yoga-auth
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-auth/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -202,16 +208,16 @@ services:
       YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-auth/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-auth/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-auth/src:/app/apps/yoga-studio/yoga-auth/src:ro
+      - ./apps/yoga-studio/yoga-auth/migrations:/app/apps/yoga-studio/yoga-auth/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   yoga-users:
     build:
-      context: ./apps/yoga-studio/yoga-users
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-users/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -226,16 +232,16 @@ services:
       YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-users/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-users/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-users/src:/app/apps/yoga-studio/yoga-users/src:ro
+      - ./apps/yoga-studio/yoga-users/migrations:/app/apps/yoga-studio/yoga-users/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   yoga-classes:
     build:
-      context: ./apps/yoga-studio/yoga-classes
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-classes/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -250,16 +256,16 @@ services:
       YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-classes/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-classes/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-classes/src:/app/apps/yoga-studio/yoga-classes/src:ro
+      - ./apps/yoga-studio/yoga-classes/migrations:/app/apps/yoga-studio/yoga-classes/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   yoga-bookings:
     build:
-      context: ./apps/yoga-studio/yoga-bookings
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-bookings/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -277,16 +283,16 @@ services:
       YOGA_CRON_DATABASE_URL: postgresql://svc_yoga_cron:yoga_cron_secret@postgres:5432/splitpay
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-bookings/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-bookings/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-bookings/src:/app/apps/yoga-studio/yoga-bookings/src:ro
+      - ./apps/yoga-studio/yoga-bookings/migrations:/app/apps/yoga-studio/yoga-bookings/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   yoga-bonuses:
     build:
-      context: ./apps/yoga-studio/yoga-bonuses
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-bonuses/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -302,16 +308,16 @@ services:
       YOGA_CRON_DATABASE_URL: postgresql://svc_yoga_cron:yoga_cron_secret@postgres:5432/splitpay
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-bonuses/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-bonuses/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-bonuses/src:/app/apps/yoga-studio/yoga-bonuses/src:ro
+      - ./apps/yoga-studio/yoga-bonuses/migrations:/app/apps/yoga-studio/yoga-bonuses/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   yoga-payments:
     build:
-      context: ./apps/yoga-studio/yoga-payments
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-payments/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -328,16 +334,16 @@ services:
       YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-payments/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-payments/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-payments/src:/app/apps/yoga-studio/yoga-payments/src:ro
+      - ./apps/yoga-studio/yoga-payments/migrations:/app/apps/yoga-studio/yoga-payments/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   yoga-notifications:
     build:
-      context: ./apps/yoga-studio/yoga-notifications
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-notifications/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -354,16 +360,16 @@ services:
       YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-notifications/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-notifications/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-notifications/src:/app/apps/yoga-studio/yoga-notifications/src:ro
+      - ./apps/yoga-studio/yoga-notifications/migrations:/app/apps/yoga-studio/yoga-notifications/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
   yoga-reporting:
     build:
-      context: ./apps/yoga-studio/yoga-reporting
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/yoga-studio/yoga-reporting/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -378,8 +384,8 @@ services:
       YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/yoga-studio/yoga-reporting/src:/app/src:ro
-      - ./apps/yoga-studio/yoga-reporting/migrations:/app/migrations:ro
+      - ./apps/yoga-studio/yoga-reporting/src:/app/apps/yoga-studio/yoga-reporting/src:ro
+      - ./apps/yoga-studio/yoga-reporting/migrations:/app/apps/yoga-studio/yoga-reporting/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -395,7 +401,7 @@ services:
       NODE_ENV: development
       VITE_API_BASE_URL: http://yoga.apphub.local:8080
     volumes:
-      - ./apps/yoga-studio/yoga-portal/src:/app/src:ro
+      - ./apps/yoga-studio/yoga-portal/src:/app/apps/yoga-studio/yoga-portal/src:ro
     depends_on:
       - yoga-auth
       - yoga-classes
@@ -403,8 +409,8 @@ services:
   # ── Split Pay (port 3020, frontend 5175) ───────────────────────
   splitpay-core:
     build:
-      context: ./apps/split-pay/splitpay-core
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/split-pay/splitpay-core/Dockerfile
       target: development
     restart: unless-stopped
     ports:
@@ -422,8 +428,8 @@ services:
       EXPECTED_APP_ID: split-pay
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
-      - ./apps/split-pay/splitpay-core/src:/app/src:ro
-      - ./apps/split-pay/splitpay-core/migrations:/app/migrations:ro
+      - ./apps/split-pay/splitpay-core/src:/app/apps/split-pay/splitpay-core/src:ro
+      - ./apps/split-pay/splitpay-core/migrations:/app/apps/split-pay/splitpay-core/migrations:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }

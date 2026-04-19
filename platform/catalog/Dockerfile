@@ -4,16 +4,34 @@ WORKDIR /app
 
 FROM base AS development
 ENV NODE_ENV=development
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install
-COPY . .
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/platform-sdk/package.json ./packages/platform-sdk/package.json
+COPY platform/catalog/package.json ./platform/catalog/package.json
+
+RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-catalog...
+
+COPY packages/platform-sdk ./packages/platform-sdk
+COPY platform/catalog/src ./platform/catalog/src
+COPY platform/catalog/migrations ./platform/catalog/migrations
+
+WORKDIR /app/platform/catalog
 CMD ["pnpm", "dev"]
 
 FROM base AS production
 ENV NODE_ENV=production
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile --prod
-COPY . .
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/platform-sdk/package.json ./packages/platform-sdk/package.json
+COPY platform/catalog/package.json ./platform/catalog/package.json
+
+RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-catalog...
+
+COPY packages/platform-sdk ./packages/platform-sdk
+COPY platform/catalog/src ./platform/catalog/src
+COPY platform/catalog/migrations ./platform/catalog/migrations
+
+WORKDIR /app/platform/catalog
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 EXPOSE 3003

@@ -4,16 +4,34 @@ WORKDIR /app
 
 FROM base AS development
 ENV NODE_ENV=development
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install
-COPY . .
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/platform-sdk/package.json ./packages/platform-sdk/package.json
+COPY platform/tenant-config/package.json ./platform/tenant-config/package.json
+
+RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-tenant-config...
+
+COPY packages/platform-sdk ./packages/platform-sdk
+COPY platform/tenant-config/src ./platform/tenant-config/src
+COPY platform/tenant-config/migrations ./platform/tenant-config/migrations
+
+WORKDIR /app/platform/tenant-config
 CMD ["pnpm", "dev"]
 
 FROM base AS production
 ENV NODE_ENV=production
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile --prod
-COPY . .
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/platform-sdk/package.json ./packages/platform-sdk/package.json
+COPY platform/tenant-config/package.json ./platform/tenant-config/package.json
+
+RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-tenant-config...
+
+COPY packages/platform-sdk ./packages/platform-sdk
+COPY platform/tenant-config/src ./platform/tenant-config/src
+COPY platform/tenant-config/migrations ./platform/tenant-config/migrations
+
+WORKDIR /app/platform/tenant-config
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 EXPOSE 3005
