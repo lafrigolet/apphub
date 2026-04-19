@@ -14,9 +14,9 @@ notifications, catalog, basket) are handled by the shared `platform/` services.
 ```
 yoga.apphub.local:8080
        │
-       ├── /api/auth/…          → platform/auth          :3000
-       ├── /api/payments/…      → platform/payments       :3001
-       ├── /api/notifications/… → platform/notifications  :3002
+       ├── /api/auth/…          → platform/auth          :3000  ← login, register, JWT
+       ├── /api/payments/…      → platform/payments       :3001  ← checkout, webhooks
+       ├── /api/notifications/… → platform/notifications  :3002  ← broadcast, email
        ├── /api/catalog/…       → platform/catalog        :3003
        ├── /api/basket/…        → platform/basket         :3004
        ├── /api/tenants/…       → platform/tenant-config  :3005
@@ -47,6 +47,8 @@ All yoga services are Fastify/JavaScript (ESM) microservices. They share:
 | yoga-bookings | 3013 | `yoga_bookings` | Reservations, cancellations, waiting list |
 | yoga-bonuses | 3014 | `yoga_bonuses` | Credit bundles, activation, deduction |
 | yoga-reporting | 3017 | `yoga_reporting` | Attendance metrics, ratings, exports |
+
+Auth, payments, and notifications are handled by the shared platform services (ports 3000–3002).
 
 ---
 
@@ -103,21 +105,6 @@ yoga_reporting.*  — only yoga-reporting reads/writes this
 
 RLS policies enforce `app_id = 'yoga-studio'` AND `tenant_id` AND optionally
 `sub_tenant_id` on every table.
-
----
-
-## Deprecated services
-
-The following services were created during the initial yoga-studio implementation but are
-being replaced by the shared platform services. They still run during the migration period:
-
-| Deprecated | Replacement |
-|---|---|
-| `yoga-auth` (port 3010) | `platform/auth` (port 3000) |
-| `yoga-payments` (port 3015) | `platform/payments` (port 3001) |
-| `yoga-notifications` (port 3016) | `platform/notifications` (port 3002) |
-
-Once all consumers have migrated, these services will be removed.
 
 ---
 

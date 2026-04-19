@@ -189,31 +189,6 @@ services:
       - ./apps/portal/index.html:/app/apps/portal/index.html:ro
 
   # ── Yoga Studio (ports 3011–3017, frontend 5174) ───────────────
-  yoga-auth:
-    build:
-      context: .
-      dockerfile: apps/yoga-studio/yoga-auth/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3010:3010'
-    environment:
-      NODE_ENV: development
-      YOGA_AUTH_PORT: 3010
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      YOGA_JWT_SECRET: ${YOGA_JWT_SECRET}
-      YOGA_JWT_REFRESH_DAYS: 30
-      YOGA_TENANT_ID: ${YOGA_TENANT_ID}
-      YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
-      - ./apps/yoga-studio/yoga-auth/src:/app/apps/yoga-studio/yoga-auth/src:ro
-      - ./apps/yoga-studio/yoga-auth/migrations:/app/apps/yoga-studio/yoga-auth/migrations:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
   yoga-users:
     build:
       context: .
@@ -314,58 +289,6 @@ services:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
-  yoga-payments:
-    build:
-      context: .
-      dockerfile: apps/yoga-studio/yoga-payments/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3015:3015'
-    environment:
-      NODE_ENV: development
-      YOGA_PAYMENTS_PORT: 3015
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      YOGA_JWT_SECRET: ${YOGA_JWT_SECRET}
-      YOGA_STRIPE_SECRET_KEY: ${YOGA_STRIPE_SECRET_KEY}
-      YOGA_STRIPE_WEBHOOK_SECRET: ${YOGA_STRIPE_WEBHOOK_SECRET}
-      YOGA_TENANT_ID: ${YOGA_TENANT_ID}
-      YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
-      - ./apps/yoga-studio/yoga-payments/src:/app/apps/yoga-studio/yoga-payments/src:ro
-      - ./apps/yoga-studio/yoga-payments/migrations:/app/apps/yoga-studio/yoga-payments/migrations:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
-  yoga-notifications:
-    build:
-      context: .
-      dockerfile: apps/yoga-studio/yoga-notifications/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3016:3016'
-    environment:
-      NODE_ENV: development
-      YOGA_NOTIFICATIONS_PORT: 3016
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      YOGA_JWT_SECRET: ${YOGA_JWT_SECRET}
-      YOGA_SENDGRID_API_KEY: ${YOGA_SENDGRID_API_KEY}
-      YOGA_SENDGRID_FROM_EMAIL: ${YOGA_SENDGRID_FROM_EMAIL:-noreply@yogastudio.com}
-      YOGA_TENANT_ID: ${YOGA_TENANT_ID}
-      YOGA_SUB_TENANT_ID: ${YOGA_SUB_TENANT_ID:-}
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
-      - ./apps/yoga-studio/yoga-notifications/src:/app/apps/yoga-studio/yoga-notifications/src:ro
-      - ./apps/yoga-studio/yoga-notifications/migrations:/app/apps/yoga-studio/yoga-notifications/migrations:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
   yoga-reporting:
     build:
       context: .
@@ -403,7 +326,7 @@ services:
     volumes:
       - ./apps/yoga-studio/yoga-portal/src:/app/apps/yoga-studio/yoga-portal/src:ro
     depends_on:
-      - yoga-auth
+      - platform-auth
       - yoga-classes
 
   # ── Split Pay (port 3020, frontend 5175) ───────────────────────
@@ -470,13 +393,10 @@ services:
       - platform-basket
       - platform-tenant-config
       - portal
-      - yoga-auth
       - yoga-users
       - yoga-classes
       - yoga-bookings
       - yoga-bonuses
-      - yoga-payments
-      - yoga-notifications
       - yoga-reporting
       - yoga-portal
       - splitpay-core

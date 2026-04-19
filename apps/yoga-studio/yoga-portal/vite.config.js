@@ -15,7 +15,7 @@ export default defineConfig({
     strictPort: true,
     watch: { usePolling: true },
     proxy: {
-      '/api/yoga': {
+      '/api': {
         target: 'http://nginx:80',
         changeOrigin: true,
       },

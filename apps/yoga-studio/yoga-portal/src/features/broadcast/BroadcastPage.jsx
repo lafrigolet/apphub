@@ -20,7 +20,7 @@ export default function BroadcastPage() {
     if (!confirm(`¿Enviar este mensaje a "${SEGMENTS.find(s => s.value === form.segment)?.label}"?`)) return
     setSending(true)
     try {
-      const res = await fetch('/api/yoga/notifications/broadcast', {
+      const res = await fetch('/api/notifications/broadcast', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,17 +1,18 @@
-const BASE = import.meta.env.VITE_YOGA_API_URL ?? '/api/yoga'
+const PLATFORM = '/api'
+const APP = '/api/app'
 
 function getToken() {
   return localStorage.getItem('yoga_token')
 }
 
-async function request(path, { method = 'GET', body, auth = true } = {}) {
+async function request(path, { method = 'GET', body, auth = true, base = APP } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (auth) {
     const token = getToken()
     if (token) headers['Authorization'] = `Bearer ${token}`
   }
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -27,64 +28,64 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   return json.data
 }
 
-// Auth
+// Auth — platform/auth
 export const auth = {
-  register: (body) => request('/auth/register', { method: 'POST', body, auth: false }),
-  login: (body) => request('/auth/login', { method: 'POST', body, auth: false }),
-  refresh: (body) => request('/auth/refresh', { method: 'POST', body, auth: false }),
-  forgotPassword: (body) => request('/auth/forgot-password', { method: 'POST', body, auth: false }),
+  register: (body) => request('/auth/register', { method: 'POST', body, auth: false, base: PLATFORM }),
+  login:    (body) => request('/auth/login',    { method: 'POST', body, auth: false, base: PLATFORM }),
+  refresh:  (body) => request('/auth/refresh',  { method: 'POST', body, auth: false, base: PLATFORM }),
+  forgotPassword: (body) => request('/auth/forgot-password', { method: 'POST', body, auth: false, base: PLATFORM }),
 }
 
-// Users
+// Users — yoga-users
 export const users = {
-  me: () => request('/users/me'),
-  updateMe: (body) => request('/users/me', { method: 'PUT', body }),
-  history: (id) => request(`/users/${id}/history`),
-  list: (params = {}) => request(`/users?${new URLSearchParams(params)}`),
+  me:       ()         => request('/users/me'),
+  updateMe: (body)     => request('/users/me', { method: 'PUT', body }),
+  history:  (id)       => request(`/users/${id}/history`),
+  list:     (params={})=> request(`/users?${new URLSearchParams(params)}`),
 }
 
-// Classes
+// Classes — yoga-classes
 export const classes = {
-  list: (params = {}) => request(`/classes/?${new URLSearchParams(params)}`, { auth: false }),
-  availability: (id) => request(`/classes/${id}/availability`),
-  create: (body) => request('/classes/', { method: 'POST', body }),
-  update: (id, body) => request(`/classes/${id}`, { method: 'PUT', body }),
-  remove: (id) => request(`/classes/${id}`, { method: 'DELETE' }),
-  instructorAgenda: () => request('/classes/instructor/agenda'),
+  list:             (params={}) => request(`/classes/?${new URLSearchParams(params)}`, { auth: false }),
+  availability:     (id)        => request(`/classes/${id}/availability`),
+  create:           (body)      => request('/classes/', { method: 'POST', body }),
+  update:           (id, body)  => request(`/classes/${id}`, { method: 'PUT', body }),
+  remove:           (id)        => request(`/classes/${id}`, { method: 'DELETE' }),
+  instructorAgenda: ()          => request('/classes/instructor/agenda'),
 }
 
-// Bookings
+// Bookings — yoga-bookings
 export const bookings = {
-  list: () => request('/bookings/'),
-  create: (body) => request('/bookings/', { method: 'POST', body }),
-  cancel: (id, body) => request(`/bookings/${id}`, { method: 'DELETE', body }),
-  attend: (id) => request(`/bookings/${id}/attend`, { method: 'POST' }),
+  list:     ()          => request('/bookings/'),
+  create:   (body)      => request('/bookings/', { method: 'POST', body }),
+  cancel:   (id, body)  => request(`/bookings/${id}`, { method: 'DELETE', body }),
+  attend:   (id)        => request(`/bookings/${id}/attend`, { method: 'POST' }),
   waitlist: (sessionId) => request(`/bookings/waitlist/${sessionId}`),
 }
 
-// Bonuses
+// Bonuses — yoga-bonuses
 export const bonuses = {
-  me: () => request('/bonuses/me'),
-  createType: (body) => request('/bonuses/types', { method: 'POST', body }),
-  assign: (body) => request('/bonuses/assign', { method: 'POST', body }),
-  adjust: (id, body) => request(`/bonuses/${id}/adjust`, { method: 'PUT', body }),
+  me:         ()         => request('/bonuses/me'),
+  createType: (body)     => request('/bonuses/types', { method: 'POST', body }),
+  assign:     (body)     => request('/bonuses/assign', { method: 'POST', body }),
+  adjust:     (id, body) => request(`/bonuses/${id}/adjust`, { method: 'PUT', body }),
 }
 
-// Payments
+// Payments — platform/payments
 export const payments = {
-  checkout: (body) => request('/payments/checkout', { method: 'POST', body }),
-  list: () => request('/payments/'),
+  checkout: (body) => request('/payments/checkout', { method: 'POST', body, base: PLATFORM }),
+  list:     ()     => request('/payments/', { base: PLATFORM }),
 }
 
-// Reports
+// Reports — yoga-reporting
 export const reports = {
-  dashboard: () => request('/reports/dashboard'),
-  attendance: (params = {}) => request(`/reports/attendance?${new URLSearchParams(params)}`),
-  exportAttendance: () => request('/reports/attendance/export', { method: 'POST' }),
+  dashboard:        ()         => request('/reports/dashboard'),
+  attendance:       (params={})=> request(`/reports/attendance?${new URLSearchParams(params)}`),
+  exportAttendance: ()         => request('/reports/attendance/export', { method: 'POST' }),
 }
 
-// Ratings
+// Ratings — yoga-reporting
 export const ratings = {
-  create: (body) => request('/ratings/', { method: 'POST', body }),
-  instructor: (id) => request(`/ratings/instructor/${id}`),
+  create:     (body) => request('/ratings/', { method: 'POST', body }),
+  instructor: (id)   => request(`/ratings/instructor/${id}`),
 }
