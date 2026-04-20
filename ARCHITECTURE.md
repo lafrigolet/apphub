@@ -43,6 +43,7 @@ services. Each app gets its own subdomain and its own app-specific microservices
 | `apphub.com` | `apphub.local` | AppHub admin portal |
 | `yoga.apphub.com` | `yoga.apphub.local` | Yoga Studio |
 | `splitpay.apphub.com` | `splitpay.apphub.local` | Split Pay |
+| `aikikan.apphub.com` | `aikikan.apphub.local` | Aikikan (Aikido association) |
 
 ### Route namespace convention
 
@@ -93,15 +94,17 @@ Platform (AppHub)
 
 ## PostgreSQL schema isolation
 
-One PostgreSQL instance, one schema per service:
+One PostgreSQL instance, one schema per service. Each service connects with its own
+dedicated PostgreSQL role — never the shared superuser. The superuser is only used
+by `migrate.js` via `MIGRATION_DATABASE_URL`.
 
 ```
 PostgreSQL instance
-├── platform_auth          (platform/auth)
-├── platform_payments      (platform/payments)
-├── platform_notifications (platform/notifications)
-├── platform_catalog       (platform/catalog)
-├── platform_tenants       (platform/tenant-config)
+├── platform_auth          (platform/auth)          role: svc_platform_auth
+├── platform_payments      (platform/payments)       role: svc_platform_payments
+├── platform_notifications (platform/notifications)  role: svc_platform_notifications
+├── platform_catalog       (platform/catalog)        role: svc_platform_catalog
+├── platform_tenants       (platform/tenant-config)  role: svc_platform_tenants
 ├── yoga_users             (yoga-studio/yoga-users)
 ├── yoga_classes           (yoga-studio/yoga-classes)
 ├── yoga_bookings          (yoga-studio/yoga-bookings)
@@ -110,8 +113,8 @@ PostgreSQL instance
 └── splitpay_core          (split-pay/splitpay-core)
 ```
 
-Each service connects with its own PostgreSQL role scoped to its schema.
-Cross-schema queries are never allowed.
+Cross-schema queries are never allowed. Roles and grants are defined in
+`infra/postgres/init/01_platform_schemas.sql`.
 
 ## Event bus
 
@@ -134,16 +137,17 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 
 | Docker service | What runs inside | Ports |
 |---|---|---|
-| `platform-auth` | platform/auth (Node) | 3000 |
-| `platform-payments` | platform/payments (Node) | 3001 |
-| `platform-notifications` | platform/notifications (Node) | 3002 |
-| `platform-catalog` | platform/catalog (Node) | 3003 |
-| `platform-basket` | platform/basket (Node) | 3004 |
-| `platform-tenant-config` | platform/tenant-config (Node) | 3005 |
+| `platform-auth` | platform/auth — email+OAuth JWT auth | 3000 |
+| `platform-payments` | platform/payments — Stripe gateway | 3001 |
+| `platform-notifications` | platform/notifications — email (SendGrid) + Redis consumer | 3002 |
+| `platform-catalog` | platform/catalog — product catalogue | 3003 |
+| `platform-basket` | platform/basket — shopping cart (Redis-only) | 3004 |
+| `platform-tenant-config` | platform/tenant-config — app & tenant registry | 3005 |
 | `yoga-studio` | All 5 yoga services + yoga-portal via PM2 | 3011–3014, 3017, 5174 |
 | `splitpay-core` | split-pay/splitpay-core (Node) | 3020 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
+| `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |
 | `postgres` | PostgreSQL 16 | 5432 |
 | `redis` | Redis 7 | 6379 |
 | `nginx` | NGINX gateway | 8080 |
@@ -163,7 +167,8 @@ service-to-service calls within yoga-studio use `http://localhost:<port>`.
 | 5173 | AppHub admin portal |
 | 5174 | Yoga Studio portal (inside `yoga-studio` container) |
 | 5175 | Split Pay portal |
-| 5176+ | Future app portals |
+| 5176 | Aikikan portal |
+| 5177+ | Future app portals |
 
 ## Architecture Decision Records
 

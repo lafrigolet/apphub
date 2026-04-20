@@ -5,6 +5,7 @@ import { appGuard } from '@apphub/platform-sdk/app-guard'
 import { logger } from './lib/logger.js'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { ZodError } from 'zod'
+import { startEventConsumer } from './services/event-consumer.js'
 
 export function createApp() {
   const fastify = Fastify({ logger: false })
@@ -15,6 +16,8 @@ export function createApp() {
   fastify.get('/health', { config: { public: true } }, async () => ({
     status: 'ok', service: 'platform-notifications', timestamp: new Date().toISOString(),
   }))
+
+  fastify.addHook('onReady', async () => { startEventConsumer() })
 
   fastify.setNotFoundHandler((req, reply) => {
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } })

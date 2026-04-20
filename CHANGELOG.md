@@ -7,6 +7,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform/auth` — OAuth 2.0 support (Google + Facebook)**
+  - `migrations/0003_oauth_connections.sql` — `oauth_connections` table; `password_hash` made nullable
+  - `src/repositories/oauth.repository.js` — provider lookup, email account linking, user creation
+  - `src/services/oauth.service.js` — Google id_token verification (`google-auth-library`), Facebook Graph API token validation
+  - `src/routes/oauth.routes.js` — `POST /v1/auth/oauth/google`, `POST /v1/auth/oauth/facebook`
+
+- **`platform/notifications` — email sending**
+  - `src/services/email.service.js` — SendGrid in production; console log fallback in development
+  - `src/services/event-consumer.js` — Redis subscriber on `platform:events`; handles `user.registered` (welcome email) and `auth.password_reset_requested` (reset email)
+
+- **`apps/aikikan/aikikan-portal` — login UI wired to real API**
+  - `src/lib/auth.js` — `login`, `register`, `loginGoogle`, `loginFacebook`, `forgotPassword` helpers
+  - `Login.jsx` — connected to platform-auth endpoints; Google via `@react-oauth/google`; loading/error/success states
+
+### Changed
+- **Schema isolation** — `platform-auth` and `platform-notifications` now connect at runtime with
+  their own dedicated DB roles (`svc_platform_auth`, `svc_platform_notifications`) instead of the
+  shared superuser. `migrate.js` in both services uses `MIGRATION_DATABASE_URL` for DDL.
+- `docker-compose.yml` — updated `DATABASE_URL` + added `MIGRATION_DATABASE_URL` for platform-auth
+  and platform-notifications; added OAuth and VITE env vars for aikikan-portal
+- `.env.example` — added `PLATFORM_AUTH_DATABASE_URL`, `PLATFORM_NOTIFICATIONS_DATABASE_URL`,
+  `MIGRATION_DATABASE_URL`, `GOOGLE_CLIENT_ID`, `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `AIKIKAN_TENANT_ID`
+
+---
+
+### Added (Yoga Studio PM2 single-container consolidation)
 - **Yoga Studio PM2 single-container consolidation**
   - `apps/yoga-studio/Dockerfile` — one image for all yoga processes
   - `apps/yoga-studio/ecosystem.config.cjs` — PM2 process definitions for yoga-users,
