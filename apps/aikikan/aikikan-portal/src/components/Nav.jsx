@@ -1,4 +1,4 @@
-export default function Nav() {
+export default function Nav({ onLoginOpen }) {
   return (
     <nav>
       <div className="nav-logo">AIKIKAN<span> /</span> ES</div>
@@ -10,7 +10,10 @@ export default function Nav() {
         <li><a href="#dojos">Dojos</a></li>
         <li><a href="#contacto">Contacto</a></li>
       </ul>
-      <a href="mailto:secretaria@aikikan.es" className="nav-cta">Contáctenos</a>
+      <div className="nav-actions">
+        <button className="nav-login" onClick={onLoginOpen}>Acceder</button>
+        <a href="mailto:secretaria@aikikan.es" className="nav-cta">Contáctenos</a>
+      </div>
     </nav>
   )
 }
