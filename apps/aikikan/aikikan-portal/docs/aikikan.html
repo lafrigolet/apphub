@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIKIKAN / España</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --black: #090908;
+      --white: #f4efe6;
+      --accent: #c8a96e;
+      --muted: #2e2a25;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--black); color: var(--white); font-family: 'Cormorant Garamond', Georgia, serif; cursor: none; overflow-x: hidden; }
+
+    /* GRAIN */
+    body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9000; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.035; mix-blend-mode: overlay; }
+
+    /* CURSOR */
+    #cursor { position: fixed; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%,-50%); transition: width .2s, height .2s, opacity .2s; mix-blend-mode: exclusion; }
+    #cursor.grow { width: 36px; height: 36px; opacity: .4; }
+    #cursor-ring { position: fixed; width: 34px; height: 34px; border: 1px solid rgba(200,169,110,.3); border-radius: 50%; pointer-events: none; z-index: 9998; transform: translate(-50%,-50%); }
+
+    .slash { font-family: 'Space Mono', monospace; color: var(--accent); font-size: .73rem; letter-spacing: .1em; }
+    .mono { font-family: 'Space Mono', monospace; }
+
+    /* NAV */
+    nav { position: fixed; top: 0; left: 0; width: 100%; z-index: 500; padding: 1.2rem 2.5rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(200,169,110,.1); background: rgba(9,9,8,.9); backdrop-filter: blur(16px); }
+    .nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.35rem; letter-spacing: .18em; }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.8rem; list-style: none; }
+    .nav-links a { font-family: 'Space Mono', monospace; font-size: .6rem; letter-spacing: .18em; text-transform: uppercase; color: rgba(244,239,230,.42); text-decoration: none; transition: color .2s; }
+    .nav-links a::before { content: '/'; color: var(--accent); margin-right: .25rem; opacity: 0; transition: opacity .2s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-links a:hover::before { opacity: 1; }
+    .nav-cta { font-family: 'Space Mono', monospace; font-size: .6rem; letter-spacing: .15em; text-transform: uppercase; color: var(--black); background: var(--accent); padding: .5rem 1.1rem; cursor: none; text-decoration: none; transition: opacity .2s; }
+    .nav-cta:hover { opacity: .8; }
+
+    /* HERO */
+    #hero { min-height: 100vh; display: grid; grid-template-rows: 1fr auto; padding: 0 2.5rem; padding-top: 5rem; position: relative; overflow: hidden; }
+    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; align-items: end; padding-bottom: 4rem; gap: 4rem; }
+    .hero-eyebrow { font-family: 'Space Mono', monospace; font-size: .62rem; letter-spacing: .22em; color: var(--accent); margin-bottom: 1.5rem; animation: fadeUp .8s ease .2s both; }
+    .hero-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(5rem, 13vw, 11rem); line-height: .92; animation: fadeUp .9s ease .35s both; }
+    .hero-title .accent { color: var(--accent); display: block; }
+    .hero-right { display: flex; flex-direction: column; justify-content: flex-end; gap: 2rem; padding-bottom: .5rem; animation: fadeUp .8s ease .55s both; }
+    .hero-quote { font-style: italic; font-size: clamp(1rem, 1.7vw, 1.28rem); font-weight: 300; line-height: 1.65; color: rgba(244,239,230,.7); border-left: 1px solid var(--accent); padding-left: 1.5rem; }
+    .hero-quote cite { display: block; font-style: normal; font-family: 'Space Mono', monospace; font-size: .6rem; letter-spacing: .15em; color: var(--accent); margin-top: .9rem; }
+    .hero-meta { display: flex; gap: 2.5rem; animation: fadeUp .8s ease .7s both; }
+    .hero-stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; line-height: 1; }
+    .hero-stat-label { font-family: 'Space Mono', monospace; font-size: .5rem; letter-spacing: .22em; text-transform: uppercase; color: rgba(244,239,230,.35); margin-top: .2rem; }
+    .hero-bottom-bar { border-top: 1px solid rgba(200,169,110,.14); padding: 1.2rem 0; display: flex; align-items: center; justify-content: space-between; animation: fadeUp .6s ease .9s both; }
+    .fps-badge { font-family: 'Space Mono', monospace; font-size: .57rem; letter-spacing: .22em; color: rgba(244,239,230,.25); }
+    .scroll-hint { font-family: 'Space Mono', monospace; font-size: .57rem; letter-spacing: .22em; color: rgba(244,239,230,.25); display: flex; align-items: center; gap: .75rem; }
+    .scroll-line { width: 40px; height: 1px; background: var(--accent); animation: scrollPulse 2s ease-in-out infinite; }
+    .hero-bg-circle { position: absolute; right: -14vw; top: 12%; width: 52vw; height: 52vw; border-radius: 50%; border: 1px solid rgba(200,169,110,.05); pointer-events: none; }
+    .hero-bg-circle::after { content: ''; position: absolute; inset: 16%; border-radius: 50%; border: 1px solid rgba(200,169,110,.035); }
+    .hero-glow { position: absolute; top: 15%; right: 3%; width: 42vw; height: 42vw; border-radius: 50%; background: radial-gradient(circle, rgba(200,169,110,.05) 0%, transparent 70%); pointer-events: none; animation: glowPulse 7s ease-in-out infinite; }
+
+    /* VIDEO BANNER */
+    #video-banner { position: relative; height: 65vh; overflow: hidden; border-top: 1px solid rgba(200,169,110,.12); border-bottom: 1px solid rgba(200,169,110,.12); }
+    .vb-overlay { position: absolute; inset: 0; background: linear-gradient(to right, rgba(9,9,8,.88) 28%, rgba(9,9,8,.25) 70%, rgba(9,9,8,.08)); z-index: 2; }
+    .vb-top { position: absolute; top: 0; left: 0; right: 0; height: 22%; background: linear-gradient(to bottom, var(--black), transparent); z-index: 3; }
+    .vb-bot { position: absolute; bottom: 0; left: 0; right: 0; height: 25%; background: linear-gradient(to top, var(--black), transparent); z-index: 3; }
+    #vb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .vb-content { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; justify-content: center; padding: 0 2.5rem; }
+    .vb-label { font-family: 'Space Mono', monospace; font-size: .6rem; letter-spacing: .22em; color: var(--accent); margin-bottom: 1.2rem; }
+    .vb-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.5rem, 6vw, 5.5rem); line-height: .93; max-width: 560px; }
+    .vb-sub { font-size: 1.05rem; font-weight: 300; font-style: italic; color: rgba(244,239,230,.58); max-width: 440px; margin-top: 1.2rem; line-height: 1.6; }
+
+    /* SECTION */
+    section { padding: 6rem 2.5rem; position: relative; }
+    .section-label { font-family: 'Space Mono', monospace; font-size: .6rem; letter-spacing: .22em; color: var(--accent); margin-bottom: 3rem; display: flex; align-items: center; gap: .5rem; }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: rgba(200,169,110,.18); max-width: 80px; }
+    .section-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem, 7vw, 6rem); line-height: .95; }
+
+    /* PULL QUOTE */
+    .pull-quote-block { padding: 4.5rem 2.5rem; border-top: 1px solid rgba(200,169,110,.12); border-bottom: 1px solid rgba(200,169,110,.12); text-align: center; }
+    .pq-text { font-style: italic; font-size: clamp(1.6rem, 3.5vw, 2.7rem); font-weight: 300; line-height: 1.42; max-width: 840px; margin: 0 auto 1.5rem; }
+    .pq-attr { font-family: 'Space Mono', monospace; font-size: .6rem; letter-spacing: .22em; color: var(--accent); }
+
+    /* MASTERS */
+    #maestros { border-top: 1px solid rgba(200,169,110,.12); }
+    .masters-intro { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; margin-bottom: 5rem; align-items: end; }
+    .masters-intro-body { font-size: 1.1rem; font-weight: 300; line-height: 1.8; color: rgba(244,239,230,.62); }
+    .masters-grid { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid rgba(200,169,110,.12); border-left: 1px solid rgba(200,169,110,.12); }
+
+    .master-card { border-right: 1px solid rgba(200,169,110,.12); border-bottom: 1px solid rgba(200,169,110,.12); cursor: none; overflow: hidden; position: relative; transition: background .3s; }
+    .master-card:hover { background: rgba(200,169,110,.03); }
+    .master-card::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 2px; background: var(--accent); transition: width .45s ease; z-index: 5; }
+    .master-card:hover::after { width: 100%; }
+
+    .master-portrait { width: 100%; aspect-ratio: 3/4; overflow: hidden; position: relative; background: #111; }
+    .master-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top center; filter: grayscale(100%) contrast(1.08); transition: filter .5s, transform .7s; display: block; }
+    .master-card:hover .master-portrait img { filter: grayscale(60%) contrast(1.1) sepia(25%); transform: scale(1.06); }
+    .master-portrait-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(9,9,8,.95) 0%, rgba(9,9,8,.1) 55%, transparent 100%); z-index: 1; }
+    .master-portrait::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,.07) 0px, rgba(0,0,0,.07) 1px, transparent 1px, transparent 3px); z-index: 2; pointer-events: none; }
+
+    .master-info { padding: 1.2rem 1.2rem 1.5rem; }
+    .master-rank { font-family: 'Space Mono', monospace; font-size: .5rem; letter-spacing: .2em; color: var(--accent); margin-bottom: .42rem; text-transform: uppercase; }
+    .master-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.28rem; letter-spacing: .06em; line-height: 1.1; margin-bottom: .28rem; }
+    .master-years { font-family: 'Space Mono', monospace; font-size: .5rem; letter-spacing: .12em; color: rgba(244,239,230,.28); margin-bottom: .7rem; }
+    .master-bio { font-size: .8rem; font-weight: 300; line-height: 1.6; color: rgba(244,239,230,.48); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    .master-hint { font-family: 'Space Mono', monospace; font-size: .48rem; letter-spacing: .14em; color: rgba(244,239,230,.2); margin-top: 3rem; text-align: right; }
+
+    /* MODAL */
+    #master-modal { position: fixed; inset: 0; z-index: 800; display: flex; align-items: center; justify-content: center; padding: 2rem; opacity: 0; pointer-events: none; transition: opacity .35s; }
+    #master-modal.open { opacity: 1; pointer-events: all; }
+    .modal-backdrop { position: absolute; inset: 0; background: rgba(9,9,8,.94); backdrop-filter: blur(14px); }
+    .modal-box { position: relative; background: #0f0f0e; border: 1px solid rgba(200,169,110,.16); max-width: 860px; width: 100%; max-height: 90vh; overflow-y: auto; display: grid; grid-template-columns: 300px 1fr; z-index: 1; }
+    .modal-portrait { position: relative; overflow: hidden; min-height: 420px; }
+    .modal-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top center; filter: grayscale(100%) contrast(1.08); display: block; }
+    .modal-portrait-overlay { position: absolute; inset: 0; background: linear-gradient(to right, transparent 55%, #0f0f0e 100%); }
+    .modal-portrait::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,.07) 0px, rgba(0,0,0,.07) 1px, transparent 1px, transparent 3px); z-index: 1; }
+    .modal-content { padding: 2.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+    .modal-rank { font-family: 'Space Mono', monospace; font-size: .58rem; letter-spacing: .2em; color: var(--accent); }
+    .modal-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: .05em; line-height: .95; }
+    .modal-years { font-family: 'Space Mono', monospace; font-size: .58rem; letter-spacing: .15em; color: rgba(244,239,230,.3); }
+    .modal-body { font-size: .98rem; font-weight: 300; line-height: 1.78; color: rgba(244,239,230,.68); }
+    .modal-quote { font-style: italic; font-size: 1.02rem; font-weight: 300; border-left: 1px solid var(--accent); padding-left: 1.2rem; color: rgba(244,239,230,.72); line-height: 1.62; }
+    .modal-close { font-family: 'Space Mono', monospace; font-size: .62rem; letter-spacing: .12em; color: rgba(244,239,230,.38); background: none; border: 1px solid rgba(200,169,110,.2); padding: .4rem .8rem; cursor: none; transition: color .2s, border-color .2s; align-self: flex-start; margin-top: auto; }
+    .modal-close:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* VIDEOS CAROUSEL */
+    #videos { border-top: 1px solid rgba(200,169,110,.12); background: rgba(200,169,110,.013); overflow: hidden; }
+    #videos > .section-label, #videos > h2 { padding-left: 2.5rem; padding-right: 2.5rem; }
+    #videos > h2 { padding-left: 2.5rem; }
+
+    .carousel-outer { position: relative; margin-top: 3rem; }
+    /* fade edges */
+    .carousel-outer::before,
+    .carousel-outer::after {
+      content: ''; position: absolute; top: 0; bottom: 0; width: 120px; z-index: 10; pointer-events: none;
+    }
+    .carousel-outer::before { left: 0; background: linear-gradient(to right, var(--black), transparent); }
+    .carousel-outer::after  { right: 0; background: linear-gradient(to left,  var(--black), transparent); }
+
+    .carousel-track-wrap { overflow: hidden; }
+    .carousel-track {
+      display: flex;
+      gap: 1.25rem;
+      width: max-content;
+      animation: carouselScroll 38s linear infinite;
+      will-change: transform;
+    }
+    .carousel-track:hover { animation-play-state: paused; }
+
+    @keyframes carouselScroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* Each card */
+    .vc-card {
+      flex: none;
+      width: 760px;
+      cursor: none;
+      position: relative;
+    }
+
+    /* Thumbnail / placeholder shown before click */
+    .vc-thumb {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16/9;
+      overflow: hidden;
+      border: 1px solid rgba(200,169,110,.14);
+      background: #0f0f0d;
+    }
+    /* YouTube thumbnail img */
+    .vc-thumb img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      filter: grayscale(85%) contrast(1.05);
+      transition: filter .4s, transform .5s;
+      display: block;
+    }
+    .vc-card:hover .vc-thumb img { filter: grayscale(40%) contrast(1.1); transform: scale(1.03); }
+
+    /* Dark overlay — stronger at bottom so title reads cleanly */
+    .vc-thumb-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(9,9,8,.88) 0%, rgba(9,9,8,.35) 38%, transparent 65%);
+      z-index: 1;
+    }
+
+    /* Play button — centred */
+    .vc-play {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 3;
+    }
+    .vc-play-btn {
+      width: 60px; height: 60px;
+      border: 1.5px solid rgba(200,169,110,.6);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(9,9,8,.5);
+      backdrop-filter: blur(4px);
+      transition: border-color .25s, background .25s, transform .25s;
+    }
+    .vc-play-btn svg { width: 22px; height: 22px; fill: var(--accent); margin-left: 4px; }
+    .vc-card:hover .vc-play-btn { border-color: var(--accent); background: rgba(200,169,110,.15); transform: scale(1.12); }
+
+    /* Title inside thumbnail — bottom-left */
+    .vc-caption {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 1rem 1.4rem 1.1rem;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .vc-caption-label {
+      font-family: 'Space Mono', monospace;
+      font-size: .58rem;
+      letter-spacing: .18em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: .28rem;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+    }
+    .vc-caption-label::before { content: '/'; }
+    .vc-caption-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.55rem;
+      letter-spacing: .05em;
+      color: var(--white);
+      line-height: 1;
+      text-shadow: 0 1px 8px rgba(9,9,8,.6);
+    }
+
+    /* Scan lines on thumb */
+    .vc-thumb::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0px, rgba(0,0,0,.06) 1px, transparent 1px, transparent 3px);
+      z-index: 2; pointer-events: none;
+    }
+
+    /* Gold bottom line on hover */
+    .vc-card::after {
+      content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 2px;
+      background: var(--accent); transition: width .4s ease; z-index: 6;
+    }
+    .vc-card:hover::after { width: 100%; }
+
+    /* iframe that replaces thumb on click */
+    .vc-iframe-wrap {
+      display: none;
+      width: 100%; aspect-ratio: 16/9;
+      border: 1px solid rgba(200,169,110,.3);
+    }
+    .vc-iframe-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .vc-card.playing .vc-thumb { display: none; }
+    .vc-card.playing .vc-iframe-wrap { display: block; }
+    .vc-card.playing::after { width: 100%; }
+
+    /* ABOUT */
+    #about { border-top: 1px solid rgba(200,169,110,.12); }
+    .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6rem; }
+    .about-body { font-size: 1.1rem; font-weight: 300; line-height: 1.78; color: rgba(244,239,230,.65); margin-top: 2rem; }
+    .about-body p + p { margin-top: 1.2rem; }
+    .affil-label { font-family: 'Space Mono', monospace; font-size: .57rem; letter-spacing: .22em; color: rgba(244,239,230,.26); margin-bottom: 1.4rem; }
+    .affil-list { display: flex; flex-direction: column; }
+    .affil-item { font-family: 'Space Mono', monospace; font-size: .65rem; letter-spacing: .1em; color: rgba(244,239,230,.42); padding: .58rem 0; border-bottom: 1px solid rgba(200,169,110,.1); display: flex; align-items: center; gap: .72rem; transition: color .2s; }
+    .affil-item:hover { color: var(--accent); }
+
+    /* DOJOS */
+    #dojos { border-top: 1px solid rgba(200,169,110,.12); }
+    .dojos-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 4rem; }
+    .dojo-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgba(200,169,110,.12); border-left: 1px solid rgba(200,169,110,.12); }
+    .dojo-card { border-right: 1px solid rgba(200,169,110,.12); border-bottom: 1px solid rgba(200,169,110,.12); padding: 1.7rem 2rem; transition: background .25s; position: relative; }
+    .dojo-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(200,169,110,.04), transparent); opacity: 0; transition: opacity .25s; }
+    .dojo-card:hover { background: rgba(200,169,110,.04); }
+    .dojo-card:hover::before { opacity: 1; }
+    .dojo-region { font-family: 'Space Mono', monospace; font-size: .52rem; letter-spacing: .22em; color: var(--accent); margin-bottom: .42rem; text-transform: uppercase; }
+    .dojo-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.32rem; letter-spacing: .05em; line-height: 1.1; margin-bottom: .5rem; }
+    .dojo-city { font-size: .84rem; font-weight: 300; color: rgba(244,239,230,.4); }
+    .dojo-sensei { font-family: 'Space Mono', monospace; font-size: .5rem; letter-spacing: .1em; color: rgba(244,239,230,.25); margin-top: .65rem; }
+
+    /* EVENTS */
+    #eventos { border-top: 1px solid rgba(200,169,110,.12); background: rgba(200,169,110,.013); }
+    .events-list { margin-top: 3rem; }
+    .event-row { display: grid; grid-template-columns: 80px 1fr auto; gap: 2rem; align-items: center; padding: 1.5rem 0; border-bottom: 1px solid rgba(200,169,110,.12); transition: padding-left .2s; cursor: none; }
+    .event-row:hover { padding-left: 1rem; }
+    .event-date { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); line-height: 1; }
+    .event-date small { display: block; font-family: 'Space Mono', monospace; font-size: .5rem; letter-spacing: .15em; color: rgba(244,239,230,.26); }
+    .event-name { font-size: 1.2rem; font-weight: 400; }
+    .event-loc { font-family: 'Space Mono', monospace; font-size: .57rem; letter-spacing: .12em; color: rgba(244,239,230,.3); margin-top: .32rem; }
+    .event-arrow { font-family: 'Space Mono', monospace; font-size: .62rem; color: var(--accent); opacity: 0; transition: opacity .2s; }
+    .event-row:hover .event-arrow { opacity: 1; }
+
+    /* TICKER */
+    #recognition { border-top: 1px solid rgba(200,169,110,.12); padding: 2.5rem 0; overflow: hidden; }
+    .recog-label { font-family: 'Space Mono', monospace; font-size: .57rem; letter-spacing: .22em; color: rgba(244,239,230,.2); margin-bottom: 1.8rem; text-align: center; }
+    .recog-ticker-wrap { overflow: hidden; }
+    .recog-ticker { display: flex; gap: 4rem; animation: ticker 24s linear infinite; width: max-content; }
+    .recog-item { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .14em; color: rgba(244,239,230,.16); white-space: nowrap; }
+    .recog-sep { color: var(--accent); opacity: .32; }
+
+    /* CONTACT */
+    #contacto { border-top: 1px solid rgba(200,169,110,.12); }
+    .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6rem; }
+    .contact-big { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem, 8vw, 7rem); line-height: .9; margin-top: 1rem; }
+    .contact-big a { color: var(--accent); text-decoration: none; display: block; transition: opacity .2s; }
+    .contact-big a:hover { opacity: .7; }
+    .detail-label { font-family: 'Space Mono', monospace; font-size: .55rem; letter-spacing: .22em; color: rgba(244,239,230,.26); margin-bottom: .48rem; text-transform: uppercase; }
+    .detail-value { font-size: .98rem; font-weight: 300; color: rgba(244,239,230,.65); line-height: 1.5; }
+    .social-links { display: flex; flex-direction: column; gap: .4rem; }
+    .social-links a { font-family: 'Space Mono', monospace; font-size: .62rem; letter-spacing: .1em; color: rgba(244,239,230,.35); text-decoration: none; display: flex; align-items: center; gap: .5rem; transition: color .2s; }
+    .social-links a:hover { color: var(--accent); }
+
+    footer { border-top: 1px solid rgba(200,169,110,.12); padding: 1.5rem 2.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .footer-copy { font-family: 'Space Mono', monospace; font-size: .57rem; letter-spacing: .14em; color: rgba(244,239,230,.2); }
+    .footer-links { display: flex; gap: 2rem; }
+    .footer-links a { font-family: 'Space Mono', monospace; font-size: .57rem; letter-spacing: .1em; color: rgba(244,239,230,.2); text-decoration: none; transition: color .2s; }
+    .footer-links a:hover { color: var(--accent); }
+
+    .btn-outline { display: inline-flex; align-items: center; gap: .75rem; font-family: 'Space Mono', monospace; font-size: .62rem; letter-spacing: .15em; text-transform: uppercase; color: var(--white); border: 1px solid rgba(200,169,110,.3); padding: .7rem 1.4rem; text-decoration: none; transition: border-color .2s, color .2s; cursor: none; }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ANIMATIONS */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+    @keyframes scrollPulse { 0%,100% { opacity:.3; transform:scaleX(1); } 50% { opacity:1; transform:scaleX(1.3); } }
+    @keyframes ticker { 0% { transform:translateX(0); } 100% { transform:translateX(-50%); } }
+    @keyframes glowPulse { 0%,100% { opacity:.7; } 50% { opacity:1; transform:scale(1.06); } }
+
+    .reveal { opacity: 0; transform: translateY(20px); transition: opacity .75s ease, transform .75s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+    .stagger > * { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+    .stagger.visible > *:nth-child(1) { opacity:1;transform:none;transition-delay:0s; }
+    .stagger.visible > *:nth-child(2) { opacity:1;transform:none;transition-delay:.08s; }
+    .stagger.visible > *:nth-child(3) { opacity:1;transform:none;transition-delay:.16s; }
+    .stagger.visible > *:nth-child(4) { opacity:1;transform:none;transition-delay:.24s; }
+    .stagger.visible > *:nth-child(5) { opacity:1;transform:none;transition-delay:.32s; }
+    .stagger.visible > *:nth-child(6) { opacity:1;transform:none;transition-delay:.4s; }
+    .stagger.visible > *:nth-child(7) { opacity:1;transform:none;transition-delay:.48s; }
+    .stagger.visible > *:nth-child(8) { opacity:1;transform:none;transition-delay:.56s; }
+    .stagger.visible > *:nth-child(9) { opacity:1;transform:none;transition-delay:.64s; }
+
+    @media(max-width:900px){
+      nav{padding:1rem 1.25rem;} .nav-links{display:none;} section{padding:4rem 1.25rem;} #hero{padding:0 1.25rem;padding-top:5rem;}
+      .hero-grid{grid-template-columns:1fr;gap:2rem;} .masters-grid{grid-template-columns:repeat(2,1fr);} .masters-intro{grid-template-columns:1fr;gap:2rem;}
+      .about-grid{grid-template-columns:1fr;gap:3rem;} .contact-grid{grid-template-columns:1fr;gap:3rem;} .video-grid{grid-template-columns:1fr;}
+      .dojo-grid{grid-template-columns:1fr 1fr;} .modal-box{grid-template-columns:1fr;} .modal-portrait{min-height:260px;} footer{flex-direction:column;gap:1rem;text-align:center;}
+      #video-banner{height:50vh;}
+    }
+    @media(max-width:580px){.masters-grid{grid-template-columns:1fr;}.dojo-grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<!-- MODAL -->
+<div id="master-modal">
+  <div class="modal-backdrop" id="modal-backdrop"></div>
+  <div class="modal-box">
+    <div class="modal-portrait">
+      <img id="modal-img" src="" alt="" />
+      <div class="modal-portrait-overlay"></div>
+    </div>
+    <div class="modal-content">
+      <p class="modal-rank" id="modal-rank"></p>
+      <h3 class="modal-name" id="modal-name"></h3>
+      <p class="modal-years" id="modal-years"></p>
+      <p class="modal-body" id="modal-body"></p>
+      <blockquote class="modal-quote" id="modal-quote"></blockquote>
+      <button class="modal-close" id="modal-close">/ CERRAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">AIKIKAN<span> /</span> ES</div>
+  <ul class="nav-links">
+    <li><a href="#maestros">Maestros</a></li>
+    <li><a href="#videos">Vídeos</a></li>
+    <li><a href="#dojos">Dojos</a></li>
+    <li><a href="#eventos">Eventos</a></li>
+    <li><a href="#contacto">Contacto</a></li>
+  </ul>
+  <a href="mailto:secretaria@aikikan.es" class="nav-cta">Contáctenos</a>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-bg-circle"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-grid">
+    <div>
+      <p class="hero-eyebrow"><span class="slash">/</span> Asociación Nacional · Aikido</p>
+      <h1 class="hero-title">AIKI<span class="accent">KAN</span>ESPAÑA</h1>
+    </div>
+    <div class="hero-right">
+      <blockquote class="hero-quote">
+        "En aikido no hay formas ni modelos. Los movimientos naturales son los movimientos del aikido. Su profundidad es insondable e inagotable."
+        <cite>/ O'SENSEI MORIHEI UESHIBA</cite>
+      </blockquote>
+      <div class="hero-meta">
+        <div><div class="hero-stat-num">46+</div><div class="hero-stat-label">Dojos</div></div>
+        <div><div class="hero-stat-num">IAF</div><div class="hero-stat-label">Afiliación</div></div>
+        <div><div class="hero-stat-num">EAF</div><div class="hero-stat-label">Europea</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-bottom-bar">
+    <span class="fps-badge">AIKIKAN © MMXXVI</span>
+    <div class="scroll-hint"><span class="scroll-line"></span>DESPLAZAR</div>
+  </div>
+</section>
+
+<!-- VIDEO BANNER -->
+<div id="video-banner">
+  <canvas id="vb-canvas"></canvas>
+  <div class="vb-overlay"></div>
+  <div class="vb-top"></div>
+  <div class="vb-bot"></div>
+  <div class="vb-content">
+    <p class="vb-label reveal"><span class="slash">/</span> El camino del budo</p>
+    <h2 class="vb-title reveal">EL ARTE<br>DE LA<br>ARMONÍA</h2>
+    <p class="vb-sub reveal">La técnica como espejo del espíritu — aikido, vía de paz.</p>
+  </div>
+</div>
+
+<!-- PULL QUOTE -->
+<div class="pull-quote-block">
+  <p class="pq-text reveal">"El aikido es un arte de paz. Nuestro objetivo no es la lucha, sino la armonía con todos los seres."</p>
+  <p class="pq-attr reveal">/ DOSHU MORITERU UESHIBA</p>
+</div>
+
+<!-- MAESTROS -->
+<section id="maestros">
+  <div class="masters-intro">
+    <div class="reveal">
+      <div class="section-label"><span class="slash">/</span> Linaje &amp; Maestros</div>
+      <h2 class="section-title">LOS<br>MAESTROS</h2>
+    </div>
+    <p class="masters-intro-body reveal">La transmisión del Aikido a través de generaciones de maestros constituye la columna vertebral de nuestra práctica. Cada sensei porta el conocimiento recibido directamente del fundador, preservando la esencia del camino.</p>
+  </div>
+
+  <div class="masters-grid stagger">
+
+    <!-- O'Sensei -->
+    <div class="master-card" data-master="osensei">
+      <div class="master-portrait">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Morihei_Ueshiba_at_home%2C_1967.jpg/400px-Morihei_Ueshiba_at_home%2C_1967.jpg" alt="Morihei Ueshiba" loading="lazy" onerror="this.parentElement.style.background='#1a1208'" />
+        <div class="master-portrait-overlay"></div>
+      </div>
+      <div class="master-info">
+        <p class="master-rank">/ Fundador del Aikido</p>
+        <h3 class="master-name">Morihei Ueshiba</h3>
+        <p class="master-years">1883 — 1969</p>
+        <p class="master-bio">O'Sensei, el Gran Maestro. Creador del Aikido como síntesis de técnicas marciales, filosofía espiritual y búsqueda de la armonía universal.</p>
+      </div>
+    </div>
+
+    <!-- Tamura -->
+    <div class="master-card" data-master="tamura">
+      <div class="master-portrait">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Nobuyoshi_Tamura.jpg/400px-Nobuyoshi_Tamura.jpg" alt="Nobuyoshi Tamura" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=533&fit=crop&grayscale'" />
+        <div class="master-portrait-overlay"></div>
+      </div>
+      <div class="master-info">
+        <p class="master-rank">/ 8º Dan Aikikai Shihan</p>
+        <h3 class="master-name">Nobuyoshi Tamura</h3>
+        <p class="master-years">1933 — 2010</p>
+        <p class="master-bio">Uchi-deshi de O'Sensei desde 1952 y uke preferido del fundador. Arquitecto principal del Aikido en Europa occidental durante más de 50 años.</p>
+      </div>
+    </div>
+
+    <!-- Moriteru -->
+    <div class="master-card" data-master="moriteru">
+      <div class="master-portrait">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Moriteru_Ueshiba_at_Kagamibiraki_2020.jpg/400px-Moriteru_Ueshiba_at_Kagamibiraki_2020.jpg" alt="Moriteru Ueshiba Doshu" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=400&h=533&fit=crop&grayscale'" />
+        <div class="master-portrait-overlay"></div>
+      </div>
+      <div class="master-info">
+        <p class="master-rank">/ III Doshu · Aikikai</p>
+        <h3 class="master-name">Moriteru Ueshiba</h3>
+        <p class="master-years">1951 —</p>
+        <p class="master-bio">Nieto del fundador. Tercer Doshu desde 1999. Presidente vitalicio de la IAF. Guardian de la transmisión del Aikido al mundo.</p>
+      </div>
+    </div>
+
+    <!-- Tiki Shewan -->
+    <div class="master-card" data-master="shewan">
+      <div class="master-portrait">
+        <img src="https://www.newyorkbudoassociation.org/uploads/1/3/0/6/13064282/img-3312_orig.jpg" alt="Malcolm Tiki Shewan" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=533&fit=crop&grayscale'" />
+        <div class="master-portrait-overlay"></div>
+      </div>
+      <div class="master-info">
+        <p class="master-rank">/ 6º Dan Aikikai</p>
+        <h3 class="master-name">Malcolm Tiki Shewan</h3>
+        <p class="master-years">1951 —</p>
+        <p class="master-bio">Discípulo directo de Tamura Shihan. Maestro de Aikido, Kenjutsu e Iaido. Director Técnico de la Federación Europea de Iai.</p>
+      </div>
+    </div>
+
+    <!-- Benedetti -->
+    <div class="master-card" data-master="benedetti">
+      <div class="master-portrait">
+        <img src="https://traditionmartiale.com/wp-content/uploads/2017/02/benedetti-dombasle.jpg" alt="Stéphane Benedetti" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=533&fit=crop&grayscale'" />
+        <div class="master-portrait-overlay"></div>
+      </div>
+      <div class="master-info">
+        <p class="master-rank">/ 7º Dan Aikikai Shihan</p>
+        <h3 class="master-name">Stéphane Benedetti</h3>
+        <p class="master-years">1951 —</p>
+        <p class="master-bio">Alumno y traductor de Tamura Sensei. Orientalista y doctrinario. Fundador del Mutokukai. Reside en Cataluña y enseña en toda Europa.</p>
+      </div>
+    </div>
+
+  </div>
+  <p class="master-hint">/ HAZ CLIC EN CADA MAESTRO PARA SABER MÁS</p>
+</section>
+
+<!-- VIDEOS -->
+<section id="videos">
+  <div class="section-label reveal"><span class="slash">/</span> Archivo Visual</div>
+  <h2 class="section-title reveal">TÉCNICA<br>EN MOVIMIENTO</h2>
+
+  <div class="carousel-outer">
+    <div class="carousel-track-wrap">
+      <div class="carousel-track" id="carousel-track">
+
+        <!-- Card 1 -->
+        <div class="vc-card" data-vid="eV3c0gMxPJI">
+          <div class="vc-thumb">
+            <img src="https://img.youtube.com/vi/eV3c0gMxPJI/hqdefault.jpg" alt="Morihei Ueshiba O'Sensei" />
+            <div class="vc-thumb-overlay"></div>
+            <div class="vc-play"><div class="vc-play-btn"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+            <div class="vc-caption">
+              <p class="vc-caption-label">Fundador</p>
+              <p class="vc-caption-name">Morihei Ueshiba — O'Sensei</p>
+            </div>
+          </div>
+          <div class="vc-iframe-wrap"><iframe title="Morihei Ueshiba O'Sensei" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="vc-card" data-vid="rVOhCBdVvNM">
+          <div class="vc-thumb">
+            <img src="https://img.youtube.com/vi/rVOhCBdVvNM/hqdefault.jpg" alt="Nobuyoshi Tamura" />
+            <div class="vc-thumb-overlay"></div>
+            <div class="vc-play"><div class="vc-play-btn"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+            <div class="vc-caption">
+              <p class="vc-caption-label">8º Dan Shihan</p>
+              <p class="vc-caption-name">Nobuyoshi Tamura</p>
+            </div>
+          </div>
+          <div class="vc-iframe-wrap"><iframe title="Nobuyoshi Tamura" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="vc-card" data-vid="UqbUK93kkUM">
+          <div class="vc-thumb">
+            <img src="https://img.youtube.com/vi/UqbUK93kkUM/hqdefault.jpg" alt="Moriteru Ueshiba Doshu" />
+            <div class="vc-thumb-overlay"></div>
+            <div class="vc-play"><div class="vc-play-btn"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+            <div class="vc-caption">
+              <p class="vc-caption-label">III Doshu</p>
+              <p class="vc-caption-name">Moriteru Ueshiba — Kagamibiraki 2026</p>
+            </div>
+          </div>
+          <div class="vc-iframe-wrap"><iframe title="Moriteru Ueshiba Doshu" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="vc-card" data-vid="qbW5frQI4dU">
+          <div class="vc-thumb">
+            <img src="https://img.youtube.com/vi/qbW5frQI4dU/hqdefault.jpg" alt="Malcolm Tiki Shewan" />
+            <div class="vc-thumb-overlay"></div>
+            <div class="vc-play"><div class="vc-play-btn"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+            <div class="vc-caption">
+              <p class="vc-caption-label">6º Dan Aikikai</p>
+              <p class="vc-caption-name">Malcolm Tiki Shewan — Principios de Aikido</p>
+            </div>
+          </div>
+          <div class="vc-iframe-wrap"><iframe title="Malcolm Tiki Shewan" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="vc-card" data-vid="boQqqh5ssMM">
+          <div class="vc-thumb">
+            <img src="https://img.youtube.com/vi/boQqqh5ssMM/hqdefault.jpg" alt="Stéphane Benedetti" />
+            <div class="vc-thumb-overlay"></div>
+            <div class="vc-play"><div class="vc-play-btn"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+            <div class="vc-caption">
+              <p class="vc-caption-label">7º Dan Shihan</p>
+              <p class="vc-caption-name">Stéphane Benedetti — Seminario</p>
+            </div>
+          </div>
+          <div class="vc-iframe-wrap"><iframe title="Stéphane Benedetti Seminario" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="vc-card" data-vid="4DEGlGHTXnI">
+          <div class="vc-thumb">
+            <img src="https://img.youtube.com/vi/4DEGlGHTXnI/hqdefault.jpg" alt="Benedetti San Petersburgo" />
+            <div class="vc-thumb-overlay"></div>
+            <div class="vc-play"><div class="vc-play-btn"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+            <div class="vc-caption">
+              <p class="vc-caption-label">Mutokukai · Shihan</p>
+              <p class="vc-caption-name">Benedetti — Técnica y espíritu</p>
+            </div>
+          </div>
+          <div class="vc-iframe-wrap"><iframe title="Benedetti Técnica y espíritu" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        </div>
+
+      </div><!-- /.carousel-track -->
+    </div><!-- /.carousel-track-wrap -->
+  </div><!-- /.carousel-outer -->
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="section-label reveal"><span class="slash">/</span> Asociación</div>
+  <div class="about-grid">
+    <div class="reveal">
+      <h2 class="section-title">EL CAMINO<br>DEL AIKIDO</h2>
+      <div class="about-body">
+        <p>AIKIKAN España es la asociación nacional dedicada a la práctica y difusión del Aikido en todo el territorio español. Reunimos a practicantes, instructores y dojos bajo un mismo propósito: cultivar el arte marcial fundado por O'Sensei Morihei Ueshiba.</p>
+        <p>Reconocidos por el Aikikai de Tokio, la International Aikido Federation y la European Aikido Federation, garantizamos los más altos estándares técnicos y éticos en la práctica del Aikido.</p>
+      </div>
+    </div>
+    <div class="reveal">
+      <div style="margin-bottom:3rem;">
+        <p class="affil-label">/ RECONOCIMIENTO INTERNACIONAL</p>
+        <div class="affil-list stagger">
+          <div class="affil-item"><span class="slash">/</span> AIKIKAI · Tokio, Japón</div>
+          <div class="affil-item"><span class="slash">/</span> IAF · International Aikido Federation</div>
+          <div class="affil-item"><span class="slash">/</span> EAF · European Aikido Federation</div>
+          <div class="affil-item"><span class="slash">/</span> FNAAE · Federación Nacional Española</div>
+        </div>
+      </div>
+      <div>
+        <p class="affil-label">/ ACTIVIDADES</p>
+        <div class="affil-list stagger">
+          <div class="affil-item"><span class="slash">/</span> Seminarios técnicos nacionales</div>
+          <div class="affil-item"><span class="slash">/</span> Exámenes de grado oficiales</div>
+          <div class="affil-item"><span class="slash">/</span> Renovación de licencias federativas</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOJOS -->
+<section id="dojos">
+  <div class="dojos-header reveal">
+    <div>
+      <div class="section-label"><span class="slash">/</span> Red de Dojos</div>
+      <h2 class="section-title">LOS<br>DOJOS</h2>
+    </div>
+    <span class="mono" style="font-size:.62rem;letter-spacing:.15em;color:rgba(244,239,230,.28);padding-bottom:.5rem;">[ 46 ]</span>
+  </div>
+  <div class="dojo-grid stagger">
+    <div class="dojo-card"><p class="dojo-region">Madrid</p><h3 class="dojo-name">GN Sport Center</h3><p class="dojo-city">Pozuelo de Alarcón</p><p class="dojo-sensei">/ Nacho Vindel</p></div>
+    <div class="dojo-card"><p class="dojo-region">Alicante</p><h3 class="dojo-name">Daimyo</h3><p class="dojo-city">Alicante</p><p class="dojo-sensei">/ Aurelio Fuentes</p></div>
+    <div class="dojo-card"><p class="dojo-region">Alicante</p><h3 class="dojo-name">Musubi Elda</h3><p class="dojo-city">Elda</p><p class="dojo-sensei">/ Juan Carlos Nortes</p></div>
+    <div class="dojo-card"><p class="dojo-region">Madrid</p><h3 class="dojo-name">Sangenkan Dojo</h3><p class="dojo-city">Torrejón de Ardoz</p><p class="dojo-sensei">/ Sergio Torres</p></div>
+    <div class="dojo-card"><p class="dojo-region">Barcelona</p><h3 class="dojo-name">Tada Ima Dojo</h3><p class="dojo-city">Sabadell</p><p class="dojo-sensei">/ Rubén Varona</p></div>
+    <div class="dojo-card"><p class="dojo-region">Granada</p><h3 class="dojo-name">Dojo Enso</h3><p class="dojo-city">Granada</p><p class="dojo-sensei">/ Ángel Montero</p></div>
+    <div class="dojo-card"><p class="dojo-region">Madrid</p><h3 class="dojo-name">Kamikwai</h3><p class="dojo-city">Madrid</p><p class="dojo-sensei">/ Marco Rende</p></div>
+    <div class="dojo-card"><p class="dojo-region">Asturias</p><h3 class="dojo-name">Aikido Norte</h3><p class="dojo-city">Gijón · Oviedo · Siero</p><p class="dojo-sensei">/ Francisco Serrano</p></div>
+    <div class="dojo-card"><p class="dojo-region">Cantabria</p><h3 class="dojo-name">Ayumu Aikido</h3><p class="dojo-city">Santoña</p><p class="dojo-sensei">/ Ayumu Dojo</p></div>
+  </div>
+  <div style="margin-top:3rem;" class="reveal"><a href="https://www.aikikan.es/our-services" class="btn-outline"><span class="slash">/</span> Ver todos los dojos</a></div>
+</section>
+
+<!-- EVENTOS -->
+<section id="eventos">
+  <div class="section-label reveal"><span class="slash">/</span> Próximos Eventos</div>
+  <h2 class="section-title reveal">AGENDA<br>2025–2026</h2>
+  <div class="events-list">
+    <div class="event-row reveal"><div class="event-date">MAY<small>2025</small></div><div><p class="event-name">Seminario Nacional de Primavera</p><p class="event-loc">/ Madrid · Convocatoria abierta</p></div><span class="event-arrow">→</span></div>
+    <div class="event-row reveal"><div class="event-date">JUN<small>2025</small></div><div><p class="event-name">Exámenes de Grado Oficiales</p><p class="event-loc">/ Elche, Alicante · Sede central</p></div><span class="event-arrow">→</span></div>
+    <div class="event-row reveal"><div class="event-date">OCT<small>2025</small></div><div><p class="event-name">Encuentro Técnico Otoño</p><p class="event-loc">/ Castellón de la Plana</p></div><span class="event-arrow">→</span></div>
+    <div class="event-row reveal"><div class="event-date">ENE<small>2026</small></div><div><p class="event-name">Renovación de Licencias</p><p class="event-loc">/ Online · Todos los dojos</p></div><span class="event-arrow">→</span></div>
+  </div>
+  <div style="margin-top:2.5rem;" class="reveal"><a href="https://www.aikikan.es/events" class="btn-outline"><span class="slash">/</span> Ver todos los eventos</a></div>
+</section>
+
+<!-- TICKER -->
+<div id="recognition">
+  <p class="recog-label">/ RECONOCIMIENTO INTERNACIONAL</p>
+  <div class="recog-ticker-wrap">
+    <div class="recog-ticker">
+      <span class="recog-item">AIKIKAI FOUNDATION</span><span class="recog-sep"> · </span>
+      <span class="recog-item">INTERNATIONAL AIKIDO FEDERATION</span><span class="recog-sep"> · </span>
+      <span class="recog-item">EUROPEAN AIKIDO FEDERATION</span><span class="recog-sep"> · </span>
+      <span class="recog-item">FNAAE · ESPAÑA</span><span class="recog-sep"> · </span>
+      <span class="recog-item">HOMBU DOJO · TOKIO</span><span class="recog-sep"> · </span>
+      <span class="recog-item">AIKIKAI FOUNDATION</span><span class="recog-sep"> · </span>
+      <span class="recog-item">INTERNATIONAL AIKIDO FEDERATION</span><span class="recog-sep"> · </span>
+      <span class="recog-item">EUROPEAN AIKIDO FEDERATION</span><span class="recog-sep"> · </span>
+      <span class="recog-item">FNAAE · ESPAÑA</span><span class="recog-sep"> · </span>
+      <span class="recog-item">HOMBU DOJO · TOKIO</span><span class="recog-sep"> · </span>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT -->
+<section id="contacto">
+  <div class="section-label reveal"><span class="slash">/</span> Contacto</div>
+  <div class="contact-grid">
+    <div class="reveal">
+      <h2 class="section-title">HABLEMOS</h2>
+      <div class="contact-big"><a href="mailto:secretaria@aikikan.es">SECRETARÍA</a></div>
+    </div>
+    <div class="reveal" style="padding-top:2rem;">
+      <div style="margin-bottom:2.2rem;"><p class="detail-label">/ Dirección</p><p class="detail-value">C/ Capitán Antoni Mena, 42<br>03201 Elche (Alicante) · España</p></div>
+      <div style="margin-bottom:2.2rem;"><p class="detail-label">/ Correo Electrónico</p><p class="detail-value"><a href="mailto:secretaria@aikikan.es" style="color:var(--accent);text-decoration:none;">secretaria@aikikan.es</a></p></div>
+      <div style="margin-bottom:2.2rem;"><p class="detail-label">/ Teléfono</p><p class="detail-value"><a href="tel:+34672368699" style="color:rgba(244,239,230,.65);text-decoration:none;">+34 672 368 699</a></p></div>
+      <div><p class="detail-label">/ Redes Sociales</p><div class="social-links"><a href="https://www.facebook.com/share/p/GtHbPdwKLbH69S3e/" target="_blank"><span class="slash">/</span> Facebook</a><a href="https://www.instagram.com/aikikan_espana" target="_blank"><span class="slash">/</span> Instagram</a></div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p class="footer-copy">© AIKIKAN ESPAÑA · MMXXVI · ELCHE, ALICANTE</p>
+  <div class="footer-links"><a href="https://www.aikikan.es/privacy">Privacidad</a><a href="https://www.aikikan.es/avisolegal">Aviso Legal</a><a href="https://www.aikikan.es/legal/cookies-policy">Cookies</a></div>
+</footer>
+
+<script>
+// ── CURSOR ──
+const cursor = document.getElementById('cursor');
+const cursorRing = document.getElementById('cursor-ring');
+let mx = 0, my = 0, rx = 0, ry = 0;
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursor.style.left = mx + 'px'; cursor.style.top = my + 'px';
+});
+(function animRing() {
+  rx += (mx - rx) * .1; ry += (my - ry) * .1;
+  cursorRing.style.left = rx + 'px'; cursorRing.style.top = ry + 'px';
+  requestAnimationFrame(animRing);
+})();
+document.querySelectorAll('a, button, .master-card, .dojo-card, .event-row').forEach(el => {
+  el.addEventListener('mouseenter', () => cursor.classList.add('grow'));
+  el.addEventListener('mouseleave', () => cursor.classList.remove('grow'));
+});
+
+// ── CANVAS ABSTRACT ANIMATION ──
+const canvas = document.getElementById('vb-canvas');
+const ctx = canvas.getContext('2d');
+function resize() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+resize(); window.addEventListener('resize', resize);
+let tick = 0;
+(function draw() {
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = 'rgba(9,9,8,0.06)';
+  ctx.fillRect(0, 0, w, h);
+  tick += .003;
+  // Circular ink-brush strokes
+  for (let i = 0; i < 6; i++) {
+    const t = tick + i * 1.1;
+    const x = w * (.5 + .45 * Math.cos(t * .18 + i * .8));
+    const y = h * (.5 + .45 * Math.sin(t * .14 + i * .6));
+    const x2 = w * (.5 + .42 * Math.cos(t * .21 + i));
+    const y2 = h * (.5 + .42 * Math.sin(t * .19 + i * .9));
+    const g = ctx.createLinearGradient(x, y, x2, y2);
+    g.addColorStop(0, 'rgba(200,169,110,0.018)');
+    g.addColorStop(.5, 'rgba(200,169,110,0.055)');
+    g.addColorStop(1, 'rgba(200,169,110,0.008)');
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.bezierCurveTo(
+      w * Math.sin(t * .11 + i*.4), h * Math.cos(t*.13),
+      w * Math.cos(t * .08 + i), h * Math.sin(t * .12 + i*.5),
+      x2, y2
+    );
+    ctx.strokeStyle = g; ctx.lineWidth = 1.8 + Math.sin(t) * .8; ctx.stroke();
+  }
+  // Expanding circles (like ripples from a throw)
+  for (let i = 0; i < 3; i++) {
+    const t = (tick * .4 + i * 2.1) % (Math.PI * 2);
+    const r = Math.min(w, h) * (.08 + .22 * (t / (Math.PI * 2)));
+    const alpha = .06 * (1 - t / (Math.PI * 2));
+    ctx.beginPath();
+    ctx.arc(w * .72, h * .5, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(200,169,110,${alpha})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  requestAnimationFrame(draw);
+})();
+
+// ── SCROLL REVEAL ──
+const observer = new IntersectionObserver(
+  entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+  { threshold: 0.08 }
+);
+document.querySelectorAll('.reveal, .stagger').forEach(el => observer.observe(el));
+
+// ── MASTER DATA ──
+const masters = {
+  osensei: {
+    rank: '/ Fundador del Aikido — O\'Sensei',
+    name: 'MORIHEI UESHIBA',
+    years: '1883 — 1969 · Tanabe, Wakayama — Iwama, Ibaraki, Japón',
+    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Morihei_Ueshiba_at_home%2C_1967.jpg/400px-Morihei_Ueshiba_at_home%2C_1967.jpg',
+    body: 'Morihei Ueshiba es considerado uno de los más grandes maestros de artes marciales de todos los tiempos. Tras dominar diversas escuelas de judo, jujutsu y kenjutsu bajo Sokaku Takeda, y después de una profunda transformación espiritual en 1925, sintetizó su conocimiento en lo que denominaría Aikido: el camino de la armonía con el espíritu universal. Profundamente influenciado por la doctrina esotérica Omoto-kyo, enseñó que el Aikido era misogi —purificación del ser— y no combate. Pasó sus últimos años en Iwama, donde cultivaba la tierra y practicaba el arte.',
+    quote: '"El Aikido es el camino de la armonía. No luches contra el adversario; únete a él. Verdadera victoria es victoria sobre uno mismo."'
+  },
+  tamura: {
+    rank: '/ 8º Dan Aikikai Shihan — Padre del Aikido europeo',
+    name: 'NOBUYOSHI TAMURA',
+    years: '1933 — 2010 · Osaka, Japón — Bras, Provenza, Francia',
+    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Nobuyoshi_Tamura.jpg/400px-Nobuyoshi_Tamura.jpg',
+    body: 'Uchi-deshi de O\'Sensei desde 1952, Tamura Nobuyoshi fue el uke preferido del fundador en demostraciones públicas. Apodado "la muralla de piedra" en Hawái por su firmeza. En 1964 llegó a Marsella como representante oficial del Aikikai, convirtiéndose en el principal arquitecto del Aikido en Europa occidental. Reunía hasta 500 practicantes en sus seminarios de verano en Lesneven, Saint-Mandrier y La Colle-sur-Loup. Su credo: "ordenar el cuerpo para que la mente le siga". Su último seminario fue en Madrid, en marzo de 2010.',
+    quote: '"El primer objetivo de la práctica es ordenar el cuerpo. Eliminar lo superfluo, adoptar la postura correcta, asentar la respiración. Después, el espíritu sigue."'
+  },
+  moriteru: {
+    rank: '/ III Doshu — Maestro del Camino — IAF · Aikikai Foundation',
+    name: 'MORITERU UESHIBA',
+    years: '1951 — · Tokio, Japón',
+    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Moriteru_Ueshiba_at_Kagamibiraki_2020.jpg/400px-Moriteru_Ueshiba_at_Kagamibiraki_2020.jpg',
+    body: 'Nieto del fundador e hijo de Kisshomaru Ueshiba, Moriteru asumió el título de Doshu —Maestro del Camino— el 4 de enero de 1999. Graduado en economía por la Universidad Meiji Gakuin, dirige el Aikikai Foundation y es presidente vitalicio de la International Aikido Federation. Imparte clases cada mañana en el Hombu Dojo de Tokio a las 6:30h, los lunes, miércoles y viernes. Su misión: preservar y transmitir la esencia del Aikido al mundo.',
+    quote: '"El Aikido es un arte de paz. Nuestro objetivo no es la lucha, sino la armonía con todos los seres. Esta es la verdadera victoria."'
+  },
+  shewan: {
+    rank: '/ 6º Dan Aikikai · Director Técnico FEI · Maestro de Kenjutsu e Iaido',
+    name: 'MALCOLM TIKI SHEWAN',
+    years: '1951 — · Somerville, New Jersey (EE. UU.) — Cannes, Francia',
+    img: 'https://www.newyorkbudoassociation.org/uploads/1/3/0/6/13064282/img-3312_orig.jpg',
+    body: 'De ascendencia escocesa, Malcolm "Tiki" Shewan comenzó la esgrima a los seis años y el Judo en el Budokwai de Londres. Su encuentro con Tamura Nobuyoshi Shihan en Lausana en 1969-70 cambió el curso de su vida: abandonó la esgrima para dedicarse íntegramente al Aikido y al Iaido, practicando 4-6 horas diarias. Desde 1973 enseña en el Aiki-Club de Cannes. Fue acompañante y uke del Doshu Kisshomaru Ueshiba en su gira europea de 1975. También es reconocido experto en metalurgia tradicional japonesa y fue pionero en forjar katanas en suelo europeo con hierro europeo.',
+    quote: '"El propósito no es la espada; es el alma. La espada viene después."'
+  },
+  benedetti: {
+    rank: '/ 7º Dan Aikikai Shihan · Fundador Mutokukai · Orientalista',
+    name: 'STÉPHANE BENEDETTI',
+    years: '1951 — · Aix-en-Provence, Francia — Barcelona, España',
+    img: 'https://traditionmartiale.com/wp-content/uploads/2017/02/benedetti-dombasle.jpg',
+    body: 'Orientalista formado en japonés, chino y sánscrito con estudios de historia de las religiones, Benedetti vivió nueve años en Japón donde estudió con Nonaka Shihan en Miyazaki y Kobayashi Shihan en Osaka. Fue el traductor y colaborador más cercano de Tamura Sensei, editando y traduciendo sus libros. Fundó el Mutokukai, organización internacional abierta a practicantes de todo el mundo. Hoy reside en Cataluña y enseña por toda Europa, incluyendo en el Bolshói de Moscú. Es Consejero Técnico de las Federaciones Euroasiática, Kalmuca y Ucraniana de Aikido.',
+    quote: '"El Aikido no es un arte marcial en el sentido de la guerra. Es un arte de paz y protección — takemusu, la creación espontánea de técnicas nacida desde la armonía."'
+  }
+};
+
+// ── MODAL ──
+const modal = document.getElementById('master-modal');
+document.querySelectorAll('.master-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const m = masters[card.dataset.master];
+    if (!m) return;
+    document.getElementById('modal-img').src = m.img;
+    document.getElementById('modal-img').alt = m.name;
+    document.getElementById('modal-rank').textContent = m.rank;
+    document.getElementById('modal-name').textContent = m.name;
+    document.getElementById('modal-years').textContent = m.years;
+    document.getElementById('modal-body').textContent = m.body;
+    document.getElementById('modal-quote').textContent = m.quote;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  });
+});
+// ── VIDEO CAROUSEL ──
+(function() {
+  const track = document.getElementById('carousel-track');
+  if (!track) return;
+
+  // Duplicate all cards to create seamless infinite loop
+  const origCards = Array.from(track.querySelectorAll('.vc-card'));
+  origCards.forEach(card => {
+    const clone = card.cloneNode(true);
+    clone.dataset.clone = 'true';
+    track.appendChild(clone);
+  });
+
+  // Click-to-play: replace thumbnail with iframe (autoplay=1)
+  track.addEventListener('click', e => {
+    const card = e.target.closest('.vc-card');
+    if (!card || card.classList.contains('playing')) return;
+
+    // Pause carousel while playing
+    track.style.animationPlayState = 'paused';
+
+    const vid = card.dataset.vid;
+    const iframe = card.querySelector('iframe');
+    iframe.src = `https://www.youtube.com/embed/${vid}?autoplay=1&rel=0&modestbranding=1`;
+    card.classList.add('playing');
+
+    // Stop carousel scrolling while any video is active
+    document.querySelectorAll('.vc-card.playing').forEach(c => {
+      if (c !== card) {
+        c.classList.remove('playing');
+        const f = c.querySelector('iframe');
+        f.src = '';
+      }
+    });
+  });
+
+  // Resume carousel if user clicks outside any card
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.vc-card')) {
+      document.querySelectorAll('.vc-card.playing').forEach(c => {
+        c.classList.remove('playing');
+        c.querySelector('iframe').src = '';
+      });
+      track.style.animationPlayState = '';
+    }
+  });
+})();
+
+function closeModal() { modal.classList.remove('open'); document.body.style.overflow = ''; }
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>

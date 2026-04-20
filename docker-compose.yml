@@ -281,6 +281,21 @@ services:
       - platform-auth
       - splitpay-core
 
+  # ── Aikikan (frontend 5176) ───────────────────────────────────
+  aikikan-portal:
+    build:
+      context: .
+      dockerfile: apps/aikikan/aikikan-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '5176:5176'
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://aikikan.apphub.local:8080
+    volumes:
+      - ./apps/aikikan/aikikan-portal/src:/app/apps/aikikan/aikikan-portal/src:ro
+
   # ── Gateway ────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
@@ -302,6 +317,7 @@ services:
       - yoga-studio
       - splitpay-core
       - splitpay-portal
+      - aikikan-portal
 
 volumes:
   postgres_data:

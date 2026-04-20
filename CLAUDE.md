@@ -128,7 +128,10 @@ When the user says **"Bootstrap app `<name>`"**, create a minimal portal for tha
 
 5. **Add to `pnpm-workspace.yaml`** — append `'apps/<name>/*'`
 
-6. **Add to `docker-compose.yml`**:
+6. **Add include to `infra/nginx/nginx.conf`** — append `include /etc/nginx/conf.d/<name>.conf;`
+   inside the `http {}` block alongside the other per-subdomain includes.
+
+7. **Add to `docker-compose.yml`**:
    - New service `<name>-portal`: `context: .`, correct Dockerfile path, port mapping,
      `VITE_API_BASE_URL: http://<name>.apphub.local:8080`, no `depends_on` needed beyond nginx
    - Add `<name>-portal` to nginx `depends_on`
