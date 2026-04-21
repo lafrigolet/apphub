@@ -140,6 +140,238 @@ When the user says **"Bootstrap app `<name>`"**, create a minimal portal for tha
 
 ---
 
+## Bootstrap command: Implementa `<app-name>`
+
+When the user says **"Implementa `<name>`"**, generate all microservices required by the
+imported portal prototype. Run these steps in order.
+
+> **Prerequisite**: the `importa` command has already been run for `<name>`, so
+> `apps/<name>/<name>-portal/src/` exists with mock data and React views.
+
+### Step 0 — Derive the API surface from the portal source
+
+Read every file under `apps/<name>/<name>-portal/src/`:
+
+- `data/mock.js` → each top-level exported array = one DB table
+- `context/AppContext.jsx` → state shape and mutations
+- `views/**/*.jsx` + `components/**/*.jsx`:
+  - Form `onSubmit` → POST / PUT endpoint
+  - Array `.filter`/`.map` over mock data → GET list endpoint
+  - Detail views → GET by-id endpoint
+  - Button actions (delete/archive/suspend/restore) → DELETE / PATCH endpoint
+  - Modal forms → POST endpoint
+
+Produce a **service map**: `{ serviceName, type, endpoints[] }`.
+
+### Step 1 — Classify each service (REUSE / EXTEND / IMPLEMENT / CREATE)
+
+| Decision | Condition |
+|---|---|
+| **REUSE** | All needed endpoints already exist — no changes required |
+| **EXTEND** | Service exists but is missing 1+ routes / schema changes |
+| **IMPLEMENT** | Service is scaffolded (health endpoint only, e.g. `platform/tenant-config`) |
+| **CREATE** | No service exists at all |
+
+Reference files: `platform/*/src/routes/`, `platform/*/src/app.js`,
+`infra/nginx/conf.d/upstream.conf`, `docker-compose.yml`.
+
+### Step 2 — EXTEND an existing service
+
+For each new endpoint in an existing platform service:
+
+1. `platform/<svc>/src/routes/<resource>.routes.js` — add route(s)
+2. `platform/<svc>/src/services/<resource>.service.js` — business logic
+3. `platform/<svc>/src/repositories/<resource>.repository.js` — SQL scoped to `tenant_id` AND `app_id`
+4. `platform/<svc>/migrations/<N>_add_<resource>.sql` — ALTER / CREATE TABLE in the service schema
+
+Pattern reference: `platform/auth/src/routes/auth.routes.js`
+
+### Step 3 — IMPLEMENT a scaffolded service
+
+Build out a service that exists but has only a `/health` stub:
+
+1. Add `fastify-plugin`, `@fastify/rate-limit`, `ajv-formats` to `package.json`
+2. `src/app.js` — register `helmet`, `cors`, `rate-limit`, `appGuard`, `sensible`, route files
+3. `src/lib/env.js` — declare and validate env vars
+4. `src/lib/db.js` — `createPool` from `@apphub/platform-sdk`; export `setTenantCtx`
+5. `src/lib/redis.js` — `createRedis` from `@apphub/platform-sdk`
+6. `src/lib/migrate.js` — auto-migration runner (reads `migrations/*.sql` sorted)
+7. `src/server.js` — call `migrate()` then `app.listen`
+8. `src/routes/`, `src/services/`, `src/repositories/` — implement per endpoint
+9. `migrations/001_init.sql` — full schema creation
+
+Pattern reference: `platform/auth/` (all files)
+
+### Step 4 — CREATE a new platform service (ports 3006–3009)
+
+Used for cross-cutting concerns not covered by existing platform services.
+
+1. **Determine port**: scan `docker-compose.yml` + `upstream.conf`; pick lowest free port in 3006–3009
+2. Create `platform/<svc>/` with full scaffold:
+   - `package.json` — name `@apphub/platform-<svc>`; deps: fastify, @fastify/helmet,
+     @fastify/cors, @fastify/sensible, @fastify/rate-limit, @apphub/platform-sdk, dotenv, ajv-formats
+   - `src/app.js` — same registration pattern as `platform/auth/src/app.js`
+   - `src/server.js` — `migrate()` then `app.listen`
+   - `src/lib/{env,logger,db,redis,migrate}.js`
+   - `src/plugins/app-guard.js` — thin wrapper re-exporting `appGuard` from `@apphub/platform-sdk`
+   - `src/utils/errors.js` — re-exports `AppError` and subclasses from platform-sdk
+   - `src/routes/<resource>.routes.js`, `src/services/<resource>.service.js`,
+     `src/repositories/<resource>.repository.js`
+   - `migrations/001_init.sql` — schema `platform_<svc>`, role `svc_platform_<svc>`, tables, RLS
+   - `Dockerfile` — workspace-context multi-stage; copy pnpm-workspace.yaml + packages/ +
+     `platform/<svc>/package.json`; install `--filter @apphub/platform-<svc>`;
+     copy src; `CMD ["node", "src/server.js"]`
+
+### Step 5 — CREATE a new app-specific service (ports 3030+)
+
+Used for concerns that only apply to one app.
+
+Same scaffold as Step 4, but:
+- Located at `apps/<name>/<name>-<svc>/`
+- `package.json` name: `@<name>/<name>-<svc>`
+- Schema: `<app>_<svc>`, role: `svc_<app>_<svc>`
+- Port: next free port above the app's existing service ports
+
+### Step 6 — PostgreSQL init SQL
+
+For each CREATE service, add `infra/postgres/init/<N>_<svc>_schema.sql`:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS <schema>;
+CREATE ROLE svc_<schema> WITH LOGIN PASSWORD '${SVC_<SCHEMA>_DB_PASSWORD}';
+GRANT USAGE ON SCHEMA <schema> TO svc_<schema>;
+-- tables, indexes
+ALTER TABLE <schema>.<table> ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON <schema>.<table>
+  USING (app_id = current_setting('app.app_id')
+     AND tenant_id = current_setting('app.tenant_id'));
+```
+
+### Step 7 — docker-compose.yml
+
+For each CREATE service add:
+
+```yaml
+<svc-name>:
+  build:
+    context: .
+    dockerfile: platform/<svc>/Dockerfile   # or apps/<app>/<app>-<svc>/Dockerfile
+  ports:
+    - "<port>:<port>"
+  environment:
+    PORT: <port>
+    DATABASE_URL: postgres://svc_<schema>:${SVC_<SCHEMA>_DB_PASSWORD}@postgres:5432/apphub
+    REDIS_URL: redis://redis:6379
+    JWT_SECRET: ${JWT_SECRET}
+    EXPECTED_APP_ID: <app-name>   # omit for cross-cutting platform services
+  depends_on: [postgres, redis]
+```
+
+Also add the new service to nginx's `depends_on` list.
+
+### Step 8 — NGINX upstream
+
+In `infra/nginx/conf.d/upstream.conf`:
+
+```nginx
+upstream <svc_name> { server <svc-container-name>:<port>; }
+```
+
+### Step 9 — NGINX routes
+
+**Platform service** → add to `infra/nginx/snippets/platform-routes.conf`:
+
+```nginx
+location /api/<svc>/ {
+  proxy_pass http://<svc_name>/;
+  include /etc/nginx/snippets/proxy-headers.conf;
+}
+```
+
+**App-specific service** → add to `infra/nginx/conf.d/<name>.conf` before `location /`.
+
+### Step 10 — Portal API wrapper
+
+Create `apps/<name>/<name>-portal/src/lib/api.js`:
+
+```js
+const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+
+async function req(method, path, body) {
+  const token = localStorage.getItem('token')
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body != null ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw Object.assign(new Error(err.message ?? res.statusText), { status: res.status })
+  }
+  return res.status === 204 ? null : res.json()
+}
+
+export const api = {
+  get:    (path)       => req('GET',    path),
+  post:   (path, body) => req('POST',   path, body),
+  put:    (path, body) => req('PUT',    path, body),
+  patch:  (path, body) => req('PATCH',  path, body),
+  delete: (path)       => req('DELETE', path),
+}
+```
+
+### Step 11 — Wire portal views to the real API
+
+For each view that imports from `../../data/mock`:
+
+1. Remove the mock import
+2. Replace with `useEffect` + `useState`:
+
+```jsx
+import { useState, useEffect } from 'react'
+import { api } from '../../lib/api'
+
+const [items, setItems] = useState([])
+const [loading, setLoading] = useState(true)
+
+useEffect(() => {
+  api.get('/api/<svc>/v1/<resource>')
+    .then(setItems)
+    .catch(err => toast(err.message, 'danger'))
+    .finally(() => setLoading(false))
+}, [])
+```
+
+3. Add a loading state: `if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>`
+4. Replace mock state mutations in `onSubmit` handlers with `api.post(...)` calls
+
+### Step 12 — pnpm-workspace.yaml
+
+Verify `apps/<name>/*` is listed. Add it if missing.
+
+### Step 13 — Verification
+
+Tell the user to run:
+
+```bash
+# Rebuild affected services
+docker compose up -d --build <svc1> <svc2> ...
+
+# Check migrations ran
+docker compose logs <svc1> | grep "migration"
+
+# Health checks
+curl http://<name>.apphub.local:8080/api/<svc>/health
+
+# Confirm no mock imports remain
+grep -r "from '../../data/mock'" apps/<name>/<name>-portal/src/views/
+```
+
+---
+
 ## Where to start when adding a new app
 
 1. `cp -r apps/__app-template__/ apps/my-app/` — rename dirs, update `package.json` names

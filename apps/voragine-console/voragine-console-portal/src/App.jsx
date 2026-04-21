@@ -1,0 +1,60 @@
+import { AppProvider, useApp } from './context/AppContext'
+import Topbar from './components/Topbar'
+import Sidebar from './components/Sidebar'
+import ToastContainer from './components/Toast'
+import ModalContainer from './components/Modal'
+
+import StaffDashboard  from './views/staff/Dashboard'
+import StaffTenants    from './views/staff/Tenants'
+import TenantDetail    from './views/staff/TenantDetail'
+import StaffList       from './views/staff/StaffList'
+import AuditGlobal     from './views/staff/AuditGlobal'
+
+import TenantOverview  from './views/tenant/Overview'
+import TenantAdmins    from './views/tenant/Admins'
+import TenantSettings  from './views/tenant/Settings'
+import TenantAudit     from './views/tenant/Audit'
+import TenantDanger    from './views/tenant/Danger'
+
+function MainContent() {
+  const { role, view, selectedTenant } = useApp()
+
+  if (role === 'staff') {
+    if (view === 'dashboard')              return <StaffDashboard />
+    if (view === 'tenants' && selectedTenant) return <TenantDetail />
+    if (view === 'tenants')                return <StaffTenants />
+    if (view === 'staff')                  return <StaffList />
+    if (view === 'audit')                  return <AuditGlobal />
+  } else {
+    if (view === 'overview')  return <TenantOverview />
+    if (view === 'admins')    return <TenantAdmins />
+    if (view === 'settings')  return <TenantSettings />
+    if (view === 'audit')     return <TenantAudit />
+    if (view === 'danger')    return <TenantDanger />
+  }
+  return <div className="p-10 text-ink3">Vista no encontrada.</div>
+}
+
+function Shell() {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Topbar />
+      <div className="flex-1 flex">
+        <Sidebar />
+        <main className="flex-1 min-w-0">
+          <MainContent />
+        </main>
+      </div>
+      <ToastContainer />
+      <ModalContainer />
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <Shell />
+    </AppProvider>
+  )
+}

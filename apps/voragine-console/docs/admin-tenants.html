@@ -1,0 +1,1856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voragine — Admin Console</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Fraunces"', 'serif'],
+            sans: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            paper:   '#FAF7F2',
+            paper2:  '#F3EFE7',
+            ink:     '#14131A',
+            ink2:    '#3B3A42',
+            ink3:    '#6F6D78',
+            line:    '#E5DFD2',
+            line2:   '#D9D2C2',
+            accent:  '#D9512C',
+            accent2: '#A83E1F',
+            ok:      '#2F6F4F',
+            okbg:    '#E4EFE8',
+            warn:    '#8A6B0A',
+            warnbg:  '#F6EFD6',
+            danger:  '#8A2C2C',
+            dangerbg:'#F1E0DE',
+            info:    '#2C5280',
+            infobg:  '#E2EAF2',
+          },
+          boxShadow: {
+            card: '0 1px 0 rgba(20,19,26,0.02), 0 2px 6px rgba(20,19,26,0.04)',
+            pop:  '0 8px 24px rgba(20,19,26,0.10), 0 2px 6px rgba(20,19,26,0.05)',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html, body { background: #FAF7F2; color: #14131A; }
+    body { font-family: 'Instrument Sans', system-ui, sans-serif; font-feature-settings: "ss01","ss02","cv01"; }
+    .font-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+    .font-mono { font-feature-settings: "zero"; }
+
+    /* thin scrollbars */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #D9D2C2; border-radius: 10px; border: 2px solid #FAF7F2; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* dotted texture for empty state backgrounds */
+    .dotted {
+      background-image: radial-gradient(#D9D2C2 1px, transparent 1px);
+      background-size: 14px 14px;
+      background-position: 0 0;
+    }
+
+    /* underline for active nav */
+    .nav-link { position: relative; }
+    .nav-link.active { color: #14131A; background: #F3EFE7; }
+    .nav-link.active::before {
+      content: "";
+      position: absolute;
+      left: 6px; top: 10px; bottom: 10px; width: 2px;
+      background: #D9512C;
+      border-radius: 2px;
+    }
+
+    /* fade in */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp .25s ease-out both; }
+
+    /* modal backdrop */
+    .backdrop {
+      background: rgba(20, 19, 26, 0.35);
+      backdrop-filter: blur(2px);
+    }
+
+    /* subtle top gradient on header */
+    .header-grad {
+      background: linear-gradient(180deg, #FAF7F2 0%, #FAF7F2 70%, rgba(250,247,242,0) 100%);
+    }
+
+    /* inputs */
+    .input, .select, .textarea {
+      background: #FDFBF7;
+      border: 1px solid #E5DFD2;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 14px;
+      width: 100%;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .input:focus, .select:focus, .textarea:focus {
+      outline: none;
+      border-color: #14131A;
+      box-shadow: 0 0 0 3px rgba(20,19,26,0.08);
+    }
+    .label { font-size: 12px; font-weight: 600; color: #3B3A42; letter-spacing: .02em; text-transform: uppercase; }
+
+    /* buttons */
+    .btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 8px; font-weight: 500; font-size: 14px; line-height: 1; transition: all .15s; border: 1px solid transparent; white-space: nowrap; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: #14131A; color: #FAF7F2; }
+    .btn-primary:hover:not(:disabled) { background: #000; }
+    .btn-ghost { background: transparent; color: #14131A; border-color: #D9D2C2; }
+    .btn-ghost:hover { background: #F3EFE7; }
+    .btn-danger { background: #8A2C2C; color: #FAF7F2; }
+    .btn-danger:hover:not(:disabled) { background: #6e2121; }
+    .btn-accent { background: #D9512C; color: #FAF7F2; }
+    .btn-accent:hover { background: #A83E1F; }
+    .btn-sm { height: 30px; padding: 0 10px; font-size: 13px; }
+
+    /* badges */
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
+    .dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+
+    /* table */
+    table.t { width: 100%; border-collapse: separate; border-spacing: 0; }
+    table.t th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #6F6D78; padding: 10px 14px; border-bottom: 1px solid #E5DFD2; background: #FAF7F2; }
+    table.t td { padding: 14px; border-bottom: 1px solid #EFEADE; font-size: 14px; vertical-align: middle; }
+    table.t tbody tr:hover { background: #FBF8F1; }
+    table.t tbody tr.clickable { cursor: pointer; }
+
+    /* tabs */
+    .tab { padding: 10px 2px; font-size: 13.5px; color: #6F6D78; border-bottom: 2px solid transparent; margin-right: 22px; font-weight: 500; cursor: pointer; }
+    .tab.active { color: #14131A; border-bottom-color: #14131A; }
+
+    /* avatar */
+    .avatar { width: 28px; height: 28px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  </style>
+</head>
+<body class="min-h-screen antialiased">
+
+  <!-- ========= APP SHELL ========= -->
+  <div id="app" class="min-h-screen flex flex-col"></div>
+
+  <!-- ========= MODAL & TOAST CONTAINERS ========= -->
+  <div id="modal-root"></div>
+  <div id="toast-root" class="fixed bottom-6 right-6 z-[200] flex flex-col gap-2 items-end"></div>
+
+<script>
+/* ==========================================================================
+   Voragine Admin Console — Prototype
+   Single-file SPA. Vanilla JS + Tailwind via CDN.
+   ========================================================================== */
+
+/* ------------------------------ ICONS ----------------------------------- */
+const icons = {
+  dashboard:   `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><rect x="2.5" y="2.5" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="11.5" y="2.5" width="6" height="3" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="11.5" y="8.5" width="6" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="2.5" y="11.5" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  tenants:     `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M3 17V8l7-5 7 5v9" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 17v-5h4v5" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  admins:      `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M3.5 17c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  audit:       `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><rect x="3.5" y="2.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M7 7h6M7 10h6M7 13h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  settings:    `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><circle cx="10" cy="10" r="2.3" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  danger:      `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M10 2.5L17.5 16.5h-15L10 2.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 8v4M10 14.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  staff:       `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><circle cx="7" cy="7" r="2.5" stroke="currentColor" stroke-width="1.4"/><circle cx="14" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 16c.5-2.5 2.5-4 4.5-4s4 1.5 4.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M11.5 14c.5-1.5 1.5-2 2.5-2s2 .5 2.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  search:      `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  plus:        `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  close:       `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  chevron:     `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  chevronR:    `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M8 6l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  arrow:       `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  more:        `<svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><circle cx="4" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="16" cy="10" r="1.4"/></svg>`,
+  check:       `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  info:        `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.4"/><path d="M10 9v5M10 6v.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  external:    `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M11 4h5v5M16 4l-7 7M14 10v6H4V6h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  copy:        `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><rect x="6" y="6" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4 14V6a2 2 0 012-2h8" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  bell:        `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><path d="M5 14V9a5 5 0 0110 0v5l1.5 1.5h-13L5 14z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8.5 17a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  lock:        `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><rect x="4" y="9" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M7 9V6a3 3 0 016 0v3" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  globe:       `<svg viewBox="0 0 20 20" fill="none" class="w-4 h-4"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 10h15M10 2.5c2 2.5 3 5 3 7.5s-1 5-3 7.5c-2-2.5-3-5-3-7.5s1-5 3-7.5z" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  tag:         `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M3 10l7-7h7v7l-7 7-7-7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="13.5" cy="6.5" r="1" fill="currentColor"/></svg>`,
+  download:    `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M10 3v10m0 0l-4-4m4 4l4-4M3.5 15.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  pause:       `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><rect x="6" y="4" width="2.5" height="12" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11.5" y="4" width="2.5" height="12" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  play:        `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M6 4v12l10-6-10-6z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`,
+  archive:     `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><rect x="2.5" y="4" width="15" height="3.5" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M4 7.5v8a1 1 0 001 1h10a1 1 0 001-1v-8M8 10.5h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  transfer:    `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M3 7h11l-3-3M17 13H6l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  trash:       `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M3.5 5.5h13M8 5.5v-2h4v2M5 5.5l1 10a1 1 0 001 1h6a1 1 0 001-1l1-10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  eye:         `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M1.5 10S4.5 4.5 10 4.5 18.5 10 18.5 10 15.5 15.5 10 15.5 1.5 10 1.5 10z" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  filter:      `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M3 4h14l-5.5 7v5l-3-2v-3L3 4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`,
+  spark:       `<svg viewBox="0 0 20 20" fill="none" class="w-3.5 h-3.5"><path d="M10 3v4M10 13v4M3 10h4M13 10h4M5 5l3 3M12 12l3 3M5 15l3-3M12 8l3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+};
+
+/* ------------------------------ MOCK DATA ------------------------------- */
+
+const PERSONAS = {
+  staff: { id: 'u-staff-01', name: 'Ana García',     email: 'ana@voragine.app',   role_label: 'Staff · SUPER_ADMIN', avatarColor: '#D9512C' },
+  owner: { id: 'u-own-07',   name: 'Pedro Martínez', email: 'pedro@tiendaana.com', role_label: 'Owner · Tienda Ana',  avatarColor: '#2F6F4F' },
+  admin: { id: 'u-adm-11',   name: 'Laura Ruiz',     email: 'laura@tiendaana.com', role_label: 'Admin · Tienda Ana',  avatarColor: '#2C5280' },
+};
+
+const TENANTS = [
+  { id:'t-001', name:'Tienda Ana',        legal:'Tienda Ana SL',          cif:'B12345678', country:'ES', plan:'PRO',     status:'ACTIVE',    subdomain:'tienda-ana',     customDomain:'tienda-ana.com', stripe:'VERIFIED', created:'2024-03-12', owner:'u-own-07', subTenants:false, volMonth: 147820, txMonth: 3421, balance:0 },
+  { id:'t-002', name:'Pedro Market',      legal:'Pedro Digital SL',       cif:'B87654321', country:'ES', plan:'STARTER', status:'ACTIVE',    subdomain:'pedro',           customDomain:null,             stripe:'VERIFIED', created:'2024-05-20', owner:'u-own-20', subTenants:true,  volMonth: 58210,  txMonth: 1120, balance:0 },
+  { id:'t-003', name:'Marketplace Norte', legal:'MN Digital SL',          cif:'B22334455', country:'ES', plan:'PRO',     status:'SUSPENDED', subdomain:'marketplace-norte', customDomain:null,           stripe:'RESTRICTED', created:'2023-11-04', owner:'u-own-03', subTenants:true,  volMonth: 0,      txMonth: 0,    balance:340, suspendReason:'NON_PAYMENT' },
+  { id:'t-004', name:'Artisan Co.',       legal:'Artisan Coop LTD',       cif:'GB7722100',  country:'GB', plan:'ENTERPRISE', status:'ACTIVE', subdomain:'artisan',          customDomain:'shop.artisan.co', stripe:'VERIFIED', created:'2023-07-18', owner:'u-own-04', subTenants:false, volMonth: 412400, txMonth: 8900, balance:0 },
+  { id:'t-005', name:'FoodHub',           legal:'FoodHub Tech SAS',       cif:'FR9911222', country:'FR', plan:'PRO',     status:'ACTIVE',    subdomain:'foodhub',          customDomain:null,             stripe:'PENDING',  created:'2025-01-14', owner:'u-own-05', subTenants:true,  volMonth: 98320,  txMonth: 2340, balance:0 },
+  { id:'t-006', name:'Ciclo Bike',        legal:'Ciclo Iberia SL',        cif:'B55667788', country:'ES', plan:'STARTER', status:'ACTIVE',    subdomain:'ciclo-bike',        customDomain:null,             stripe:'VERIFIED', created:'2024-09-02', owner:'u-own-06', subTenants:false, volMonth: 23140,  txMonth: 412,  balance:0 },
+  { id:'t-007', name:'AulaLab',           legal:'AulaLab Educación SL',   cif:'B99887766', country:'ES', plan:'PRO',     status:'ARCHIVED',  subdomain:'aulalab',           customDomain:null,             stripe:'DISCONNECTED', created:'2023-02-28', owner:null, subTenants:false, volMonth: 0,      txMonth: 0,    balance:0, archivedAt:'2025-11-20' },
+  { id:'t-008', name:'Rentas Mar',        legal:'Rentas del Mar SL',      cif:'B44556677', country:'ES', plan:'PRO',     status:'ACTIVE',    subdomain:'rentas-mar',        customDomain:'rentasmar.es',   stripe:'VERIFIED', created:'2024-02-11', owner:'u-own-08', subTenants:false, volMonth: 201500, txMonth: 980,  balance:0 },
+  { id:'t-009', name:'Gimnasio Horizonte',legal:'Horizonte Fit SL',       cif:'B11223344', country:'ES', plan:'STARTER', status:'ACTIVE',    subdomain:'horizonte',         customDomain:null,             stripe:'VERIFIED', created:'2025-02-05', owner:'u-own-09', subTenants:false, volMonth: 14800,  txMonth: 320,  balance:0 },
+  { id:'t-010', name:'CasaVerde',         legal:'CasaVerde Eco SL',       cif:'B66778899', country:'ES', plan:'PRO',     status:'SUSPENDED', subdomain:'casaverde',         customDomain:null,             stripe:'VERIFIED', created:'2024-06-30', owner:'u-own-10', subTenants:false, volMonth: 0,      txMonth: 0,    balance:0, suspendReason:'SECURITY_INCIDENT' },
+  { id:'t-011', name:'Libros del Sur',    legal:'Libros del Sur SL',      cif:'B00998877', country:'ES', plan:'STARTER', status:'ACTIVE',    subdomain:'librosdelsur',      customDomain:null,             stripe:'VERIFIED', created:'2025-03-11', owner:'u-own-11', subTenants:false, volMonth: 8900,   txMonth: 210,  balance:0 },
+  { id:'t-012', name:'StudioPro',         legal:'Studio Pro Digital SL',  cif:'B33445566', country:'ES', plan:'ENTERPRISE', status:'ACTIVE', subdomain:'studio-pro',        customDomain:'studiopro.io',   stripe:'VERIFIED', created:'2023-09-12', owner:'u-own-12', subTenants:true,  volMonth: 680120, txMonth: 15200,balance:0 },
+];
+
+const ADMINS_BY_TENANT = {
+  't-001': [
+    { id:'u-own-07', name:'Pedro Martínez', email:'pedro@tiendaana.com', role:'OWNER', twofa:true,  last:'2026-04-21T08:32:00Z', avatar:'#2F6F4F' },
+    { id:'u-adm-11', name:'Laura Ruiz',     email:'laura@tiendaana.com', role:'ADMIN', twofa:true,  last:'2026-04-20T17:11:00Z', avatar:'#2C5280' },
+    { id:'u-adm-12', name:'Marcos Vila',    email:'marcos@tiendaana.com',role:'ADMIN', twofa:false, last:'2026-04-18T12:05:00Z', avatar:'#8A6B0A' },
+  ],
+  't-002': [
+    { id:'u-own-20', name:'Sara López',     email:'sara@pedromarket.com', role:'OWNER', twofa:true,  last:'2026-04-21T10:01:00Z', avatar:'#A83E1F' },
+    { id:'u-adm-21', name:'Nacho Bravo',    email:'nacho@pedromarket.com',role:'ADMIN', twofa:true,  last:'2026-04-19T09:20:00Z', avatar:'#2C5280' },
+  ],
+};
+
+const INVITES_BY_TENANT = {
+  't-001': [
+    { id:'inv-01', email:'juan.silva@tiendaana.com', role:'ADMIN', sent:'2026-04-18T11:00:00Z', expires:'2026-04-25T11:00:00Z', status:'PENDING' },
+  ],
+  't-002': [],
+};
+
+const STAFF = [
+  { id:'u-staff-01', name:'Ana García',    email:'ana@voragine.app',   role:'SUPER_ADMIN', twofa:true,  last:'2026-04-21T09:00:00Z', avatar:'#D9512C' },
+  { id:'u-staff-02', name:'David Pérez',   email:'david@voragine.app', role:'STAFF',       twofa:true,  last:'2026-04-20T18:30:00Z', avatar:'#2F6F4F' },
+  { id:'u-staff-03', name:'Elena Soto',    email:'elena@voragine.app', role:'STAFF',       twofa:false, last:'2026-04-19T10:15:00Z', avatar:'#2C5280' },
+  { id:'u-staff-04', name:'Miguel Duque',  email:'miguel@voragine.app',role:'SUPER_ADMIN', twofa:true,  last:'2026-04-21T07:45:00Z', avatar:'#8A6B0A' },
+];
+
+const AUDIT = [
+  { ts:'2026-04-21T09:12:00Z', actor:'Ana García',    actorRole:'Staff',  tenant:'t-003', tenantName:'Marketplace Norte', action:'TENANT_SUSPENDED',    detail:'Motivo: NON_PAYMENT', ip:'81.202.11.44' },
+  { ts:'2026-04-21T08:40:00Z', actor:'Pedro Martínez',actorRole:'Owner',  tenant:'t-001', tenantName:'Tienda Ana',        action:'INVITE_SENT',         detail:'marcos@tiendaana.com (ADMIN)', ip:'91.126.22.1' },
+  { ts:'2026-04-20T17:55:00Z', actor:'Laura Ruiz',    actorRole:'Admin',  tenant:'t-001', tenantName:'Tienda Ana',        action:'TENANT_UPDATED',       detail:'teléfono actualizado', ip:'91.126.22.1' },
+  { ts:'2026-04-20T14:22:00Z', actor:'Ana García',    actorRole:'Staff',  tenant:'t-005', tenantName:'FoodHub',           action:'TENANT_CREATED',       detail:'plan PRO, owner: cc@foodhub.fr', ip:'81.202.11.44' },
+  { ts:'2026-04-20T11:07:00Z', actor:'Pedro Martínez',actorRole:'Owner',  tenant:'t-001', tenantName:'Tienda Ana',        action:'ROLE_CHANGED',         detail:'Laura Ruiz: ADMIN → ADMIN (sin cambio)', ip:'91.126.22.1' },
+  { ts:'2026-04-19T16:30:00Z', actor:'David Pérez',   actorRole:'Staff',  tenant:'t-010', tenantName:'CasaVerde',         action:'TENANT_SUSPENDED',     detail:'Motivo: SECURITY_INCIDENT', ip:'81.202.11.55' },
+  { ts:'2026-04-19T10:15:00Z', actor:'Sara López',    actorRole:'Owner',  tenant:'t-002', tenantName:'Pedro Market',      action:'INVITE_SENT',          detail:'nacho@pedromarket.com (ADMIN)', ip:'77.230.5.10' },
+  { ts:'2026-04-18T13:00:00Z', actor:'Ana García',    actorRole:'Staff',  tenant:'t-007', tenantName:'AulaLab',           action:'TENANT_ARCHIVED',      detail:'Retención: 90 días', ip:'81.202.11.44' },
+  { ts:'2026-04-18T11:00:00Z', actor:'Pedro Martínez',actorRole:'Owner',  tenant:'t-001', tenantName:'Tienda Ana',        action:'INVITE_SENT',          detail:'juan.silva@tiendaana.com (ADMIN)', ip:'91.126.22.1' },
+  { ts:'2026-04-17T09:45:00Z', actor:'Laura Ruiz',    actorRole:'Admin',  tenant:'t-001', tenantName:'Tienda Ana',        action:'ADMIN_REVOKED',        detail:'sergio@tiendaana.com', ip:'91.126.22.1' },
+];
+
+/* ------------------------------ STATE ---------------------------------- */
+
+const state = {
+  role: 'staff',                  // 'staff' | 'owner' | 'admin'
+  view: 'dashboard',              // see views below
+  selectedTenant: null,
+  tenantTab: 'identity',
+  filters: {
+    query: '',
+    status: 'ALL',
+    plan: 'ALL',
+    country: 'ALL',
+  },
+  sort: { key:'created', dir:'desc' },
+  modal: null,
+};
+
+/* Deriver: returns tenant the current role "belongs to" (for owner/admin) */
+function currentTenant() {
+  if (state.role === 'staff') return state.selectedTenant ? TENANTS.find(t => t.id === state.selectedTenant) : null;
+  return TENANTS.find(t => t.id === 't-001'); // owner & admin both mapped to Tienda Ana
+}
+
+/* ------------------------------ HELPERS -------------------------------- */
+
+function initials(name){
+  return name.split(' ').filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase();
+}
+function fmtDate(iso, withTime=false){
+  const d = new Date(iso);
+  const opts = withTime ? { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' } : { day:'2-digit', month:'short', year:'numeric' };
+  return d.toLocaleDateString('es-ES', opts).replace('.','');
+}
+function fmtMoney(n){
+  return '€' + n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtNumber(n){ return n.toLocaleString('es-ES'); }
+function relTime(iso){
+  const s = Math.floor((Date.now() - new Date(iso).getTime())/1000);
+  if (s < 60) return 'hace ' + s + 's';
+  if (s < 3600) return 'hace ' + Math.floor(s/60) + ' min';
+  if (s < 86400) return 'hace ' + Math.floor(s/3600) + ' h';
+  if (s < 86400*7) return 'hace ' + Math.floor(s/86400) + ' d';
+  return fmtDate(iso);
+}
+function statusBadge(status){
+  const map = {
+    ACTIVE:    { color:'text-ok bg-okbg',       dot:'#2F6F4F', label:'Activo' },
+    SUSPENDED: { color:'text-warn bg-warnbg',   dot:'#8A6B0A', label:'Suspendido' },
+    ARCHIVED:  { color:'text-ink3 bg-paper2',   dot:'#6F6D78', label:'Archivado' },
+    PURGED:    { color:'text-danger bg-dangerbg', dot:'#8A2C2C', label:'Purgado' },
+  };
+  const s = map[status] || map.ARCHIVED;
+  return `<span class="badge ${s.color}"><span class="dot" style="background:${s.dot}"></span>${s.label}</span>`;
+}
+function stripeBadge(s){
+  const map = {
+    VERIFIED:     { color:'text-ok bg-okbg',         label:'KYC verificado' },
+    PENDING:      { color:'text-info bg-infobg',     label:'KYC pendiente' },
+    RESTRICTED:   { color:'text-warn bg-warnbg',     label:'Restringido' },
+    DISCONNECTED: { color:'text-ink3 bg-paper2',     label:'Desvinculado' },
+  };
+  const m = map[s] || map.DISCONNECTED;
+  return `<span class="badge ${m.color}">${m.label}</span>`;
+}
+function planBadge(p){
+  const m = {
+    STARTER:    { color:'bg-paper2 text-ink2 border border-line' },
+    PRO:        { color:'bg-infobg text-info' },
+    ENTERPRISE: { color:'bg-[#EEE3DC] text-accent2' },
+  };
+  return `<span class="badge ${m[p].color}">${p}</span>`;
+}
+function roleBadge(role){
+  if (role === 'OWNER') return `<span class="badge bg-[#EEE3DC] text-accent2">Owner</span>`;
+  if (role === 'ADMIN') return `<span class="badge bg-infobg text-info">Admin</span>`;
+  if (role === 'SUPER_ADMIN') return `<span class="badge bg-[#EEE3DC] text-accent2">Super Admin</span>`;
+  if (role === 'STAFF') return `<span class="badge bg-infobg text-info">Staff</span>`;
+  return `<span class="badge bg-paper2 text-ink3">${role}</span>`;
+}
+function twofaBadge(on){
+  return on
+    ? `<span class="badge bg-okbg text-ok">${icons.lock}<span>2FA</span></span>`
+    : `<span class="badge bg-warnbg text-warn">${icons.lock}<span>Sin 2FA</span></span>`;
+}
+function avatar(name, color='#D9D2C2'){
+  return `<span class="avatar" style="background:${color}20; color:${color}; border:1px solid ${color}30">${initials(name)}</span>`;
+}
+
+function actionLabel(a){
+  const labels = {
+    TENANT_CREATED:   'Tenant creado',
+    TENANT_UPDATED:   'Tenant actualizado',
+    TENANT_SUSPENDED: 'Tenant suspendido',
+    TENANT_REACTIVATED: 'Tenant reactivado',
+    TENANT_ARCHIVED:  'Tenant archivado',
+    TENANT_RESTORED:  'Tenant restaurado',
+    INVITE_SENT:      'Invitación enviada',
+    INVITE_ACCEPTED:  'Invitación aceptada',
+    INVITE_CANCELLED: 'Invitación cancelada',
+    ROLE_CHANGED:     'Rol modificado',
+    ADMIN_REVOKED:    'Admin revocado',
+    OWNERSHIP_TRANSFERRED: 'Propiedad transferida',
+    EXPORT_REQUESTED: 'Exportación solicitada',
+  };
+  return labels[a] || a;
+}
+function actionColor(a){
+  if (a.includes('SUSPEND') || a.includes('REVOKED') || a.includes('ARCHIVED')) return '#8A6B0A';
+  if (a.includes('CREATED') || a.includes('REACTIVATED') || a.includes('ACCEPTED') || a.includes('RESTORED')) return '#2F6F4F';
+  return '#2C5280';
+}
+
+/* ------------------------------ TOASTS --------------------------------- */
+function toast(msg, variant='ok'){
+  const el = document.createElement('div');
+  const color = variant === 'ok' ? 'border-ok' : variant === 'warn' ? 'border-warn' : variant === 'danger' ? 'border-danger' : 'border-ink';
+  el.className = `bg-white border ${color} rounded-lg shadow-pop px-4 py-3 text-sm fade-up flex items-start gap-3 max-w-sm`;
+  el.innerHTML = `<span class="mt-0.5 text-${variant==='ok'?'ok':variant==='warn'?'warn':variant==='danger'?'danger':'ink'}">${icons.check}</span><span>${msg}</span>`;
+  document.getElementById('toast-root').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(4px)'; el.style.transition = 'all .25s'; }, 3200);
+  setTimeout(() => el.remove(), 3600);
+}
+
+/* ------------------------------ MODAL SYSTEM --------------------------- */
+function openModal(content, opts={}){
+  const root = document.getElementById('modal-root');
+  const size = opts.size || 'md';
+  const w = size === 'lg' ? 'max-w-2xl' : size === 'sm' ? 'max-w-sm' : 'max-w-md';
+  root.innerHTML = `
+    <div class="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto py-16">
+      <div class="absolute inset-0 backdrop" onclick="closeModal()"></div>
+      <div class="relative bg-white rounded-2xl shadow-pop border border-line w-full ${w} mx-4 fade-up">
+        ${content}
+      </div>
+    </div>
+  `;
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML = ''; }
+
+/* ------------------------------ RENDER --------------------------------- */
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderTopbar()}
+    <div class="flex-1 flex">
+      ${renderSidebar()}
+      <main class="flex-1 min-w-0">${renderMain()}</main>
+    </div>
+  `;
+}
+
+/* ---- TOPBAR ---- */
+function renderTopbar(){
+  const p = PERSONAS[state.role];
+  return `
+    <header class="header-grad sticky top-0 z-30 border-b border-line">
+      <div class="h-14 flex items-center justify-between px-6">
+        <div class="flex items-center gap-3">
+          <div class="w-7 h-7 rounded-md bg-ink flex items-center justify-center">
+            <span class="font-display italic text-paper text-[15px] -translate-y-[1px]">v</span>
+          </div>
+          <div class="leading-tight">
+            <div class="font-display text-[17px] tracking-tight">Voragine</div>
+            <div class="text-[10px] uppercase tracking-[0.18em] text-ink3 -mt-0.5">Admin Console</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <button class="text-ink3 hover:text-ink relative" title="Notificaciones">
+            ${icons.bell}
+            <span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-accent"></span>
+          </button>
+          <div class="h-5 w-px bg-line"></div>
+          <div class="relative group">
+            <button onclick="togglePersonaMenu()" class="flex items-center gap-2.5 hover:bg-paper2 rounded-lg px-2 py-1 transition">
+              ${avatar(p.name, p.avatarColor)}
+              <div class="text-left leading-tight hidden md:block">
+                <div class="text-[13px] font-medium">${p.name}</div>
+                <div class="text-[11px] text-ink3">${p.role_label}</div>
+              </div>
+              <span class="text-ink3">${icons.chevron}</span>
+            </button>
+            <div id="persona-menu" class="hidden absolute right-0 top-full mt-1 w-72 bg-white border border-line rounded-xl shadow-pop p-2 z-40">
+              <div class="px-2 pt-2 pb-3 border-b border-line mb-2">
+                <div class="text-[10px] uppercase tracking-[0.18em] text-ink3 mb-1">Cambiar de persona</div>
+                <div class="text-xs text-ink3">Simula el prototipo desde diferentes roles.</div>
+              </div>
+              ${['staff','owner','admin'].map(r => {
+                const pp = PERSONAS[r];
+                const active = state.role === r;
+                return `
+                  <button onclick="switchRole('${r}')" class="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-paper2 text-left ${active?'bg-paper2':''}">
+                    ${avatar(pp.name, pp.avatarColor)}
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[13px] font-medium">${pp.name}</div>
+                      <div class="text-[11px] text-ink3 truncate">${pp.role_label}</div>
+                    </div>
+                    ${active ? `<span class="text-ok">${icons.check}</span>` : ''}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  `;
+}
+
+function togglePersonaMenu(){
+  const m = document.getElementById('persona-menu');
+  m.classList.toggle('hidden');
+}
+document.addEventListener('click', e => {
+  const menu = document.getElementById('persona-menu');
+  if (!menu) return;
+  if (!e.target.closest('.relative.group') && !menu.classList.contains('hidden')) menu.classList.add('hidden');
+});
+
+function switchRole(r){
+  state.role = r;
+  state.selectedTenant = null;
+  state.view = r === 'staff' ? 'dashboard' : 'overview';
+  state.tenantTab = 'identity';
+  render();
+  toast(`Ahora viendo como ${PERSONAS[r].role_label}`);
+}
+
+/* ---- SIDEBAR ---- */
+function renderSidebar(){
+  const items = state.role === 'staff' ? [
+    { k:'dashboard',  label:'Dashboard', icon:icons.dashboard },
+    { k:'tenants',    label:'Tenants',   icon:icons.tenants },
+    { k:'staff',      label:'Staff',     icon:icons.staff },
+    { k:'audit',      label:'Audit log', icon:icons.audit },
+  ] : state.role === 'owner' ? [
+    { k:'overview',   label:'Resumen',        icon:icons.dashboard },
+    { k:'admins',     label:'Administradores', icon:icons.admins },
+    { k:'settings',   label:'Ajustes',        icon:icons.settings },
+    { k:'audit',      label:'Audit log',      icon:icons.audit },
+    { k:'danger',     label:'Zona peligrosa', icon:icons.danger, accent:true },
+  ] : [
+    { k:'overview',   label:'Resumen',        icon:icons.dashboard },
+    { k:'admins',     label:'Administradores', icon:icons.admins },
+    { k:'settings',   label:'Ajustes',        icon:icons.settings },
+    { k:'audit',      label:'Audit log',      icon:icons.audit },
+  ];
+
+  return `
+    <aside class="w-60 shrink-0 border-r border-line min-h-[calc(100vh-56px)] bg-paper sticky top-14 self-start h-[calc(100vh-56px)] overflow-y-auto">
+      <nav class="p-3">
+        <div class="px-3 pt-2 pb-3 text-[10px] uppercase tracking-[0.18em] text-ink3">
+          ${state.role === 'staff' ? 'Plataforma' : currentTenant()?.name || ''}
+        </div>
+        ${items.map(it => {
+          const active = state.view === it.k;
+          return `
+            <button onclick="navigate('${it.k}')" class="nav-link w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-[13.5px] text-ink2 ${active?'active':''} ${it.accent?'text-danger':''}">
+              <span class="${active?'text-ink':'text-ink3'}">${it.icon}</span>
+              <span>${it.label}</span>
+            </button>
+          `;
+        }).join('')}
+      </nav>
+
+      <div class="mt-4 px-5 py-4 border-t border-line">
+        <div class="text-[10px] uppercase tracking-[0.18em] text-ink3 mb-2">Prototipo</div>
+        <div class="text-[12px] leading-relaxed text-ink3">
+          Mock interactivo. Los cambios no se persisten entre recargas.
+        </div>
+      </div>
+    </aside>
+  `;
+}
+
+function navigate(view, extra){
+  state.view = view;
+  if (extra && extra.tenant) { state.selectedTenant = extra.tenant; state.tenantTab = 'identity'; }
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+/* ---- MAIN ROUTER ---- */
+function renderMain(){
+  const r = state.role;
+  const v = state.view;
+  if (r === 'staff'){
+    if (v === 'dashboard') return viewStaffDashboard();
+    if (v === 'tenants' && state.selectedTenant) return viewStaffTenantDetail();
+    if (v === 'tenants') return viewStaffTenants();
+    if (v === 'staff') return viewStaffList();
+    if (v === 'audit') return viewAuditGlobal();
+  } else {
+    if (v === 'overview') return viewTenantOverview();
+    if (v === 'admins') return viewTenantAdmins();
+    if (v === 'settings') return viewTenantSettings();
+    if (v === 'audit') return viewTenantAudit();
+    if (v === 'danger') return viewTenantDanger();
+  }
+  return `<div class="p-10 text-ink3">Vista no encontrada.</div>`;
+}
+
+/* =========================================================================
+   VIEWS — STAFF
+   ========================================================================= */
+
+function viewStaffDashboard(){
+  const total = TENANTS.length;
+  const active = TENANTS.filter(t => t.status === 'ACTIVE').length;
+  const suspended = TENANTS.filter(t => t.status === 'SUSPENDED').length;
+  const archived = TENANTS.filter(t => t.status === 'ARCHIVED').length;
+  const volume = TENANTS.reduce((a,t)=>a+t.volMonth,0);
+  const tx = TENANTS.reduce((a,t)=>a+t.txMonth,0);
+
+  return `
+    <div class="p-8 max-w-7xl fade-up">
+      <div class="mb-8">
+        <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Dashboard</div>
+        <h1 class="font-display text-[44px] leading-none tracking-tight"><span class="italic font-normal">Estado</span> de la plataforma</h1>
+        <p class="text-ink3 mt-3 max-w-xl">Vista consolidada de todos los tenants activos, su operativa de pagos y la salud del servicio.</p>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        ${kpi('Tenants totales', fmtNumber(total), `${active} activos · ${suspended} suspendidos · ${archived} archivados`)}
+        ${kpi('Volumen del mes', fmtMoney(volume), 'GMV en € procesado vía Connect')}
+        ${kpi('Transacciones', fmtNumber(tx), 'Último periodo 30d')}
+        ${kpi('Health', 'OK', '99.98% uptime · 0 incidents', 'ok')}
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white border border-line rounded-xl shadow-card">
+          <div class="px-5 py-4 border-b border-line flex items-center justify-between">
+            <div>
+              <div class="font-display text-[20px] tracking-tight">Actividad reciente</div>
+              <div class="text-xs text-ink3 mt-0.5">Últimas acciones administrativas</div>
+            </div>
+            <button onclick="navigate('audit')" class="text-[13px] text-ink2 hover:text-ink flex items-center gap-1.5">Ver todo ${icons.arrow}</button>
+          </div>
+          <div class="divide-y divide-line">
+            ${AUDIT.slice(0,6).map(a => auditRow(a)).join('')}
+          </div>
+        </div>
+
+        <div class="bg-white border border-line rounded-xl shadow-card">
+          <div class="px-5 py-4 border-b border-line">
+            <div class="font-display text-[20px] tracking-tight">Alertas</div>
+            <div class="text-xs text-ink3 mt-0.5">Atención requerida</div>
+          </div>
+          <div class="p-5 space-y-3">
+            <div class="border border-warnbg bg-[#FAF6E8] rounded-lg p-3">
+              <div class="flex items-start gap-2">
+                <span class="text-warn mt-0.5">${icons.info}</span>
+                <div>
+                  <div class="text-[13px] font-medium">Marketplace Norte · KYC restringido</div>
+                  <div class="text-xs text-ink3 mt-1">Stripe requiere actualización de documentos.</div>
+                </div>
+              </div>
+            </div>
+            <div class="border border-dangerbg bg-[#F9ECEB] rounded-lg p-3">
+              <div class="flex items-start gap-2">
+                <span class="text-danger mt-0.5">${icons.info}</span>
+                <div>
+                  <div class="text-[13px] font-medium">CasaVerde · suspendido por seguridad</div>
+                  <div class="text-xs text-ink3 mt-1">Incidente abierto desde hace 2 días.</div>
+                </div>
+              </div>
+            </div>
+            <div class="border border-infobg bg-[#EEF2F8] rounded-lg p-3">
+              <div class="flex items-start gap-2">
+                <span class="text-info mt-0.5">${icons.info}</span>
+                <div>
+                  <div class="text-[13px] font-medium">FoodHub · KYC pendiente</div>
+                  <div class="text-xs text-ink3 mt-1">Onboarding iniciado hace 6 días.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function kpi(label, value, hint, tone='ink'){
+  const valColor = tone==='ok' ? 'text-ok' : 'text-ink';
+  return `
+    <div class="bg-white border border-line rounded-xl p-5 shadow-card">
+      <div class="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-2">${label}</div>
+      <div class="font-display text-[30px] tracking-tight ${valColor}">${value}</div>
+      <div class="text-[11.5px] text-ink3 mt-1">${hint}</div>
+    </div>
+  `;
+}
+
+function auditRow(a){
+  return `
+    <div class="px-5 py-3 flex items-start gap-3">
+      <span class="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style="background:${actionColor(a.action)}"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[13.5px]"><span class="font-medium">${a.actor}</span> <span class="text-ink3">·</span> ${actionLabel(a.action)} <span class="text-ink3">·</span> <span class="font-mono text-[12px]">${a.tenantName}</span></div>
+        <div class="text-xs text-ink3 mt-0.5">${a.detail}</div>
+      </div>
+      <div class="text-xs text-ink3 whitespace-nowrap" title="${fmtDate(a.ts, true)}">${relTime(a.ts)}</div>
+    </div>
+  `;
+}
+
+/* ---- STAFF · TENANTS LIST ---- */
+function viewStaffTenants(){
+  const f = state.filters;
+  let list = TENANTS.filter(t => {
+    const matchQ = !f.query || [t.name, t.legal, t.cif, t.subdomain, t.customDomain].filter(Boolean).some(x => x.toLowerCase().includes(f.query.toLowerCase()));
+    const matchS = f.status === 'ALL' || t.status === f.status;
+    const matchP = f.plan === 'ALL' || t.plan === f.plan;
+    const matchC = f.country === 'ALL' || t.country === f.country;
+    return matchQ && matchS && matchP && matchC;
+  });
+  list.sort((a,b) => {
+    const dir = state.sort.dir === 'asc' ? 1 : -1;
+    if (state.sort.key === 'name') return a.name.localeCompare(b.name) * dir;
+    if (state.sort.key === 'created') return (new Date(a.created) - new Date(b.created)) * dir;
+    if (state.sort.key === 'volMonth') return (a.volMonth - b.volMonth) * dir;
+    return 0;
+  });
+
+  return `
+    <div class="p-8 max-w-7xl fade-up">
+      <div class="flex items-start justify-between gap-6 mb-8">
+        <div>
+          <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Plataforma</div>
+          <h1 class="font-display text-[44px] leading-none tracking-tight"><span class="italic font-normal">Tenants</span></h1>
+          <p class="text-ink3 mt-3 max-w-xl">${list.length} de ${TENANTS.length} tenants · gestiona el ciclo de vida completo desde el alta hasta el archivado.</p>
+        </div>
+        <button onclick="openCreateTenant()" class="btn btn-primary shrink-0">${icons.plus}<span>Nuevo tenant</span></button>
+      </div>
+
+      <!-- filters -->
+      <div class="bg-white border border-line rounded-xl p-4 mb-4 shadow-card">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex-1 min-w-[260px] relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-ink3">${icons.search}</span>
+            <input id="flt-q" class="input pl-9" placeholder="Buscar por nombre, razón social, CIF, dominio…" value="${f.query}" oninput="state.filters.query=this.value; render(); document.getElementById('flt-q').focus(); moveCaretEnd('flt-q');"/>
+          </div>
+          ${filterChip('Estado', 'status', [['ALL','Todos'],['ACTIVE','Activo'],['SUSPENDED','Suspendido'],['ARCHIVED','Archivado']])}
+          ${filterChip('Plan', 'plan', [['ALL','Todos'],['STARTER','Starter'],['PRO','Pro'],['ENTERPRISE','Enterprise']])}
+          ${filterChip('País', 'country', [['ALL','Todos'],['ES','España'],['FR','Francia'],['GB','Reino Unido']])}
+        </div>
+      </div>
+
+      <!-- table -->
+      <div class="bg-white border border-line rounded-xl shadow-card overflow-hidden">
+        <table class="t">
+          <thead>
+            <tr>
+              <th onclick="toggleSort('name')" class="cursor-pointer">Tenant ${sortArrow('name')}</th>
+              <th>Dominio</th>
+              <th>Plan</th>
+              <th>Estado</th>
+              <th>KYC</th>
+              <th onclick="toggleSort('volMonth')" class="cursor-pointer text-right">Volumen mes ${sortArrow('volMonth')}</th>
+              <th onclick="toggleSort('created')" class="cursor-pointer">Alta ${sortArrow('created')}</th>
+              <th class="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.length === 0 ? emptyRow(8, 'Ningún tenant coincide con los filtros.') : list.map(t => `
+              <tr class="clickable" onclick="navigate('tenants', { tenant: '${t.id}' })">
+                <td>
+                  <div class="flex items-center gap-3">
+                    <span class="avatar" style="background:${tenantColor(t.id)}20; color:${tenantColor(t.id)}; border:1px solid ${tenantColor(t.id)}30">${initials(t.name)}</span>
+                    <div class="min-w-0">
+                      <div class="font-medium truncate">${t.name}</div>
+                      <div class="text-xs text-ink3 truncate">${t.legal} · ${t.cif}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="text-[13px]">${t.customDomain || '—'}</div>
+                  <div class="font-mono text-[11.5px] text-ink3">${t.subdomain}.voragine.app</div>
+                </td>
+                <td>${planBadge(t.plan)}</td>
+                <td>${statusBadge(t.status)}</td>
+                <td>${stripeBadge(t.stripe)}</td>
+                <td class="text-right font-mono text-[13px]">${t.volMonth ? fmtMoney(t.volMonth) : '—'}</td>
+                <td class="text-[13px] text-ink3">${fmtDate(t.created)}</td>
+                <td class="text-ink3">${icons.chevronR}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- pagination -->
+      <div class="flex items-center justify-between mt-4 text-[13px] text-ink3">
+        <div>Mostrando ${list.length} resultados</div>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm" disabled>Anterior</button>
+          <button class="btn btn-ghost btn-sm">Siguiente</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function moveCaretEnd(id){
+  const el = document.getElementById(id); if (!el) return;
+  const v = el.value; el.value=''; el.value=v;
+}
+
+function filterChip(label, key, options){
+  const current = state.filters[key];
+  const currentLabel = options.find(o => o[0] === current)?.[1] || 'Todos';
+  const isActive = current !== 'ALL';
+  return `
+    <div class="relative">
+      <button onclick="toggleFilterMenu('${key}')" class="btn btn-ghost btn-sm ${isActive?'border-ink bg-paper2':''}">
+        <span class="text-ink3">${icons.filter}</span>
+        <span class="text-ink3">${label}:</span><span class="font-medium">${currentLabel}</span>
+        ${icons.chevron}
+      </button>
+      <div id="flt-menu-${key}" class="hidden absolute left-0 top-full mt-1 bg-white border border-line rounded-lg shadow-pop p-1 z-20 min-w-[160px]">
+        ${options.map(([v,l]) => `
+          <button onclick="setFilter('${key}','${v}')" class="w-full text-left px-3 py-1.5 rounded-md hover:bg-paper2 text-[13px] flex items-center justify-between">
+            <span>${l}</span>
+            ${current===v ? `<span class="text-ok">${icons.check}</span>` : ''}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleFilterMenu(key){
+  document.querySelectorAll('[id^="flt-menu-"]').forEach(m => { if (m.id !== `flt-menu-${key}`) m.classList.add('hidden'); });
+  document.getElementById(`flt-menu-${key}`).classList.toggle('hidden');
+}
+function setFilter(key, value){
+  state.filters[key] = value;
+  render();
+}
+function toggleSort(key){
+  if (state.sort.key === key) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+  else { state.sort.key = key; state.sort.dir = 'desc'; }
+  render();
+}
+function sortArrow(key){
+  if (state.sort.key !== key) return '<span class="text-ink3 opacity-30">↕</span>';
+  return state.sort.dir === 'asc' ? '<span>↑</span>' : '<span>↓</span>';
+}
+
+function emptyRow(cols, msg){
+  return `<tr><td colspan="${cols}"><div class="py-10 dotted rounded-lg text-center text-ink3 text-sm">${msg}</div></td></tr>`;
+}
+
+function tenantColor(id){
+  const colors = ['#D9512C','#2F6F4F','#2C5280','#8A6B0A','#8A2C2C','#A83E1F','#14131A'];
+  let h=0; for (let i=0;i<id.length;i++) h = (h*31 + id.charCodeAt(i)) >>> 0;
+  return colors[h % colors.length];
+}
+
+/* ---- STAFF · TENANT DETAIL (ficha 360) ---- */
+function viewStaffTenantDetail(){
+  const t = TENANTS.find(x => x.id === state.selectedTenant);
+  if (!t) return `<div class="p-10">Tenant no encontrado.</div>`;
+  const tabs = [
+    { k:'identity', label:'Identificación' },
+    { k:'state',    label:'Estado y dominios' },
+    { k:'stripe',   label:'Stripe Connect' },
+    { k:'admins',   label:'Administradores' },
+    { k:'plan',     label:'Plan y uso' },
+    { k:'audit',    label:'Audit log' },
+  ];
+  return `
+    <div class="p-8 max-w-7xl fade-up">
+      <!-- breadcrumb -->
+      <div class="flex items-center gap-1.5 text-[13px] text-ink3 mb-4">
+        <button onclick="navigate('tenants')" class="hover:text-ink">Tenants</button>
+        <span>${icons.chevronR}</span>
+        <span class="text-ink">${t.name}</span>
+      </div>
+
+      <!-- header -->
+      <div class="flex items-start justify-between gap-6 mb-6">
+        <div class="flex items-start gap-4">
+          <span class="avatar" style="width:56px; height:56px; font-size:18px; background:${tenantColor(t.id)}20; color:${tenantColor(t.id)}; border:1px solid ${tenantColor(t.id)}30">${initials(t.name)}</span>
+          <div>
+            <div class="flex items-center gap-3">
+              <h1 class="font-display text-[34px] leading-tight tracking-tight">${t.name}</h1>
+              ${statusBadge(t.status)}
+              ${planBadge(t.plan)}
+            </div>
+            <div class="flex items-center gap-3 mt-1 text-[13px] text-ink3">
+              <span class="font-mono">${t.id}</span>
+              <span>·</span>
+              <span>${t.subdomain}.voragine.app</span>
+              ${t.customDomain ? `<span>·</span><a href="#" class="hover:text-ink flex items-center gap-1">${t.customDomain} ${icons.external}</a>`:''}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          ${t.status === 'ACTIVE' ? `<button onclick="openSuspend('${t.id}')" class="btn btn-ghost btn-sm">${icons.pause}Suspender</button>` : ''}
+          ${t.status === 'SUSPENDED' ? `<button onclick="openReactivate('${t.id}')" class="btn btn-ghost btn-sm">${icons.play}Reactivar</button>` : ''}
+          ${(t.status === 'ACTIVE' || t.status === 'SUSPENDED') ? `<button onclick="openArchive('${t.id}')" class="btn btn-ghost btn-sm">${icons.archive}Archivar</button>` : ''}
+          ${t.status === 'ARCHIVED' ? `<button onclick="openRestore('${t.id}')" class="btn btn-ghost btn-sm">${icons.play}Restaurar</button>` : ''}
+          <button onclick="openExport('${t.id}')" class="btn btn-ghost btn-sm">${icons.download}Exportar datos</button>
+        </div>
+      </div>
+
+      <!-- tabs -->
+      <div class="border-b border-line mb-6">
+        <div class="flex">
+          ${tabs.map(tb => `<div class="tab ${state.tenantTab===tb.k?'active':''}" onclick="state.tenantTab='${tb.k}'; render()">${tb.label}</div>`).join('')}
+        </div>
+      </div>
+
+      ${tenantTabContent(t)}
+    </div>
+  `;
+}
+
+function tenantTabContent(t){
+  switch(state.tenantTab){
+    case 'identity': return tabIdentity(t);
+    case 'state':    return tabState(t);
+    case 'stripe':   return tabStripe(t);
+    case 'admins':   return tabAdmins(t, true);
+    case 'plan':     return tabPlan(t);
+    case 'audit':    return tabAudit(t);
+  }
+  return '';
+}
+
+function tabIdentity(t){
+  return `
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-white border border-line rounded-xl shadow-card">
+        <div class="px-5 py-4 border-b border-line flex items-center justify-between">
+          <div class="font-display text-[20px]">Datos identificativos</div>
+          <button class="btn btn-ghost btn-sm" onclick="toast('Modo edición — editable por Staff')">Editar</button>
+        </div>
+        <dl class="divide-y divide-line">
+          ${dl('Nombre comercial', t.name)}
+          ${dl('Razón social', t.legal)}
+          ${dl('Identificador fiscal', `<span class="font-mono">${t.cif}</span>`)}
+          ${dl('País', t.country)}
+          ${dl('Email de contacto', '<a href="#" class="text-info hover:underline">contacto@' + t.subdomain + '.com</a>')}
+          ${dl('Teléfono', '+34 900 000 000')}
+          ${dl('Dirección', 'Calle Ejemplo 42, 28001 Madrid, ES')}
+        </dl>
+      </div>
+      <div class="space-y-4">
+        <div class="bg-white border border-line rounded-xl shadow-card p-5">
+          <div class="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-3">Identificadores</div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[12px] text-ink3">tenant_id</span>
+              <code class="font-mono text-[12px] bg-paper2 px-2 py-0.5 rounded">${t.id}</code>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[12px] text-ink3">slug</span>
+              <code class="font-mono text-[12px] bg-paper2 px-2 py-0.5 rounded">${t.subdomain}</code>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[12px] text-ink3">sub-tenancy</span>
+              <span class="text-[12px]">${t.subTenants ? 'Habilitada' : 'Deshabilitada'}</span>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white border border-line rounded-xl shadow-card p-5">
+          <div class="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-2">Creado</div>
+          <div class="text-[14px] font-medium">${fmtDate(t.created)}</div>
+          <div class="text-[12px] text-ink3 mt-0.5">${Math.floor((Date.now()-new Date(t.created))/86400000)} días en la plataforma</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function dl(label, value){
+  return `<div class="grid grid-cols-3 px-5 py-3 gap-4">
+    <dt class="text-[12.5px] text-ink3">${label}</dt>
+    <dd class="col-span-2 text-[13.5px]">${value}</dd>
+  </div>`;
+}
+
+function tabState(t){
+  return `
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white border border-line rounded-xl shadow-card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="font-display text-[20px]">Estado actual</div>
+          ${statusBadge(t.status)}
+        </div>
+        ${t.status === 'SUSPENDED' ? `
+          <div class="bg-warnbg border border-warn/30 rounded-lg p-3 text-[13px] text-warn">
+            Suspendido por <strong>${t.suspendReason}</strong>. El tenant no puede operar hasta su reactivación.
+          </div>
+        ` : ''}
+        ${t.status === 'ARCHIVED' ? `
+          <div class="bg-paper2 border border-line rounded-lg p-3 text-[13px] text-ink2">
+            Archivado el ${fmtDate(t.archivedAt)}. Retención: <strong>90 días</strong>. Datos purgables el ${fmtDate(new Date(new Date(t.archivedAt).getTime()+90*86400000).toISOString())}.
+          </div>
+        ` : ''}
+        <div class="mt-6">
+          <div class="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-3">Línea de estado</div>
+          <div class="flex items-center gap-2 text-[12px]">
+            <span class="badge bg-okbg text-ok"><span class="dot" style="background:#2F6F4F"></span>Creado</span>
+            <span class="text-ink3">${icons.chevronR}</span>
+            <span class="badge bg-okbg text-ok"><span class="dot" style="background:#2F6F4F"></span>Activo</span>
+            ${t.status !== 'ACTIVE' ? `<span class="text-ink3">${icons.chevronR}</span>${statusBadge(t.status)}` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white border border-line rounded-xl shadow-card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="font-display text-[20px]">Dominios</div>
+          <button class="btn btn-ghost btn-sm">Gestionar</button>
+        </div>
+        <div class="space-y-4">
+          <div class="flex items-start gap-3">
+            <span class="text-ink3 mt-0.5">${icons.globe}</span>
+            <div>
+              <div class="text-[11px] uppercase tracking-[0.14em] text-ink3">Subdominio plataforma</div>
+              <div class="text-[14px] font-mono mt-0.5">${t.subdomain}.voragine.app</div>
+              <div class="text-[11.5px] text-ok mt-0.5 flex items-center gap-1">${icons.check} TLS activo · Wildcard cert</div>
+            </div>
+          </div>
+          <div class="border-t border-line"></div>
+          <div class="flex items-start gap-3">
+            <span class="text-ink3 mt-0.5">${icons.globe}</span>
+            <div class="flex-1">
+              <div class="text-[11px] uppercase tracking-[0.14em] text-ink3">Dominio propio</div>
+              ${t.customDomain ? `
+                <div class="text-[14px] font-mono mt-0.5">${t.customDomain}</div>
+                <div class="text-[11.5px] text-ok mt-0.5 flex items-center gap-1">${icons.check} Let's Encrypt · Verificado</div>
+              ` : `
+                <div class="text-[13px] text-ink3 mt-0.5">No configurado</div>
+                <button class="btn btn-ghost btn-sm mt-2">${icons.plus}Añadir dominio</button>
+              `}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function tabStripe(t){
+  return `
+    <div class="bg-white border border-line rounded-xl shadow-card">
+      <div class="px-5 py-4 border-b border-line flex items-center justify-between">
+        <div>
+          <div class="font-display text-[20px]">Stripe Connect</div>
+          <div class="text-xs text-ink3 mt-0.5">Cuenta asociada al tenant para procesar pagos con split</div>
+        </div>
+        ${stripeBadge(t.stripe)}
+      </div>
+      <dl class="divide-y divide-line">
+        ${dl('Account ID', '<span class="font-mono">acct_1PqN8X2...' + t.id.slice(-3) + '</span>')}
+        ${dl('Modo', t.stripe === 'VERIFIED' ? '<span class="badge bg-okbg text-ok">live</span>' : '<span class="badge bg-warnbg text-warn">test</span>')}
+        ${dl('Charges enabled', t.stripe === 'VERIFIED' ? '<span class="text-ok">Sí</span>' : '<span class="text-warn">No</span>')}
+        ${dl('Payouts enabled', t.stripe === 'VERIFIED' ? '<span class="text-ok">Sí</span>' : '<span class="text-warn">No</span>')}
+        ${dl('Application fee por defecto', '<span class="font-mono">2.9% + 0,30 €</span>')}
+        ${dl('Calendario de payouts', 'Diario · T+2')}
+        ${dl('Requirements pendientes', t.stripe === 'RESTRICTED' ? '<span class="text-warn">3 documentos requeridos</span>' : '<span class="text-ink3">Ninguno</span>')}
+      </dl>
+    </div>
+  `;
+}
+
+function tabAdmins(t, canManage){
+  const admins = ADMINS_BY_TENANT[t.id] || mockAdmins(t);
+  const invites = INVITES_BY_TENANT[t.id] || [];
+  return `
+    <div class="space-y-6">
+      <div class="bg-white border border-line rounded-xl shadow-card">
+        <div class="px-5 py-4 border-b border-line flex items-center justify-between">
+          <div>
+            <div class="font-display text-[20px]">Administradores</div>
+            <div class="text-xs text-ink3 mt-0.5">${admins.length} personas con acceso al tenant</div>
+          </div>
+          ${canManage ? `<button onclick="toast('Solo Owner/Admin del tenant pueden invitar — cambia de persona para probarlo', 'warn')" class="btn btn-ghost btn-sm">${icons.info}Gestión desde Owner/Admin</button>`:''}
+        </div>
+        <table class="t">
+          <thead>
+            <tr><th>Persona</th><th>Rol</th><th>2FA</th><th>Último acceso</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${admins.map(a => `
+              <tr>
+                <td>
+                  <div class="flex items-center gap-3">
+                    ${avatar(a.name, a.avatar)}
+                    <div>
+                      <div class="font-medium">${a.name}</div>
+                      <div class="text-xs text-ink3">${a.email}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>${roleBadge(a.role)}</td>
+                <td>${twofaBadge(a.twofa)}</td>
+                <td class="text-[13px] text-ink3">${relTime(a.last)}</td>
+                <td class="text-right"><button class="text-ink3 hover:text-ink p-1">${icons.more}</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      ${invites.length ? `
+      <div class="bg-white border border-line rounded-xl shadow-card">
+        <div class="px-5 py-4 border-b border-line">
+          <div class="font-display text-[20px]">Invitaciones pendientes</div>
+          <div class="text-xs text-ink3 mt-0.5">Aún no aceptadas · ${invites.length}</div>
+        </div>
+        <table class="t">
+          <thead><tr><th>Email</th><th>Rol</th><th>Enviada</th><th>Expira</th><th></th></tr></thead>
+          <tbody>
+            ${invites.map(i => `
+              <tr>
+                <td class="font-mono text-[13px]">${i.email}</td>
+                <td>${roleBadge(i.role)}</td>
+                <td class="text-[13px] text-ink3">${fmtDate(i.sent)}</td>
+                <td class="text-[13px] text-ink3">${fmtDate(i.expires)}</td>
+                <td class="text-right"><span class="text-[12px] text-ink3">PENDING</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      `: ''}
+    </div>
+  `;
+}
+
+function mockAdmins(t){
+  return [
+    { id:'o', name:'Owner del tenant',     email:'owner@'+t.subdomain+'.com',  role:'OWNER', twofa:true,  last:'2026-04-20T12:00:00Z', avatar:'#2F6F4F' },
+    { id:'a', name:'Admin del tenant',     email:'admin@'+t.subdomain+'.com',  role:'ADMIN', twofa:true,  last:'2026-04-18T10:00:00Z', avatar:'#2C5280' },
+  ];
+}
+
+function tabPlan(t){
+  const vol = t.volMonth;
+  const limit = t.plan === 'STARTER' ? 50000 : t.plan === 'PRO' ? 250000 : 2000000;
+  const pct = Math.min(100, Math.round((vol / limit) * 100));
+  return `
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-white border border-line rounded-xl shadow-card p-5">
+        <div class="flex items-center justify-between mb-5">
+          <div class="font-display text-[20px]">Plan actual</div>
+          ${planBadge(t.plan)}
+        </div>
+        <div class="space-y-5">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="text-[13px] text-ink2">Volumen procesado este mes</div>
+              <div class="text-[13px] font-mono">${fmtMoney(vol)} <span class="text-ink3">/ ${fmtMoney(limit)}</span></div>
+            </div>
+            <div class="h-1.5 w-full bg-paper2 rounded-full overflow-hidden">
+              <div class="h-full bg-accent rounded-full" style="width:${pct}%"></div>
+            </div>
+            <div class="text-[11.5px] text-ink3 mt-1">${pct}% del límite del plan</div>
+          </div>
+          <div class="grid grid-cols-3 gap-4">
+            ${miniMetric('Transacciones', fmtNumber(t.txMonth), 'este mes')}
+            ${miniMetric('Ticket medio', t.txMonth ? fmtMoney(Math.round(vol / t.txMonth)) : '—', 'por transacción')}
+            ${miniMetric('Application fee', fmtMoney(Math.round(vol * 0.029 + t.txMonth * 0.3)), 'comisión plataforma')}
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-line rounded-xl shadow-card p-5">
+        <div class="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-3">Facturación</div>
+        <div class="space-y-3 text-[13px]">
+          <div class="flex items-center justify-between"><span class="text-ink3">Próxima factura</span><span>${fmtDate('2026-05-01')}</span></div>
+          <div class="flex items-center justify-between"><span class="text-ink3">Importe estimado</span><span class="font-mono">${fmtMoney(149)}</span></div>
+          <div class="flex items-center justify-between"><span class="text-ink3">Método</span><span>Visa •••• 4242</span></div>
+        </div>
+        <button class="btn btn-ghost btn-sm w-full mt-4 justify-center">Ver historial</button>
+      </div>
+    </div>
+  `;
+}
+
+function miniMetric(label, value, hint){
+  return `
+    <div>
+      <div class="text-[11px] uppercase tracking-[0.14em] text-ink3">${label}</div>
+      <div class="font-display text-[24px] mt-1">${value}</div>
+      <div class="text-[11.5px] text-ink3">${hint}</div>
+    </div>
+  `;
+}
+
+function tabAudit(t){
+  const log = AUDIT.filter(a => a.tenant === t.id || a.tenant === undefined);
+  return `
+    <div class="bg-white border border-line rounded-xl shadow-card">
+      <div class="px-5 py-4 border-b border-line flex items-center justify-between">
+        <div>
+          <div class="font-display text-[20px]">Audit log</div>
+          <div class="text-xs text-ink3 mt-0.5">Historial inmutable de acciones</div>
+        </div>
+        <button class="btn btn-ghost btn-sm">${icons.download}Exportar CSV</button>
+      </div>
+      <div class="divide-y divide-line">
+        ${log.length ? log.map(a => auditRow(a)).join('') : `<div class="p-10 dotted text-center text-ink3 text-sm">Sin actividad registrada para este tenant.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+/* ---- STAFF · STAFF LIST ---- */
+function viewStaffList(){
+  return `
+    <div class="p-8 max-w-6xl fade-up">
+      <div class="flex items-start justify-between gap-6 mb-8">
+        <div>
+          <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Plataforma</div>
+          <h1 class="font-display text-[44px] leading-none tracking-tight"><span class="italic font-normal">Staff</span> interno</h1>
+          <p class="text-ink3 mt-3 max-w-xl">Personas de Voragine con acceso al back-office. 2FA obligatorio. Solo Super Admin puede gestionar altas y bajas.</p>
+        </div>
+        <button onclick="openNewStaff()" class="btn btn-primary shrink-0">${icons.plus}Invitar staff</button>
+      </div>
+
+      <div class="bg-white border border-line rounded-xl shadow-card overflow-hidden">
+        <table class="t">
+          <thead>
+            <tr><th>Persona</th><th>Rol</th><th>2FA</th><th>Último acceso</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${STAFF.map(s => `
+              <tr>
+                <td>
+                  <div class="flex items-center gap-3">
+                    ${avatar(s.name, s.avatar)}
+                    <div>
+                      <div class="font-medium">${s.name}</div>
+                      <div class="text-xs text-ink3">${s.email}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>${roleBadge(s.role)}</td>
+                <td>${twofaBadge(s.twofa)}</td>
+                <td class="text-[13px] text-ink3">${relTime(s.last)}</td>
+                <td class="text-right"><button class="text-ink3 hover:text-ink p-1">${icons.more}</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+/* ---- STAFF · GLOBAL AUDIT ---- */
+function viewAuditGlobal(){
+  return `
+    <div class="p-8 max-w-7xl fade-up">
+      <div class="flex items-start justify-between gap-6 mb-8">
+        <div>
+          <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Plataforma</div>
+          <h1 class="font-display text-[44px] leading-none tracking-tight"><span class="italic font-normal">Audit log</span> global</h1>
+          <p class="text-ink3 mt-3 max-w-xl">Todas las acciones administrativas en todos los tenants. Entradas inmutables. Retención mínima: 2 años.</p>
+        </div>
+        <button class="btn btn-ghost shrink-0">${icons.download}Exportar CSV</button>
+      </div>
+
+      <div class="bg-white border border-line rounded-xl shadow-card overflow-hidden">
+        <table class="t">
+          <thead>
+            <tr><th>Cuándo</th><th>Actor</th><th>Acción</th><th>Tenant</th><th>Detalle</th><th>IP</th></tr>
+          </thead>
+          <tbody>
+            ${AUDIT.map(a => `
+              <tr>
+                <td class="text-[13px] text-ink3 whitespace-nowrap">${fmtDate(a.ts, true)}</td>
+                <td>
+                  <div class="flex items-center gap-2">
+                    ${avatar(a.actor, '#14131A')}
+                    <div>
+                      <div class="text-[13px] font-medium">${a.actor}</div>
+                      <div class="text-[11px] text-ink3">${a.actorRole}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="inline-flex items-center gap-2 text-[13px]">
+                    <span class="w-1.5 h-1.5 rounded-full" style="background:${actionColor(a.action)}"></span>
+                    ${actionLabel(a.action)}
+                  </span>
+                </td>
+                <td><span class="font-mono text-[12px]">${a.tenantName}</span></td>
+                <td class="text-[13px] text-ink3">${a.detail}</td>
+                <td class="font-mono text-[12px] text-ink3">${a.ip}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+/* =========================================================================
+   VIEWS — OWNER / ADMIN (del tenant)
+   ========================================================================= */
+
+function viewTenantOverview(){
+  const t = currentTenant();
+  return `
+    <div class="p-8 max-w-6xl fade-up">
+      <div class="flex items-start justify-between gap-6 mb-8">
+        <div>
+          <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Mi tenant</div>
+          <h1 class="font-display text-[44px] leading-none tracking-tight">${t.name}</h1>
+          <p class="text-ink3 mt-3 max-w-xl">Resumen de la actividad y configuración de tu tenant en Voragine.</p>
+        </div>
+        <div class="flex items-center gap-2">${statusBadge(t.status)}${planBadge(t.plan)}${stripeBadge(t.stripe)}</div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        ${kpi('Volumen mes', fmtMoney(t.volMonth), 'Procesado este periodo')}
+        ${kpi('Transacciones', fmtNumber(t.txMonth), 'Última factura: 1 may')}
+        ${kpi('Administradores', String((ADMINS_BY_TENANT[t.id]||[]).length || 3), '2FA recomendado para todos')}
+        ${kpi('KYC Stripe', t.stripe === 'VERIFIED' ? 'OK' : 'Pendiente', 'Revisar requirements', t.stripe === 'VERIFIED' ? 'ok' : 'ink')}
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white border border-line rounded-xl shadow-card">
+          <div class="px-5 py-4 border-b border-line flex items-center justify-between">
+            <div class="font-display text-[20px]">Checklist de onboarding</div>
+            <span class="text-[12px] text-ink3">4 de 5 completados</span>
+          </div>
+          <div class="divide-y divide-line">
+            ${checklist('Cuenta Stripe Connect vinculada', true)}
+            ${checklist('Dominio propio configurado', !!t.customDomain)}
+            ${checklist('Al menos 1 admin invitado', true)}
+            ${checklist('Primera transacción de prueba', true)}
+            ${checklist('Webhook saliente configurado', false)}
+          </div>
+        </div>
+
+        <div class="bg-white border border-line rounded-xl shadow-card">
+          <div class="px-5 py-4 border-b border-line">
+            <div class="font-display text-[20px]">Acciones rápidas</div>
+          </div>
+          <div class="p-5 space-y-2">
+            <button onclick="navigate('admins')" class="btn btn-ghost w-full justify-start">${icons.admins}<span>Gestionar administradores</span></button>
+            <button onclick="navigate('settings')" class="btn btn-ghost w-full justify-start">${icons.settings}<span>Editar datos del tenant</span></button>
+            ${state.role === 'owner' ? `<button onclick="openTransfer()" class="btn btn-ghost w-full justify-start">${icons.transfer}<span>Transferir propiedad</span></button>`:''}
+            <button onclick="openExport(currentTenant().id)" class="btn btn-ghost w-full justify-start">${icons.download}<span>Exportar mis datos</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function checklist(label, done){
+  return `
+    <div class="px-5 py-3 flex items-center gap-3">
+      <span class="w-5 h-5 rounded-full flex items-center justify-center ${done?'bg-ok/10 text-ok':'bg-paper2 text-ink3 border border-line'}">
+        ${done ? icons.check : ''}
+      </span>
+      <span class="text-[13.5px] ${done?'':'text-ink3'}">${label}</span>
+    </div>
+  `;
+}
+
+function viewTenantAdmins(){
+  const t = currentTenant();
+  const admins = ADMINS_BY_TENANT[t.id] || mockAdmins(t);
+  const invites = INVITES_BY_TENANT[t.id] || [];
+  const isOwner = state.role === 'owner';
+
+  return `
+    <div class="p-8 max-w-6xl fade-up">
+      <div class="flex items-start justify-between gap-6 mb-8">
+        <div>
+          <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">${t.name}</div>
+          <h1 class="font-display text-[44px] leading-none tracking-tight"><span class="italic font-normal">Administradores</span></h1>
+          <p class="text-ink3 mt-3 max-w-xl">${admins.length} personas con acceso${isOwner ? ' · como Owner puedes cambiar roles, revocar y transferir la propiedad.' : ' · como Admin puedes invitar y revocar a otros Admins, pero no al Owner.'}</p>
+        </div>
+        <button onclick="openInvite()" class="btn btn-primary shrink-0">${icons.plus}Invitar administrador</button>
+      </div>
+
+      <div class="bg-white border border-line rounded-xl shadow-card overflow-hidden mb-6">
+        <table class="t">
+          <thead>
+            <tr><th>Persona</th><th>Rol</th><th>2FA</th><th>Último acceso</th><th class="text-right">Acciones</th></tr>
+          </thead>
+          <tbody>
+            ${admins.map(a => {
+              const isMe = a.id === PERSONAS[state.role].id;
+              const canEdit = (isOwner && !isMe) || (!isOwner && a.role === 'ADMIN' && !isMe);
+              const isOwnerRow = a.role === 'OWNER';
+              return `
+                <tr>
+                  <td>
+                    <div class="flex items-center gap-3">
+                      ${avatar(a.name, a.avatar)}
+                      <div>
+                        <div class="font-medium flex items-center gap-2">${a.name}${isMe ? '<span class="badge bg-paper2 text-ink3">Tú</span>':''}</div>
+                        <div class="text-xs text-ink3">${a.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>${roleBadge(a.role)}</td>
+                  <td>${twofaBadge(a.twofa)}</td>
+                  <td class="text-[13px] text-ink3">${relTime(a.last)}</td>
+                  <td class="text-right">
+                    ${isOwnerRow && !isOwner ? `<span class="text-[12px] text-ink3">No editable</span>` : ''}
+                    ${canEdit ? `
+                      <div class="flex items-center justify-end gap-1">
+                        ${isOwner && a.role === 'ADMIN' ? `<button onclick="openRoleChange('${a.id}','${a.name}')" class="btn btn-ghost btn-sm">Cambiar rol</button>` : ''}
+                        <button onclick="openRevoke('${a.id}','${a.name}')" class="btn btn-ghost btn-sm text-danger">Revocar</button>
+                      </div>
+                    `: isMe ? `<span class="text-[12px] text-ink3">—</span>` : ''}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bg-white border border-line rounded-xl shadow-card overflow-hidden">
+        <div class="px-5 py-4 border-b border-line flex items-center justify-between">
+          <div>
+            <div class="font-display text-[20px]">Invitaciones pendientes</div>
+            <div class="text-xs text-ink3 mt-0.5">${invites.length ? invites.length + ' invitaciones en espera' : 'No hay invitaciones pendientes'}</div>
+          </div>
+        </div>
+        ${invites.length ? `
+          <table class="t">
+            <thead><tr><th>Email</th><th>Rol</th><th>Enviada</th><th>Expira</th><th class="text-right">Acciones</th></tr></thead>
+            <tbody>
+              ${invites.map(i => `
+                <tr>
+                  <td class="font-mono text-[13px]">${i.email}</td>
+                  <td>${roleBadge(i.role)}</td>
+                  <td class="text-[13px] text-ink3">${fmtDate(i.sent)}</td>
+                  <td class="text-[13px] text-ink3">${fmtDate(i.expires)}</td>
+                  <td class="text-right">
+                    <button onclick="toast('Email de invitación reenviado')" class="btn btn-ghost btn-sm">Reenviar</button>
+                    <button onclick="toast('Invitación cancelada', 'warn')" class="btn btn-ghost btn-sm text-danger">Cancelar</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : `<div class="p-10 dotted text-center text-ink3 text-sm">Sin invitaciones pendientes. Invita a alguien con el botón superior.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+function viewTenantSettings(){
+  const t = currentTenant();
+  const isOwner = state.role === 'owner';
+  return `
+    <div class="p-8 max-w-4xl fade-up">
+      <div class="mb-8">
+        <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">${t.name}</div>
+        <h1 class="font-display text-[44px] leading-none tracking-tight"><span class="italic font-normal">Ajustes</span> del tenant</h1>
+        <p class="text-ink3 mt-3 max-w-xl">${isOwner ? 'Como Owner, puedes editar todos los campos.' : 'Como Admin, puedes editar los campos operativos. Los datos fiscales requieren permiso de Staff.'}</p>
+      </div>
+
+      <form class="space-y-8" onsubmit="event.preventDefault(); toast('Cambios guardados')">
+        <!-- identidad -->
+        <section class="bg-white border border-line rounded-xl shadow-card p-6">
+          <div class="mb-5">
+            <div class="font-display text-[20px]">Identidad</div>
+            <div class="text-xs text-ink3 mt-0.5">Datos mostrados a clientes y contrapartes</div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="label mb-1.5">Nombre comercial</div>
+              <input class="input" value="${t.name}"/>
+            </div>
+            <div>
+              <div class="label mb-1.5">Razón social ${!isOwner && '<span class="text-ink3 normal-case text-[10px] ml-1">· solo Staff</span>' || ''}</div>
+              <input class="input" value="${t.legal}" ${!isOwner?'disabled':''}/>
+            </div>
+            <div>
+              <div class="label mb-1.5">Identificador fiscal ${!isOwner && '<span class="text-ink3 normal-case text-[10px] ml-1">· solo Staff</span>' || ''}</div>
+              <input class="input font-mono" value="${t.cif}" ${!isOwner?'disabled':''}/>
+            </div>
+            <div>
+              <div class="label mb-1.5">País ${!isOwner && '<span class="text-ink3 normal-case text-[10px] ml-1">· solo Staff</span>' || ''}</div>
+              <select class="select" ${!isOwner?'disabled':''}>
+                <option selected>${t.country === 'ES'?'España':t.country === 'FR'?'Francia':t.country==='GB'?'Reino Unido':t.country}</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- contacto -->
+        <section class="bg-white border border-line rounded-xl shadow-card p-6">
+          <div class="mb-5">
+            <div class="font-display text-[20px]">Contacto</div>
+            <div class="text-xs text-ink3 mt-0.5">Canal para notificaciones operativas</div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="label mb-1.5">Email de contacto</div>
+              <input type="email" class="input" value="contacto@${t.subdomain}.com"/>
+            </div>
+            <div>
+              <div class="label mb-1.5">Teléfono</div>
+              <input class="input" value="+34 900 000 000"/>
+            </div>
+            <div class="md:col-span-2">
+              <div class="label mb-1.5">Dirección postal</div>
+              <input class="input" value="Calle Ejemplo 42, 28001 Madrid, ES"/>
+            </div>
+          </div>
+        </section>
+
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" class="btn btn-ghost">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function viewTenantAudit(){
+  const t = currentTenant();
+  const log = AUDIT.filter(a => a.tenant === t.id);
+  return `
+    <div class="p-8 max-w-6xl fade-up">
+      <div class="flex items-start justify-between gap-6 mb-8">
+        <div>
+          <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">${t.name}</div>
+          <h1 class="font-display text-[44px] leading-none tracking-tight"><span class="italic font-normal">Audit log</span></h1>
+          <p class="text-ink3 mt-3 max-w-xl">Historial inmutable de acciones realizadas en tu tenant por cualquier admin o miembro del staff de Voragine.</p>
+        </div>
+        ${state.role === 'owner' ? `<button class="btn btn-ghost shrink-0">${icons.download}Exportar CSV</button>`:''}
+      </div>
+
+      <div class="bg-white border border-line rounded-xl shadow-card divide-y divide-line">
+        ${log.length ? log.map(a => auditRow(a)).join('') : `<div class="p-10 dotted text-center text-ink3 text-sm">Sin actividad registrada.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+function viewTenantDanger(){
+  const t = currentTenant();
+  return `
+    <div class="p-8 max-w-3xl fade-up">
+      <div class="mb-8">
+        <div class="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">${t.name}</div>
+        <h1 class="font-display text-[44px] leading-none tracking-tight text-danger"><span class="italic font-normal">Zona peligrosa</span></h1>
+        <p class="text-ink3 mt-3 max-w-xl">Acciones irreversibles o que afectan gravemente al tenant. Solo el Owner puede ejecutarlas.</p>
+      </div>
+
+      <div class="space-y-4">
+        <div class="bg-white border border-line rounded-xl shadow-card p-5 flex items-start justify-between gap-4">
+          <div>
+            <div class="font-medium text-[15px]">Transferir propiedad</div>
+            <div class="text-[13px] text-ink3 mt-1 max-w-md">Cede la titularidad del tenant a otro administrador. Tras la confirmación, perderás el rol de Owner y pasarás a ser Admin.</div>
+          </div>
+          <button onclick="openTransfer()" class="btn btn-ghost shrink-0">${icons.transfer}Transferir</button>
+        </div>
+
+        <div class="bg-white border border-line rounded-xl shadow-card p-5 flex items-start justify-between gap-4">
+          <div>
+            <div class="font-medium text-[15px]">Exportar todos los datos (RGPD)</div>
+            <div class="text-[13px] text-ink3 mt-1 max-w-md">Descarga un ZIP con todos los datos del tenant (transacciones, configuración, admins, audit log). Se envía por email cifrado.</div>
+          </div>
+          <button onclick="openExport(currentTenant().id)" class="btn btn-ghost shrink-0">${icons.download}Exportar</button>
+        </div>
+
+        <div class="bg-white border border-danger/30 rounded-xl p-5 flex items-start justify-between gap-4" style="background:#FBF3F2">
+          <div>
+            <div class="font-medium text-[15px] text-danger">Archivar tenant</div>
+            <div class="text-[13px] text-ink3 mt-1 max-w-md">Detiene la operativa y libera el subdominio. Los datos se conservan durante 90 días antes del borrado definitivo. Requiere tecleo del nombre para confirmar.</div>
+          </div>
+          <button onclick="openArchive(currentTenant().id)" class="btn btn-danger shrink-0">${icons.archive}Archivar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* =========================================================================
+   MODALS
+   ========================================================================= */
+
+function openCreateTenant(){
+  openModal(`
+    <div class="p-6 border-b border-line">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-display text-[24px] tracking-tight">Nuevo tenant</div>
+          <div class="text-[13px] text-ink3 mt-1">Crea un tenant y envía invitación al Owner inicial.</div>
+        </div>
+        <button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button>
+      </div>
+    </div>
+    <form class="p-6 space-y-5" onsubmit="event.preventDefault(); closeModal(); toast('Tenant creado — invitación enviada al Owner')">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <div class="label mb-1.5">Nombre comercial</div>
+          <input class="input" placeholder="Tienda Ana" required>
+        </div>
+        <div>
+          <div class="label mb-1.5">Razón social</div>
+          <input class="input" placeholder="Tienda Ana SL" required>
+        </div>
+        <div>
+          <div class="label mb-1.5">País</div>
+          <select class="select"><option>España</option><option>Francia</option><option>Reino Unido</option></select>
+        </div>
+        <div>
+          <div class="label mb-1.5">CIF / VAT</div>
+          <input class="input font-mono" placeholder="B12345678" required>
+        </div>
+        <div>
+          <div class="label mb-1.5">Plan</div>
+          <select class="select"><option>STARTER</option><option selected>PRO</option><option>ENTERPRISE</option></select>
+        </div>
+      </div>
+
+      <div class="border-t border-line pt-5">
+        <div class="label mb-1.5">Email del Owner inicial</div>
+        <input type="email" class="input" placeholder="pedro@tiendaana.com" required>
+        <div class="text-[11.5px] text-ink3 mt-1.5 flex items-center gap-1.5">${icons.info}Recibirá un enlace firmado con expiración de 72 horas para completar el onboarding.</div>
+      </div>
+
+      <div class="flex items-start gap-2 bg-paper2 border border-line rounded-lg p-3 text-[12.5px] text-ink2">
+        <span class="text-ink3 mt-0.5">${icons.info}</span>
+        <div>Se asignará automáticamente un subdominio <code class="font-mono text-[11.5px] bg-white px-1.5 py-0.5 rounded">[slug].voragine.app</code> y se generará el <code class="font-mono text-[11.5px] bg-white px-1.5 py-0.5 rounded">tenant_id</code>. La sub-tenancy estará deshabilitada por defecto.</div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear tenant</button>
+      </div>
+    </form>
+  `, { size: 'lg' });
+}
+
+function openSuspend(tid){
+  const t = TENANTS.find(x => x.id === tid);
+  openModal(`
+    <div class="p-6 border-b border-line">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-display text-[22px] tracking-tight">Suspender ${t.name}</div>
+          <div class="text-[13px] text-ink3 mt-1">La API del tenant devolverá 403 hasta la reactivación.</div>
+        </div>
+        <button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button>
+      </div>
+    </div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast('Tenant suspendido')">
+      <div>
+        <div class="label mb-1.5">Motivo</div>
+        <select class="select">
+          <option value="NON_PAYMENT">Impago (NON_PAYMENT)</option>
+          <option value="SECURITY_INCIDENT">Incidente de seguridad</option>
+          <option value="TOS_VIOLATION">Violación de términos</option>
+          <option value="MANUAL_REVIEW">Revisión manual</option>
+          <option value="OTHER">Otro</option>
+        </select>
+      </div>
+      <div>
+        <div class="label mb-1.5">Nota interna</div>
+        <textarea class="textarea" rows="3" placeholder="Detalles visibles solo para Staff…"></textarea>
+      </div>
+      <div class="bg-warnbg border border-warn/30 rounded-lg p-3 text-[12.5px] text-warn flex gap-2">
+        <span class="mt-0.5">${icons.info}</span>
+        <div>El Owner recibirá email inmediato con el motivo. Los webhooks salientes se pausan. Las transacciones en curso no se cancelan.</div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-danger">Suspender</button>
+      </div>
+    </form>
+  `);
+}
+
+function openReactivate(tid){
+  const t = TENANTS.find(x => x.id === tid);
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div class="font-display text-[22px]">Reactivar ${t.name}</div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast('Tenant reactivado')">
+      <div>
+        <div class="label mb-1.5">Justificación</div>
+        <textarea class="textarea" rows="3" placeholder="La suspensión se levanta porque…" required></textarea>
+      </div>
+      <div class="bg-okbg border border-ok/30 rounded-lg p-3 text-[12.5px] text-ok flex gap-2">
+        <span class="mt-0.5">${icons.check}</span>
+        <div>Tras la reactivación, la API vuelve a aceptar peticiones y se reanudan los webhooks. Los eventos acumulados durante la suspensión <strong>no</strong> se reintentan automáticamente.</div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Reactivar</button>
+      </div>
+    </form>
+  `);
+}
+
+function openArchive(tid){
+  const t = TENANTS.find(x => x.id === tid);
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div><div class="font-display text-[22px] text-danger">Archivar ${t.name}</div><div class="text-[13px] text-ink3 mt-1">Acción reversible solo dentro de los 90 días siguientes.</div></div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast('Tenant archivado', 'warn')">
+      <div class="bg-dangerbg border border-danger/30 rounded-lg p-3 text-[12.5px] text-danger flex gap-2">
+        <span class="mt-0.5">${icons.info}</span>
+        <div>Al archivar: se libera el subdominio, se revocan todas las API keys, se detienen los webhooks, los Admins pierden acceso. Los datos se borran definitivamente tras 90 días.</div>
+      </div>
+      <div>
+        <div class="label mb-1.5">Motivo (opcional)</div>
+        <select class="select"><option>Cliente canceló servicio</option><option>Migración a otra plataforma</option><option>Fin de contrato</option><option>Otro</option></select>
+      </div>
+      <div>
+        <div class="label mb-1.5">Confirmación · escribe <code class="font-mono text-[12px] bg-paper2 px-1.5 rounded">${t.name}</code> para continuar</div>
+        <input id="confirm-archive" class="input" placeholder="${t.name}" oninput="document.getElementById('btn-archive').disabled = this.value !== '${t.name.replace(/'/g,"\\'")}'"/>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button id="btn-archive" type="submit" class="btn btn-danger" disabled>${icons.archive}Archivar definitivamente</button>
+      </div>
+    </form>
+  `);
+}
+
+function openRestore(tid){
+  const t = TENANTS.find(x => x.id === tid);
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div class="font-display text-[22px]">Restaurar ${t.name}</div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <div class="p-6 space-y-4">
+      <div class="bg-infobg border border-info/30 rounded-lg p-3 text-[12.5px] text-info flex gap-2">
+        <span class="mt-0.5">${icons.info}</span>
+        <div>El tenant vuelve a estado <strong>ACTIVE</strong>. El subdominio anterior puede estar reasignado. Las API keys previas <strong>no</strong> se reactivan y los Admins deben ser reinvitados.</div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button onclick="closeModal(); toast('Tenant restaurado')" class="btn btn-primary">Restaurar</button>
+      </div>
+    </div>
+  `);
+}
+
+function openExport(tid){
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div><div class="font-display text-[22px]">Exportar datos del tenant</div><div class="text-[13px] text-ink3 mt-1">RGPD · derecho a la portabilidad</div></div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <div class="p-6 space-y-4">
+      <div class="text-[13.5px] leading-relaxed text-ink2">
+        Se generará un archivo <strong>ZIP cifrado</strong> con todos los datos scoped por <code class="font-mono text-[12px] bg-paper2 px-1.5 rounded">tenant_id</code>: transacciones, split rules, administradores, configuración, webhooks y audit log.
+      </div>
+      <ul class="text-[13px] space-y-1.5 text-ink3">
+        <li class="flex items-start gap-2"><span class="text-ok mt-0.5">${icons.check}</span>Proceso asíncrono · recibirás el enlace en ~10 min</li>
+        <li class="flex items-start gap-2"><span class="text-ok mt-0.5">${icons.check}</span>URL firmada de un solo uso, expira en 7 días</li>
+        <li class="flex items-start gap-2"><span class="text-ok mt-0.5">${icons.check}</span>Contraseña del ZIP enviada por canal separado</li>
+      </ul>
+      <div>
+        <div class="label mb-1.5">Email de entrega</div>
+        <input type="email" class="input" value="${PERSONAS[state.role].email}"/>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button onclick="closeModal(); toast('Exportación solicitada — recibirás el enlace por email')" class="btn btn-primary">${icons.download}Solicitar exportación</button>
+      </div>
+    </div>
+  `);
+}
+
+function openInvite(){
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div class="font-display text-[22px]">Invitar administrador</div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast('Invitación enviada')">
+      <div>
+        <div class="label mb-1.5">Email</div>
+        <input type="email" class="input" placeholder="persona@${currentTenant().subdomain}.com" required>
+      </div>
+      <div>
+        <div class="label mb-1.5">Rol</div>
+        <select class="select"><option>ADMIN</option></select>
+        <div class="text-[11.5px] text-ink3 mt-1.5">El rol OWNER no puede asignarse desde aquí — se gestiona vía transferencia de propiedad.</div>
+      </div>
+      <div class="bg-paper2 border border-line rounded-lg p-3 text-[12.5px] text-ink2 flex gap-2">
+        <span class="text-ink3 mt-0.5">${icons.info}</span>
+        <div>La invitación caduca en <strong>7 días</strong>. El invitado recibirá un enlace firmado de un solo uso.</div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Enviar invitación</button>
+      </div>
+    </form>
+  `);
+}
+
+function openRoleChange(uid, name){
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div class="font-display text-[22px]">Cambiar rol de ${name}</div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast('Rol actualizado')">
+      <div>
+        <div class="label mb-1.5">Rol actual</div>
+        <div>${roleBadge('ADMIN')}</div>
+      </div>
+      <div>
+        <div class="label mb-1.5">Nuevo rol</div>
+        <select class="select"><option>ADMIN</option></select>
+        <div class="text-[11.5px] text-ink3 mt-1.5">Para convertir a esta persona en Owner, usa <strong>Transferir propiedad</strong>.</div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  `);
+}
+
+function openRevoke(uid, name){
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div class="font-display text-[22px] text-danger">Revocar acceso a ${name}</div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast(name + ' ha perdido acceso al tenant', 'warn')">
+      <div class="text-[13.5px] text-ink2">La persona perderá acceso al tenant <strong>${currentTenant().name}</strong> de inmediato. Su cuenta Voragine seguirá existiendo para otros tenants.</div>
+      <div>
+        <div class="label mb-1.5">Motivo (opcional)</div>
+        <textarea class="textarea" rows="3" placeholder="Ej: ya no trabaja con nosotros…"></textarea>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-danger">Revocar acceso</button>
+      </div>
+    </form>
+  `);
+}
+
+function openTransfer(){
+  const t = currentTenant();
+  const admins = (ADMINS_BY_TENANT[t.id] || mockAdmins(t)).filter(a => a.role === 'ADMIN');
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div><div class="font-display text-[22px]">Transferir propiedad</div><div class="text-[13px] text-ink3 mt-1">Proceso de doble confirmación · tú dejarás de ser Owner.</div></div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast('Transferencia iniciada — pendiente de aceptación del destinatario')">
+      <div>
+        <div class="label mb-1.5">Destinatario</div>
+        <select class="select">
+          ${admins.length ? admins.map(a => `<option>${a.name} · ${a.email}</option>`).join('') : '<option disabled>No hay administradores elegibles</option>'}
+        </select>
+        <div class="text-[11.5px] text-ink3 mt-1.5">Solo Admins actuales del tenant pueden recibir la propiedad.</div>
+      </div>
+      <div>
+        <div class="label mb-1.5">Confirma con tu contraseña</div>
+        <input type="password" class="input" required>
+      </div>
+      <div class="bg-warnbg border border-warn/30 rounded-lg p-3 text-[12.5px] text-warn flex gap-2">
+        <span class="mt-0.5">${icons.info}</span>
+        <div>El destinatario recibirá un email con un enlace de aceptación (expira en 48h). Hasta que acepte, los roles no cambian. Tras aceptar, tú pasarás a ser Admin.</div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary" ${admins.length?'':'disabled'}>${icons.transfer}Iniciar transferencia</button>
+      </div>
+    </form>
+  `);
+}
+
+function openNewStaff(){
+  openModal(`
+    <div class="p-6 border-b border-line"><div class="flex items-center justify-between"><div class="font-display text-[22px]">Invitar miembro del staff</div><button onclick="closeModal()" class="text-ink3 hover:text-ink">${icons.close}</button></div></div>
+    <form class="p-6 space-y-4" onsubmit="event.preventDefault(); closeModal(); toast('Invitación enviada')">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <div class="label mb-1.5">Nombre</div>
+          <input class="input" placeholder="Nombre Apellido" required>
+        </div>
+        <div>
+          <div class="label mb-1.5">Email corporativo</div>
+          <input type="email" class="input" placeholder="persona@voragine.app" required>
+        </div>
+        <div class="col-span-2">
+          <div class="label mb-1.5">Rol</div>
+          <select class="select">
+            <option value="STAFF">STAFF — acceso operativo</option>
+            <option value="SUPER_ADMIN">SUPER_ADMIN — puede gestionar otros staff</option>
+          </select>
+        </div>
+      </div>
+      <div class="bg-paper2 border border-line rounded-lg p-3 text-[12.5px] text-ink2 flex gap-2">
+        <span class="text-ink3 mt-0.5">${icons.info}</span>
+        <div>El invitado recibirá un enlace de activación válido 72h. Deberá configurar contraseña y activar <strong>2FA</strong> obligatorio antes del primer acceso.</div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Enviar invitación</button>
+      </div>
+    </form>
+  `);
+}
+
+/* ------------------------------ INIT ----------------------------------- */
+render();
+</script>
+</body>
+</html>

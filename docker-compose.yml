@@ -281,6 +281,19 @@ services:
       - platform-auth
       - splitpay-core
 
+  # ── Voragine Console (frontend 5176) ──────────────────────────
+  voragine-console-portal:
+    build:
+      context: .
+      dockerfile: apps/voragine-console/voragine-console-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '5177:5177'
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://voragine-console.apphub.local:8080
+
   # ── Gateway ────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
@@ -302,6 +315,7 @@ services:
       - yoga-studio
       - splitpay-core
       - splitpay-portal
+      - voragine-console-portal
 
 volumes:
   postgres_data:
