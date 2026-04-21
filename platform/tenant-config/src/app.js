@@ -5,6 +5,8 @@ import { appGuard } from '@apphub/platform-sdk/app-guard'
 import { logger } from './lib/logger.js'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { ZodError } from 'zod'
+import { appsRoutes } from './routes/apps.routes.js'
+import { tenantsRoutes } from './routes/tenants.routes.js'
 
 export function createApp() {
   const fastify = Fastify({ logger: false })
@@ -15,6 +17,9 @@ export function createApp() {
   fastify.get('/health', { config: { public: true } }, async () => ({
     status: 'ok', service: 'platform-tenant-config', timestamp: new Date().toISOString(),
   }))
+
+  fastify.register(appsRoutes)
+  fastify.register(tenantsRoutes)
 
   fastify.setNotFoundHandler((req, reply) => {
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } })
