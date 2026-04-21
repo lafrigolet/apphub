@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.js",
     "lint": "eslint src",
     "db:migrate": "node src/lib/migrate.js",
     "clean": "rm -rf coverage"

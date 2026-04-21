@@ -44,6 +44,7 @@ export async function register({ appId, tenantId, subTenantId, email, password, 
 export async function login({ appId, tenantId, email, password }) {
   const client = await pool.connect()
   try {
+    await client.query('BEGIN')
     await setTenantContext(client, appId, tenantId, null)
     const user = await userRepo.findByEmail(client, appId, tenantId, email)
     if (!user) throw new UnauthorizedError('Invalid credentials')
@@ -51,13 +52,18 @@ export async function login({ appId, tenantId, email, password }) {
     const valid = await bcrypt.compare(password, user.password_hash)
     if (!valid) {
       await userRepo.incrementFailedAttempts(client, user.id)
+      await client.query('COMMIT')
       throw new UnauthorizedError('Invalid credentials')
     }
     await userRepo.resetFailedAttempts(client, user.id)
+    await client.query('COMMIT')
     const accessToken = signAccess(user)
     const refreshToken = uuidv4()
     await redis.setex(redisKey(appId, tenantId, user.id, refreshToken), REFRESH_TTL, '1')
     return { accessToken, refreshToken, userId: user.id, role: user.role }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw err
   } finally {
     client.release()
   }
@@ -69,13 +75,18 @@ export async function refresh({ appId, tenantId, userId, refreshToken }) {
   if (!valid) throw new UnauthorizedError('Invalid or expired refresh token')
   const client = await pool.connect()
   try {
+    await client.query('BEGIN')
     await setTenantContext(client, appId, tenantId, null)
     const user = await userRepo.findById(client, appId, tenantId, userId)
+    await client.query('COMMIT')
     if (!user) throw new UnauthorizedError('User not found')
     await redis.del(key)
     const newRefresh = uuidv4()
     await redis.setex(redisKey(appId, tenantId, userId, newRefresh), REFRESH_TTL, '1')
     return { accessToken: signAccess(user), refreshToken: newRefresh }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw err
   } finally {
     client.release()
   }
@@ -84,13 +95,21 @@ export async function refresh({ appId, tenantId, userId, refreshToken }) {
 export async function forgotPassword({ appId, tenantId, email }) {
   const client = await pool.connect()
   try {
+    await client.query('BEGIN')
     await setTenantContext(client, appId, tenantId, null)
     const user = await userRepo.findByEmail(client, appId, tenantId, email)
-    if (!user) return // silent — no email enumeration
+    if (!user) {
+      await client.query('ROLLBACK')
+      return // silent — no email enumeration
+    }
     const token = uuidv4()
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1h
     await resetRepo.createReset(client, { id: token, userId: user.id, appId, tenantId, expiresAt })
+    await client.query('COMMIT')
     await publish({ type: 'auth.password_reset_requested', payload: { userId: user.id, email, token, appId, tenantId } })
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw err
   } finally {
     client.release()
   }
@@ -99,19 +118,20 @@ export async function forgotPassword({ appId, tenantId, email }) {
 export async function resetPassword({ token, newPassword }) {
   const client = await pool.connect()
   try {
+    await client.query('BEGIN')
     const reset = await resetRepo.findValidReset(client, token)
     if (!reset) throw new UnauthorizedError('Invalid or expired reset token')
+    await setTenantContext(client, reset.app_id, reset.tenant_id, null)
     const passwordHash = await bcrypt.hash(newPassword, 12)
-    await client.query('BEGIN')
     await userRepo.updatePassword(client, reset.user_id, passwordHash)
     await resetRepo.markResetUsed(client, token)
+    await client.query('COMMIT')
     // Invalidate all refresh tokens for this user
     const pattern = `${reset.app_id}:${reset.tenant_id}:refresh:${reset.user_id}:*`
     const keys = await redis.keys(pattern)
     if (keys.length) await redis.del(...keys)
-    await client.query('COMMIT')
   } catch (err) {
-    await client.query('ROLLBACK')
+    await client.query('ROLLBACK').catch(() => {})
     throw err
   } finally {
     client.release()

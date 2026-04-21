@@ -6,10 +6,13 @@ import { sendWelcomeEmail, sendPasswordResetEmail } from './email.service.js'
 export function startEventConsumer() {
   const sub = new Redis(env.REDIS_URL)
 
-  sub.subscribe('platform:events', (err) => {
-    if (err) logger.error({ err }, 'Failed to subscribe to platform:events')
-    else logger.info('platform-notifications subscribed to platform:events')
+  sub.ready = new Promise((resolve, reject) => {
+    sub.subscribe('platform:events', (err) => {
+      if (err) { logger.error({ err }, 'Failed to subscribe to platform:events'); reject(err) }
+      else { logger.info('platform-notifications subscribed to platform:events'); resolve() }
+    })
   })
+
 
   sub.on('message', async (_channel, message) => {
     let event

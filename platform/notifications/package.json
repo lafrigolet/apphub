@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.js",
     "db:migrate": "node src/lib/migrate.js",
     "clean": "rm -rf coverage"
   },
