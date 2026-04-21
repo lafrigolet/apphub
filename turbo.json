@@ -11,10 +11,13 @@
       "cache": false,
       "persistent": true
     },
-    "test": {
+    "test:unit": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "tests/**"],
       "outputs": ["coverage/**"]
+    },
+    "test:integration": {
+      "cache": false
     },
     "test:coverage": {
       "dependsOn": ["^build"],
