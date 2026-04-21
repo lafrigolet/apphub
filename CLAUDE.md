@@ -24,6 +24,7 @@ apphub/
 │   ├── portal/                # AppHub admin UI — port 5173
 │   ├── yoga-studio/           # Yoga Studio app — ports 3011–3017, 5174
 │   ├── split-pay/             # Split Pay app — ports 3020, 5175
+│   ├── aikikan/               # Aikikan Aikido portal — port 5176
 │   └── __app-template__/      # Blueprint for new apps (never deployed)
 ├── packages/                  # Internal shared packages (pnpm workspaces)
 │   ├── eslint-config/         # @splitpay/eslint-config
@@ -81,6 +82,18 @@ Every JWT issued by `platform/auth` carries:
 8. **Use `appGuard` from `@apphub/platform-sdk`** — never write a custom JWT guard. Set
    `EXPECTED_APP_ID` in the service env; the guard returns `403 APP_MISMATCH` on mismatch.
 9. **Write JavaScript, not TypeScript** — all services and frontends use `.js` / `.jsx`.
+10. **Check `platform/` before building any new microservice** — auth, payments, notifications,
+    catalog, basket, and tenant-config are already implemented there. If a new app needs one of
+    these capabilities, wire it to the existing platform service instead of creating a duplicate.
+    See the platform service registry below.
+11. **Each microservice connects with its own dedicated DB role** — never use the shared
+    superuser `DATABASE_URL` at runtime. Set `DATABASE_URL` to `postgresql://svc_<service>:...`
+    and `MIGRATION_DATABASE_URL` to the superuser. `migrate.js` uses `MIGRATION_DATABASE_URL`;
+    the application pool uses `DATABASE_URL`.
+12. **Update `.md` files after any significant implementation** — keep `ARCHITECTURE.md`,
+    `CHANGELOG.md`, `CONVENTIONS.md`, and `DEVELOPMENT.md` in sync with what was built.
+    Specifically: new services → `ARCHITECTURE.md` + `DEVELOPMENT.md`; new patterns →
+    `CONVENTIONS.md`; any change → `CHANGELOG.md` unreleased section.
 
 ## Naming conventions
 
@@ -128,7 +141,10 @@ When the user says **"Bootstrap app `<name>`"**, create a minimal portal for tha
 
 5. **Add to `pnpm-workspace.yaml`** — append `'apps/<name>/*'`
 
-6. **Add to `docker-compose.yml`**:
+6. **Add include to `infra/nginx/nginx.conf`** — append `include /etc/nginx/conf.d/<name>.conf;`
+   inside the `http {}` block alongside the other per-subdomain includes.
+
+7. **Add to `docker-compose.yml`**:
    - New service `<name>-portal`: `context: .`, correct Dockerfile path, port mapping,
      `VITE_API_BASE_URL: http://<name>.apphub.local:8080`, no `depends_on` needed beyond nginx
    - Add `<name>-portal` to nginx `depends_on`
@@ -383,13 +399,32 @@ grep -r "from '../../data/mock'" apps/<name>/<name>-portal/src/views/
    `include /etc/nginx/snippets/platform-routes.conf`
 7. Add `/etc/hosts` entry: `127.0.0.1 myapp.apphub.local`
 
+## Platform service registry
+
+Before building any new backend capability, check whether it already exists:
+
+| Capability | Service | Port | Status |
+|---|---|---|---|
+| Auth (email/password + OAuth) | `platform/auth` | 3000 | ✅ Implemented |
+| Stripe payments | `platform/payments` | 3001 | 🔧 Skeleton |
+| Email / push notifications | `platform/notifications` | 3002 | ✅ Implemented |
+| Product & service catalogue | `platform/catalog` | 3003 | 🔧 Skeleton |
+| Shopping cart (Redis-only) | `platform/basket` | 3004 | 🔧 Skeleton |
+| App & tenant registry | `platform/tenant-config` | 3005 | 🔧 Skeleton |
+
+**OAuth providers supported by `platform/auth`:** Google (`credential` id_token), Facebook (`accessToken`).
+Routes: `POST /v1/auth/oauth/google`, `POST /v1/auth/oauth/facebook`.
+
 ## Where to start when adding a new platform service
 
-1. Copy any existing `platform/` service as a template
-2. Assign the next port in the 3000–3009 range
-3. Create a new PostgreSQL schema in `infra/postgres/init/01_platform_schemas.sql`
-4. Add the service to `docker-compose.yml`
-5. Add a route to `infra/nginx/snippets/platform-routes.conf`
+1. **Check the registry above first** — if a skeleton exists, implement it rather than creating a new service.
+2. Copy any existing implemented service (e.g. `platform/auth`) as a template.
+3. Assign the next port in the 3000–3009 range.
+4. Add the dedicated DB role to `infra/postgres/init/01_platform_schemas.sql`.
+5. In `docker-compose.yml`: set `DATABASE_URL` to the service role, add `MIGRATION_DATABASE_URL` (superuser).
+6. Add the service to `docker-compose.yml`.
+7. Add a route to `infra/nginx/snippets/platform-routes.conf`.
+8. Update the platform service registry table above and `ARCHITECTURE.md`.
 
 ## Environment variables
 

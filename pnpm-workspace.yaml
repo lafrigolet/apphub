@@ -2,6 +2,7 @@ packages:
   - 'apps/*'                    # portal
   - 'apps/yoga-studio/*'        # yoga-portal + all yoga microservices
   - 'apps/split-pay/*'          # splitpay-portal + splitpay-core
+  - 'apps/aikikan/*'            # aikikan-portal
   - 'apps/voragine-console/*'  # voragine-console-portal
   - 'apps/__app-template__/*'   # template (never deployed)
   - 'platform/*'                # shared platform services

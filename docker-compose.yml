@@ -43,11 +43,15 @@ services:
     environment:
       NODE_ENV: development
       PLATFORM_AUTH_PORT: 3000
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      DATABASE_URL: postgresql://svc_platform_auth:platform_auth_secret@postgres:5432/splitpay
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
       REDIS_URL: redis://redis:6379
       PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
     volumes:
       - ./platform/auth/src:/app/platform/auth/src:ro
       - ./platform/auth/migrations:/app/platform/auth/migrations:ro
@@ -92,11 +96,12 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3002
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      DATABASE_URL: postgresql://svc_platform_notifications:platform_notifications_secret@postgres:5432/splitpay
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
       REDIS_URL: redis://redis:6379
       EXPECTED_APP_ID: platform
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@apphub.com}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-dev_no_sendgrid}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@apphub.local}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
     volumes:
       - ./platform/notifications/src:/app/platform/notifications/src:ro
@@ -281,7 +286,27 @@ services:
       - platform-auth
       - splitpay-core
 
-  # ── Voragine Console (frontend 5176) ──────────────────────────
+  # ── Aikikan (frontend 5176) ───────────────────────────────────
+  aikikan-portal:
+    build:
+      context: .
+      dockerfile: apps/aikikan/aikikan-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '5176:5176'
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://aikikan.apphub.local:8080
+      VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      VITE_FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      VITE_AIKIKAN_APP_ID: aikikan
+      VITE_AIKIKAN_TENANT_ID: ${AIKIKAN_TENANT_ID:-}
+    volumes:
+      - ./apps/aikikan/aikikan-portal/src:/app/apps/aikikan/aikikan-portal/src:ro
+      - ./apps/aikikan/aikikan-portal/public:/app/apps/aikikan/aikikan-portal/public:ro
+
+  # ── Voragine Console (frontend 5177) ──────────────────────────
   voragine-console-portal:
     build:
       context: .
@@ -315,6 +340,7 @@ services:
       - yoga-studio
       - splitpay-core
       - splitpay-portal
+      - aikikan-portal
       - voragine-console-portal
 
 volumes:

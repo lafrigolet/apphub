@@ -1,7 +1,8 @@
 import { readdir, readFile } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { pool } from './db.js'
+import pg from 'pg'
+import { env } from './env.js'
 import { logger } from './logger.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -9,7 +10,8 @@ const MIGRATIONS_DIR = join(__dirname, '../../migrations')
 const SCHEMA = 'platform_auth'
 
 export async function runMigrations() {
-  const client = await pool.connect()
+  const migrationPool = new pg.Pool({ connectionString: env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL })
+  const client = await migrationPool.connect()
   try {
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`)
     await client.query(`
@@ -42,6 +44,7 @@ export async function runMigrations() {
     else logger.info(`Applied ${count} migration(s)`)
   } finally {
     client.release()
+    await migrationPool.end()
   }
 }
 

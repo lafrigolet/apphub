@@ -82,6 +82,27 @@ EXPECTED_APP_ID=yoga-studio   // or split-pay, etc.
 - Migrations are immutable once merged to main — never edit, always add
 - Schema names use the pattern `platform_*` for platform services and `{app}_*` for app services
 
+## Database connection isolation
+
+Each microservice must use its own dedicated PostgreSQL role at runtime. Never use the
+shared superuser for application queries. Use two separate connection strings:
+
+```yaml
+# docker-compose.yml — platform-auth example
+DATABASE_URL: postgresql://svc_platform_auth:platform_auth_secret@postgres:5432/splitpay
+MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+```
+
+- `DATABASE_URL` → restricted role, schema-scoped grants, RLS enforced — used by the app pool
+- `MIGRATION_DATABASE_URL` → superuser, used **only** by `migrate.js` for DDL (CREATE TABLE)
+
+In `migrate.js`:
+```js
+const migrationPool = new pg.Pool({ connectionString: env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL })
+```
+
+Service roles and schema grants are defined in `infra/postgres/init/01_platform_schemas.sql`.
+
 ## PostgreSQL session context
 
 Use `setTenantContext` from `platform-sdk` before any tenant-scoped query:

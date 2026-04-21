@@ -1,0 +1,42 @@
+export const masters = {
+  osensei: {
+    rank: "/ Fundador del Aikido — O'Sensei",
+    name: 'MORIHEI UESHIBA',
+    years: '1883 — 1969 · Tanabe, Wakayama — Iwama, Ibaraki, Japón',
+    img: '/masters/morihei-ueshiba.jpg',
+    body: "Morihei Ueshiba es considerado uno de los más grandes maestros de artes marciales de todos los tiempos. Tras dominar diversas escuelas de judo, jujutsu y kenjutsu bajo Sokaku Takeda, y después de una profunda transformación espiritual en 1925, sintetizó su conocimiento en lo que denominaría Aikido: el camino de la armonía con el espíritu universal. Profundamente influenciado por la doctrina esotérica Omoto-kyo, enseñó que el Aikido era misogi —purificación del ser— y no combate. Pasó sus últimos años en Iwama, donde cultivaba la tierra y practicaba el arte.",
+    quote: '"El Aikido es el camino de la armonía. No luches contra el adversario; únete a él. Verdadera victoria es victoria sobre uno mismo."',
+  },
+  tamura: {
+    rank: '/ 8º Dan Aikikai Shihan — Padre del Aikido europeo',
+    name: 'NOBUYOSHI TAMURA',
+    years: '1933 — 2010 · Osaka, Japón — Bras, Provenza, Francia',
+    img: '/masters/nobuyoshi-tamura.jpg',
+    body: "Uchi-deshi de O'Sensei desde 1952, Tamura Nobuyoshi fue el uke preferido del fundador en demostraciones públicas. Apodado \"la muralla de piedra\" en Hawái por su firmeza. En 1964 llegó a Marsella como representante oficial del Aikikai, convirtiéndose en el principal arquitecto del Aikido en Europa occidental. Reunía hasta 500 practicantes en sus seminarios de verano. Su credo: \"ordenar el cuerpo para que la mente le siga\". Su último seminario fue en Madrid, en marzo de 2010.",
+    quote: '"El primer objetivo de la práctica es ordenar el cuerpo. Eliminar lo superfluo, adoptar la postura correcta, asentar la respiración. Después, el espíritu sigue."',
+  },
+  moriteru: {
+    rank: '/ III Doshu — Maestro del Camino — IAF · Aikikai Foundation',
+    name: 'MORITERU UESHIBA',
+    years: '1951 — · Tokio, Japón',
+    img: '/masters/moriteru-ueshiba.jpg',
+    body: 'Nieto del fundador e hijo de Kisshomaru Ueshiba, Moriteru asumió el título de Doshu —Maestro del Camino— el 4 de enero de 1999. Graduado en economía por la Universidad Meiji Gakuin, dirige el Aikikai Foundation y es presidente vitalicio de la International Aikido Federation. Imparte clases cada mañana en el Hombu Dojo de Tokio a las 6:30h, los lunes, miércoles y viernes. Su misión: preservar y transmitir la esencia del Aikido al mundo.',
+    quote: '"El Aikido es un arte de paz. Nuestro objetivo no es la lucha, sino la armonía con todos los seres. Esta es la verdadera victoria."',
+  },
+  shewan: {
+    rank: '/ 6º Dan Aikikai · Director Técnico FEI · Maestro de Kenjutsu e Iaido',
+    name: 'MALCOLM TIKI SHEWAN',
+    years: '1951 — · Somerville, New Jersey (EE. UU.) — Cannes, Francia',
+    img: '/masters/malcolm-tiki.jpg',
+    body: 'De ascendencia escocesa, Malcolm "Tiki" Shewan comenzó la esgrima a los seis años y el Judo en el Budokwai de Londres. Su encuentro con Tamura Nobuyoshi Shihan en Lausana en 1969-70 cambió el curso de su vida: abandonó la esgrima para dedicarse íntegramente al Aikido y al Iaido, practicando 4-6 horas diarias. Desde 1973 enseña en el Aiki-Club de Cannes. También es reconocido experto en metalurgia tradicional japonesa y fue pionero en forjar katanas en suelo europeo con hierro europeo.',
+    quote: '"El propósito no es la espada; es el alma. La espada viene después."',
+  },
+  benedetti: {
+    rank: '/ 7º Dan Aikikai Shihan · Fundador Mutokukai · Orientalista',
+    name: 'STÉPHANE BENEDETTI',
+    years: '1951 — · Aix-en-Provence, Francia — Barcelona, España',
+    img: '/masters/stefan-benedetti.jpg',
+    body: 'Orientalista formado en japonés, chino y sánscrito con estudios de historia de las religiones, Benedetti vivió nueve años en Japón donde estudió con Nonaka Shihan en Miyazaki y Kobayashi Shihan en Osaka. Fue el traductor y colaborador más cercano de Tamura Sensei. Fundó el Mutokukai, organización internacional abierta a practicantes de todo el mundo. Hoy reside en Cataluña y enseña por toda Europa. Es Consejero Técnico de las Federaciones Euroasiática, Kalmuca y Ucraniana de Aikido.',
+    quote: '"El Aikido no es un arte marcial en el sentido de la guerra. Es un arte de paz y protección — takemusu, la creación espontánea de técnicas nacida desde la armonía."',
+  },
+}

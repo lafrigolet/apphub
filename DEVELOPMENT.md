@@ -27,6 +27,7 @@ cp .env.example .env
 echo "127.0.0.1  apphub.local" | sudo tee -a /etc/hosts
 echo "127.0.0.1  yoga.apphub.local" | sudo tee -a /etc/hosts
 echo "127.0.0.1  splitpay.apphub.local" | sudo tee -a /etc/hosts
+echo "127.0.0.1  aikikan.apphub.local" | sudo tee -a /etc/hosts
 
 # 5. Start the full stack
 docker compose up -d
@@ -44,6 +45,7 @@ server blocks will not match and all requests land on the default server (404).
 127.0.0.1  apphub.local
 127.0.0.1  yoga.apphub.local
 127.0.0.1  splitpay.apphub.local
+127.0.0.1  aikikan.apphub.local
 ```
 
 Add more lines for each new app as you add them.
@@ -62,11 +64,22 @@ PLATFORM_STRIPE_WEBHOOK_SECRET=whsec_...
 SPLITPAY_STRIPE_SECRET_KEY=sk_test_...
 SPLITPAY_STRIPE_WEBHOOK_SECRET=whsec_...
 
-# Database — matches docker-compose.yml defaults
-DATABASE_URL=postgresql://apphub:apphub@localhost:5432/apphub
+# Database — superuser (used only by migrate.js)
+MIGRATION_DATABASE_URL=postgresql://splitpay:splitpay@localhost:5432/splitpay
+# Per-service DB roles (schema-isolated runtime connections)
+PLATFORM_AUTH_DATABASE_URL=postgresql://svc_platform_auth:platform_auth_secret@localhost:5432/splitpay
+PLATFORM_NOTIFICATIONS_DATABASE_URL=postgresql://svc_platform_notifications:platform_notifications_secret@localhost:5432/splitpay
 
 # Redis — matches docker-compose.yml defaults
 REDIS_URL=redis://localhost:6379
+
+# OAuth (optional in development — social buttons hidden when blank)
+GOOGLE_CLIENT_ID=
+FACEBOOK_APP_ID=
+FACEBOOK_APP_SECRET=
+
+# Aikikan tenant UUID (set after first DB seed)
+AIKIKAN_TENANT_ID=
 ```
 
 ## Stripe local webhooks
@@ -152,6 +165,7 @@ docker compose exec yoga-studio sh -c "cd apps/yoga-studio/yoga-classes && node 
 | portal | AppHub admin | 5173 |
 | yoga-studio | yoga-portal | 5174 |
 | splitpay-portal | splitpay-portal | 5175 |
+| aikikan-portal | aikikan-portal | 5176 |
 | postgres | PostgreSQL | 5432 |
 | redis | Redis | 6379 |
 | nginx | NGINX gateway | 8080 |
