@@ -11,8 +11,8 @@ const registerBody = z.object({
 })
 
 const loginBody = z.object({
-  appId:    z.string().min(1),
-  tenantId: z.string().uuid(),
+  appId:    z.string().min(1).optional(),
+  tenantId: z.string().uuid().optional(),
   email:    z.string().email(),
   password: z.string(),
 })

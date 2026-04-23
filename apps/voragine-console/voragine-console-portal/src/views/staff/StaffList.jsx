@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
-import { STAFF } from '../../data/mock'
+import { api } from '../../lib/api'
+import { adaptUser } from '../../lib/adapters'
+import { PLATFORM_APP, PLATFORM_TENANT } from '../../lib/auth'
 import { relTime } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { RoleBadge, TwoFABadge, Avatar } from '../../lib/ui'
@@ -47,6 +50,18 @@ function InviteStaffModal() {
 
 export default function StaffList() {
   const { openModal } = useApp()
+  const [staff, setStaff] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get(`/api/users/?appId=${PLATFORM_APP}&tenantId=${PLATFORM_TENANT}&role=staff,super_admin`)
+      .then((list) => setStaff(list.map(adaptUser)))
+      .catch(() => setStaff([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
+
   return (
     <div className="p-8 max-w-6xl fade-up">
       <div className="flex items-start justify-between gap-6 mb-8">
@@ -70,7 +85,7 @@ export default function StaffList() {
             <tr><th>Persona</th><th>Rol</th><th>2FA</th><th>Último acceso</th><th /></tr>
           </thead>
           <tbody>
-            {STAFF.map(s => (
+            {staff.map(s => (
               <tr key={s.id}>
                 <td>
                   <div className="flex items-center gap-3">

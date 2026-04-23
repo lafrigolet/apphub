@@ -1,7 +1,7 @@
 -- Migration 0003: create transactions table
 -- Records every PaymentIntent with its split context
 
-SET search_path TO payments;
+SET search_path TO splitpay_core;
 
 CREATE TABLE IF NOT EXISTS transactions (
   id                        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

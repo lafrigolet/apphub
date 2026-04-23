@@ -6,12 +6,13 @@ import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod
 import { ZodError } from 'zod'
 import { authRoutes, internalRoutes } from './routes/auth.routes.js'
 import { oauthRoutes } from './routes/oauth.routes.js'
+import { usersRoutes } from './routes/users.routes.js'
 import { appGuard } from './plugins/app-guard.js'
 import { logger } from './lib/logger.js'
 import { AppError } from './utils/errors.js'
 
 export function createApp() {
-  const fastify = Fastify({ logger: false })
+  const fastify = Fastify({ logger: false, ignoreTrailingSlash: true })
 
   fastify.setValidatorCompiler(validatorCompiler)
   fastify.setSerializerCompiler(serializerCompiler)
@@ -36,6 +37,7 @@ export function createApp() {
 
   fastify.register(authRoutes, { prefix: '/v1/auth' })
   fastify.register(oauthRoutes, { prefix: '/v1/auth/oauth' })
+  fastify.register(usersRoutes)
   fastify.register(internalRoutes, { prefix: '/internal' })
 
   fastify.setNotFoundHandler((req, reply) => {

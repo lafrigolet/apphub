@@ -11,6 +11,7 @@ export async function runMigrations() {
   const client = await pool.connect()
 
   try {
+    await client.query('CREATE SCHEMA IF NOT EXISTS splitpay_core')
     // Create migrations tracking table if it doesn't exist
     await client.query(`
       CREATE TABLE IF NOT EXISTS splitpay_core.migrations (

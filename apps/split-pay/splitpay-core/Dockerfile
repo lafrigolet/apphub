@@ -6,10 +6,12 @@ FROM base AS development
 ENV NODE_ENV=development
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/platform-sdk/package.json ./packages/platform-sdk/package.json
 COPY apps/split-pay/splitpay-core/package.json ./apps/split-pay/splitpay-core/package.json
 
-RUN pnpm install --no-frozen-lockfile --filter @split-pay/splitpay-core
+RUN pnpm install --no-frozen-lockfile --filter @split-pay/splitpay-core...
 
+COPY packages/platform-sdk ./packages/platform-sdk
 COPY apps/split-pay/splitpay-core/src ./apps/split-pay/splitpay-core/src
 COPY apps/split-pay/splitpay-core/migrations ./apps/split-pay/splitpay-core/migrations
 
@@ -20,10 +22,12 @@ FROM base AS production
 ENV NODE_ENV=production
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/platform-sdk/package.json ./packages/platform-sdk/package.json
 COPY apps/split-pay/splitpay-core/package.json ./apps/split-pay/splitpay-core/package.json
 
-RUN pnpm install --no-frozen-lockfile --prod --filter @split-pay/splitpay-core
+RUN pnpm install --no-frozen-lockfile --prod --filter @split-pay/splitpay-core...
 
+COPY packages/platform-sdk ./packages/platform-sdk
 COPY apps/split-pay/splitpay-core/src ./apps/split-pay/splitpay-core/src
 COPY apps/split-pay/splitpay-core/migrations ./apps/split-pay/splitpay-core/migrations
 

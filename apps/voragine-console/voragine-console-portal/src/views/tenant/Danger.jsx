@@ -1,16 +1,21 @@
 import { useApp } from '../../context/AppContext'
+import { adaptTenant } from '../../lib/adapters'
 import { icons } from '../../lib/icons'
 import { ArchiveModal, ExportModal } from '../staff/modals/TenantActionModals'
 import TransferModal from './modals/TransferModal'
 
 export default function TenantDanger() {
-  const { openModal, currentTenant } = useApp()
-  const t = currentTenant()
+  const { openModal, myTenant, logout } = useApp()
+  const t = myTenant
+
+  if (!t) return <div className="p-10 text-center text-ink3">Cargando…</div>
+  const adaptedT = adaptTenant(t)
+  const tenantName = t.display_name
 
   return (
     <div className="p-8 max-w-3xl fade-up">
       <div className="mb-8">
-        <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{t.name}</div>
+        <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{tenantName}</div>
         <h1 className="font-display text-[44px] leading-none tracking-tight text-danger">
           <span className="italic font-normal">Zona peligrosa</span>
         </h1>
@@ -24,7 +29,7 @@ export default function TenantDanger() {
           <div>
             <div className="font-medium text-[15px]">Transferir propiedad</div>
             <div className="text-[13px] text-ink3 mt-1 max-w-md">
-              Cede la titularidad del tenant a otro administrador. Tras la confirmación, perderás el rol de Owner y pasarás a ser Admin.
+              Cede la titularidad del tenant a otro administrador. (Próximamente.)
             </div>
           </div>
           <button onClick={() => openModal(<TransferModal />)} className="btn btn-ghost shrink-0">
@@ -36,7 +41,7 @@ export default function TenantDanger() {
           <div>
             <div className="font-medium text-[15px]">Exportar todos los datos (RGPD)</div>
             <div className="text-[13px] text-ink3 mt-1 max-w-md">
-              Descarga un ZIP con todos los datos del tenant (transacciones, configuración, admins, audit log). Se envía por email cifrado.
+              Descarga un ZIP con todos los datos del tenant. (Próximamente.)
             </div>
           </div>
           <button onClick={() => openModal(<ExportModal />)} className="btn btn-ghost shrink-0">
@@ -48,10 +53,13 @@ export default function TenantDanger() {
           <div>
             <div className="font-medium text-[15px] text-danger">Archivar tenant</div>
             <div className="text-[13px] text-ink3 mt-1 max-w-md">
-              Detiene la operativa y libera el subdominio. Los datos se conservan durante 90 días antes del borrado definitivo. Requiere tecleo del nombre para confirmar.
+              Detiene la operativa y libera el subdominio. Al archivar se cerrará tu sesión ya que perderás acceso al tenant.
             </div>
           </div>
-          <button onClick={() => openModal(<ArchiveModal tenant={t} />)} className="btn btn-danger shrink-0">
+          <button
+            onClick={() => openModal(<ArchiveModal tenant={adaptedT} onDone={() => setTimeout(logout, 1000)} />)}
+            className="btn btn-danger shrink-0"
+          >
             {icons.archive}Archivar
           </button>
         </div>

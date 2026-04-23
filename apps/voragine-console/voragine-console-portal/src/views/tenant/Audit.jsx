@@ -1,18 +1,32 @@
+import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
-import { AUDIT } from '../../data/mock'
+import { api } from '../../lib/api'
+import { adaptAudit } from '../../lib/adapters'
 import { fmtDate, relTime, actionLabel } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 
 export default function TenantAudit() {
-  const { role, currentTenant } = useApp()
-  const t = currentTenant()
-  const log = AUDIT.filter(a => a.tenant === t.id)
+  const { role, identity, myTenant } = useApp()
+  const [log, setLog] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!identity?.tenantId) return
+    api.get(`/api/audit/?tenantId=${identity.tenantId}&limit=200`)
+      .then((l) => setLog(l.map((a) => adaptAudit(a, { [identity.tenantId]: myTenant?.display_name ?? '—' }))))
+      .catch(() => setLog([]))
+      .finally(() => setLoading(false))
+  }, [identity, myTenant])
+
+  if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
+
+  const tenantName = myTenant?.display_name ?? '—'
 
   return (
     <div className="p-8 max-w-6xl fade-up">
       <div className="flex items-start justify-between gap-6 mb-8">
         <div>
-          <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{t.name}</div>
+          <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{tenantName}</div>
           <h1 className="font-display text-[44px] leading-none tracking-tight">
             <span className="italic font-normal">Audit log</span>
           </h1>
@@ -27,12 +41,12 @@ export default function TenantAudit() {
 
       <div className="bg-white border border-line rounded-xl shadow-card divide-y divide-line">
         {log.length
-          ? log.map((a, i) => (
-            <div key={i} className="px-5 py-3 flex items-start gap-3">
+          ? log.map((a) => (
+            <div key={a.id} className="px-5 py-3 flex items-start gap-3">
               <span className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: '#2C5280' }} />
               <div className="flex-1 min-w-0">
                 <div className="text-[13.5px]">
-                  <span className="font-medium">{a.actor}</span> · {actionLabel(a.action)} · <span className="font-mono text-[12px]">{a.tenantName}</span>
+                  {actionLabel(a.action)} · <span className="text-ink3">{a.actorRole || '—'}</span>
                 </div>
                 <div className="text-xs text-ink3 mt-0.5">{a.detail}</div>
               </div>

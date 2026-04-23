@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
-import { TENANTS } from '../../data/mock'
+import { api } from '../../lib/api'
+import { adaptTenant } from '../../lib/adapters'
+import { APP_ID } from '../../lib/auth'
 import { fmtDate, fmtMoney, tenantColor, initials } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { StatusBadge, StripeBadge, PlanBadge, EmptyState } from '../../lib/ui'
@@ -43,8 +45,19 @@ function FilterChip({ label, filterKey, options, filters, setFilters }) {
 
 export default function StaffTenants() {
   const { navigate, filters, setFilters, sort, setSort, openModal, toast } = useApp()
+  const [tenants, setTenants] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const filtered = TENANTS.filter(t => {
+  useEffect(() => {
+    api.get(`/api/tenants/tenants?appId=${APP_ID}`)
+      .then((list) => setTenants(list.map(adaptTenant)))
+      .catch(() => setTenants([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
+
+  const filtered = tenants.filter(t => {
     const q = filters.query.toLowerCase()
     const matchQ = !q || [t.name, t.legal, t.cif, t.subdomain, t.customDomain].filter(Boolean).some(x => x.toLowerCase().includes(q))
     const matchS = filters.status === 'ALL' || t.status === filters.status
@@ -77,7 +90,7 @@ export default function StaffTenants() {
             <span className="italic font-normal">Tenants</span>
           </h1>
           <p className="text-ink3 mt-3 max-w-xl">
-            {filtered.length} de {TENANTS.length} tenants · gestiona el ciclo de vida completo desde el alta hasta el archivado.
+            {filtered.length} de {tenants.length} tenants · gestiona el ciclo de vida completo desde el alta hasta el archivado.
           </p>
         </div>
         <button

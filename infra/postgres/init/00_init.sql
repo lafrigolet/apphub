@@ -142,10 +142,17 @@ BEGIN
 END
 $$;
 
-GRANT USAGE ON SCHEMA yoga_bookings TO svc_yoga_cron;
-GRANT USAGE ON SCHEMA yoga_bonuses  TO svc_yoga_cron;
+GRANT USAGE ON SCHEMA
+  yoga_bookings, yoga_bonuses, yoga_classes, yoga_users, yoga_reporting
+  TO svc_yoga_cron;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA yoga_bookings
-  GRANT SELECT, UPDATE ON TABLES TO svc_yoga_cron;
+  GRANT SELECT, INSERT, UPDATE ON TABLES TO svc_yoga_cron;
 ALTER DEFAULT PRIVILEGES IN SCHEMA yoga_bonuses
   GRANT SELECT ON TABLES TO svc_yoga_cron;
+ALTER DEFAULT PRIVILEGES IN SCHEMA yoga_classes
+  GRANT SELECT, INSERT, UPDATE ON TABLES TO svc_yoga_cron;
+ALTER DEFAULT PRIVILEGES IN SCHEMA yoga_users
+  GRANT SELECT ON TABLES TO svc_yoga_cron;
+ALTER DEFAULT PRIVILEGES IN SCHEMA yoga_reporting
+  GRANT SELECT, INSERT, UPDATE ON TABLES TO svc_yoga_cron;

@@ -1,17 +1,44 @@
-import { createContext, useContext, useState } from 'react'
-import { PERSONAS, TENANTS } from '../data/mock'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { getIdentity, logout as libLogout } from '../lib/auth'
+import { api } from '../lib/api'
 
 const AppContext = createContext()
 
+function roleFromIdentity(identity) {
+  if (!identity) return null
+  if (identity.role === 'super_admin' || identity.role === 'staff') return 'staff'
+  if (identity.role === 'owner')  return 'owner'
+  if (identity.role === 'admin')  return 'admin'
+  return 'admin'
+}
+
 export function AppProvider({ children }) {
-  const [role, setRole] = useState('staff')
-  const [view, setView] = useState('dashboard')
+  const [identity, setIdentity] = useState(() => getIdentity())
+  const role = roleFromIdentity(identity)
+
+  const [view, setView] = useState(role === 'staff' ? 'dashboard' : 'overview')
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [tenantTab, setTenantTab] = useState('identity')
   const [filters, setFilters] = useState({ query: '', status: 'ALL', plan: 'ALL', country: 'ALL' })
   const [sort, setSort] = useState({ key: 'created', dir: 'desc' })
   const [toasts, setToasts] = useState([])
   const [modal, setModal] = useState(null)
+  const [myTenant, setMyTenant] = useState(null)
+
+  useEffect(() => {
+    const handler = () => setIdentity(null)
+    window.addEventListener('apphub:unauthorized', handler)
+    return () => window.removeEventListener('apphub:unauthorized', handler)
+  }, [])
+
+  // Load the caller's own tenant when they're a non-staff user
+  useEffect(() => {
+    if (!identity) { setMyTenant(null); return }
+    if (role === 'staff') { setMyTenant(null); return }
+    api.get(`/api/tenants/tenants/${identity.tenantId}`)
+      .then(setMyTenant)
+      .catch(() => setMyTenant(null))
+  }, [identity, role])
 
   function navigate(v, extra) {
     setView(v)
@@ -19,12 +46,17 @@ export function AppProvider({ children }) {
     window.scrollTo({ top: 0 })
   }
 
-  function switchRole(r) {
-    setRole(r)
-    setSelectedTenant(null)
+  function onLogin() {
+    const id = getIdentity()
+    setIdentity(id)
+    const r = roleFromIdentity(id)
     setView(r === 'staff' ? 'dashboard' : 'overview')
-    setTenantTab('identity')
-    addToast(`Ahora viendo como ${PERSONAS[r].role_label}`)
+    setSelectedTenant(null)
+  }
+
+  function logout() {
+    libLogout()
+    setIdentity(null)
   }
 
   function addToast(msg, variant = 'ok') {
@@ -39,23 +71,19 @@ export function AppProvider({ children }) {
 
   function closeModal() { setModal(null) }
 
-  function currentTenant() {
-    if (role === 'staff') return selectedTenant ? TENANTS.find(t => t.id === selectedTenant) : null
-    return TENANTS.find(t => t.id === 't-001')
-  }
-
   return (
     <AppContext.Provider value={{
-      role, view,
+      identity, role, myTenant,
+      view, setView,
       selectedTenant, setSelectedTenant,
       tenantTab, setTenantTab,
       filters, setFilters,
       sort, setSort,
       toasts, modal,
-      navigate, switchRole,
+      navigate,
+      onLogin, logout,
       toast: addToast,
       openModal, closeModal,
-      currentTenant,
     }}>
       {children}
     </AppContext.Provider>

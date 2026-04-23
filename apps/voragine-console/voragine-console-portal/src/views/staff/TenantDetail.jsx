@@ -1,16 +1,12 @@
+import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
-import { TENANTS, ADMINS_BY_TENANT, INVITES_BY_TENANT, AUDIT } from '../../data/mock'
+import { api } from '../../lib/api'
+import { adaptTenant, adaptUser, adaptAudit } from '../../lib/adapters'
+import { APP_ID } from '../../lib/auth'
 import { fmtDate, fmtMoney, fmtNumber, relTime, tenantColor, initials } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { StatusBadge, StripeBadge, PlanBadge, RoleBadge, TwoFABadge, Avatar, DlRow, MiniMetric } from '../../lib/ui'
 import { SuspendModal, ReactivateModal, ArchiveModal, RestoreModal, ExportModal } from './modals/TenantActionModals'
-
-function mockAdmins(t) {
-  return [
-    { id: 'o', name: 'Owner del tenant', email: 'owner@' + t.subdomain + '.com', role: 'OWNER', twofa: true,  last: '2026-04-20T12:00:00Z', avatar: '#2F6F4F' },
-    { id: 'a', name: 'Admin del tenant', email: 'admin@' + t.subdomain + '.com', role: 'ADMIN', twofa: true,  last: '2026-04-18T10:00:00Z', avatar: '#2C5280' },
-  ]
-}
 
 const TABS = [
   { k: 'identity', label: 'Identificación' },
@@ -22,29 +18,29 @@ const TABS = [
 ]
 
 function TabIdentity({ t }) {
-  const { toast } = useApp()
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 bg-white border border-line rounded-xl shadow-card">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between">
           <div className="font-display text-[20px]">Datos identificativos</div>
-          <button className="btn btn-ghost btn-sm" onClick={() => toast('Modo edición — editable por Staff')}>Editar</button>
         </div>
         <dl className="divide-y divide-line">
           <DlRow label="Nombre comercial">{t.name}</DlRow>
-          <DlRow label="Razón social">{t.legal}</DlRow>
-          <DlRow label="Identificador fiscal"><span className="font-mono">{t.cif}</span></DlRow>
-          <DlRow label="País">{t.country}</DlRow>
-          <DlRow label="Email de contacto"><a href="#" className="text-info hover:underline">contacto@{t.subdomain}.com</a></DlRow>
-          <DlRow label="Teléfono">+34 900 000 000</DlRow>
-          <DlRow label="Dirección">Calle Ejemplo 42, 28001 Madrid, ES</DlRow>
+          <DlRow label="Razón social">{t.legal || '—'}</DlRow>
+          <DlRow label="Identificador fiscal"><span className="font-mono">{t.cif || '—'}</span></DlRow>
+          <DlRow label="País">{t.country || '—'}</DlRow>
+          <DlRow label="Email de contacto">{t.contactEmail
+            ? <a href={`mailto:${t.contactEmail}`} className="text-info hover:underline">{t.contactEmail}</a>
+            : '—'}</DlRow>
+          <DlRow label="Teléfono">{t.contactPhone || '—'}</DlRow>
+          <DlRow label="Dirección">{t.address || '—'}</DlRow>
         </dl>
       </div>
       <div className="space-y-4">
         <div className="bg-white border border-line rounded-xl shadow-card p-5">
           <div className="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-3">Identificadores</div>
           <div className="space-y-2">
-            {[['tenant_id', t.id], ['slug', t.subdomain], ['sub-tenancy', t.subTenants ? 'Habilitada' : 'Deshabilitada']].map(([k, v]) => (
+            {[['tenant_id', t.id], ['slug', t.subdomain], ['sub-tenancy', 'Deshabilitada']].map(([k, v]) => (
               <div key={k} className="flex items-center justify-between gap-2">
                 <span className="text-[12px] text-ink3">{k}</span>
                 <code className="font-mono text-[12px] bg-paper2 px-2 py-0.5 rounded">{v}</code>
@@ -74,7 +70,7 @@ function TabState({ t }) {
         </div>
         {t.status === 'SUSPENDED' && (
           <div className="bg-warnbg border border-warn/30 rounded-lg p-3 text-[13px] text-warn">
-            Suspendido por <strong>{t.suspendReason}</strong>. El tenant no puede operar hasta su reactivación.
+            Suspendido {t.suspendReason ? <>por <strong>{t.suspendReason}</strong></> : ''}. El tenant no puede operar hasta su reactivación.
           </div>
         )}
         {t.status === 'ARCHIVED' && (
@@ -95,7 +91,6 @@ function TabState({ t }) {
       <div className="bg-white border border-line rounded-xl shadow-card p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="font-display text-[20px]">Dominios</div>
-          <button className="btn btn-ghost btn-sm">Gestionar</button>
         </div>
         <div className="space-y-4">
           <div className="flex items-start gap-3">
@@ -103,7 +98,6 @@ function TabState({ t }) {
             <div>
               <div className="text-[11px] uppercase tracking-[0.14em] text-ink3">Subdominio plataforma</div>
               <div className="text-[14px] font-mono mt-0.5">{t.subdomain}.voragine.app</div>
-              <div className="text-[11.5px] text-ok mt-0.5 flex items-center gap-1">{icons.check} TLS activo · Wildcard cert</div>
             </div>
           </div>
           <div className="border-t border-line" />
@@ -112,8 +106,8 @@ function TabState({ t }) {
             <div className="flex-1">
               <div className="text-[11px] uppercase tracking-[0.14em] text-ink3">Dominio propio</div>
               {t.customDomain
-                ? <><div className="text-[14px] font-mono mt-0.5">{t.customDomain}</div><div className="text-[11.5px] text-ok mt-0.5 flex items-center gap-1">{icons.check} Let's Encrypt · Verificado</div></>
-                : <><div className="text-[13px] text-ink3 mt-0.5">No configurado</div><button className="btn btn-ghost btn-sm mt-2">{icons.plus}Añadir dominio</button></>
+                ? <div className="text-[14px] font-mono mt-0.5">{t.customDomain}</div>
+                : <div className="text-[13px] text-ink3 mt-0.5">No configurado</div>
               }
             </div>
           </div>
@@ -134,22 +128,16 @@ function TabStripe({ t }) {
         <StripeBadge status={t.stripe} />
       </div>
       <dl className="divide-y divide-line">
-        <DlRow label="Account ID"><span className="font-mono">acct_1PqN8X2...{t.id.slice(-3)}</span></DlRow>
-        <DlRow label="Modo">{t.stripe === 'VERIFIED' ? <span className="badge bg-okbg text-ok">live</span> : <span className="badge bg-warnbg text-warn">test</span>}</DlRow>
-        <DlRow label="Charges enabled">{t.stripe === 'VERIFIED' ? <span className="text-ok">Sí</span> : <span className="text-warn">No</span>}</DlRow>
-        <DlRow label="Payouts enabled">{t.stripe === 'VERIFIED' ? <span className="text-ok">Sí</span> : <span className="text-warn">No</span>}</DlRow>
+        <DlRow label="Estado KYC"><StripeBadge status={t.stripe} /></DlRow>
+        <DlRow label="Account ID"><span className="text-ink3 text-[12px]">No conectado en dev</span></DlRow>
         <DlRow label="Application fee por defecto"><span className="font-mono">2.9% + 0,30 €</span></DlRow>
-        <DlRow label="Calendario de payouts">Diario · T+2</DlRow>
-        <DlRow label="Requirements pendientes">{t.stripe === 'RESTRICTED' ? <span className="text-warn">3 documentos requeridos</span> : <span className="text-ink3">Ninguno</span>}</DlRow>
       </dl>
     </div>
   )
 }
 
-function TabAdmins({ t }) {
+function TabAdmins({ t, admins }) {
   const { toast } = useApp()
-  const admins = ADMINS_BY_TENANT[t.id] || mockAdmins(t)
-  const invites = INVITES_BY_TENANT[t.id] || []
   return (
     <div className="space-y-6">
       <div className="bg-white border border-line rounded-xl shadow-card">
@@ -158,47 +146,39 @@ function TabAdmins({ t }) {
             <div className="font-display text-[20px]">Administradores</div>
             <div className="text-xs text-ink3 mt-0.5">{admins.length} personas con acceso al tenant</div>
           </div>
-          <button onClick={() => toast('Solo Owner/Admin del tenant pueden invitar — cambia de persona para probarlo', 'warn')} className="btn btn-ghost btn-sm">
-            {icons.info}Gestión desde Owner/Admin
+          <button
+            onClick={() => toast('Invitaciones disponibles próximamente', 'warn')}
+            className="btn btn-ghost btn-sm"
+          >
+            {icons.info}Invitaciones: próximamente
           </button>
         </div>
         <table className="t">
           <thead><tr><th>Persona</th><th>Rol</th><th>2FA</th><th>Último acceso</th><th /></tr></thead>
           <tbody>
-            {admins.map(a => (
+            {admins.length === 0 && (
+              <tr><td colSpan={5} className="text-center text-ink3 py-6">Sin administradores todavía.</td></tr>
+            )}
+            {admins.map((a) => (
               <tr key={a.id}>
-                <td><div className="flex items-center gap-3"><Avatar name={a.name} color={a.avatar} /><div><div className="font-medium">{a.name}</div><div className="text-xs text-ink3">{a.email}</div></div></div></td>
+                <td>
+                  <div className="flex items-center gap-3">
+                    <Avatar name={a.name} color={a.avatar} />
+                    <div>
+                      <div className="font-medium">{a.name}</div>
+                      <div className="text-xs text-ink3">{a.email}</div>
+                    </div>
+                  </div>
+                </td>
                 <td><RoleBadge role={a.role} /></td>
                 <td><TwoFABadge enabled={a.twofa} /></td>
-                <td className="text-[13px] text-ink3">{relTime(a.last)}</td>
+                <td className="text-[13px] text-ink3">{a.last ? relTime(a.last) : '—'}</td>
                 <td className="text-right"><button className="text-ink3 hover:text-ink p-1">{icons.more}</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {invites.length > 0 && (
-        <div className="bg-white border border-line rounded-xl shadow-card">
-          <div className="px-5 py-4 border-b border-line">
-            <div className="font-display text-[20px]">Invitaciones pendientes</div>
-            <div className="text-xs text-ink3 mt-0.5">Aún no aceptadas · {invites.length}</div>
-          </div>
-          <table className="t">
-            <thead><tr><th>Email</th><th>Rol</th><th>Enviada</th><th>Expira</th><th /></tr></thead>
-            <tbody>
-              {invites.map(i => (
-                <tr key={i.id}>
-                  <td className="font-mono text-[13px]">{i.email}</td>
-                  <td><RoleBadge role={i.role} /></td>
-                  <td className="text-[13px] text-ink3">{fmtDate(i.sent)}</td>
-                  <td className="text-[13px] text-ink3">{fmtDate(i.expires)}</td>
-                  <td className="text-right"><span className="text-[12px] text-ink3">PENDING</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   )
 }
@@ -226,26 +206,16 @@ function TabPlan({ t }) {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <MiniMetric label="Transacciones"     value={fmtNumber(t.txMonth)}  hint="este mes" />
-            <MiniMetric label="Ticket medio"       value={t.txMonth ? fmtMoney(Math.round(t.volMonth / t.txMonth)) : '—'} hint="por transacción" />
+            <MiniMetric label="Ticket medio"      value={t.txMonth ? fmtMoney(Math.round(t.volMonth / t.txMonth)) : '—'} hint="por transacción" />
             <MiniMetric label="Application fee"   value={fmtMoney(Math.round(t.volMonth * 0.029 + t.txMonth * 0.3))} hint="comisión plataforma" />
           </div>
         </div>
-      </div>
-      <div className="bg-white border border-line rounded-xl shadow-card p-5">
-        <div className="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-3">Facturación</div>
-        <div className="space-y-3 text-[13px]">
-          <div className="flex items-center justify-between"><span className="text-ink3">Próxima factura</span><span>{fmtDate('2026-05-01')}</span></div>
-          <div className="flex items-center justify-between"><span className="text-ink3">Importe estimado</span><span className="font-mono">{fmtMoney(149)}</span></div>
-          <div className="flex items-center justify-between"><span className="text-ink3">Método</span><span>Visa •••• 4242</span></div>
-        </div>
-        <button className="btn btn-ghost btn-sm w-full mt-4 justify-center">Ver historial</button>
       </div>
     </div>
   )
 }
 
-function TabAudit({ t }) {
-  const log = AUDIT.filter(a => a.tenant === t.id)
+function TabAudit({ t, log }) {
   return (
     <div className="bg-white border border-line rounded-xl shadow-card">
       <div className="px-5 py-4 border-b border-line flex items-center justify-between">
@@ -253,16 +223,15 @@ function TabAudit({ t }) {
           <div className="font-display text-[20px]">Audit log</div>
           <div className="text-xs text-ink3 mt-0.5">Historial inmutable de acciones</div>
         </div>
-        <button className="btn btn-ghost btn-sm">{icons.download}Exportar CSV</button>
       </div>
       <div className="divide-y divide-line">
         {log.length
-          ? log.map((a, i) => (
-            <div key={i} className="px-5 py-3 flex items-start gap-3">
+          ? log.map((a) => (
+            <div key={a.id} className="px-5 py-3 flex items-start gap-3">
               <span className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: '#2C5280' }} />
               <div className="flex-1 min-w-0">
-                <div className="text-[13.5px]"><span className="font-medium">{a.actor}</span> · {a.action} · <span className="font-mono text-[12px]">{a.tenantName}</span></div>
-                <div className="text-xs text-ink3 mt-0.5">{a.detail}</div>
+                <div className="text-[13.5px]">{a.action} · <span className="text-ink3">{a.actorRole}</span></div>
+                <div className="text-xs text-ink3 mt-0.5">{a.detail || ''}</div>
               </div>
               <div className="text-xs text-ink3 whitespace-nowrap">{relTime(a.ts)}</div>
             </div>
@@ -275,8 +244,31 @@ function TabAudit({ t }) {
 }
 
 export default function TenantDetail() {
-  const { selectedTenant, tenantTab, setTenantTab, navigate, openModal, toast } = useApp()
-  const t = TENANTS.find(x => x.id === selectedTenant)
+  const { selectedTenant, tenantTab, setTenantTab, navigate, openModal } = useApp()
+  const [t, setTenant] = useState(null)
+  const [admins, setAdmins] = useState([])
+  const [audit, setAudit] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    if (!selectedTenant) return
+    setLoading(true)
+    Promise.all([
+      api.get(`/api/tenants/tenants/${selectedTenant}`).then(adaptTenant),
+      api.get(`/api/users/?appId=${APP_ID}&tenantId=${selectedTenant}`).then((l) => l.map(adaptUser)),
+      api.get(`/api/audit/?tenantId=${selectedTenant}`).then((l) => l.map((a) => adaptAudit(a))),
+    ])
+      .then(([tenant, adm, a]) => {
+        setTenant(tenant); setAdmins(adm); setAudit(a)
+      })
+      .catch(() => setTenant(null))
+      .finally(() => setLoading(false))
+  }, [selectedTenant, refreshKey])
+
+  const refresh = () => setRefreshKey((k) => k + 1)
+
+  if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
   if (!t) return <div className="p-10">Tenant no encontrado.</div>
 
   const color = tenantColor(t.id)
@@ -286,16 +278,16 @@ export default function TenantDetail() {
       case 'identity': return <TabIdentity t={t} />
       case 'state':    return <TabState t={t} />
       case 'stripe':   return <TabStripe t={t} />
-      case 'admins':   return <TabAdmins t={t} />
+      case 'admins':   return <TabAdmins t={t} admins={admins} />
       case 'plan':     return <TabPlan t={t} />
-      case 'audit':    return <TabAudit t={t} />
+      case 'audit':    return <TabAudit t={t} log={audit} />
     }
   }
 
   return (
     <div className="p-8 max-w-7xl fade-up">
       <div className="flex items-center gap-1.5 text-[13px] text-ink3 mb-4">
-        <button onClick={() => navigate('tenants')} className="hover:text-ink">Tenants</button>
+        <button onClick={() => { navigate('tenants'); }} className="hover:text-ink">Tenants</button>
         <span>{icons.chevronR}</span>
         <span className="text-ink">{t.name}</span>
       </div>
@@ -315,15 +307,15 @@ export default function TenantDetail() {
               <span className="font-mono">{t.id}</span>
               <span>·</span>
               <span>{t.subdomain}.voragine.app</span>
-              {t.customDomain && <><span>·</span><a href="#" className="hover:text-ink flex items-center gap-1">{t.customDomain} {icons.external}</a></>}
+              {t.customDomain && <><span>·</span><span className="flex items-center gap-1">{t.customDomain}</span></>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {t.status === 'ACTIVE'    && <button onClick={() => openModal(<SuspendModal tenant={t} />)}     className="btn btn-ghost btn-sm">{icons.pause}Suspender</button>}
-          {t.status === 'SUSPENDED' && <button onClick={() => openModal(<ReactivateModal tenant={t} />)} className="btn btn-ghost btn-sm">{icons.play}Reactivar</button>}
-          {['ACTIVE','SUSPENDED'].includes(t.status) && <button onClick={() => openModal(<ArchiveModal tenant={t} />)} className="btn btn-ghost btn-sm">{icons.archive}Archivar</button>}
-          {t.status === 'ARCHIVED'  && <button onClick={() => openModal(<RestoreModal tenant={t} />)}    className="btn btn-ghost btn-sm">{icons.play}Restaurar</button>}
+          {t.status === 'ACTIVE'    && <button onClick={() => openModal(<SuspendModal tenant={t} onDone={refresh} />)}     className="btn btn-ghost btn-sm">{icons.pause}Suspender</button>}
+          {t.status === 'SUSPENDED' && <button onClick={() => openModal(<ReactivateModal tenant={t} onDone={refresh} />)} className="btn btn-ghost btn-sm">{icons.play}Reactivar</button>}
+          {['ACTIVE','SUSPENDED'].includes(t.status) && <button onClick={() => openModal(<ArchiveModal tenant={t} onDone={refresh} />)} className="btn btn-ghost btn-sm">{icons.archive}Archivar</button>}
+          {t.status === 'ARCHIVED'  && <button onClick={() => openModal(<RestoreModal tenant={t} onDone={refresh} />)}    className="btn btn-ghost btn-sm">{icons.play}Restaurar</button>}
           <button onClick={() => openModal(<ExportModal />)} className="btn btn-ghost btn-sm">{icons.download}Exportar datos</button>
         </div>
       </div>

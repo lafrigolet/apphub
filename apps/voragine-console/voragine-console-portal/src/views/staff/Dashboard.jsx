@@ -1,5 +1,8 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../context/AppContext'
-import { TENANTS, AUDIT } from '../../data/mock'
+import { api } from '../../lib/api'
+import { adaptTenant, adaptAudit } from '../../lib/adapters'
+import { APP_ID } from '../../lib/auth'
 import { fmtMoney, fmtNumber, relTime, fmtDate, actionLabel, actionColor } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { Kpi, Avatar } from '../../lib/ui'
@@ -27,12 +30,33 @@ function AuditRow({ a }) {
 
 export default function StaffDashboard() {
   const { navigate } = useApp()
-  const total     = TENANTS.length
-  const active    = TENANTS.filter(t => t.status === 'ACTIVE').length
-  const suspended = TENANTS.filter(t => t.status === 'SUSPENDED').length
-  const archived  = TENANTS.filter(t => t.status === 'ARCHIVED').length
-  const volume    = TENANTS.reduce((a, t) => a + t.volMonth, 0)
-  const tx        = TENANTS.reduce((a, t) => a + t.txMonth, 0)
+  const [tenants, setTenants] = useState([])
+  const [audit, setAudit] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.get(`/api/tenants/tenants?appId=${APP_ID}`).then((l) => l.map(adaptTenant)),
+      api.get(`/api/audit/?appId=${APP_ID}&limit=10`),
+    ]).then(([tList, aList]) => {
+      setTenants(tList)
+      const byId = Object.fromEntries(tList.map((t) => [t.id, t.name]))
+      setAudit(aList.map((a) => adaptAudit(a, byId)))
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const { total, active, suspended, archived, volume, tx } = useMemo(() => {
+    return {
+      total:     tenants.length,
+      active:    tenants.filter((t) => t.status === 'ACTIVE').length,
+      suspended: tenants.filter((t) => t.status === 'SUSPENDED').length,
+      archived:  tenants.filter((t) => t.status === 'ARCHIVED').length,
+      volume:    tenants.reduce((a, t) => a + t.volMonth, 0),
+      tx:        tenants.reduce((a, t) => a + t.txMonth, 0),
+    }
+  }, [tenants])
+
+  if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
 
   return (
     <div className="p-8 max-w-7xl fade-up">
@@ -63,7 +87,10 @@ export default function StaffDashboard() {
             </button>
           </div>
           <div className="divide-y divide-line">
-            {AUDIT.slice(0, 6).map((a, i) => <AuditRow key={i} a={a} />)}
+            {audit.slice(0, 6).map((a) => <AuditRow key={a.id} a={a} />)}
+            {audit.length === 0 && (
+              <div className="px-5 py-6 text-center text-ink3 text-[13px]">Sin actividad reciente.</div>
+            )}
           </div>
         </div>
 

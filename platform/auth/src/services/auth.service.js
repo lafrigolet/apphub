@@ -41,10 +41,38 @@ export async function register({ appId, tenantId, subTenantId, email, password, 
   })
 }
 
+async function resolveUserTenant(client, email) {
+  // Staff-access bypass: look across every tenant to find a user by email.
+  // Only used when the caller didn't supply appId/tenantId.
+  // Returns { appId, tenantId } or null if zero / ambiguous.
+  await client.query(`SELECT set_config('app.app_id',       '__lookup__',                           true)`)
+  await client.query(`SELECT set_config('app.tenant_id',    '00000000-0000-0000-0000-000000000000', true)`)
+  await client.query(`SELECT set_config('app.staff_access', 'true',                                 true)`)
+  const { rows } = await client.query(
+    `SELECT app_id, tenant_id FROM platform_auth.users WHERE email = $1 AND revoked_at IS NULL`,
+    [email],
+  )
+  if (rows.length !== 1) return null
+  return { appId: rows[0].app_id, tenantId: rows[0].tenant_id }
+}
+
 export async function login({ appId, tenantId, email, password }) {
   const client = await pool.connect()
+  let committed = false
   try {
     await client.query('BEGIN')
+
+    if (!appId || !tenantId) {
+      const resolved = await resolveUserTenant(client, email)
+      if (!resolved) {
+        await client.query('ROLLBACK')
+        committed = true            // prevent double-rollback in the catch block
+        throw new UnauthorizedError('Invalid credentials')
+      }
+      appId    = resolved.appId
+      tenantId = resolved.tenantId
+    }
+
     await setTenantContext(client, appId, tenantId, null)
     const user = await userRepo.findByEmail(client, appId, tenantId, email)
     if (!user) throw new UnauthorizedError('Invalid credentials')
@@ -53,16 +81,19 @@ export async function login({ appId, tenantId, email, password }) {
     if (!valid) {
       await userRepo.incrementFailedAttempts(client, user.id)
       await client.query('COMMIT')
+      committed = true
       throw new UnauthorizedError('Invalid credentials')
     }
     await userRepo.resetFailedAttempts(client, user.id)
+    await userRepo.touchLastLogin(client, user.id)
     await client.query('COMMIT')
+    committed = true
     const accessToken = signAccess(user)
     const refreshToken = uuidv4()
     await redis.setex(redisKey(appId, tenantId, user.id, refreshToken), REFRESH_TTL, '1')
     return { accessToken, refreshToken, userId: user.id, role: user.role }
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {})
+    if (!committed) await client.query('ROLLBACK').catch(() => {})
     throw err
   } finally {
     client.release()

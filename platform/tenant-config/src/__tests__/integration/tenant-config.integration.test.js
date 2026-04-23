@@ -47,9 +47,10 @@ afterAll(async () => {
 })
 
 afterEach(async () => {
-  // Remove test tenants then test apps (FK order)
-  await adminPool.query(`DELETE FROM platform_tenants.tenants WHERE app_id LIKE 'int-test-%'`)
-  await adminPool.query(`DELETE FROM platform_tenants.apps    WHERE app_id LIKE 'int-test-%'`)
+  // Remove test data in dependency order
+  await adminPool.query(`DELETE FROM platform_tenants.audit_log WHERE app_id LIKE 'int-test-%'`)
+  await adminPool.query(`DELETE FROM platform_tenants.tenants  WHERE app_id LIKE 'int-test-%'`)
+  await adminPool.query(`DELETE FROM platform_tenants.apps     WHERE app_id LIKE 'int-test-%'`)
 })
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -379,6 +380,213 @@ describe('PATCH /v1/tenants/:id/status', () => {
       headers: AUTH, payload: { status: 'deleted' },
     })
     expect(res.statusCode).toBe(422)
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PATCH /v1/tenants/:id — update profile fields
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('PATCH /v1/tenants/:id (profile update)', () => {
+  it('updates allowed profile fields and returns the updated tenant', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}`,
+      headers: AUTH,
+      payload: {
+        legalName: 'ACME S.L.',
+        cif: 'B12345678',
+        country: 'ES',
+        contactEmail: 'owner@acme.example',
+        plan: 'PRO',
+        stripeStatus: 'VERIFIED',
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(body.legal_name).toBe('ACME S.L.')
+    expect(body.cif).toBe('B12345678')
+    expect(body.country).toBe('ES')
+    expect(body.contact_email).toBe('owner@acme.example')
+    expect(body.plan).toBe('PRO')
+    expect(body.stripe_status).toBe('VERIFIED')
+  })
+
+  it('writes an audit entry on successful update', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}`,
+      headers: AUTH,
+      payload: { legalName: 'New Legal Name' },
+    })
+    const { rows } = await adminPool.query(
+      `SELECT action, detail FROM platform_tenants.audit_log
+       WHERE tenant_id = $1 ORDER BY ts DESC LIMIT 5`,
+      [tenant.id],
+    )
+    expect(rows.some((r) => r.action === 'TENANT_UPDATED')).toBe(true)
+  })
+
+  it('returns 422 for invalid plan', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}`,
+      headers: AUTH, payload: { plan: 'INVALID_PLAN' },
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('returns 422 for invalid contactEmail', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}`,
+      headers: AUTH, payload: { contactEmail: 'not-an-email' },
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('returns 404 when the tenant does not exist', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${uuidv4()}`,
+      headers: AUTH, payload: { legalName: 'X' },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PATCH status — archived + reason
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('PATCH /v1/tenants/:id/status (archive + reason)', () => {
+  it('archives a tenant and sets archived_at', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}/status`,
+      headers: AUTH, payload: { status: 'archived', reason: 'Client offboarded' },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(body.status).toBe('archived')
+    expect(body.archived_at).toBeTruthy()
+  })
+
+  it('stores the suspend reason on suspend and clears it on reactivate', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+
+    const susp = await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}/status`,
+      headers: AUTH, payload: { status: 'suspended', reason: 'Payment failure' },
+    })
+    expect(JSON.parse(susp.body).suspend_reason).toBe('Payment failure')
+
+    const react = await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}/status`,
+      headers: AUTH, payload: { status: 'active' },
+    })
+    expect(JSON.parse(react.body).suspend_reason).toBeNull()
+  })
+
+  it('writes a TENANT_SUSPENDED audit entry with the reason as detail', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    await app.inject({
+      method: 'PATCH', url: `/v1/tenants/${tenant.id}/status`,
+      headers: AUTH, payload: { status: 'suspended', reason: 'Payment failure' },
+    })
+    const { rows } = await adminPool.query(
+      `SELECT action, detail FROM platform_tenants.audit_log
+       WHERE tenant_id = $1 AND action = 'TENANT_SUSPENDED'`,
+      [tenant.id],
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].detail).toBe('Payment failure')
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// GET /v1/audit
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('GET /v1/audit', () => {
+  const STAFF_TOKEN = makeToken({ role: 'staff' })
+  const STAFF_AUTH  = { Authorization: `Bearer ${STAFF_TOKEN}` }
+
+  it('staff can list audit entries for a specific tenant', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    // The seedTenant call above already produced a TENANT_CREATED audit row
+    const res = await app.inject({
+      method: 'GET', url: `/v1/audit?tenantId=${tenant.id}`,
+      headers: STAFF_AUTH,
+    })
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(Array.isArray(body)).toBe(true)
+    expect(body.some((r) => r.action === 'TENANT_CREATED' && r.tenant_id === tenant.id)).toBe(true)
+  })
+
+  it('honors the limit query param', async () => {
+    const seededApp = await seedApp()
+    const tenant = await seedTenant(seededApp.app_id)
+    // generate a handful of audit rows
+    for (const i of [1, 2, 3, 4]) {
+      await app.inject({
+        method: 'PATCH', url: `/v1/tenants/${tenant.id}`,
+        headers: AUTH, payload: { legalName: `Name ${i}` },
+      })
+    }
+    const res = await app.inject({
+      method: 'GET', url: `/v1/audit?tenantId=${tenant.id}&limit=2`,
+      headers: STAFF_AUTH,
+    })
+    expect(JSON.parse(res.body).length).toBe(2)
+  })
+
+  it('staff without tenantId sees audit entries across tenants', async () => {
+    const seededApp = await seedApp()
+    const t1 = await seedTenant(seededApp.app_id)
+    const t2 = await seedTenant(seededApp.app_id)
+    const res = await app.inject({
+      method: 'GET', url: `/v1/audit?appId=${seededApp.app_id}`,
+      headers: STAFF_AUTH,
+    })
+    const ids = new Set(JSON.parse(res.body).map((r) => r.tenant_id))
+    expect(ids.has(t1.id)).toBe(true)
+    expect(ids.has(t2.id)).toBe(true)
+  })
+
+  it('non-staff callers cannot see another tenant audit log', async () => {
+    const seededApp = await seedApp()
+    const mine  = await seedTenant(seededApp.app_id)
+    const other = await seedTenant(seededApp.app_id)
+
+    const nonStaff = makeToken({ role: 'owner', app_id: seededApp.app_id, tenant_id: mine.id })
+    const res = await app.inject({
+      method: 'GET', url: `/v1/audit?tenantId=${other.id}`,
+      headers: { Authorization: `Bearer ${nonStaff}` },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('non-staff callers have their query auto-scoped to their own tenant', async () => {
+    const seededApp = await seedApp()
+    const mine = await seedTenant(seededApp.app_id)
+
+    const nonStaff = makeToken({ role: 'owner', app_id: seededApp.app_id, tenant_id: mine.id })
+    const res = await app.inject({
+      method: 'GET', url: '/v1/audit',
+      headers: { Authorization: `Bearer ${nonStaff}` },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(body.every((r) => r.tenant_id === mine.id)).toBe(true)
   })
 })
 

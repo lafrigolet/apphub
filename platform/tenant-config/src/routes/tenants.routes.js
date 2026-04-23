@@ -8,10 +8,46 @@ const createTenantBody = z.object({
 })
 
 const statusBody = z.object({
-  status: z.enum(['active', 'suspended']),
+  status: z.enum(['active', 'suspended', 'archived']),
+  reason: z.string().max(500).optional(),
 })
 
+const updateTenantBody = z.object({
+  displayName:      z.string().min(1).max(128).optional(),
+  legalName:        z.string().max(256).optional(),
+  cif:              z.string().max(64).optional(),
+  country:          z.string().max(64).optional(),
+  contactEmail:     z.string().email().max(256).optional(),
+  contactPhone:     z.string().max(64).optional(),
+  address:          z.string().max(512).optional(),
+  plan:             z.enum(['STARTER', 'PRO', 'ENTERPRISE']).optional(),
+  customDomain:     z.string().max(256).optional(),
+  stripeStatus:     z.enum(['VERIFIED', 'RESTRICTED', 'PENDING', 'DISCONNECTED']).optional(),
+  volumeMonthCents: z.number().int().min(0).optional(),
+  txMonth:          z.number().int().min(0).optional(),
+  balanceCents:     z.number().int().optional(),
+})
+
+function actorFromRequest(req) {
+  return {
+    userId: req.identity?.userId ?? null,
+    role:   req.identity?.role   ?? null,
+    ip:     req.ip               ?? null,
+  }
+}
+
 export async function tenantsRoutes(fastify) {
+  // Public tenant directory: used by login pages to let users pick which
+  // tenant to authenticate against. Returns only minimal fields.
+  fastify.get('/v1/tenants/public', { config: { public: true } }, async (req) => {
+    const appId = req.query.appId
+    if (!appId) return []
+    const tenants = await tenantsService.listTenants(appId)
+    return tenants
+      .filter((t) => t.status === 'active')
+      .map((t) => ({ id: t.id, display_name: t.display_name, subdomain: t.subdomain }))
+  })
+
   fastify.get('/v1/tenants', async (req) => {
     const appId = req.query.appId ?? null
     return tenantsService.listTenants(appId)
@@ -23,12 +59,17 @@ export async function tenantsRoutes(fastify) {
 
   fastify.post('/v1/tenants', async (req, reply) => {
     const body = createTenantBody.parse(req.body)
-    const tenant = await tenantsService.createTenant(body)
+    const tenant = await tenantsService.createTenant(body, actorFromRequest(req))
     return reply.status(201).send(tenant)
   })
 
+  fastify.patch('/v1/tenants/:id', async (req) => {
+    const body = updateTenantBody.parse(req.body)
+    return tenantsService.updateTenant(req.params.id, body, actorFromRequest(req))
+  })
+
   fastify.patch('/v1/tenants/:id/status', async (req) => {
-    const { status } = statusBody.parse(req.body)
-    return tenantsService.setTenantStatus(req.params.id, status)
+    const body = statusBody.parse(req.body)
+    return tenantsService.setTenantStatus(req.params.id, body, actorFromRequest(req))
   })
 }

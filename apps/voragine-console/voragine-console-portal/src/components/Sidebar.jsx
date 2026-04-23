@@ -2,8 +2,8 @@ import { useApp } from '../context/AppContext'
 import { icons } from '../lib/icons'
 
 export default function Sidebar() {
-  const { role, view, navigate, currentTenant } = useApp()
-  const t = currentTenant()
+  const { role, view, navigate, myTenant } = useApp()
+  const t = myTenant
 
   const staffItems = [
     { k: 'dashboard', label: 'Dashboard', icon: icons.dashboard },
@@ -28,7 +28,7 @@ export default function Sidebar() {
   ]
 
   const items = role === 'staff' ? staffItems : role === 'owner' ? ownerItems : adminItems
-  const sectionLabel = role === 'staff' ? 'Plataforma' : t?.name || ''
+  const sectionLabel = role === 'staff' ? 'Plataforma' : t?.display_name || ''
 
   return (
     <aside className="w-60 shrink-0 border-r border-line min-h-[calc(100vh-56px)] bg-paper sticky top-14 self-start h-[calc(100vh-56px)] overflow-y-auto">
@@ -52,9 +52,9 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-4 px-5 py-4 border-t border-line">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-ink3 mb-2">Prototipo</div>
+        <div className="text-[10px] uppercase tracking-[0.18em] text-ink3 mb-2">Dev</div>
         <div className="text-[12px] leading-relaxed text-ink3">
-          Mock interactivo. Los cambios no se persisten entre recargas.
+          Conectado a <span className="text-ink">{import.meta.env.VITE_API_BASE_URL || '/api'}</span>.
         </div>
       </div>
     </aside>

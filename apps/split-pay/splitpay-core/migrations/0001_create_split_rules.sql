@@ -1,7 +1,7 @@
 -- Migration 0001: create split_rules table
 -- Stores named, reusable split configurations per tenant
 
-SET search_path TO payments;
+SET search_path TO splitpay_core;
 
 CREATE TABLE IF NOT EXISTS split_rules (
   id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

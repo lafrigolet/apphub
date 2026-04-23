@@ -1,7 +1,7 @@
 -- Migration 0004: create disputes table
 -- Tracks Stripe chargebacks and their evidence submission state
 
-SET search_path TO payments;
+SET search_path TO splitpay_core;
 
 CREATE TABLE IF NOT EXISTS disputes (
   id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

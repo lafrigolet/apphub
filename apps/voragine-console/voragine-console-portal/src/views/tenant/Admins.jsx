@@ -1,130 +1,143 @@
+import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
-import { PERSONAS, ADMINS_BY_TENANT, INVITES_BY_TENANT } from '../../data/mock'
-import { fmtDate, relTime } from '../../lib/utils'
+import { api } from '../../lib/api'
+import { adaptUser } from '../../lib/adapters'
+import { relTime } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { RoleBadge, TwoFABadge, Avatar } from '../../lib/ui'
 
-function InviteModal() {
-  const { closeModal, toast, currentTenant } = useApp()
-  const t = currentTenant()
-  return (
-    <>
-      <div className="p-6 border-b border-line">
-        <div className="flex items-center justify-between">
-          <div className="font-display text-[22px]">Invitar administrador</div>
-          <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
-        </div>
-      </div>
-      <form className="p-6 space-y-4" onSubmit={e => { e.preventDefault(); closeModal(); toast('Invitación enviada') }}>
-        <div>
-          <div className="label mb-1.5">Email</div>
-          <input type="email" className="input" placeholder={`persona@${t.subdomain}.com`} required />
-        </div>
-        <div>
-          <div className="label mb-1.5">Rol</div>
-          <select className="select"><option>ADMIN</option></select>
-          <div className="text-[11.5px] text-ink3 mt-1.5">El rol OWNER no puede asignarse desde aquí — se gestiona vía transferencia de propiedad.</div>
-        </div>
-        <div className="bg-paper2 border border-line rounded-lg p-3 text-[12.5px] text-ink2 flex gap-2">
-          <span className="text-ink3 mt-0.5">{icons.info}</span>
-          <div>La invitación caduca en <strong>7 días</strong>. El invitado recibirá un enlace firmado de un solo uso.</div>
-        </div>
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <button type="button" onClick={closeModal} className="btn btn-ghost">Cancelar</button>
-          <button type="submit" className="btn btn-primary">Enviar invitación</button>
-        </div>
-      </form>
-    </>
-  )
-}
-
-function RoleChangeModal({ name }) {
+function RoleChangeModal({ user, onDone }) {
   const { closeModal, toast } = useApp()
+  const [role, setRole]   = useState(user.role === 'OWNER' ? 'owner' : 'admin')
+  const [busy, setBusy]   = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit(e) {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await api.patch(`/api/users/${user.id}/role`, { role })
+      toast('Rol actualizado')
+      onDone?.()
+      closeModal()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <>
       <div className="p-6 border-b border-line">
         <div className="flex items-center justify-between">
-          <div className="font-display text-[22px]">Cambiar rol de {name}</div>
+          <div className="font-display text-[22px]">Cambiar rol de {user.name}</div>
           <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
         </div>
       </div>
-      <form className="p-6 space-y-4" onSubmit={e => { e.preventDefault(); closeModal(); toast('Rol actualizado') }}>
+      <form className="p-6 space-y-4" onSubmit={submit}>
         <div>
           <div className="label mb-1.5">Rol actual</div>
-          <RoleBadge role="ADMIN" />
+          <RoleBadge role={user.role} />
         </div>
         <div>
           <div className="label mb-1.5">Nuevo rol</div>
-          <select className="select"><option>ADMIN</option></select>
-          <div className="text-[11.5px] text-ink3 mt-1.5">Para convertir a esta persona en Owner, usa <strong>Transferir propiedad</strong>.</div>
+          <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="admin">admin</option>
+            <option value="owner">owner</option>
+            <option value="user">user</option>
+          </select>
         </div>
+        {error && <div className="bg-dangerbg border border-line rounded-lg p-3 text-[12.5px] text-danger">{error}</div>}
         <div className="flex items-center justify-end gap-2 pt-2">
           <button type="button" onClick={closeModal} className="btn btn-ghost">Cancelar</button>
-          <button type="submit" className="btn btn-primary">Guardar</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button>
         </div>
       </form>
     </>
   )
 }
 
-function RevokeModal({ name }) {
-  const { closeModal, toast, currentTenant } = useApp()
-  const t = currentTenant()
+function RevokeModal({ user, onDone }) {
+  const { closeModal, toast, myTenant } = useApp()
+  const [busy, setBusy]   = useState(false)
+  const [error, setError] = useState(null)
+
+  async function doRevoke() {
+    setBusy(true); setError(null)
+    try {
+      await api.delete(`/api/users/${user.id}`)
+      toast(`${user.name} ha perdido acceso al tenant`, 'warn')
+      onDone?.()
+      closeModal()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <>
       <div className="p-6 border-b border-line">
         <div className="flex items-center justify-between">
-          <div className="font-display text-[22px] text-danger">Revocar acceso a {name}</div>
+          <div className="font-display text-[22px] text-danger">Revocar acceso a {user.name}</div>
           <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
         </div>
       </div>
-      <form className="p-6 space-y-4" onSubmit={e => { e.preventDefault(); closeModal(); toast(`${name} ha perdido acceso al tenant`, 'warn') }}>
+      <div className="p-6 space-y-4">
         <div className="text-[13.5px] text-ink2">
-          La persona perderá acceso al tenant <strong>{t.name}</strong> de inmediato. Su cuenta Voragine seguirá existiendo para otros tenants.
+          La persona perderá acceso al tenant <strong>{myTenant?.display_name}</strong> de inmediato.
         </div>
-        <div>
-          <div className="label mb-1.5">Motivo (opcional)</div>
-          <textarea className="textarea" rows="3" placeholder="Ej: ya no trabaja con nosotros…" />
-        </div>
+        {error && <div className="bg-dangerbg border border-line rounded-lg p-3 text-[12.5px] text-danger">{error}</div>}
         <div className="flex items-center justify-end gap-2 pt-2">
-          <button type="button" onClick={closeModal} className="btn btn-ghost">Cancelar</button>
-          <button type="submit" className="btn btn-danger">Revocar acceso</button>
+          <button onClick={closeModal} className="btn btn-ghost">Cancelar</button>
+          <button onClick={doRevoke} className="btn btn-danger" disabled={busy}>{busy ? 'Revocando…' : 'Revocar acceso'}</button>
         </div>
-      </form>
+      </div>
     </>
   )
 }
 
-function mockAdmins(t) {
-  return [
-    { id: 'o', name: 'Owner del tenant', email: 'owner@' + t.subdomain + '.com', role: 'OWNER', twofa: true,  last: '2026-04-20T12:00:00Z', avatar: '#2F6F4F' },
-    { id: 'a', name: 'Admin del tenant', email: 'admin@' + t.subdomain + '.com', role: 'ADMIN', twofa: true,  last: '2026-04-18T10:00:00Z', avatar: '#2C5280' },
-  ]
-}
-
 export default function TenantAdmins() {
-  const { role, openModal, toast, currentTenant } = useApp()
-  const t = currentTenant()
+  const { role, identity, openModal, myTenant, toast } = useApp()
   const isOwner = role === 'owner'
-  const me = PERSONAS[role]
-  const admins = ADMINS_BY_TENANT[t.id] || mockAdmins(t)
-  const invites = INVITES_BY_TENANT[t.id] || []
+  const [admins, setAdmins] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refresh, setRefresh] = useState(0)
+  const refreshFn = () => setRefresh((k) => k + 1)
+
+  useEffect(() => {
+    if (!identity?.tenantId) return
+    setLoading(true)
+    api.get(`/api/users/?appId=${identity.appId}&tenantId=${identity.tenantId}`)
+      .then((l) => setAdmins(l.map(adaptUser)))
+      .catch(() => setAdmins([]))
+      .finally(() => setLoading(false))
+  }, [identity, refresh])
+
+  if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
+
+  const tenantName = myTenant?.display_name ?? '—'
 
   return (
     <div className="p-8 max-w-6xl fade-up">
       <div className="flex items-start justify-between gap-6 mb-8">
         <div>
-          <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{t.name}</div>
+          <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{tenantName}</div>
           <h1 className="font-display text-[44px] leading-none tracking-tight">
             <span className="italic font-normal">Administradores</span>
           </h1>
           <p className="text-ink3 mt-3 max-w-xl">
             {admins.length} personas con acceso{isOwner
-              ? ' · como Owner puedes cambiar roles, revocar y transferir la propiedad.'
-              : ' · como Admin puedes invitar y revocar a otros Admins, pero no al Owner.'}
+              ? ' · como Owner puedes cambiar roles y revocar.'
+              : ' · como Admin puedes revocar a otros Admins.'}
           </p>
         </div>
-        <button onClick={() => openModal(<InviteModal />)} className="btn btn-primary shrink-0">
+        <button
+          onClick={() => toast('Invitaciones disponibles próximamente', 'warn')}
+          className="btn btn-primary shrink-0"
+        >
           {icons.plus}Invitar administrador
         </button>
       </div>
@@ -135,10 +148,13 @@ export default function TenantAdmins() {
             <tr><th>Persona</th><th>Rol</th><th>2FA</th><th>Último acceso</th><th className="text-right">Acciones</th></tr>
           </thead>
           <tbody>
-            {admins.map(a => {
-              const isMe = a.id === me.id
-              const canEdit = (isOwner && !isMe) || (!isOwner && a.role === 'ADMIN' && !isMe)
+            {admins.length === 0 && (
+              <tr><td colSpan={5} className="text-center text-ink3 py-6">Sin administradores.</td></tr>
+            )}
+            {admins.map((a) => {
+              const isMe = a.id === identity?.userId
               const isOwnerRow = a.role === 'OWNER'
+              const canEdit = !isMe && (isOwner || (role === 'admin' && !isOwnerRow))
               return (
                 <tr key={a.id}>
                   <td>
@@ -155,18 +171,14 @@ export default function TenantAdmins() {
                   </td>
                   <td><RoleBadge role={a.role} /></td>
                   <td><TwoFABadge enabled={a.twofa} /></td>
-                  <td className="text-[13px] text-ink3">{relTime(a.last)}</td>
+                  <td className="text-[13px] text-ink3">{a.last ? relTime(a.last) : '—'}</td>
                   <td className="text-right">
-                    {isOwnerRow && !isOwner && <span className="text-[12px] text-ink3">No editable</span>}
-                    {canEdit && (
+                    {canEdit ? (
                       <div className="flex items-center justify-end gap-1">
-                        {isOwner && a.role === 'ADMIN' && (
-                          <button onClick={() => openModal(<RoleChangeModal name={a.name} />)} className="btn btn-ghost btn-sm">Cambiar rol</button>
-                        )}
-                        <button onClick={() => openModal(<RevokeModal name={a.name} />)} className="btn btn-ghost btn-sm text-danger">Revocar</button>
+                        {isOwner && <button onClick={() => openModal(<RoleChangeModal user={a} onDone={refreshFn} />)} className="btn btn-ghost btn-sm">Cambiar rol</button>}
+                        <button onClick={() => openModal(<RevokeModal user={a} onDone={refreshFn} />)} className="btn btn-ghost btn-sm text-danger">Revocar</button>
                       </div>
-                    )}
-                    {isMe && !canEdit && <span className="text-[12px] text-ink3">—</span>}
+                    ) : <span className="text-[12px] text-ink3">—</span>}
                   </td>
                 </tr>
               )
@@ -176,36 +188,13 @@ export default function TenantAdmins() {
       </div>
 
       <div className="bg-white border border-line rounded-xl shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-          <div>
-            <div className="font-display text-[20px]">Invitaciones pendientes</div>
-            <div className="text-xs text-ink3 mt-0.5">
-              {invites.length ? `${invites.length} invitaciones en espera` : 'No hay invitaciones pendientes'}
-            </div>
-          </div>
+        <div className="px-5 py-4 border-b border-line">
+          <div className="font-display text-[20px]">Invitaciones pendientes</div>
+          <div className="text-xs text-ink3 mt-0.5">Próximamente — el flujo de invitaciones está en desarrollo.</div>
         </div>
-        {invites.length
-          ? (
-            <table className="t">
-              <thead><tr><th>Email</th><th>Rol</th><th>Enviada</th><th>Expira</th><th className="text-right">Acciones</th></tr></thead>
-              <tbody>
-                {invites.map(i => (
-                  <tr key={i.id}>
-                    <td className="font-mono text-[13px]">{i.email}</td>
-                    <td><RoleBadge role={i.role} /></td>
-                    <td className="text-[13px] text-ink3">{fmtDate(i.sent)}</td>
-                    <td className="text-[13px] text-ink3">{fmtDate(i.expires)}</td>
-                    <td className="text-right">
-                      <button onClick={() => toast('Email de invitación reenviado')} className="btn btn-ghost btn-sm">Reenviar</button>
-                      <button onClick={() => toast('Invitación cancelada', 'warn')} className="btn btn-ghost btn-sm text-danger">Cancelar</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-          : <div className="p-10 dotted text-center text-ink3 text-sm">Sin invitaciones pendientes. Invita a alguien con el botón superior.</div>
-        }
+        <div className="p-10 dotted text-center text-ink3 text-sm">
+          Los administradores nuevos por ahora se crean mediante el seed de desarrollo.
+        </div>
       </div>
     </div>
   )

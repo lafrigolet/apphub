@@ -3,6 +3,7 @@ import Topbar from './components/Topbar'
 import Sidebar from './components/Sidebar'
 import ToastContainer from './components/Toast'
 import ModalContainer from './components/Modal'
+import LoginView from './views/auth/LoginView'
 
 import StaffDashboard  from './views/staff/Dashboard'
 import StaffTenants    from './views/staff/Tenants'
@@ -20,11 +21,11 @@ function MainContent() {
   const { role, view, selectedTenant } = useApp()
 
   if (role === 'staff') {
-    if (view === 'dashboard')              return <StaffDashboard />
+    if (view === 'dashboard')                 return <StaffDashboard />
     if (view === 'tenants' && selectedTenant) return <TenantDetail />
-    if (view === 'tenants')                return <StaffTenants />
-    if (view === 'staff')                  return <StaffList />
-    if (view === 'audit')                  return <AuditGlobal />
+    if (view === 'tenants')                   return <StaffTenants />
+    if (view === 'staff')                     return <StaffList />
+    if (view === 'audit')                     return <AuditGlobal />
   } else {
     if (view === 'overview')  return <TenantOverview />
     if (view === 'admins')    return <TenantAdmins />
@@ -36,6 +37,8 @@ function MainContent() {
 }
 
 function Shell() {
+  const { identity, onLogin } = useApp()
+  if (!identity) return <LoginView onSuccess={onLogin} />
   return (
     <div className="min-h-screen flex flex-col">
       <Topbar />

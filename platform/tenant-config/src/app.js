@@ -7,9 +7,10 @@ import { AppError } from '@apphub/platform-sdk/errors'
 import { ZodError } from 'zod'
 import { appsRoutes } from './routes/apps.routes.js'
 import { tenantsRoutes } from './routes/tenants.routes.js'
+import { auditRoutes } from './routes/audit.routes.js'
 
 export function createApp() {
-  const fastify = Fastify({ logger: false })
+  const fastify = Fastify({ logger: false, ignoreTrailingSlash: true })
   fastify.register(helmet)
   fastify.register(cors, { origin: '*' })
   fastify.register(appGuard)
@@ -20,6 +21,7 @@ export function createApp() {
 
   fastify.register(appsRoutes)
   fastify.register(tenantsRoutes)
+  fastify.register(auditRoutes)
 
   fastify.setNotFoundHandler((req, reply) => {
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } })

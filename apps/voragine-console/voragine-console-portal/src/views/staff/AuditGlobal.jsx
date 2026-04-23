@@ -1,9 +1,30 @@
-import { AUDIT } from '../../data/mock'
+import { useEffect, useState } from 'react'
+import { api } from '../../lib/api'
+import { adaptTenant, adaptAudit } from '../../lib/adapters'
+import { APP_ID } from '../../lib/auth'
 import { fmtDate, relTime, actionLabel, actionColor } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { Avatar } from '../../lib/ui'
 
 export default function AuditGlobal() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.get(`/api/tenants/tenants?appId=${APP_ID}`).then((l) => l.map(adaptTenant)),
+      api.get(`/api/audit/?appId=${APP_ID}&limit=200`),
+    ])
+      .then(([tenants, audit]) => {
+        const byId = Object.fromEntries(tenants.map((t) => [t.id, t.name]))
+        setRows(audit.map((a) => adaptAudit(a, byId)))
+      })
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
+
   return (
     <div className="p-8 max-w-7xl fade-up">
       <div className="flex items-start justify-between gap-6 mb-8">
@@ -32,8 +53,11 @@ export default function AuditGlobal() {
             </tr>
           </thead>
           <tbody>
-            {AUDIT.map((a, i) => (
-              <tr key={i}>
+            {rows.length === 0 && (
+              <tr><td colSpan={6} className="text-center text-ink3 py-6">Sin entradas.</td></tr>
+            )}
+            {rows.map((a) => (
+              <tr key={a.id}>
                 <td className="text-[13px] text-ink3 whitespace-nowrap">{fmtDate(a.ts, true)}</td>
                 <td>
                   <div className="flex items-center gap-2">

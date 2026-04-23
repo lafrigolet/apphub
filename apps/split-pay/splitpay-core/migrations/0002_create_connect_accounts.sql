@@ -1,7 +1,7 @@
 -- Migration 0002: create connect_accounts table
 -- Tracks Stripe Connect merchant accounts per tenant
 
-SET search_path TO payments;
+SET search_path TO splitpay_core;
 
 CREATE TABLE IF NOT EXISTS connect_accounts (
   id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

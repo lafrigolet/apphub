@@ -1,14 +1,58 @@
+import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
+import { api } from '../../lib/api'
 
 export default function TenantSettings() {
-  const { role, toast, currentTenant } = useApp()
-  const t = currentTenant()
+  const { role, toast, myTenant } = useApp()
   const isOwner = role === 'owner'
+  const t = myTenant
+
+  const [form, setForm]     = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState(null)
+
+  useEffect(() => {
+    if (!t) return
+    setForm({
+      displayName:  t.display_name ?? '',
+      legalName:    t.legal_name ?? '',
+      cif:          t.cif ?? '',
+      country:      t.country ?? 'ES',
+      contactEmail: t.contact_email ?? '',
+      contactPhone: t.contact_phone ?? '',
+      address:      t.address ?? '',
+    })
+  }, [t])
+
+  if (!t || !form) return <div className="p-10 text-center text-ink3">Cargando…</div>
+
+  function upd(k, v) { setForm((f) => ({ ...f, [k]: v })) }
+
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true); setError(null)
+    try {
+      await api.patch(`/api/tenants/tenants/${t.id}`, {
+        displayName:  form.displayName || undefined,
+        legalName:    form.legalName   || undefined,
+        cif:          form.cif         || undefined,
+        country:      form.country     || undefined,
+        contactEmail: form.contactEmail || undefined,
+        contactPhone: form.contactPhone || undefined,
+        address:      form.address     || undefined,
+      })
+      toast('Cambios guardados')
+    } catch (err) {
+      setError(err.message ?? 'No se pudo guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="p-8 max-w-4xl fade-up">
       <div className="mb-8">
-        <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{t.name}</div>
+        <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{form.displayName}</div>
         <h1 className="font-display text-[44px] leading-none tracking-tight">
           <span className="italic font-normal">Ajustes</span> del tenant
         </h1>
@@ -19,7 +63,7 @@ export default function TenantSettings() {
         </p>
       </div>
 
-      <form className="space-y-8" onSubmit={e => { e.preventDefault(); toast('Cambios guardados') }}>
+      <form className="space-y-8" onSubmit={submit}>
         <section className="bg-white border border-line rounded-xl shadow-card p-6">
           <div className="mb-5">
             <div className="font-display text-[20px]">Identidad</div>
@@ -28,26 +72,26 @@ export default function TenantSettings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div className="label mb-1.5">Nombre comercial</div>
-              <input className="input" defaultValue={t.name} />
+              <input className="input" value={form.displayName} onChange={(e) => upd('displayName', e.target.value)} />
             </div>
             <div>
               <div className="label mb-1.5">
-                Razón social {!isOwner && <span className="text-ink3 normal-case text-[10px] ml-1">· solo Staff</span>}
+                Razón social {!isOwner && <span className="text-ink3 normal-case text-[10px] ml-1">· solo Owner</span>}
               </div>
-              <input className="input" defaultValue={t.legal} disabled={!isOwner} />
+              <input className="input" value={form.legalName} onChange={(e) => upd('legalName', e.target.value)} disabled={!isOwner} />
             </div>
             <div>
               <div className="label mb-1.5">
-                Identificador fiscal {!isOwner && <span className="text-ink3 normal-case text-[10px] ml-1">· solo Staff</span>}
+                Identificador fiscal {!isOwner && <span className="text-ink3 normal-case text-[10px] ml-1">· solo Owner</span>}
               </div>
-              <input className="input font-mono" defaultValue={t.cif} disabled={!isOwner} />
+              <input className="input font-mono" value={form.cif} onChange={(e) => upd('cif', e.target.value)} disabled={!isOwner} />
             </div>
             <div>
-              <div className="label mb-1.5">
-                País {!isOwner && <span className="text-ink3 normal-case text-[10px] ml-1">· solo Staff</span>}
-              </div>
-              <select className="select" disabled={!isOwner}>
-                <option>{t.country === 'ES' ? 'España' : t.country === 'FR' ? 'Francia' : t.country === 'GB' ? 'Reino Unido' : t.country}</option>
+              <div className="label mb-1.5">País</div>
+              <select className="select" value={form.country} onChange={(e) => upd('country', e.target.value)} disabled={!isOwner}>
+                <option value="ES">España</option>
+                <option value="FR">Francia</option>
+                <option value="GB">Reino Unido</option>
               </select>
             </div>
           </div>
@@ -61,22 +105,24 @@ export default function TenantSettings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div className="label mb-1.5">Email de contacto</div>
-              <input type="email" className="input" defaultValue={`contacto@${t.subdomain}.com`} />
+              <input type="email" className="input" value={form.contactEmail} onChange={(e) => upd('contactEmail', e.target.value)} />
             </div>
             <div>
               <div className="label mb-1.5">Teléfono</div>
-              <input className="input" defaultValue="+34 900 000 000" />
+              <input className="input" value={form.contactPhone} onChange={(e) => upd('contactPhone', e.target.value)} />
             </div>
             <div className="md:col-span-2">
               <div className="label mb-1.5">Dirección postal</div>
-              <input className="input" defaultValue="Calle Ejemplo 42, 28001 Madrid, ES" />
+              <input className="input" value={form.address} onChange={(e) => upd('address', e.target.value)} />
             </div>
           </div>
         </section>
 
+        {error && <div className="bg-dangerbg border border-line rounded-lg p-3 text-[12.5px] text-danger">{error}</div>}
+
         <div className="flex items-center justify-end gap-2">
-          <button type="button" className="btn btn-ghost">Cancelar</button>
-          <button type="submit" className="btn btn-primary">Guardar cambios</button>
+          <button type="button" className="btn btn-ghost" onClick={() => window.location.reload()}>Cancelar</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar cambios'}</button>
         </div>
       </form>
     </div>
