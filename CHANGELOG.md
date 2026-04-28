@@ -7,6 +7,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Dynamic NGINX routing via Redis sidecar** — per-subdomain `server {}` blocks now live in
+  the Redis hash `nginx:configs` instead of static files in `infra/nginx/conf.d/`. A sidecar
+  inside the NGINX container polls Redis every 2s and reloads NGINX on change. Registering an
+  app from voragine-console (`POST /v1/apps`) propagates routing to every NGINX replica
+  without manual reload, host-side ops, or filesystem coordination. Cluster-friendly.
+  See [ADR 003](docs/adr/003-dynamic-nginx-routing.md).
+  - `infra/nginx/Dockerfile` — custom image: `nginx:alpine` + `redis-cli` + `tini`
+  - `infra/nginx/{entrypoint,sidecar}.sh` — PID-1 entrypoint + reconciler
+  - `infra/nginx/seed/*.conf` — seed configs (moved from `conf.d/`); used to populate Redis on first boot
+  - `platform/tenant-config/src/services/nginx-config.service.js` — `writeAppNginxConfig` writes to Redis (`HSET` + `PUBLISH`)
+  - `platform/tenant-config/src/services/apps.service.js` — calls `writeAppNginxConfig` after `INSERT INTO platform_tenants.apps`
+
+### Added (preexisting)
 - **`platform/auth` — OAuth 2.0 support (Google + Facebook)**
   - `migrations/0003_oauth_connections.sql` — `oauth_connections` table; `password_hash` made nullable
   - `src/repositories/oauth.repository.js` — provider lookup, email account linking, user creation

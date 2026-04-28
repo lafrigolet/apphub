@@ -58,8 +58,21 @@ services. Each app gets its own subdomain and its own app-specific microservices
 | `/api/app/...` | App-specific routes | Only that subdomain |
 | `/` | App frontend | Only that subdomain |
 
-NGINX uses a `conf.d/` pattern: one `server {}` block per subdomain file, all including
-the shared `snippets/platform-routes.conf` for the `/api/*` platform locations.
+NGINX uses a hybrid configuration:
+
+- **Static infrastructure** (`nginx.conf`, `conf.d/upstream.conf`, `snippets/`) is bind-mounted
+  read-only from the host. These rarely change and are version-controlled via git.
+- **Per-subdomain server blocks** live in **Redis** (hash `nginx:configs`, one field per
+  subdomain). A sidecar inside the NGINX container polls Redis every 2s, renders each field
+  to `/etc/nginx/conf.d/sites/<subdomain>.conf`, and triggers `nginx -s reload` on change.
+
+When staff registers a new app from voragine-console (`POST /v1/apps`), `platform-core` writes
+the rendered server block to the Redis hash. Every NGINX replica in the cluster picks it up
+within ~2s without manual reload, host-side ops, or filesystem coordination between nodes.
+
+See [ADR 003 — Dynamic NGINX routing via Redis sidecar](docs/adr/003-dynamic-nginx-routing.md)
+for the rationale, alternatives considered (Docker Configs, OpenResty, NGINX Plus, K8s Ingress),
+and operational details (bootstrap, debugging, tunables, migration to Kubernetes).
 
 ## Identity model — three JWT claims
 

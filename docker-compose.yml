@@ -253,24 +253,38 @@ services:
       - ./apps/voragine-console/voragine-console-portal/index.html:/app/apps/voragine-console/voragine-console-portal/index.html:ro
 
   # ── Gateway ────────────────────────────────────────────────────
+  # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
+  # server blocks from a Redis hash and reloads nginx within ~2s of any
+  # change. See infra/nginx/sidecar.sh for the polling/reconciliation logic.
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./infra/nginx
     restart: unless-stopped
     ports:
       - '8080:80'
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      # Tunable: how often the sidecar polls Redis (seconds)
+      POLL_INTERVAL: '2'
     volumes:
+      # Static infrastructure: nginx.conf, the upstream definitions and the
+      # shared snippets/. Per-subdomain server blocks come from Redis at
+      # runtime — NOT from a host bind mount. /etc/nginx/conf.d/sites/ is
+      # populated by the sidecar inside the container.
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infra/nginx/conf.d/upstream.conf:/etc/nginx/conf.d/upstream.conf:ro
       - ./infra/nginx/snippets:/etc/nginx/snippets:ro
     depends_on:
-      - platform-core
-      - platform-catalog
-      - platform-basket
-      - portal
-      - yoga-studio
-      - splitpay-portal
-      - aikikan-portal
-      - voragine-console-portal
+      redis: { condition: service_healthy }
+      platform-core:           { condition: service_started }
+      platform-catalog:        { condition: service_started }
+      platform-basket:         { condition: service_started }
+      portal:                  { condition: service_started }
+      yoga-studio:             { condition: service_started }
+      splitpay-portal:         { condition: service_started }
+      aikikan-portal:          { condition: service_started }
+      voragine-console-portal: { condition: service_started }
 
 volumes:
   postgres_data:

@@ -139,6 +139,36 @@ CLIENT LIST                          # connected clients
 SUBSCRIBE platform:events            # watch pub/sub events
 ```
 
+### NGINX dynamic routing (hash `nginx:configs`)
+
+The NGINX gateway loads its per-subdomain server blocks from Redis at runtime. See
+[ADR 003](docs/adr/003-dynamic-nginx-routing.md) for the design.
+
+```bash
+# Show every subdomain that NGINX is currently serving
+docker compose exec redis redis-cli HKEYS nginx:configs
+
+# Inspect the rendered conf for one subdomain
+docker compose exec redis redis-cli HGET nginx:configs autoroute
+
+# Manually edit / replace a server block (sidecar reloads NGINX in ~2s)
+docker compose exec redis redis-cli HSET nginx:configs autoroute "$(cat new.conf)"
+
+# Unrouted: drop a subdomain. Sidecar removes the rendered file and reloads.
+docker compose exec redis redis-cli HDEL nginx:configs autoroute
+
+# Force re-seed from the baked-in seeds (yoga, splitpay, …) — useful in dev
+docker compose exec redis redis-cli DEL nginx:configs
+docker compose restart nginx     # next sidecar init re-seeds from /etc/nginx/seed/
+
+# Watch the sidecar reconciliation loop
+docker compose logs -f nginx | grep sidecar
+```
+
+Normal flow: staff hits `POST /api/apps/` from voragine-console → `platform-core` writes the
+rendered conf to `nginx:configs` → every NGINX replica reloads within `POLL_INTERVAL` (default
+2s). No host-side ops, no `docker compose restart`.
+
 ---
 
 ## PostgreSQL
