@@ -6,6 +6,7 @@ import ModalContainer from './components/Modal'
 import LoginView from './views/auth/LoginView'
 
 import StaffDashboard  from './views/staff/Dashboard'
+import StaffApps       from './views/staff/Apps'
 import StaffTenants    from './views/staff/Tenants'
 import TenantDetail    from './views/staff/TenantDetail'
 import StaffList       from './views/staff/StaffList'
@@ -22,6 +23,7 @@ function MainContent() {
 
   if (role === 'staff') {
     if (view === 'dashboard')                 return <StaffDashboard />
+    if (view === 'apps')                      return <StaffApps />
     if (view === 'tenants' && selectedTenant) return <TenantDetail />
     if (view === 'tenants')                   return <StaffTenants />
     if (view === 'staff')                     return <StaffList />

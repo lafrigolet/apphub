@@ -244,7 +244,13 @@ services:
       - '5177:5177'
     environment:
       NODE_ENV: development
-      VITE_API_BASE_URL: http://voragine-console.apphub.local:8080
+      # No VITE_API_BASE_URL — api.js falls back to relative paths so /api/*
+      # is handled by Vite's dev proxy (→ nginx:80) when accessing 5177 directly,
+      # and by NGINX itself when accessing via voragine-console.apphub.local:8080.
+    volumes:
+      - ./apps/voragine-console/voragine-console-portal/src:/app/apps/voragine-console/voragine-console-portal/src:ro
+      - ./apps/voragine-console/voragine-console-portal/vite.config.js:/app/apps/voragine-console/voragine-console-portal/vite.config.js:ro
+      - ./apps/voragine-console/voragine-console-portal/index.html:/app/apps/voragine-console/voragine-console-portal/index.html:ro
 
   # ── Gateway ────────────────────────────────────────────────────
   nginx:
