@@ -2,7 +2,9 @@ import Fastify from 'fastify'
 import helmet from '@fastify/helmet'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
-import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
+import fastifySwagger from '@fastify/swagger'
+import fastifySwaggerUi from '@fastify/swagger-ui'
+import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from 'fastify-type-provider-zod'
 import { ZodError } from 'zod'
 import { createPool } from '@apphub/platform-sdk/db'
 import { createRedis } from '@apphub/platform-sdk/redis'
@@ -70,6 +72,31 @@ async function start() {
     timeWindow: '1 minute',
     errorResponseBuilder: () => ({ error: { code: 'RATE_LIMITED', message: 'Too many requests' } }),
   })
+
+  // OpenAPI: register before modules so their routes are included in the spec.
+  // Swagger UI is mounted at /docs (appGuard bypasses /docs/*).
+  await app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: 'platform-core',
+        description: 'AppHub modular monolith — auth, notifications, payments, tenant-config, splitpay',
+        version: '0.1.0',
+      },
+      servers: [{ url: '/' }],
+      components: {
+        securitySchemes: {
+          bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+        },
+      },
+      security: [{ bearerAuth: [] }],
+    },
+    transform: jsonSchemaTransform,
+  })
+  await app.register(fastifySwaggerUi, {
+    routePrefix: '/docs',
+    uiConfig: { docExpansion: 'list', deepLinking: true },
+  })
+
   await app.register(appGuard)
 
   app.addHook('onRequest', async (req) => {

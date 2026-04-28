@@ -19,6 +19,8 @@ export const appGuard = fp(async (fastify) => {
     if (req.routeOptions?.config?.public) return
     if (req.url === '/health') return
     if (req.url.startsWith('/internal')) return
+    // OpenAPI / Swagger UI is a public artifact (spec + static assets).
+    if (req.url === '/docs' || req.url.startsWith('/docs/')) return
 
     const authHeader = req.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) throw new UnauthorizedError('Missing Authorization header')
