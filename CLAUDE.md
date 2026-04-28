@@ -6,20 +6,28 @@ This file provides context for AI assistants (Claude, Copilot, etc.) working in 
 
 AppHub is a multi-app meta-platform. Each hosted app (yoga-studio, split-pay, …) gets its
 own subdomain (`yoga.apphub.com`, `splitpay.apphub.com`) and its own set of app-specific
-microservices. All apps share a set of cross-cutting platform services (auth, payments,
-notifications, catalog, basket, tenant-config).
+microservices. All apps share a set of cross-cutting platform capabilities (auth, payments,
+notifications, catalog, basket, tenant-config, subscriptions).
+
+**Deployment model — modular monolith ready to split**: the cross-cutting platform
+capabilities ship together as **modules** of a single Node container called `platform-core`
+(port 3000). Each module keeps its own routes, repository, PostgreSQL schema, and dedicated
+DB role, so any module can be extracted back to its own container with minimal effort. The
+app-specific services under `apps/*/` keep their own containers.
 
 ## Repository structure
 
 ```
 apphub/
-├── platform/                  # Shared platform microservices — ports 3000–3009
-│   ├── auth/                  # JWT auth + multi-app registration — port 3000
-│   ├── payments/              # Stripe Connect gateway — port 3001
-│   ├── notifications/         # Email / push / SMS — port 3002
-│   ├── catalog/               # Product & service catalogue — port 3003
-│   ├── basket/                # Shopping cart (Redis-only) — port 3004
-│   └── tenant-config/         # App & tenant registry — port 3005
+├── platform/                  # Modules of the platform-core monolith (one container, port 3000)
+│   ├── core/                  # Orchestrator: loads modules, runs migrations, listens on 3000
+│   ├── auth/                  # Auth module — schema platform_auth
+│   ├── payments/              # Payments module — schema platform_payments
+│   ├── notifications/         # Notifications module — schema platform_notifications
+│   ├── catalog/               # Catalog module — schema platform_catalog
+│   ├── basket/                # Basket module — Redis-only
+│   ├── tenant-config/         # Tenant-config module — schema platform_tenants
+│   └── subscriptions/         # Subscriptions module (planned)
 ├── apps/                      # App bundles (frontend + app-specific services)
 │   ├── portal/                # AppHub admin UI — port 5173
 │   ├── yoga-studio/           # Yoga Studio app — ports 3011–3017, 5174
@@ -40,7 +48,7 @@ apphub/
 - **Language**: JavaScript (ESM) for services and frontends — no TypeScript
 - **Framework**: Fastify 4 for services, React 18 + Vite for frontends
 - **Styling**: Tailwind CSS 3
-- **Database**: PostgreSQL 16 — one schema per microservice
+- **Database**: PostgreSQL 16 — one schema per module / per app-specific service
 - **Cache**: Redis 7
 - **Payments**: Stripe Node SDK (latest)
 - **Testing**: Vitest + Supertest
@@ -74,7 +82,9 @@ Every JWT issued by `platform/auth` carries:
 2. **Always include `app_id` scoping** alongside `tenant_id`. A yoga token must never
    read split-pay data even when `tenant_id` matches.
 3. **Always use idempotency keys** for Stripe API calls. Keys are stored in Redis with a 24h TTL.
-4. **Never cross schema boundaries** — a service may only query its own PostgreSQL schema.
+4. **Never cross schema boundaries** — a module may only query its own PostgreSQL schema.
+   Even though all platform modules share the `platform-core` process, each one connects
+   through its own Pool, bound to its dedicated service role.
 5. **Validate webhook signatures** — every incoming Stripe webhook must verify `Stripe-Signature`.
 6. **Split reversals are proportional** — refund each Transfer by the same percentage as the
    original split, never a flat amount.
@@ -82,18 +92,95 @@ Every JWT issued by `platform/auth` carries:
 8. **Use `appGuard` from `@apphub/platform-sdk`** — never write a custom JWT guard. Set
    `EXPECTED_APP_ID` in the service env; the guard returns `403 APP_MISMATCH` on mismatch.
 9. **Write JavaScript, not TypeScript** — all services and frontends use `.js` / `.jsx`.
-10. **Check `platform/` before building any new microservice** — auth, payments, notifications,
-    catalog, basket, and tenant-config are already implemented there. If a new app needs one of
-    these capabilities, wire it to the existing platform service instead of creating a duplicate.
-    See the platform service registry below.
-11. **Each microservice connects with its own dedicated DB role** — never use the shared
-    superuser `DATABASE_URL` at runtime. Set `DATABASE_URL` to `postgresql://svc_<service>:...`
-    and `MIGRATION_DATABASE_URL` to the superuser. `migrate.js` uses `MIGRATION_DATABASE_URL`;
-    the application pool uses `DATABASE_URL`.
+10. **Check `platform/` before adding any new horizontal capability** — auth, payments,
+    notifications, catalog, basket, tenant-config and subscriptions are (or will be) modules
+    of `platform-core`. If a new app needs one of these capabilities, wire it to the existing
+    module instead of creating a duplicate. See the platform module registry below.
+11. **Each module / service connects with its own dedicated DB role** — never use the shared
+    superuser at runtime. Inside `platform-core` this means one Pool per module, each with
+    `postgresql://svc_platform_<module>:...` (set via per-module env vars on the `platform-core`
+    container). `migrate.js` per module uses `MIGRATION_DATABASE_URL` (the superuser); the
+    application pool uses the module's own role. The same rule applies to app-specific
+    services running in their own containers.
 12. **Update `.md` files after any significant implementation** — keep `ARCHITECTURE.md`,
     `CHANGELOG.md`, `CONVENTIONS.md`, and `DEVELOPMENT.md` in sync with what was built.
     Specifically: new services → `ARCHITECTURE.md` + `DEVELOPMENT.md`; new patterns →
     `CONVENTIONS.md`; any change → `CHANGELOG.md` unreleased section.
+13. **Module boundaries are sacred** — a `platform/<module>/` may not import internals
+    from another `platform/<module>/`. Cross-module communication goes through (a) the
+    module's public HTTP API, (b) Redis pub/sub on `platform.events`, or (c) shared utilities
+    in `@apphub/platform-sdk`. This is what keeps the monolith ready to split.
+
+## Modular monolith architecture
+
+`platform-core` is a single Docker container running one Node process that hosts all
+horizontal capabilities. It listens on **port 3000**. NGINX routes
+`/api/{auth,users,payments,notifications,catalog,basket,tenants,apps,audit,subscriptions}/*`
+to a single `platform_core` upstream.
+
+### Module list
+
+| Module | Path | Schema | DB role |
+|---|---|---|---|
+| auth | `platform/auth/` | `platform_auth` | `svc_platform_auth` |
+| payments | `platform/payments/` | `platform_payments` | `svc_platform_payments` |
+| notifications | `platform/notifications/` | `platform_notifications` | `svc_platform_notifications` |
+| catalog | `platform/catalog/` | `platform_catalog` | `svc_platform_catalog` |
+| basket | `platform/basket/` | — (Redis-only) | — |
+| tenant-config | `platform/tenant-config/` | `platform_tenants` | `svc_platform_tenants` |
+| subscriptions | `platform/subscriptions/` | `platform_subscriptions` | `svc_platform_subscriptions` |
+
+### Entry point — `platform/core/src/server.js`
+
+Boot order:
+
+1. Load env (compose-injected vars)
+2. Create one Pool per module, each bound to its dedicated role:
+   `createPool('postgres://svc_platform_<module>:...@postgres:5432/apphub')`
+3. Run module migrations sequentially (each module exports `runMigrations(superuserUrl)`)
+4. Create the root Fastify app; register `helmet`, `cors`, `rate-limit`, `appGuard`,
+   `sensible` once
+5. For each module: `await module.register({ app, db: pools[module], redis, logger: logger.child({ module }) })`
+6. `app.listen({ port: 3000, host: '0.0.0.0' })`
+
+### Module contract
+
+Every module exports from `platform/<module>/src/index.js`:
+
+```js
+export async function register({ app, db, redis, logger }) {
+  // register routes under the module's prefix
+  // never reach into another module's pool, repository, or service
+}
+
+export async function runMigrations(superuserUrl) {
+  // apply migrations/*.sql against the module's schema
+}
+```
+
+### Cross-module communication
+
+A module **must not** import internals from another module. Permitted channels:
+
+1. **HTTP** — call the module's own public API as an external client would
+2. **Events** — publish/subscribe via `redis.publish('platform.events', …)` from
+   `@apphub/platform-sdk`
+3. **Shared SDK** — utilities exposed by `@apphub/platform-sdk` (DB helpers, JWT guard, errors)
+
+This rule is what keeps the monolith ready to split.
+
+### Splitting a module back to its own container
+
+When a module needs independent scaling, splitting it is a 4-step operation:
+
+1. Add `platform/<module>/src/server.js` that imports `register` and runs its own listener
+2. Add `platform/<module>/Dockerfile` (workspace-context multi-stage)
+3. Add a new service in `docker-compose.yml` and a new upstream in
+   `infra/nginx/conf.d/upstream.conf`
+4. Repoint `/api/<module>/` in `infra/nginx/snippets/platform-routes.conf` to the new upstream
+
+Zero changes to business logic. The dedicated DB role is already what it would be in a
+separate container.
 
 ## Naming conventions
 
@@ -188,12 +275,13 @@ Produce a **service map**: `{ serviceName, type, endpoints[] }`.
 | **IMPLEMENT** | Service is scaffolded (health endpoint only, e.g. `platform/tenant-config`) |
 | **CREATE** | No service exists at all |
 
-Reference files: `platform/*/src/routes/`, `platform/*/src/app.js`,
-`infra/nginx/conf.d/upstream.conf`, `docker-compose.yml`.
+Reference files: `platform/*/src/routes/`, `platform/*/src/index.js` (module entry point),
+`platform/core/src/server.js` (orchestrator), `infra/nginx/conf.d/upstream.conf`,
+`docker-compose.yml`.
 
 ### Step 2 — EXTEND an existing service
 
-For each new endpoint in an existing platform service:
+For each new endpoint in an existing platform module:
 
 1. `platform/<svc>/src/routes/<resource>.routes.js` — add route(s)
 2. `platform/<svc>/src/services/<resource>.service.js` — business logic
@@ -202,51 +290,68 @@ For each new endpoint in an existing platform service:
 
 Pattern reference: `platform/auth/src/routes/auth.routes.js`
 
-### Step 3 — IMPLEMENT a scaffolded service
+### Step 3 — IMPLEMENT a scaffolded module
 
-Build out a service that exists but has only a `/health` stub:
+Build out a platform module that exists but has only a `/health` stub:
 
-1. Add `fastify-plugin`, `@fastify/rate-limit`, `ajv-formats` to `package.json`
-2. `src/app.js` — register `helmet`, `cors`, `rate-limit`, `appGuard`, `sensible`, route files
-3. `src/lib/env.js` — declare and validate env vars
-4. `src/lib/db.js` — `createPool` from `@apphub/platform-sdk`; export `setTenantCtx`
-5. `src/lib/redis.js` — `createRedis` from `@apphub/platform-sdk`
-6. `src/lib/migrate.js` — auto-migration runner (reads `migrations/*.sql` sorted)
-7. `src/server.js` — call `migrate()` then `app.listen`
-8. `src/routes/`, `src/services/`, `src/repositories/` — implement per endpoint
-9. `migrations/001_init.sql` — full schema creation
+1. Add `ajv-formats` to `package.json` if missing. (No need for helmet / cors / rate-limit /
+   fastify itself as a runtime dep beyond peer — `platform-core` registers those once.)
+2. `src/index.js` — export `register({ app, db, redis, logger })` and
+   `runMigrations(superuserUrl)`
+3. `src/lib/migrate.js` — auto-migration runner (reads `migrations/*.sql` sorted) bound to
+   the module's schema
+4. `src/routes/`, `src/services/`, `src/repositories/` — implement per endpoint. Repositories
+   take a `db` Pool injected via `register`, never import a global pool
+5. `migrations/001_init.sql` — table creation, indexes, RLS policies (the schema and role
+   are provisioned in `infra/postgres/init/01_platform_schemas.sql`)
+6. Wire the module into `platform/core/src/server.js`: import its `register` and
+   `runMigrations`, create its Pool, run migrations, then register
 
-Pattern reference: `platform/auth/` (all files)
+Pattern reference: `platform/auth/` (the implemented module)
 
-### Step 4 — CREATE a new platform service (ports 3006–3009)
+### Step 4 — CREATE a new platform module (inside `platform-core`)
 
-Used for cross-cutting concerns not covered by existing platform services.
+Used for cross-cutting concerns not covered by existing platform modules. Adds a module
+to the `platform-core` container; does **not** create a new container.
 
-1. **Determine port**: scan `docker-compose.yml` + `upstream.conf`; pick lowest free port in 3006–3009
-2. Create `platform/<svc>/` with full scaffold:
-   - `package.json` — name `@apphub/platform-<svc>`; deps: fastify, @fastify/helmet,
-     @fastify/cors, @fastify/sensible, @fastify/rate-limit, @apphub/platform-sdk, dotenv, ajv-formats
-   - `src/app.js` — same registration pattern as `platform/auth/src/app.js`
-   - `src/server.js` — `migrate()` then `app.listen`
-   - `src/lib/{env,logger,db,redis,migrate}.js`
-   - `src/plugins/app-guard.js` — thin wrapper re-exporting `appGuard` from `@apphub/platform-sdk`
-   - `src/utils/errors.js` — re-exports `AppError` and subclasses from platform-sdk
+1. Create `platform/<svc>/` with module scaffold:
+   - `package.json` — name `@apphub/platform-<svc>`; deps: fastify, @fastify/sensible,
+     @apphub/platform-sdk, ajv-formats. (No helmet / cors / rate-limit / Dockerfile —
+     those live on `platform-core`.)
+   - `src/index.js` — exports `async function register({ app, db, redis, logger })`
+     that registers routes under the module's prefix, plus
+     `async function runMigrations(superuserUrl)`
    - `src/routes/<resource>.routes.js`, `src/services/<resource>.service.js`,
      `src/repositories/<resource>.repository.js`
-   - `migrations/001_init.sql` — schema `platform_<svc>`, role `svc_platform_<svc>`, tables, RLS
-   - `Dockerfile` — workspace-context multi-stage; copy pnpm-workspace.yaml + packages/ +
-     `platform/<svc>/package.json`; install `--filter @apphub/platform-<svc>`;
-     copy src; `CMD ["node", "src/server.js"]`
+   - `src/lib/migrate.js` — runs `migrations/*.sql` against the module's schema using the
+     superuser URL
+   - `migrations/001_init.sql` — RLS policies and tables. (The schema and role are
+     provisioned in `infra/postgres/init/01_platform_schemas.sql`, not here.)
+2. Register the module in `platform/core/src/server.js`: create a Pool with the module's
+   role URL, call `await module.runMigrations(MIGRATION_DATABASE_URL)`, then
+   `await module.register({ app, db, redis, logger })`.
 
 ### Step 5 — CREATE a new app-specific service (ports 3030+)
 
-Used for concerns that only apply to one app.
+Used for concerns that only apply to one app. **App-specific services run in their own
+container** (unlike platform modules), so they need the full standalone scaffold.
 
-Same scaffold as Step 4, but:
-- Located at `apps/<name>/<name>-<svc>/`
-- `package.json` name: `@<name>/<name>-<svc>`
-- Schema: `<app>_<svc>`, role: `svc_<app>_<svc>`
-- Port: next free port above the app's existing service ports
+1. **Determine port**: scan `docker-compose.yml` + `upstream.conf`; pick the lowest free
+   port above the app's existing service ports
+2. Create `apps/<name>/<name>-<svc>/` with full scaffold:
+   - `package.json` — name `@<name>/<name>-<svc>`; deps: fastify, @fastify/helmet,
+     @fastify/cors, @fastify/sensible, @fastify/rate-limit, @apphub/platform-sdk, dotenv,
+     ajv-formats
+   - `src/app.js` — same registration pattern as `platform/auth/src/app.js` pre-monolith
+     (helmet, cors, rate-limit, appGuard, sensible, route files)
+   - `src/server.js` — `migrate()` then `app.listen`
+   - `src/lib/{env,logger,db,redis,migrate}.js`
+   - `src/routes/<resource>.routes.js`, `src/services/<resource>.service.js`,
+     `src/repositories/<resource>.repository.js`
+   - `migrations/001_init.sql` — schema `<app>_<svc>`, role `svc_<app>_<svc>`, tables, RLS
+   - `Dockerfile` — workspace-context multi-stage; copy pnpm-workspace.yaml + packages/ +
+     `apps/<name>/<name>-<svc>/package.json`; install
+     `--filter @<name>/<name>-<svc>`; copy src; `CMD ["node", "src/server.js"]`
 
 ### Step 6 — PostgreSQL init SQL
 
@@ -265,13 +370,24 @@ CREATE POLICY tenant_isolation ON <schema>.<table>
 
 ### Step 7 — docker-compose.yml
 
-For each CREATE service add:
+**Platform module** → no new Docker service. Add the module's DB URL to the existing
+`platform-core` service:
+
+```yaml
+platform-core:
+  environment:
+    DATABASE_URL_<SVC>: postgres://svc_platform_<svc>:${SVC_PLATFORM_<SVC>_DB_PASSWORD}@postgres:5432/apphub
+```
+
+Also add `SVC_PLATFORM_<SVC>_DB_PASSWORD` to `.env` / `.env.example`.
+
+**App-specific service** → add a new compose service:
 
 ```yaml
 <svc-name>:
   build:
     context: .
-    dockerfile: platform/<svc>/Dockerfile   # or apps/<app>/<app>-<svc>/Dockerfile
+    dockerfile: apps/<app>/<app>-<svc>/Dockerfile
   ports:
     - "<port>:<port>"
   environment:
@@ -279,15 +395,18 @@ For each CREATE service add:
     DATABASE_URL: postgres://svc_<schema>:${SVC_<SCHEMA>_DB_PASSWORD}@postgres:5432/apphub
     REDIS_URL: redis://redis:6379
     JWT_SECRET: ${JWT_SECRET}
-    EXPECTED_APP_ID: <app-name>   # omit for cross-cutting platform services
+    EXPECTED_APP_ID: <app-name>
   depends_on: [postgres, redis]
 ```
 
-Also add the new service to nginx's `depends_on` list.
+Also add app-specific services to nginx's `depends_on` list.
 
 ### Step 8 — NGINX upstream
 
-In `infra/nginx/conf.d/upstream.conf`:
+**Platform module** → nothing to add. The single
+`upstream platform_core { server platform-core:3000; }` already exists.
+
+**App-specific service** → in `infra/nginx/conf.d/upstream.conf`:
 
 ```nginx
 upstream <svc_name> { server <svc-container-name>:<port>; }
@@ -295,16 +414,19 @@ upstream <svc_name> { server <svc-container-name>:<port>; }
 
 ### Step 9 — NGINX routes
 
-**Platform service** → add to `infra/nginx/snippets/platform-routes.conf`:
+**Platform module** → add to `infra/nginx/snippets/platform-routes.conf`:
 
 ```nginx
 location /api/<svc>/ {
-  proxy_pass http://<svc_name>/;
+  proxy_pass http://platform_core/;
   include /etc/nginx/snippets/proxy-headers.conf;
 }
 ```
 
-**App-specific service** → add to `infra/nginx/conf.d/<name>.conf` before `location /`.
+All platform modules proxy to the same `platform_core` upstream.
+
+**App-specific service** → add to `infra/nginx/conf.d/<name>.conf` before `location /`,
+pointing at the app-specific upstream.
 
 ### Step 10 — Portal API wrapper
 
@@ -373,11 +495,12 @@ Verify `apps/<name>/*` is listed. Add it if missing.
 Tell the user to run:
 
 ```bash
-# Rebuild affected services
-docker compose up -d --build <svc1> <svc2> ...
+# Rebuild affected services (platform-core if any platform module changed,
+# plus any app-specific service that was added/extended)
+docker compose up -d --build platform-core <app-svc1> <app-svc2> ...
 
-# Check migrations ran
-docker compose logs <svc1> | grep "migration"
+# Check migrations ran (platform-core logs each module's migrations on boot)
+docker compose logs platform-core | grep -i "migrat"
 
 # Health checks
 curl http://<name>.apphub.local:8080/api/<svc>/health
@@ -399,32 +522,39 @@ grep -r "from '../../data/mock'" apps/<name>/<name>-portal/src/views/
    `include /etc/nginx/snippets/platform-routes.conf`
 7. Add `/etc/hosts` entry: `127.0.0.1 myapp.apphub.local`
 
-## Platform service registry
+## Platform module registry
 
-Before building any new backend capability, check whether it already exists:
+All modules listed below ship inside the single `platform-core` container (port 3000).
+Before adding any new horizontal capability, check whether it already exists:
 
-| Capability | Service | Port | Status |
-|---|---|---|---|
-| Auth (email/password + OAuth) | `platform/auth` | 3000 | ✅ Implemented |
-| Stripe payments | `platform/payments` | 3001 | 🔧 Skeleton |
-| Email / push notifications | `platform/notifications` | 3002 | ✅ Implemented |
-| Product & service catalogue | `platform/catalog` | 3003 | 🔧 Skeleton |
-| Shopping cart (Redis-only) | `platform/basket` | 3004 | 🔧 Skeleton |
-| App & tenant registry | `platform/tenant-config` | 3005 | 🔧 Skeleton |
+| Capability | Module | Schema | DB role | Status |
+|---|---|---|---|---|
+| Auth (email/password + OAuth) | `platform/auth` | `platform_auth` | `svc_platform_auth` | ✅ Implemented |
+| Stripe payments | `platform/payments` | `platform_payments` | `svc_platform_payments` | 🔧 Skeleton |
+| Email / push notifications | `platform/notifications` | `platform_notifications` | `svc_platform_notifications` | ✅ Implemented |
+| Product & service catalogue | `platform/catalog` | `platform_catalog` | `svc_platform_catalog` | 🔧 Skeleton |
+| Shopping cart (Redis-only) | `platform/basket` | — | — | 🔧 Skeleton |
+| App & tenant registry | `platform/tenant-config` | `platform_tenants` | `svc_platform_tenants` | 🔧 Skeleton |
+| Subscriptions / recurring billing | `platform/subscriptions` | `platform_subscriptions` | `svc_platform_subscriptions` | 📋 Planned |
 
-**OAuth providers supported by `platform/auth`:** Google (`credential` id_token), Facebook (`accessToken`).
+**OAuth providers supported by the `auth` module:** Google (`credential` id_token), Facebook (`accessToken`).
 Routes: `POST /v1/auth/oauth/google`, `POST /v1/auth/oauth/facebook`.
 
-## Where to start when adding a new platform service
+## Where to start when adding a new platform module
 
-1. **Check the registry above first** — if a skeleton exists, implement it rather than creating a new service.
-2. Copy any existing implemented service (e.g. `platform/auth`) as a template.
-3. Assign the next port in the 3000–3009 range.
-4. Add the dedicated DB role to `infra/postgres/init/01_platform_schemas.sql`.
-5. In `docker-compose.yml`: set `DATABASE_URL` to the service role, add `MIGRATION_DATABASE_URL` (superuser).
-6. Add the service to `docker-compose.yml`.
-7. Add a route to `infra/nginx/snippets/platform-routes.conf`.
-8. Update the platform service registry table above and `ARCHITECTURE.md`.
+1. **Check the registry above first** — if a skeleton exists, implement it rather than scaffolding a new module.
+2. Copy any existing implemented module (e.g. `platform/auth/`) as a template.
+3. Add the dedicated DB role and schema to `infra/postgres/init/01_platform_schemas.sql`.
+4. Export `register({ app, db, redis, logger })` and `runMigrations(superuserUrl)` from
+   `platform/<svc>/src/index.js`.
+5. Register the module in `platform/core/src/server.js`: create the module's Pool with its
+   own role URL, call `await module.runMigrations(MIGRATION_DATABASE_URL)`, then
+   `await module.register(deps)`.
+6. Add `DATABASE_URL_<SVC>` and `SVC_PLATFORM_<SVC>_DB_PASSWORD` to the `platform-core`
+   service in `docker-compose.yml`.
+7. Add a route prefix in `infra/nginx/snippets/platform-routes.conf` pointing at the
+   `platform_core` upstream.
+8. Update the platform module registry above and `ARCHITECTURE.md`.
 
 ## Environment variables
 
