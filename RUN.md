@@ -137,9 +137,29 @@ Everything — infra, platform services, app services, frontends — runs inside
 docker compose up -d
 
 # Follow logs
-docker compose logs -f platform-auth
-docker compose logs -f yoga-classes
+docker compose logs -f platform-core
+docker compose logs -f yoga-studio
 ```
+
+### First-time bootstrap (after a fresh DB or wipe)
+
+The `platform_auth.users` table starts empty, so nobody can log in to
+voragine-console (the staff portal). Create the first super_admin:
+
+```bash
+./scripts/bootstrap.sh                                                      # interactive
+BOOTSTRAP_ADMIN_EMAIL=… BOOTSTRAP_ADMIN_PASSWORD=… ./scripts/bootstrap.sh   # non-interactive
+```
+
+The script is idempotent and registers both the super_admin and the
+`platform` app in the registry. After it succeeds, log in at
+http://voragine-console.apphub.local:8080 and start creating apps from the
+**Apps** sidebar — new subdomains route automatically.
+
+Full reference: [`docs/bootstrap.md`](docs/bootstrap.md) (env vars,
+troubleshooting, wipe-and-restart workflow, design rationale). See also
+[ADR 003](docs/adr/003-dynamic-nginx-routing.md) for what happens after
+bootstrap when an app is created.
 
 ### Option B — Infrastructure in Docker, service on host (hot reload)
 

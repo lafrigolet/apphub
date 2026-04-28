@@ -7,6 +7,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`scripts/bootstrap.sh`** — first-boot bootstrap of an empty platform.
+  Creates the first super_admin user (`POST /v1/auth/register`), verifies
+  login, and registers the `platform` app in the registry. Idempotent.
+  Required after a fresh `docker compose up` (or any DB wipe) so staff can
+  log in to voragine-console.
+  - Full reference: [`docs/bootstrap.md`](docs/bootstrap.md) (env vars,
+    troubleshooting, wipe-and-restart workflow, design rationale)
+  - Quick pointer in [`RUN.md`](RUN.md) § Option A → First-time bootstrap
 - **Dynamic NGINX routing via Redis sidecar** — per-subdomain `server {}` blocks now live in
   the Redis hash `nginx:configs` instead of static files in `infra/nginx/conf.d/`. A sidecar
   inside the NGINX container polls Redis every 2s and reloads NGINX on change. Registering an
