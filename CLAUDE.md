@@ -19,19 +19,20 @@ app-specific services under `apps/*/` keep their own containers.
 
 ```
 apphub/
-├── platform/                  # Modules of the platform-core monolith (one container, port 3000)
+├── platform/                  # Platform-side services (some are modules of platform-core, others are standalone containers)
 │   ├── core/                  # Orchestrator: loads modules, runs migrations, listens on 3000
-│   ├── auth/                  # Auth module — schema platform_auth
-│   ├── payments/              # Payments module — schema platform_payments
-│   ├── notifications/         # Notifications module — schema platform_notifications
-│   ├── catalog/               # Catalog module — schema platform_catalog
-│   ├── basket/                # Basket module — Redis-only
-│   ├── tenant-config/         # Tenant-config module — schema platform_tenants
+│   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
+│   ├── payments/              # Payments module (in platform-core) — schema platform_payments
+│   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
+│   ├── tenant-config/         # Tenant-config module (in platform-core) — schema platform_tenants
+│   ├── catalog/               # Catalog — standalone container, port 3003
+│   ├── basket/                # Basket — standalone container, port 3004 (Redis-only)
+│   ├── splitpay/              # Split Pay core (Stripe Connect) — standalone container, port 3020
 │   └── subscriptions/         # Subscriptions module (planned)
-├── apps/                      # App bundles (frontend + app-specific services)
+├── apps/                      # App bundles (frontends + app-specific services)
 │   ├── portal/                # AppHub admin UI — port 5173
 │   ├── yoga-studio/           # Yoga Studio app — ports 3011–3017, 5174
-│   ├── split-pay/             # Split Pay app — ports 3020, 5175
+│   ├── split-pay/             # Split Pay frontend (splitpay-portal) — port 5175
 │   ├── aikikan/               # Aikikan Aikido portal — port 5176
 │   └── __app-template__/      # Blueprint for new apps (never deployed)
 ├── packages/                  # Internal shared packages (pnpm workspaces)

@@ -1,37 +1,36 @@
 {
-  "name": "@apphub/platform-notifications",
+  "name": "@apphub/platform-core",
   "version": "0.1.0",
-  "description": "Platform notifications service — email/push (all apps)",
+  "description": "Platform-core monolith — orchestrator that mounts all platform modules in a single Node process",
   "private": true,
   "type": "module",
-  "main": "src/index.js",
-  "exports": {
-    ".": "./src/index.js",
-    "./server": "./src/server.js"
-  },
+  "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.js",
-    "db:migrate": "node src/lib/migrate.js",
+    "lint": "eslint src",
     "clean": "rm -rf coverage"
   },
   "dependencies": {
     "@apphub/platform-sdk": "workspace:*",
+    "@apphub/platform-auth": "workspace:*",
+    "@apphub/platform-notifications": "workspace:*",
+    "@apphub/platform-payments": "workspace:*",
+    "@apphub/platform-tenant-config": "workspace:*",
+    "@apphub/platform-splitpay": "workspace:*",
     "fastify": "^5.0.0",
     "@fastify/helmet": "^12.0.0",
     "@fastify/cors": "^10.0.0",
     "@fastify/rate-limit": "^10.0.0",
     "fastify-type-provider-zod": "^4.0.0",
-    "fastify-plugin": "^5.0.0",
     "pg": "^8.12.0",
     "ioredis": "^5.4.1",
     "zod": "^3.23.0",
     "pino": "^9.3.0",
-    "pino-pretty": "^11.2.0",
-    "uuid": "^10.0.0",
-    "@sendgrid/mail": "^8.0.0"
+    "pino-pretty": "^11.2.0"
   },
-  "devDependencies": { "vitest": "^2.0.0" }
+  "devDependencies": {
+    "vitest": "^2.0.0"
+  }
 }

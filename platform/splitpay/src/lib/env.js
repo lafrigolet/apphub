@@ -4,6 +4,7 @@ const envSchema = z.object({
   NODE_ENV:                          z.enum(['development', 'test', 'production']).default('development'),
   PORT:                              z.coerce.number().default(3020),
   DATABASE_URL:                      z.string().url(),
+  MIGRATION_DATABASE_URL:            z.string().url().optional(),
   REDIS_URL:                         z.string().url(),
   SPLITPAY_STRIPE_SECRET_KEY:        z.string().startsWith('sk_'),
   SPLITPAY_STRIPE_WEBHOOK_SECRET:    z.string().startsWith('whsec_'),

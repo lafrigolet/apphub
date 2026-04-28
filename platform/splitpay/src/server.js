@@ -15,7 +15,7 @@ async function start() {
     await app.listen({ port: env.PORT, host: '0.0.0.0' })
     logger.info(
       { port: env.PORT, env: env.NODE_ENV },
-      'splitpay-core service started',
+      'splitpay service started',
     )
   } catch (err) {
     logger.error({ err }, 'Failed to start Fastify')

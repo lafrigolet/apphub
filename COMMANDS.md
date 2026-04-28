@@ -43,7 +43,7 @@ docker compose exec platform-auth node --version
 
 **Services**: `postgres`, `redis`, `platform-auth`, `platform-payments`,
 `platform-notifications`, `platform-catalog`, `platform-basket`,
-`platform-tenant-config`, `portal`, `yoga-studio`, `splitpay-core`,
+`platform-tenant-config`, `portal`, `yoga-studio`, `splitpay`,
 `splitpay-portal`, `aikikan-portal`, `voragine-console-portal`, `nginx`.
 
 ---
@@ -77,7 +77,7 @@ pnpm lint
 **Package names** to use with `--filter`:
 `@apphub/platform-auth`, `@apphub/platform-payments`, `@apphub/platform-notifications`,
 `@apphub/platform-catalog`, `@apphub/platform-basket`, `@apphub/platform-tenant-config`,
-`@apphub/platform-sdk`, `@yoga-studio/yoga-bookings`, `@split-pay/splitpay-core`, …
+`@apphub/platform-sdk`, `@yoga-studio/yoga-bookings`, `@apphub/platform-splitpay`, …
 
 ---
 

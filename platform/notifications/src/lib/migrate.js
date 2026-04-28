@@ -4,11 +4,14 @@ import { fileURLToPath } from 'url'
 import pg from 'pg'
 import { env } from './env.js'
 import { logger } from './logger.js'
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const MIGRATIONS_DIR = join(__dirname, '../../migrations')
 const SCHEMA = 'platform_notifications'
-export async function runMigrations() {
-  const migrationPool = new pg.Pool({ connectionString: env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL })
+
+export async function runMigrations(superuserUrl) {
+  const url = superuserUrl ?? env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL
+  const migrationPool = new pg.Pool({ connectionString: url })
   const client = await migrationPool.connect()
   try {
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`)
@@ -28,5 +31,10 @@ export async function runMigrations() {
     if (count === 0) logger.info('No pending migrations'); else logger.info(`Applied ${count} migration(s)`)
   } finally { client.release(); await migrationPool.end() }
 }
+
 const isMain = process.argv[1]?.endsWith('migrate.js')
-if (isMain) { runMigrations().then(() => { logger.info('Migrations complete'); process.exit(0) }).catch((err) => { logger.error({ err }, 'Migration failed'); process.exit(1) }) }
+if (isMain) {
+  runMigrations()
+    .then(() => { logger.info('Migrations complete'); process.exit(0) })
+    .catch((err) => { logger.error({ err }, 'Migration failed'); process.exit(1) })
+}

@@ -24,7 +24,7 @@ services. Each app gets its own subdomain and its own app-specific microservices
               └─────────────┘  └───────┬─────┘  └──────┬───────┘
                                        │ /api/app/*     │ /api/app/*
                               ┌────────▼──────┐ ┌───────▼──────┐
-                              │ yoga-* svcs   │ │ splitpay-core│
+                              │ yoga-* svcs   │ │   splitpay   │
                               │ 3011–3017     │ │ 3020         │
                               └───────────────┘ └──────────────┘
                                        │                │
@@ -110,7 +110,7 @@ PostgreSQL instance
 ├── yoga_bookings          (yoga-studio/yoga-bookings)
 ├── yoga_bonuses           (yoga-studio/yoga-bonuses)
 ├── yoga_reporting         (yoga-studio/yoga-reporting)
-└── splitpay_core          (split-pay/splitpay-core)
+└── splitpay_core          (platform/splitpay)
 ```
 
 Cross-schema queries are never allowed. Roles and grants are defined in
@@ -144,7 +144,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `platform-basket` | platform/basket — shopping cart (Redis-only) | 3004 |
 | `platform-tenant-config` | platform/tenant-config — app & tenant registry | 3005 |
 | `yoga-studio` | All 5 yoga services + yoga-portal via PM2 | 3011–3014, 3017, 5174 |
-| `splitpay-core` | split-pay/splitpay-core (Node) | 3020 |
+| `splitpay` | platform/splitpay (Node) | 3020 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
 | `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |

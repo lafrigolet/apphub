@@ -31,81 +31,59 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Platform Services (ports 3000–3005) ────────────────────────
-  platform-auth:
+  # ── Platform Core (modular monolith — port 3000) ───────────────
+  # Hosts all horizontal modules (auth today; payments, notifications, catalog,
+  # basket, tenant-config, subscriptions to follow). Each module keeps its own
+  # DB role and schema; one Pool per module is created inside the same process.
+  platform-core:
     build:
       context: .
-      dockerfile: platform/auth/Dockerfile
+      dockerfile: platform/core/Dockerfile
       target: development
     restart: unless-stopped
     ports:
       - '3000:3000'
     environment:
       NODE_ENV: development
-      PLATFORM_AUTH_PORT: 3000
-      DATABASE_URL: postgresql://svc_platform_auth:platform_auth_secret@postgres:5432/splitpay
+      PLATFORM_CORE_PORT: 3000
       MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
       REDIS_URL: redis://redis:6379
       PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      # Per-module DATABASE_URLs — one Pool per module
+      DATABASE_URL_AUTH:          postgresql://svc_platform_auth:platform_auth_secret@postgres:5432/splitpay
+      DATABASE_URL_NOTIFICATIONS: postgresql://svc_platform_notifications:platform_notifications_secret@postgres:5432/splitpay
+      DATABASE_URL_PAYMENTS:      postgresql://splitpay:splitpay@postgres:5432/splitpay
+      DATABASE_URL_TENANT_CONFIG: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      DATABASE_URL_SPLITPAY:      postgresql://splitpay:splitpay@postgres:5432/splitpay
+      # OAuth credentials forwarded to the auth module
+      GOOGLE_CLIENT_ID:    ${GOOGLE_CLIENT_ID:-}
+      FACEBOOK_APP_ID:     ${FACEBOOK_APP_ID:-}
       FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+      # Notifications module
+      SENDGRID_API_KEY:    ${SENDGRID_API_KEY:-dev_no_sendgrid}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@apphub.local}
+      # Payments module — Stripe
+      PLATFORM_STRIPE_SECRET_KEY:     ${PLATFORM_STRIPE_SECRET_KEY:-sk_test_placeholder}
+      PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      # Splitpay module — Stripe Connect
+      SPLITPAY_STRIPE_SECRET_KEY:          ${PAYMENTS_STRIPE_SECRET_KEY:-sk_test_placeholder}
+      SPLITPAY_STRIPE_PUBLISHABLE_KEY:     ${PAYMENTS_STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
+      SPLITPAY_STRIPE_WEBHOOK_SECRET:      ${PAYMENTS_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      SPLITPAY_STRIPE_PLATFORM_ACCOUNT_ID: ${PAYMENTS_STRIPE_PLATFORM_ACCOUNT_ID:-}
     volumes:
+      - ./platform/core/src:/app/platform/core/src:ro
       - ./platform/auth/src:/app/platform/auth/src:ro
       - ./platform/auth/migrations:/app/platform/auth/migrations:ro
-      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
-  platform-payments:
-    build:
-      context: .
-      dockerfile: platform/payments/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3001:3001'
-    environment:
-      NODE_ENV: development
-      PORT: 3001
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      EXPECTED_APP_ID: platform
-      PLATFORM_STRIPE_SECRET_KEY: ${PLATFORM_STRIPE_SECRET_KEY:-sk_test_placeholder}
-      PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
-      - ./platform/payments/src:/app/platform/payments/src:ro
-      - ./platform/payments/migrations:/app/platform/payments/migrations:ro
-      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
-  platform-notifications:
-    build:
-      context: .
-      dockerfile: platform/notifications/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3002:3002'
-    environment:
-      NODE_ENV: development
-      PORT: 3002
-      DATABASE_URL: postgresql://svc_platform_notifications:platform_notifications_secret@postgres:5432/splitpay
-      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      EXPECTED_APP_ID: platform
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-dev_no_sendgrid}
-      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@apphub.local}
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
       - ./platform/notifications/src:/app/platform/notifications/src:ro
       - ./platform/notifications/migrations:/app/platform/notifications/migrations:ro
+      - ./platform/payments/src:/app/platform/payments/src:ro
+      - ./platform/payments/migrations:/app/platform/payments/migrations:ro
+      - ./platform/tenant-config/src:/app/platform/tenant-config/src:ro
+      - ./platform/tenant-config/migrations:/app/platform/tenant-config/migrations:ro
+      - ./platform/splitpay/src:/app/platform/splitpay/src:ro
+      - ./platform/splitpay/migrations:/app/platform/splitpay/migrations:ro
       - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       postgres: { condition: service_healthy }
@@ -153,29 +131,6 @@ services:
       - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       redis: { condition: service_healthy }
-
-  platform-tenant-config:
-    build:
-      context: .
-      dockerfile: platform/tenant-config/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3005:3005'
-    environment:
-      NODE_ENV: development
-      PORT: 3005
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      EXPECTED_APP_ID: platform
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
-      - ./platform/tenant-config/src:/app/platform/tenant-config/src:ro
-      - ./platform/tenant-config/migrations:/app/platform/tenant-config/migrations:ro
-      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
 
   # ── AppHub admin portal ────────────────────────────────────────
   portal:
@@ -240,34 +195,7 @@ services:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
-  # ── Split Pay (port 3020, frontend 5175) ───────────────────────
-  splitpay-core:
-    build:
-      context: .
-      dockerfile: apps/split-pay/splitpay-core/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3020:3020'
-    environment:
-      NODE_ENV: development
-      PORT: 3020
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      SPLITPAY_STRIPE_SECRET_KEY: ${PAYMENTS_STRIPE_SECRET_KEY:-sk_test_placeholder}
-      SPLITPAY_STRIPE_PUBLISHABLE_KEY: ${PAYMENTS_STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
-      SPLITPAY_STRIPE_WEBHOOK_SECRET: ${PAYMENTS_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
-      SPLITPAY_STRIPE_PLATFORM_ACCOUNT_ID: ${PAYMENTS_STRIPE_PLATFORM_ACCOUNT_ID:-}
-      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
-      EXPECTED_APP_ID: split-pay
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
-      - ./apps/split-pay/splitpay-core/src:/app/apps/split-pay/splitpay-core/src:ro
-      - ./apps/split-pay/splitpay-core/migrations:/app/apps/split-pay/splitpay-core/migrations:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
+  # ── Split Pay frontend ─────────────────────────────────────────
   splitpay-portal:
     build:
       context: .
@@ -283,8 +211,7 @@ services:
     volumes:
       - ./apps/split-pay/splitpay-portal/src:/app/src:ro
     depends_on:
-      - platform-auth
-      - splitpay-core
+      - platform-core
 
   # ── Aikikan (frontend 5176) ───────────────────────────────────
   aikikan-portal:
@@ -330,15 +257,11 @@ services:
       - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./infra/nginx/snippets:/etc/nginx/snippets:ro
     depends_on:
-      - platform-auth
-      - platform-payments
-      - platform-notifications
+      - platform-core
       - platform-catalog
       - platform-basket
-      - platform-tenant-config
       - portal
       - yoga-studio
-      - splitpay-core
       - splitpay-portal
       - aikikan-portal
       - voragine-console-portal

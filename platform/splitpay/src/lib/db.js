@@ -4,15 +4,30 @@ import { logger } from './logger.js'
 
 const { Pool } = pg
 
-export const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
-})
+let _pool = null
 
-pool.on('error', (err) => {
-  logger.error({ err }, 'Unexpected PostgreSQL pool error')
+export function configurePool(injected) {
+  _pool = injected
+}
+
+function ensurePool() {
+  if (_pool) return _pool
+  _pool = new Pool({
+    connectionString: env.DATABASE_URL,
+    max: 20,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+  })
+  _pool.on('error', (err) => logger.error({ err }, 'Unexpected PostgreSQL pool error'))
+  return _pool
+}
+
+export const pool = new Proxy({}, {
+  get(_t, key) {
+    const p = ensurePool()
+    const value = p[key]
+    return typeof value === 'function' ? value.bind(p) : value
+  },
 })
 
 /**
@@ -20,7 +35,7 @@ pool.on('error', (err) => {
  * Sets session-level GUCs used by Row Level Security policies.
  */
 export async function withTenant(tenantId, subTenantId, fn) {
-  const client = await pool.connect()
+  const client = await ensurePool().connect()
   try {
     await client.query('BEGIN')
     await client.query(`SET LOCAL app.tenant_id = '${tenantId}'`)

@@ -161,7 +161,7 @@ docker compose exec yoga-studio sh -c "cd apps/yoga-studio/yoga-classes && node 
 | yoga-studio | yoga-bookings | 3013 |
 | yoga-studio | yoga-bonuses | 3014 |
 | yoga-studio | yoga-reporting | 3017 |
-| splitpay-core | splitpay-core | 3020 |
+| splitpay | splitpay | 3020 |
 | portal | AppHub admin | 5173 |
 | yoga-studio | yoga-portal | 5174 |
 | splitpay-portal | splitpay-portal | 5175 |
