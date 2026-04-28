@@ -11,9 +11,10 @@ export default function AuditGlobal() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // No appId filter: cross-app audit log
     Promise.all([
-      api.get(`/api/tenants/tenants?appId=${APP_ID}`).then((l) => l.map(adaptTenant)),
-      api.get(`/api/audit/?appId=${APP_ID}&limit=200`),
+      api.get('/api/tenants/tenants').then((l) => l.map(adaptTenant)),
+      api.get('/api/audit/?limit=200'),
     ])
       .then(([tenants, audit]) => {
         const byId = Object.fromEntries(tenants.map((t) => [t.id, t.name]))

@@ -1,9 +1,18 @@
+import { useEffect, useState } from 'react'
 import { useApp } from '../context/AppContext'
+import { api } from '../lib/api'
 import { icons } from '../lib/icons'
 
 export default function Sidebar() {
   const { role, view, navigate, myTenant } = useApp()
   const t = myTenant
+
+  // Load the caller's app to know which optional sections (e.g. Splitpay) appear.
+  const [myApp, setMyApp] = useState(null)
+  useEffect(() => {
+    if (role === 'staff' || !myTenant?.app_id) { setMyApp(null); return }
+    api.get(`/api/apps/${myTenant.app_id}`).then(setMyApp).catch(() => setMyApp(null))
+  }, [role, myTenant])
 
   const staffItems = [
     { k: 'dashboard', label: 'Dashboard', icon: icons.dashboard },
@@ -13,10 +22,15 @@ export default function Sidebar() {
     { k: 'audit',     label: 'Audit log', icon: icons.audit },
   ]
 
+  const splitpayItem = myApp?.splitpay_enabled
+    ? [{ k: 'splitpay', label: 'Split Pay', icon: icons.tag }]
+    : []
+
   const ownerItems = [
     { k: 'overview',  label: 'Resumen',          icon: icons.dashboard },
     { k: 'admins',    label: 'Administradores',  icon: icons.admins },
     { k: 'settings',  label: 'Ajustes',          icon: icons.settings },
+    ...splitpayItem,
     { k: 'audit',     label: 'Audit log',        icon: icons.audit },
     { k: 'danger',    label: 'Zona peligrosa',   icon: icons.danger, accent: true },
   ]
@@ -25,6 +39,7 @@ export default function Sidebar() {
     { k: 'overview',  label: 'Resumen',          icon: icons.dashboard },
     { k: 'admins',    label: 'Administradores',  icon: icons.admins },
     { k: 'settings',  label: 'Ajustes',          icon: icons.settings },
+    ...splitpayItem,
     { k: 'audit',     label: 'Audit log',        icon: icons.audit },
   ]
 

@@ -19,6 +19,31 @@ export async function register({ app, db, redis }) {
   // body content-type parser apply ONLY to /v1/splitpay/*, not to other modules
   // hosted by platform-core.
   await app.register(async (splitpay) => {
+    // Routes/services use req.tenant.{tenantId,subTenantId,appId} as the scope
+    // context. appGuard decorates req.identity instead — alias it here so the
+    // splitpay routes work unchanged. Skips the alias for unauthenticated
+    // contexts (health, webhooks) to avoid undefined access.
+    splitpay.decorateRequest('tenant', null)
+    splitpay.addHook('preHandler', async (req) => {
+      if (!req.identity) return
+
+      // Staff impersonation: super_admin / staff can scope the request to any
+      // tenant via ?appId=&tenantId= query params. Used by voragine-console's
+      // TenantDetail to manage splitpay configuration on behalf of a tenant.
+      // Regular users can never override their own tenant.
+      const STAFF_ROLES = new Set(['staff', 'super_admin'])
+      const canImpersonate = STAFF_ROLES.has(req.identity.role)
+      const overrideTenantId = canImpersonate ? req.query?.tenantId : null
+      const overrideAppId    = canImpersonate ? req.query?.appId    : null
+
+      req.tenant = {
+        appId:        overrideAppId    ?? req.identity.appId,
+        tenantId:     overrideTenantId ?? req.identity.tenantId,
+        subTenantId:  req.identity.subTenantId ?? null,
+        impersonated: !!overrideTenantId,
+      }
+    })
+
     // Raw body for Stripe webhook signature verification. Other routes get the
     // standard JSON parse — gated by routeOptions.config.rawBody.
     splitpay.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {

@@ -33,6 +33,8 @@ export default function CreateAppModal({ onCreated }) {
   const [tenantTouched, setTenantTouched] = useState(false)
   const [adminEmail, setAdminEmail]      = useState('')
   const [adminName, setAdminName]        = useState('')
+  // Features
+  const [splitpayEnabled, setSplitpayEnabled] = useState(false)
   // State
   const [submitting, setSubmitting]      = useState(false)
   const [error, setError]                = useState(null)
@@ -59,6 +61,7 @@ export default function CreateAppModal({ onCreated }) {
         displayName,
         subdomain,
         jwtAudience: jwtAudience || appId,
+        splitpayEnabled,
       })
 
       // 2. Create the first tenant for that app (one-tenant-per-app on creation;
@@ -228,6 +231,26 @@ export default function CreateAppModal({ onCreated }) {
             Se creará el usuario con role <span className="font-mono text-ink">admin</span> y se enviará un email para
             que fije su contraseña. Al primer login podrá entrar al portal de la app y a su consola de administración.
           </div>
+        </section>
+
+        {/* — Features — */}
+        <section className="space-y-3 border-t border-line pt-5">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-ink3">Features</div>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={splitpayEnabled}
+              onChange={(e) => setSplitpayEnabled(e.target.checked)}
+            />
+            <div>
+              <div className="text-[13.5px] text-ink">Habilitar Split Pay (Stripe Connect)</div>
+              <div className="text-[11.5px] text-ink3 mt-0.5">
+                Permite a los tenants de esta app cobrar pagos divididos a través de Stripe Connect.
+                Aparecerá una sección "Splitpay" en su consola para configurar la cuenta y las reglas de reparto.
+              </div>
+            </div>
+          </label>
         </section>
 
         {error && (

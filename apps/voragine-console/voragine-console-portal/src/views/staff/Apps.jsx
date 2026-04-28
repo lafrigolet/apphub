@@ -39,6 +39,17 @@ export default function StaffApps() {
     }
   }
 
+  async function toggleSplitpay(app) {
+    const next = !app.splitpay_enabled
+    try {
+      await api.patch(`/api/apps/${app.app_id}/splitpay`, { enabled: next })
+      toast(`Splitpay ${next ? 'habilitado' : 'deshabilitado'} en ${app.app_id}`)
+      reload()
+    } catch (err) {
+      toast(err.message ?? 'No se pudo cambiar Splitpay', 'danger')
+    }
+  }
+
   if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
 
   const filtered = apps.filter((a) => {
@@ -92,12 +103,13 @@ export default function StaffApps() {
               <th>Subdominio</th>
               <th>JWT audience</th>
               <th>Estado</th>
+              <th>Split Pay</th>
               <th className="text-right pr-6">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0
-              ? <EmptyState cols={6} msg="No hay apps registradas con esos filtros." />
+              ? <EmptyState cols={7} msg="No hay apps registradas con esos filtros." />
               : filtered.map((a) => (
                 <tr key={a.app_id}>
                   <td>
@@ -107,6 +119,17 @@ export default function StaffApps() {
                   <td className="font-mono text-[12.5px] text-ink2">{a.subdomain}</td>
                   <td className="font-mono text-[12.5px] text-ink3">{a.jwt_audience}</td>
                   <td><StatusPill status={a.status} /></td>
+                  <td>
+                    <button
+                      onClick={() => toggleSplitpay(a)}
+                      className="text-[11.5px] font-medium hover:underline"
+                      title={a.splitpay_enabled ? 'Click para deshabilitar' : 'Click para habilitar'}
+                    >
+                      <span className={a.splitpay_enabled ? 'text-ok' : 'text-ink3'}>
+                        {a.splitpay_enabled ? '● habilitado' : '○ deshabilitado'}
+                      </span>
+                    </button>
+                  </td>
                   <td className="text-right pr-6">
                     <button
                       onClick={() => toggleStatus(a)}

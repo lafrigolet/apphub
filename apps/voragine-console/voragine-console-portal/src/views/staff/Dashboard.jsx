@@ -35,9 +35,10 @@ export default function StaffDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // No appId filter: cross-app staff dashboard sees all tenants and audit events
     Promise.all([
-      api.get(`/api/tenants/tenants?appId=${APP_ID}`).then((l) => l.map(adaptTenant)),
-      api.get(`/api/audit/?appId=${APP_ID}&limit=10`),
+      api.get('/api/tenants/tenants').then((l) => l.map(adaptTenant)),
+      api.get('/api/audit/?limit=10'),
     ]).then(([tList, aList]) => {
       setTenants(tList)
       const byId = Object.fromEntries(tList.map((t) => [t.id, t.name]))

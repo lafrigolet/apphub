@@ -14,6 +14,7 @@ export function adaptTenant(db) {
   if (!db) return null
   return {
     id:            db.id,
+    app_id:        db.app_id,
     name:          db.display_name,
     legal:         db.legal_name || '',
     cif:           db.cif || '',

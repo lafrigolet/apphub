@@ -49,7 +49,10 @@ export default function StaffTenants() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get(`/api/tenants/tenants?appId=${APP_ID}`)
+    // No appId filter: voragine-console is a cross-app staff console — staff
+    // sees tenants of every app on the platform. Per-app filtering is exposed
+    // via the FilterChip below.
+    api.get('/api/tenants/tenants')
       .then((list) => setTenants(list.map(adaptTenant)))
       .catch(() => setTenants([]))
       .finally(() => setLoading(false))
@@ -123,6 +126,7 @@ export default function StaffTenants() {
           <thead>
             <tr>
               <th onClick={() => toggleSort('name')}     className="cursor-pointer">Tenant <SortArrow col="name" /></th>
+              <th>App</th>
               <th>Dominio</th>
               <th>Plan</th>
               <th>Estado</th>
@@ -134,7 +138,7 @@ export default function StaffTenants() {
           </thead>
           <tbody>
             {filtered.length === 0
-              ? <EmptyState cols={8} msg="Ningún tenant coincide con los filtros." />
+              ? <EmptyState cols={9} msg="Ningún tenant coincide con los filtros." />
               : filtered.map(t => {
                 const color = tenantColor(t.id)
                 return (
@@ -150,6 +154,7 @@ export default function StaffTenants() {
                         </div>
                       </div>
                     </td>
+                    <td><span className="font-mono text-[12px] text-ink2">{t.app_id ?? '—'}</span></td>
                     <td>
                       <div className="text-[13px]">{t.customDomain || '—'}</div>
                       <div className="font-mono text-[11.5px] text-ink3">{t.subdomain}.voragine.app</div>

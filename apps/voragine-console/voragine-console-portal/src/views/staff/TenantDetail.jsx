@@ -7,6 +7,7 @@ import { fmtDate, fmtMoney, fmtNumber, relTime, tenantColor, initials } from '..
 import { icons } from '../../lib/icons'
 import { StatusBadge, StripeBadge, PlanBadge, RoleBadge, TwoFABadge, Avatar, DlRow, MiniMetric } from '../../lib/ui'
 import { SuspendModal, ReactivateModal, ArchiveModal, RestoreModal, ExportModal } from './modals/TenantActionModals'
+import { SplitpayConfigTabs } from './SplitpayPanels'
 
 const TABS = [
   { k: 'identity', label: 'Identificación' },
@@ -117,21 +118,56 @@ function TabState({ t }) {
   )
 }
 
-function TabStripe({ t }) {
-  return (
-    <div className="bg-white border border-line rounded-xl shadow-card">
-      <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-        <div>
-          <div className="font-display text-[20px]">Stripe Connect</div>
-          <div className="text-xs text-ink3 mt-0.5">Cuenta asociada al tenant para procesar pagos con split</div>
+function TabStripe({ t, app }) {
+  const { toast } = useApp()
+
+  if (!app?.splitpay_enabled) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-white border border-line rounded-xl shadow-card">
+          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+            <div>
+              <div className="font-display text-[20px]">Stripe Connect</div>
+              <div className="text-xs text-ink3 mt-0.5">Cuenta asociada al tenant para procesar pagos con split</div>
+            </div>
+            <StripeBadge status={t.stripe} />
+          </div>
+          <dl className="divide-y divide-line">
+            <DlRow label="Estado KYC"><StripeBadge status={t.stripe} /></DlRow>
+            <DlRow label="Account ID"><span className="text-ink3 text-[12px]">No conectado</span></DlRow>
+            <DlRow label="Application fee por defecto"><span className="font-mono">2.9% + 0,30 €</span></DlRow>
+          </dl>
         </div>
-        <StripeBadge status={t.stripe} />
+        <div className="bg-paper2 border border-line rounded-xl p-5 text-[13px] text-ink2">
+          <div className="font-medium mb-1">Split Pay no está habilitado para esta app</div>
+          <div className="text-ink3">
+            Para configurar Stripe Connect en este tenant primero habilita Split Pay en{' '}
+            <span className="font-mono">{app?.app_id ?? t.app_id}</span> desde la sección Apps.
+          </div>
+        </div>
       </div>
-      <dl className="divide-y divide-line">
-        <DlRow label="Estado KYC"><StripeBadge status={t.stripe} /></DlRow>
-        <DlRow label="Account ID"><span className="text-ink3 text-[12px]">No conectado en dev</span></DlRow>
-        <DlRow label="Application fee por defecto"><span className="font-mono">2.9% + 0,30 €</span></DlRow>
-      </dl>
+    )
+  }
+
+  // Staff impersonation: backend's preHandler honours appId/tenantId query
+  // params for staff/super_admin. Without this, splitpay would scope queries
+  // to the staff member's own tenant instead of the tenant being viewed.
+  const scopeQuery = `?appId=${encodeURIComponent(app.app_id)}&tenantId=${encodeURIComponent(t.id)}`
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-line rounded-xl shadow-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-display text-[20px]">Stripe Connect</div>
+            <div className="text-xs text-ink3 mt-0.5">
+              Configurando como staff en nombre de <span className="font-medium text-ink">{t.name}</span>
+            </div>
+          </div>
+          <StripeBadge status={t.stripe} />
+        </div>
+      </div>
+      <SplitpayConfigTabs scopeQuery={scopeQuery} onToast={toast} />
     </div>
   )
 }
@@ -246,6 +282,7 @@ function TabAudit({ t, log }) {
 export default function TenantDetail() {
   const { selectedTenant, tenantTab, setTenantTab, navigate, openModal } = useApp()
   const [t, setTenant] = useState(null)
+  const [app, setApp] = useState(null)
   const [admins, setAdmins] = useState([])
   const [audit, setAudit] = useState([])
   const [loading, setLoading] = useState(true)
@@ -261,6 +298,10 @@ export default function TenantDetail() {
     ])
       .then(([tenant, adm, a]) => {
         setTenant(tenant); setAdmins(adm); setAudit(a)
+        // Lazy-load the app of this tenant so TabStripe knows splitpay_enabled
+        if (tenant?.app_id) {
+          api.get(`/api/apps/${tenant.app_id}`).then(setApp).catch(() => setApp(null))
+        }
       })
       .catch(() => setTenant(null))
       .finally(() => setLoading(false))
@@ -277,7 +318,7 @@ export default function TenantDetail() {
     switch (tenantTab) {
       case 'identity': return <TabIdentity t={t} />
       case 'state':    return <TabState t={t} />
-      case 'stripe':   return <TabStripe t={t} />
+      case 'stripe':   return <TabStripe t={t} app={app} />
       case 'admins':   return <TabAdmins t={t} admins={admins} />
       case 'plan':     return <TabPlan t={t} />
       case 'audit':    return <TabAudit t={t} log={audit} />
