@@ -13,6 +13,8 @@ COPY platform/reviews/package.json                 ./platform/reviews/package.js
 COPY platform/messaging/package.json               ./platform/messaging/package.json
 COPY platform/shipping/package.json                ./platform/shipping/package.json
 COPY platform/disputes/package.json                ./platform/disputes/package.json
+COPY platform/catalog/package.json                 ./platform/catalog/package.json
+COPY platform/basket/package.json                  ./platform/basket/package.json
 COPY platform/marketplace/package.json             ./platform/marketplace/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-marketplace...
@@ -30,6 +32,9 @@ COPY platform/shipping/src            ./platform/shipping/src
 COPY platform/shipping/migrations     ./platform/shipping/migrations
 COPY platform/disputes/src            ./platform/disputes/src
 COPY platform/disputes/migrations     ./platform/disputes/migrations
+COPY platform/catalog/src             ./platform/catalog/src
+COPY platform/catalog/migrations      ./platform/catalog/migrations
+COPY platform/basket/src              ./platform/basket/src
 COPY platform/marketplace/src         ./platform/marketplace/src
 
 WORKDIR /app/platform/marketplace
@@ -46,6 +51,8 @@ COPY platform/reviews/package.json                 ./platform/reviews/package.js
 COPY platform/messaging/package.json               ./platform/messaging/package.json
 COPY platform/shipping/package.json                ./platform/shipping/package.json
 COPY platform/disputes/package.json                ./platform/disputes/package.json
+COPY platform/catalog/package.json                 ./platform/catalog/package.json
+COPY platform/basket/package.json                  ./platform/basket/package.json
 COPY platform/marketplace/package.json             ./platform/marketplace/package.json
 
 RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-marketplace...
@@ -63,6 +70,9 @@ COPY platform/shipping/src            ./platform/shipping/src
 COPY platform/shipping/migrations     ./platform/shipping/migrations
 COPY platform/disputes/src            ./platform/disputes/src
 COPY platform/disputes/migrations     ./platform/disputes/migrations
+COPY platform/catalog/src             ./platform/catalog/src
+COPY platform/catalog/migrations      ./platform/catalog/migrations
+COPY platform/basket/src              ./platform/basket/src
 COPY platform/marketplace/src         ./platform/marketplace/src
 
 WORKDIR /app/platform/marketplace

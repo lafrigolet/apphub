@@ -19,9 +19,10 @@ app-specific services under `apps/*/` keep their own containers.
 
 ```
 apphub/
-├── platform/                  # Platform-side services. Two monolith containers + a few standalone holdouts.
+├── platform/                  # Platform-side services. Three monolith containers (platform-core + platform-marketplace + platform-restaurant).
 │   ├── core/                  # platform-core orchestrator — port 3000 (auth/notifications/payments/tenant-config/splitpay)
-│   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes)
+│   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes/catalog/basket)
+│   ├── restaurant/            # platform-restaurant orchestrator — port 3200 (menu/reservations/floor-plan/kds/pos/delivery-dispatch)
 │   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
 │   ├── payments/              # Payments module (in platform-core) — schema platform_payments
 │   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
@@ -33,8 +34,14 @@ apphub/
 │   ├── messaging/             # Messaging module (in platform-marketplace) — schema platform_messaging
 │   ├── shipping/              # Shipping module (in platform-marketplace) — schema platform_shipping
 │   ├── disputes/              # Disputes module (in platform-marketplace) — schema platform_disputes
-│   ├── catalog/               # Catalog — standalone container, port 3003
-│   ├── basket/                # Basket — standalone container, port 3004 (Redis-only)
+│   ├── catalog/               # Catalog module (in platform-marketplace) — schema platform_catalog
+│   ├── basket/                # Basket module (in platform-marketplace) — Redis-only
+│   ├── menu/                  # Menu module (in platform-restaurant) — schema platform_menu
+│   ├── reservations/          # Reservations module (in platform-restaurant) — schema platform_reservations
+│   ├── floor-plan/            # Floor-plan module (in platform-restaurant) — schema platform_floor_plan
+│   ├── kds/                   # KDS module (in platform-restaurant) — schema platform_kds
+│   ├── pos/                   # POS module (in platform-restaurant) — schema platform_pos
+│   ├── delivery-dispatch/     # Delivery-dispatch module (in platform-restaurant) — schema platform_delivery_dispatch
 │   └── subscriptions/         # Subscriptions module (planned, slot reserved)
 ├── apps/                      # App bundles (frontends + app-specific services)
 │   ├── portal/                # AppHub admin UI — port 5173
@@ -556,13 +563,19 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Messaging (buyer ↔ vendor) | `platform/messaging` | `platform_messaging` | `svc_platform_messaging` | ✅ Implemented |
 | Shipping (zones, rates, tracking) | `platform/shipping` | `platform_shipping` | `svc_platform_shipping` | ✅ Implemented |
 | Disputes (operational, pre-chargeback) | `platform/disputes` | `platform_disputes` | `svc_platform_disputes` | ✅ Implemented |
+| Product & service catalogue | `platform/catalog` | `platform_catalog` | `svc_platform_catalog` | ✅ Implemented |
+| Shopping cart (Redis-only) | `platform/basket` | — | — | ✅ Implemented |
 
-### Standalone (legacy, not yet folded into a monolith)
+### platform-restaurant (port 3200) — restaurant operations
 
 | Capability | Module | Schema | DB role | Status |
 |---|---|---|---|---|
-| Product & service catalogue | `platform/catalog` | `platform_catalog` | `svc_platform_catalog` | 🔧 Skeleton |
-| Shopping cart (Redis-only) | `platform/basket` | — | — | 🔧 Skeleton |
+| F&B menu (modifiers, allergens, availability windows, 86-list) | `platform/menu` | `platform_menu` | `svc_platform_menu` | ✅ Implemented |
+| Reservations + waitlist | `platform/reservations` | `platform_reservations` | `svc_platform_reservations` | ✅ Implemented |
+| Floor plan / tables / sections | `platform/floor-plan` | `platform_floor_plan` | `svc_platform_floor_plan` | ✅ Implemented |
+| Kitchen Display System | `platform/kds` | `platform_kds` | `svc_platform_kds` | ✅ Implemented |
+| POS bills / split / tips / mixed payments | `platform/pos` | `platform_pos` | `svc_platform_pos` | ✅ Implemented |
+| Delivery dispatch (riders, zones, GPS, fleet) | `platform/delivery-dispatch` | `platform_delivery_dispatch` | `svc_platform_delivery_dispatch` | ✅ Implemented |
 
 ### Planned
 

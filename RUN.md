@@ -138,6 +138,8 @@ docker compose up -d
 
 # Follow logs
 docker compose logs -f platform-core
+docker compose logs -f platform-marketplace
+docker compose logs -f platform-restaurant
 docker compose logs -f yoga-studio
 ```
 

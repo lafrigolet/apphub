@@ -14,7 +14,7 @@ All commands are run from the repo root.
 docker compose up -d
 
 # Rebuild one or more services after code changes
-docker compose up -d --build platform-auth nginx
+docker compose up -d --build platform-core nginx
 
 # Tear everything down (containers, network — volumes survive)
 docker compose down
@@ -26,25 +26,26 @@ docker compose down -v
 docker compose ps
 
 # Follow logs for one service (Ctrl-C to stop)
-docker compose logs -f platform-auth
+docker compose logs -f platform-core
+docker compose logs -f platform-marketplace
+docker compose logs -f platform-restaurant
 
 # Tail the last 100 lines
-docker compose logs --tail=100 platform-notifications
+docker compose logs --tail=100 platform-restaurant
 
 # Restart a single service
-docker compose restart platform-catalog
+docker compose restart platform-marketplace
 
 # Open a shell inside a running container
-docker compose exec platform-auth sh
+docker compose exec platform-core sh
 
 # Run a one-off command against a service (no shell)
-docker compose exec platform-auth node --version
+docker compose exec platform-core node --version
 ```
 
-**Services**: `postgres`, `redis`, `platform-auth`, `platform-payments`,
-`platform-notifications`, `platform-catalog`, `platform-basket`,
-`platform-tenant-config`, `portal`, `yoga-studio`, `splitpay`,
-`splitpay-portal`, `aikikan-portal`, `voragine-console-portal`, `nginx`.
+**Services**: `postgres`, `redis`, `platform-core`, `platform-marketplace`,
+`platform-restaurant`, `portal`, `yoga-studio`, `splitpay-portal`,
+`aikikan-portal`, `voragine-console-portal`, `nginx`.
 
 ---
 
@@ -75,9 +76,23 @@ pnpm lint
 ```
 
 **Package names** to use with `--filter`:
-`@apphub/platform-auth`, `@apphub/platform-payments`, `@apphub/platform-notifications`,
-`@apphub/platform-catalog`, `@apphub/platform-basket`, `@apphub/platform-tenant-config`,
-`@apphub/platform-sdk`, `@yoga-studio/yoga-bookings`, `@apphub/platform-splitpay`, …
+
+- Orchestrators: `@apphub/platform-core`, `@apphub/platform-marketplace`,
+  `@apphub/platform-restaurant`
+- platform-core modules: `@apphub/platform-auth`, `@apphub/platform-payments`,
+  `@apphub/platform-notifications`, `@apphub/platform-tenant-config`,
+  `@apphub/platform-splitpay`
+- platform-marketplace modules: `@apphub/platform-orders`,
+  `@apphub/platform-inventory`, `@apphub/platform-reviews`,
+  `@apphub/platform-messaging`, `@apphub/platform-shipping`,
+  `@apphub/platform-disputes`, `@apphub/platform-catalog`,
+  `@apphub/platform-basket`
+- platform-restaurant modules: `@apphub/platform-menu`,
+  `@apphub/platform-reservations`, `@apphub/platform-floor-plan`,
+  `@apphub/platform-kds`, `@apphub/platform-pos`,
+  `@apphub/platform-delivery-dispatch`
+- Shared SDK: `@apphub/platform-sdk`
+- App services: `@yoga-studio/yoga-bookings`, …
 
 ---
 
@@ -179,8 +194,15 @@ Connection info (defaults from `docker-compose.yml`):
 - Port: `5432`
 - DB:   `splitpay`
 - Superuser: `splitpay` / `splitpay`
-- Per-service roles: `svc_platform_auth`, `svc_platform_catalog`,
-  `svc_platform_tenants`, `svc_platform_notifications`, `svc_platform_payments`
+- Per-module roles (one per module across all three monoliths):
+  - platform-core: `svc_platform_auth`, `svc_platform_payments`,
+    `svc_platform_notifications`, `svc_platform_tenants`
+  - platform-marketplace: `svc_platform_orders`, `svc_platform_inventory`,
+    `svc_platform_reviews`, `svc_platform_messaging`, `svc_platform_shipping`,
+    `svc_platform_disputes`, `svc_platform_catalog`
+  - platform-restaurant: `svc_platform_menu`, `svc_platform_reservations`,
+    `svc_platform_floor_plan`, `svc_platform_kds`, `svc_platform_pos`,
+    `svc_platform_delivery_dispatch`
 
 ```bash
 # Open psql as superuser (inside container)
@@ -276,12 +298,9 @@ cat backup.sql | docker compose exec -T postgres psql -U splitpay splitpay
 | Service                     | Host port |
 |-----------------------------|-----------|
 | NGINX (entrypoint)          | 8080      |
-| platform-auth               | 3000      |
-| platform-payments           | 3001      |
-| platform-notifications      | 3002      |
-| platform-catalog            | 3003      |
-| platform-basket             | 3004      |
-| platform-tenant-config      | 3005      |
+| platform-core               | 3000      |
+| platform-marketplace        | 3100      |
+| platform-restaurant         | 3200      |
 | PostgreSQL                  | 5432      |
 | Redis                       | 6379      |
 | portal (AppHub admin)       | 5173      |
@@ -289,6 +308,11 @@ cat backup.sql | docker compose exec -T postgres psql -U splitpay splitpay
 | splitpay portal             | 5175      |
 | aikikan portal              | 5176      |
 | voragine-console portal     | 5177      |
+
+**Modules per monolith** (each on its own schema + DB role, not its own port):
+- `platform-core` (3000) → `auth`, `notifications`, `payments`, `tenant-config`, `splitpay`
+- `platform-marketplace` (3100) → `orders`, `inventory`, `reviews`, `messaging`, `shipping`, `disputes`, `catalog`, `basket`
+- `platform-restaurant` (3200) → `menu`, `reservations`, `floor-plan`, `kds`, `pos`, `delivery-dispatch`
 
 All app subdomains go through NGINX: `http://yoga.apphub.local:8080`,
 `http://splitpay.apphub.local:8080`, etc. (requires `/etc/hosts` entries).

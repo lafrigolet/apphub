@@ -17,6 +17,8 @@ const envSchema = z.object({
   DATABASE_URL_MESSAGING:         z.string().url(),
   DATABASE_URL_SHIPPING:          z.string().url(),
   DATABASE_URL_DISPUTES:          z.string().url(),
+  DATABASE_URL_CATALOG:           z.string().url(),
+  // basket has no DATABASE_URL — it's a Redis-only module.
 
   // Cross-container HTTP base URL. Some marketplace modules (reviews, disputes)
   // need to look up data on platform-core (e.g. verified-purchase check).

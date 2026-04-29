@@ -1,0 +1,26 @@
+{
+  "name": "@apphub/platform-delivery-dispatch",
+  "version": "0.1.0",
+  "description": "Delivery dispatch — riders, zones, GPS tracking, external fleet integration stubs",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "exports": { ".": "./src/index.js" },
+  "scripts": {
+    "test:unit": "vitest run --passWithNoTests",
+    "lint": "eslint src",
+    "db:migrate": "node src/lib/migrate.js"
+  },
+  "dependencies": {
+    "@apphub/platform-sdk": "workspace:*",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.0",
+    "fastify-type-provider-zod": "^4.0.0",
+    "pg": "^8.12.0",
+    "ioredis": "^5.4.1",
+    "zod": "^3.23.0",
+    "pino": "^9.3.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": { "vitest": "^2.0.0" }
+}
