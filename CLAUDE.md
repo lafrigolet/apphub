@@ -19,10 +19,11 @@ app-specific services under `apps/*/` keep their own containers.
 
 ```
 apphub/
-├── platform/                  # Platform-side services. Three monolith containers (platform-core + platform-marketplace + platform-restaurant).
+├── platform/                  # Platform-side services. Four monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments).
 │   ├── core/                  # platform-core orchestrator — port 3000 (auth/notifications/payments/tenant-config/splitpay)
 │   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes/catalog/basket)
 │   ├── restaurant/            # platform-restaurant orchestrator — port 3200 (menu/reservations/floor-plan/kds/pos/delivery-dispatch)
+│   ├── appointments/          # platform-appointments orchestrator — port 3300 (services/resources/bookings/availability/intake-forms/telehealth/packages/practitioner-payouts)
 │   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
 │   ├── payments/              # Payments module (in platform-core) — schema platform_payments
 │   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
@@ -42,6 +43,14 @@ apphub/
 │   ├── kds/                   # KDS module (in platform-restaurant) — schema platform_kds
 │   ├── pos/                   # POS module (in platform-restaurant) — schema platform_pos
 │   ├── delivery-dispatch/     # Delivery-dispatch module (in platform-restaurant) — schema platform_delivery_dispatch
+│   ├── services/              # Services catalog module (in platform-appointments) — schema platform_services
+│   ├── resources/             # Resources module (in platform-appointments) — schema platform_resources
+│   ├── bookings/              # Bookings module (in platform-appointments) — schema platform_bookings
+│   ├── availability/          # Availability module (in platform-appointments) — schema platform_availability
+│   ├── intake-forms/          # Intake-forms module (in platform-appointments) — schema platform_intake_forms
+│   ├── telehealth/            # Telehealth module (in platform-appointments) — schema platform_telehealth
+│   ├── packages/              # Packages module (in platform-appointments) — schema platform_packages
+│   ├── practitioner-payouts/  # Practitioner-payouts module (in platform-appointments) — schema platform_practitioner_payouts
 │   └── subscriptions/         # Subscriptions module (planned, slot reserved)
 ├── apps/                      # App bundles (frontends + app-specific services)
 │   ├── portal/                # AppHub admin UI — port 5173
@@ -576,6 +585,19 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Kitchen Display System | `platform/kds` | `platform_kds` | `svc_platform_kds` | ✅ Implemented |
 | POS bills / split / tips / mixed payments | `platform/pos` | `platform_pos` | `svc_platform_pos` | ✅ Implemented |
 | Delivery dispatch (riders, zones, GPS, fleet) | `platform/delivery-dispatch` | `platform_delivery_dispatch` | `svc_platform_delivery_dispatch` | ✅ Implemented |
+
+### platform-appointments (port 3300) — appointment / scheduling
+
+| Capability | Module | Schema | DB role | Status |
+|---|---|---|---|---|
+| Bookable services catalog (duration, buffers, modality) | `platform/services` | `platform_services` | `svc_platform_services` | ✅ Implemented |
+| Resources — practitioners, rooms, equipment, schedules | `platform/resources` | `platform_resources` | `svc_platform_resources` | ✅ Implemented |
+| Bookings — appointment FSM, recurrence, reschedule, waitlist | `platform/bookings` | `platform_bookings` | `svc_platform_bookings` | ✅ Implemented |
+| Availability engine — slot computation + atomic Redis holds | `platform/availability` | `platform_availability` | `svc_platform_availability` | ✅ Implemented |
+| Intake forms — pre-appointment questionnaires + signatures | `platform/intake-forms` | `platform_intake_forms` | `svc_platform_intake_forms` | ✅ Implemented |
+| Telehealth — video room provisioning + tokens | `platform/telehealth` | `platform_telehealth` | `svc_platform_telehealth` | ✅ Implemented |
+| Packages — prepaid session bundles, balance + expiry | `platform/packages` | `platform_packages` | `svc_platform_packages` | ✅ Implemented |
+| Practitioner payouts — commissions, accruals, periodic close | `platform/practitioner-payouts` | `platform_practitioner_payouts` | `svc_platform_practitioner_payouts` | ✅ Implemented |
 
 ### Planned
 

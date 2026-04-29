@@ -7,6 +7,48 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform-appointments` container + 8 appointment modules** — fourth monolith
+  container (port 3300) for appointment / scheduling workloads (clinics, salons,
+  workshops, lawyers, fitness, etc.). Same modular-monolith pattern as the other three:
+  per-module schema + dedicated DB role, shared `PLATFORM_JWT_SECRET`, cross-container
+  communication via Redis events on `platform.events`. See
+  [ADR 006](docs/adr/006-platform-appointments-monolith.md).
+  - `platform/appointments/` — orchestrator (`server.js`, `Dockerfile`, env)
+  - `platform/services/` — bookable services catalog (duration, buffers, modality,
+    cancellation policy). Publishes `service.published`, `service.deprecated`.
+  - `platform/resources/` — practitioners, rooms, equipment, vehicles, with weekly
+    work hours and ad-hoc exceptions. Publishes `resource.unavailable`.
+  - `platform/bookings/` — appointment FSM (requested→confirmed→reminded→checked_in→
+    in_progress→completed; cancelled / no_show / rescheduled), recurrence skeleton,
+    waitlist, audit trail. Publishes `booking.{requested,confirmed,reminded,
+    checked_in,in_progress,completed,cancelled,no_show,rescheduled}` and
+    `booking.waitlist.{added,notified}`.
+  - `platform/availability/` — slot computation engine. Reads work_hours, exceptions,
+    bookings and active holds; atomic holds via tstzrange overlap checks. Publishes
+    `availability.{held,released}`.
+  - `platform/intake-forms/` — form templates (versioned), submissions, signatures.
+    Subscribes to `booking.confirmed` to auto-create pending submissions for services
+    flagged `requires_intake_form`. Publishes `intake.{requested,submitted}`.
+  - `platform/telehealth/` — provider-agnostic video room provisioning (stub generates
+    opaque ids/urls/tokens; Daily.co/Twilio/Jitsi integration is a drop-in
+    replacement). Auto-provisions a room when a `telehealth`/`hybrid` booking is
+    confirmed. Publishes `telehealth.room.{created,ended}`.
+  - `platform/packages/` — prepaid session bundles ("10 sesiones por 400€") with
+    balance tracking, validity expiry, automatic redemption on `booking.completed`
+    and refund on `booking.cancelled` / `booking.no_show`. Publishes
+    `package.{purchased,exhausted}`.
+  - `platform/practitioner-payouts/` — commission rules per (practitioner, service),
+    accruals on `booking.completed` (split evenly across attached practitioner
+    resources), reversals on cancellation/no_show, periodic close into `payouts`.
+    Publishes `payout.{created,paid}`.
+  - `infra/postgres/init/01_platform_schemas.sql` — 8 new schemas + 8 dedicated roles.
+  - `infra/nginx/snippets/platform-routes.conf` — 8 new `location /api/<module>/`
+    blocks proxying to a new `platform_appointments` upstream.
+  - `infra/nginx/conf.d/upstream.conf` — new `upstream platform_appointments`.
+  - `docker-compose.yml` — new `platform-appointments` service with per-module
+    `DATABASE_URL_*` + JWT secret + volume mounts for the 8 modules.
+  - `.env.example` — 8 `SVC_PLATFORM_<MODULE>_DB_PASSWORD` entries.
+
 - **`platform-restaurant` container + 6 restaurant modules** — third monolith container
   (port 3200) hosting **menu, reservations, floor-plan, kds, pos, delivery-dispatch**.
   Same modular-monolith pattern as `platform-core` / `platform-marketplace`: per-module

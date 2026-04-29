@@ -189,6 +189,57 @@ services:
       redis:    { condition: service_healthy }
 
 
+  # ── Platform-appointments: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts ──
+  platform-appointments:
+    build:
+      context: .
+      dockerfile: platform/appointments/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '3300:3300'
+    environment:
+      NODE_ENV: development
+      PLATFORM_APPOINTMENTS_PORT: 3300
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      EXPECTED_APP_ID: platform
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      PLATFORM_CORE_URL: http://platform-core:3000
+      PLATFORM_MARKETPLACE_URL: http://platform-marketplace:3100
+      DATABASE_URL_SERVICES:             postgresql://svc_platform_services:platform_services_secret@postgres:5432/splitpay
+      DATABASE_URL_RESOURCES:            postgresql://svc_platform_resources:platform_resources_secret@postgres:5432/splitpay
+      DATABASE_URL_BOOKINGS:             postgresql://svc_platform_bookings:platform_bookings_secret@postgres:5432/splitpay
+      DATABASE_URL_AVAILABILITY:         postgresql://svc_platform_availability:platform_availability_secret@postgres:5432/splitpay
+      DATABASE_URL_INTAKE_FORMS:         postgresql://svc_platform_intake_forms:platform_intake_forms_secret@postgres:5432/splitpay
+      DATABASE_URL_TELEHEALTH:           postgresql://svc_platform_telehealth:platform_telehealth_secret@postgres:5432/splitpay
+      DATABASE_URL_PACKAGES:             postgresql://svc_platform_packages:platform_packages_secret@postgres:5432/splitpay
+      DATABASE_URL_PRACTITIONER_PAYOUTS: postgresql://svc_platform_practitioner_payouts:platform_practitioner_payouts_secret@postgres:5432/splitpay
+    volumes:
+      - ./platform/appointments/src:/app/platform/appointments/src:ro
+      - ./platform/services/src:/app/platform/services/src:ro
+      - ./platform/services/migrations:/app/platform/services/migrations:ro
+      - ./platform/resources/src:/app/platform/resources/src:ro
+      - ./platform/resources/migrations:/app/platform/resources/migrations:ro
+      - ./platform/bookings/src:/app/platform/bookings/src:ro
+      - ./platform/bookings/migrations:/app/platform/bookings/migrations:ro
+      - ./platform/availability/src:/app/platform/availability/src:ro
+      - ./platform/availability/migrations:/app/platform/availability/migrations:ro
+      - ./platform/intake-forms/src:/app/platform/intake-forms/src:ro
+      - ./platform/intake-forms/migrations:/app/platform/intake-forms/migrations:ro
+      - ./platform/telehealth/src:/app/platform/telehealth/src:ro
+      - ./platform/telehealth/migrations:/app/platform/telehealth/migrations:ro
+      - ./platform/packages/src:/app/platform/packages/src:ro
+      - ./platform/packages/migrations:/app/platform/packages/migrations:ro
+      - ./platform/practitioner-payouts/src:/app/platform/practitioner-payouts/src:ro
+      - ./platform/practitioner-payouts/migrations:/app/platform/practitioner-payouts/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+
   # ── AppHub admin portal ────────────────────────────────────────
   portal:
     build:
@@ -337,6 +388,7 @@ services:
       platform-core:           { condition: service_started }
       platform-marketplace:    { condition: service_started }
       platform-restaurant:     { condition: service_started }
+      platform-appointments:   { condition: service_started }
       portal:                  { condition: service_started }
       yoga-studio:             { condition: service_started }
       splitpay-portal:         { condition: service_started }

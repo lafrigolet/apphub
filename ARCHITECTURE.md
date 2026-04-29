@@ -191,6 +191,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay | 3000 |
 | `platform-marketplace` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes + catalog + basket | 3100 |
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
+| `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
 | `yoga-studio` | All 5 yoga services + yoga-portal via PM2 | 3011–3014, 3017, 5174 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
@@ -200,13 +201,15 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `redis` | Redis 7 | 6379 |
 | `nginx` | NGINX gateway | 8080 |
 
-The **three monolith containers** (`platform-core`, `platform-marketplace` and
-`platform-restaurant`) follow the same pattern: each owns a domain, exposes a single port,
-hosts its modules in-process, runs each module's migrations on boot, and shares the same
-Postgres + Redis instances. Cross-container communication is by Redis events (`platform.events`
-channel) and shared `PLATFORM_JWT_SECRET` so JWTs are accepted on all of them. See
-[ADR 004](docs/adr/004-domain-separated-monolith-containers.md) for the rationale and
-[ADR 005](docs/adr/005-platform-restaurant-monolith.md) for the restaurant-domain split.
+The **four monolith containers** (`platform-core`, `platform-marketplace`,
+`platform-restaurant` and `platform-appointments`) follow the same pattern: each owns a
+domain, exposes a single port, hosts its modules in-process, runs each module's migrations
+on boot, and shares the same Postgres + Redis instances. Cross-container communication is
+by Redis events (`platform.events` channel) and shared `PLATFORM_JWT_SECRET` so JWTs are
+accepted on all of them. See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md)
+for the rationale, [ADR 005](docs/adr/005-platform-restaurant-monolith.md) for the
+restaurant split, and [ADR 006](docs/adr/006-platform-appointments-monolith.md) for the
+appointments split.
 
 All yoga services and their portal share one container managed by PM2. Internal
 service-to-service calls within yoga-studio use `http://localhost:<port>`.
@@ -222,7 +225,8 @@ service-to-service calls within yoga-studio use `http://localhost:<port>`.
 | 3030–3099 | Future app services |
 | 3100 | platform-marketplace |
 | 3200 | platform-restaurant |
-| 3300+ | Future domain monoliths |
+| 3300 | platform-appointments |
+| 3400+ | Future domain monoliths |
 | 5173 | AppHub admin portal |
 | 5174 | Yoga Studio portal (inside `yoga-studio` container) |
 | 5175 | Split Pay portal |
@@ -240,3 +244,4 @@ ADRs are stored in `docs/adr/`. Current decisions:
 | 003 | Dynamic NGINX routing via Redis sidecar |
 | 004 | Domain-separated monolith containers (platform-core + platform-marketplace) |
 | 005 | platform-restaurant: third domain monolith for restaurant operations |
+| 006 | platform-appointments: fourth domain monolith for appointment / scheduling |
