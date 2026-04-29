@@ -1,15 +1,20 @@
 {
   "name": "@apphub/platform-kds",
   "version": "0.1.0",
-  "description": "Kitchen Display System — tickets per station, coursing, bump bar",
+  "description": "Kitchen Display System \u2014 tickets per station, coursing, bump bar",
   "private": true,
   "type": "module",
   "main": "src/index.js",
-  "exports": { ".": "./src/index.js" },
+  "exports": {
+    ".": "./src/index.js"
+  },
   "scripts": {
-    "test:unit": "vitest run --passWithNoTests",
+    "test:unit": "vitest run",
     "lint": "eslint src",
-    "db:migrate": "node src/lib/migrate.js"
+    "db:migrate": "node src/lib/migrate.js",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.js"
   },
   "dependencies": {
     "@apphub/platform-sdk": "workspace:*",
@@ -22,5 +27,8 @@
     "pino": "^9.3.0",
     "uuid": "^10.0.0"
   },
-  "devDependencies": { "vitest": "^2.0.0" }
+  "devDependencies": {
+    "vitest": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0"
+  }
 }

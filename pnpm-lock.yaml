@@ -786,6 +786,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -820,6 +823,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -854,6 +860,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -888,6 +897,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -922,6 +934,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1026,6 +1041,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1060,6 +1078,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1143,6 +1164,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1226,6 +1250,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1260,6 +1287,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1358,6 +1388,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1392,6 +1425,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)

@@ -6,10 +6,13 @@ import { ConflictError, NotFoundError, ValidationError } from '../utils/errors.j
 const TAX_RATE = 0.10 // default 10%; tenants override via metadata.taxRate
 
 function computeTotals(items, tipCents = 0, taxRate = TAX_RATE) {
-  const subtotal = items.reduce((s, it) => s + it.unit_price_cents * it.qty, 0)
+  // Postgres returns BIGINT as a string, so coerce every numeric input through
+  // Number() to avoid string concatenation in the total below.
+  const tip      = Number(tipCents) || 0
+  const subtotal = items.reduce((s, it) => s + Number(it.unit_price_cents) * Number(it.qty), 0)
   const tax      = Math.round(subtotal * taxRate)
-  const total    = subtotal + tax + tipCents
-  return { subtotal, tax, tip: tipCents, total }
+  const total    = subtotal + tax + tip
+  return { subtotal, tax, tip, total }
 }
 
 export async function openBill(ctx, body) {
