@@ -150,20 +150,24 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 
 | Docker service | What runs inside | Ports |
 |---|---|---|
-| `platform-auth` | platform/auth — email+OAuth JWT auth | 3000 |
-| `platform-payments` | platform/payments — Stripe gateway | 3001 |
-| `platform-notifications` | platform/notifications — email (SendGrid) + Redis consumer | 3002 |
-| `platform-catalog` | platform/catalog — product catalogue | 3003 |
-| `platform-basket` | platform/basket — shopping cart (Redis-only) | 3004 |
-| `platform-tenant-config` | platform/tenant-config — app & tenant registry | 3005 |
+| `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay | 3000 |
+| `platform-marketplace` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes | 3100 |
+| `platform-catalog` | platform/catalog — product catalogue (standalone) | 3003 |
+| `platform-basket` | platform/basket — shopping cart (Redis-only, standalone) | 3004 |
 | `yoga-studio` | All 5 yoga services + yoga-portal via PM2 | 3011–3014, 3017, 5174 |
-| `splitpay` | platform/splitpay (Node) | 3020 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
 | `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |
+| `voragine-console-portal` | Voragine staff console (Vite dev) | 5177 |
 | `postgres` | PostgreSQL 16 | 5432 |
 | `redis` | Redis 7 | 6379 |
 | `nginx` | NGINX gateway | 8080 |
+
+The **two monolith containers** (`platform-core` and `platform-marketplace`) follow the same
+pattern: each owns a domain, exposes a single port, hosts its modules in-process, runs each
+module's migrations on boot, and shares the same Postgres + Redis instances. Cross-container
+communication is by Redis events (`platform.events` channel) and shared `PLATFORM_JWT_SECRET`
+so JWTs are accepted on both. See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md).
 
 All yoga services and their portal share one container managed by PM2. Internal
 service-to-service calls within yoga-studio use `http://localhost:<port>`.

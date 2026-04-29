@@ -1,0 +1,35 @@
+# ── Platform services ──────────────────────────────────────────
+# platform_core: the modular monolith hosting auth + notifications + payments
+# + tenant-config + splitpay modules. Most /api/<module>/ routes in
+# platform-routes.conf proxy here. Adding/removing a module is purely a
+# code change inside platform-core — this upstream stays.
+#
+# platform_catalog and platform_basket are still standalone containers
+# (not yet integrated into platform-core).
+upstream platform_core          { server platform-core:3000; }
+upstream platform_catalog       { server platform-catalog:3003; }
+upstream platform_basket        { server platform-basket:3004; }
+
+# ── AppHub admin portal ────────────────────────────────────────
+upstream apphub_portal          { server portal:5173; }
+
+# ── Yoga Studio — all in one container (PM2) ───────────────────
+
+upstream yoga_portal            { server yoga-studio:5174; }
+upstream yoga_users             { server yoga-studio:3011; }
+upstream yoga_classes           { server yoga-studio:3012; }
+upstream yoga_bookings          { server yoga-studio:3013; }
+upstream yoga_bonuses           { server yoga-studio:3014; }
+upstream yoga_reporting         { server yoga-studio:3017; }
+# auth → platform_auth | payments → platform_payments | notifications → platform_notifications
+
+# ── Aikikan ────────────────────────────────────────────────────
+upstream aikikan_portal         { server aikikan-portal:5176; }
+
+# ── Split Pay ──────────────────────────────────────────────────
+upstream splitpay_portal        { server splitpay-portal:5175; }
+# splitpay_core was a standalone container; the splitpay module now ships
+# inside platform_core (mounted under /v1/splitpay/*).
+
+# ── Voragine Console ───────────────────────────────────────────
+upstream voragine_console_portal { server voragine-console-portal:5177; }

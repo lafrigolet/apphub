@@ -7,6 +7,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform-marketplace` container + 6 marketplace modules** — new monolith container
+  (port 3100) hosting **orders, inventory, reviews, messaging, shipping, disputes**.
+  Mirror architecture of `platform-core`: per-module schema + dedicated DB role,
+  in-process module loading, shared `PLATFORM_JWT_SECRET` so JWTs are accepted across both
+  containers, cross-container communication via Redis events on `platform.events`.
+  See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md).
+  - `platform/marketplace/` — orchestrator (`server.js`, `Dockerfile`, env)
+  - `platform/{orders,inventory,reviews,messaging,shipping,disputes}/` — the 6 modules,
+    each with own `register({app,db,redis})` and `runMigrations(superuserUrl)`
+  - `infra/postgres/init/01_platform_schemas.sql` — 6 new schemas + 6 dedicated roles
+  - `infra/nginx/snippets/platform-routes.conf` — 6 new `location /api/<module>/` blocks
+    proxying to `platform_marketplace` upstream
+  - `infra/nginx/conf.d/upstream.conf` — new `upstream platform_marketplace`
+  - `docker-compose.yml` — new `platform-marketplace` service with per-module DATABASE_URL_*
+  - Event flow demonstrated end-to-end: `order.created` → inventory reserves stock,
+    `order.paid` → inventory commits + shipping creates shipment, `shipping.shipment.delivered`
+    → orders advances to `delivered`, `splitpay.chargeback.created` → disputes escalates.
+
 - **`scripts/bootstrap.sh`** — first-boot bootstrap of an empty platform.
   Creates the first super_admin user (`POST /v1/auth/register`), verifies
   login, and registers the `platform` app in the registry. Idempotent.

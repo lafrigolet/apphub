@@ -19,16 +19,23 @@ app-specific services under `apps/*/` keep their own containers.
 
 ```
 apphub/
-├── platform/                  # Platform-side services (some are modules of platform-core, others are standalone containers)
-│   ├── core/                  # Orchestrator: loads modules, runs migrations, listens on 3000
+├── platform/                  # Platform-side services. Two monolith containers + a few standalone holdouts.
+│   ├── core/                  # platform-core orchestrator — port 3000 (auth/notifications/payments/tenant-config/splitpay)
+│   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes)
 │   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
 │   ├── payments/              # Payments module (in platform-core) — schema platform_payments
 │   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
 │   ├── tenant-config/         # Tenant-config module (in platform-core) — schema platform_tenants
+│   ├── splitpay/              # Splitpay module (in platform-core) — schema splitpay_core
+│   ├── orders/                # Orders module (in platform-marketplace) — schema platform_orders
+│   ├── inventory/             # Inventory module (in platform-marketplace) — schema platform_inventory
+│   ├── reviews/               # Reviews module (in platform-marketplace) — schema platform_reviews
+│   ├── messaging/             # Messaging module (in platform-marketplace) — schema platform_messaging
+│   ├── shipping/              # Shipping module (in platform-marketplace) — schema platform_shipping
+│   ├── disputes/              # Disputes module (in platform-marketplace) — schema platform_disputes
 │   ├── catalog/               # Catalog — standalone container, port 3003
 │   ├── basket/                # Basket — standalone container, port 3004 (Redis-only)
-│   ├── splitpay/              # Split Pay core (Stripe Connect) — standalone container, port 3020
-│   └── subscriptions/         # Subscriptions module (planned)
+│   └── subscriptions/         # Subscriptions module (planned, slot reserved)
 ├── apps/                      # App bundles (frontends + app-specific services)
 │   ├── portal/                # AppHub admin UI — port 5173
 │   ├── yoga-studio/           # Yoga Studio app — ports 3011–3017, 5174
@@ -525,18 +532,43 @@ grep -r "from '../../data/mock'" apps/<name>/<name>-portal/src/views/
 
 ## Platform module registry
 
-All modules listed below ship inside the single `platform-core` container (port 3000).
-Before adding any new horizontal capability, check whether it already exists:
+apphub ships **two monolith containers**, each hosting a coherent domain.
+See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md) for the rationale.
+Before adding any new horizontal capability, check whether it already exists in one of them.
+
+### platform-core (port 3000) — horizontal infrastructure
 
 | Capability | Module | Schema | DB role | Status |
 |---|---|---|---|---|
 | Auth (email/password + OAuth) | `platform/auth` | `platform_auth` | `svc_platform_auth` | ✅ Implemented |
 | Stripe payments | `platform/payments` | `platform_payments` | `svc_platform_payments` | 🔧 Skeleton |
 | Email / push notifications | `platform/notifications` | `platform_notifications` | `svc_platform_notifications` | ✅ Implemented |
+| App & tenant registry | `platform/tenant-config` | `platform_tenants` | `svc_platform_tenants` | ✅ Implemented |
+| Stripe Connect (split payments) | `platform/splitpay` | `splitpay_core` | `splitpay` (shared) | ✅ Implemented |
+
+### platform-marketplace (port 3100) — marketplace transactions
+
+| Capability | Module | Schema | DB role | Status |
+|---|---|---|---|---|
+| Orders (persistent ledger) | `platform/orders` | `platform_orders` | `svc_platform_orders` | ✅ Implemented |
+| Inventory (stock by SKU) | `platform/inventory` | `platform_inventory` | `svc_platform_inventory` | ✅ Implemented |
+| Reviews (verified + replies) | `platform/reviews` | `platform_reviews` | `svc_platform_reviews` | ✅ Implemented |
+| Messaging (buyer ↔ vendor) | `platform/messaging` | `platform_messaging` | `svc_platform_messaging` | ✅ Implemented |
+| Shipping (zones, rates, tracking) | `platform/shipping` | `platform_shipping` | `svc_platform_shipping` | ✅ Implemented |
+| Disputes (operational, pre-chargeback) | `platform/disputes` | `platform_disputes` | `svc_platform_disputes` | ✅ Implemented |
+
+### Standalone (legacy, not yet folded into a monolith)
+
+| Capability | Module | Schema | DB role | Status |
+|---|---|---|---|---|
 | Product & service catalogue | `platform/catalog` | `platform_catalog` | `svc_platform_catalog` | 🔧 Skeleton |
 | Shopping cart (Redis-only) | `platform/basket` | — | — | 🔧 Skeleton |
-| App & tenant registry | `platform/tenant-config` | `platform_tenants` | `svc_platform_tenants` | 🔧 Skeleton |
-| Subscriptions / recurring billing | `platform/subscriptions` | `platform_subscriptions` | `svc_platform_subscriptions` | 📋 Planned |
+
+### Planned
+
+| Capability | Module | Status |
+|---|---|---|
+| Subscriptions / recurring billing | `platform/subscriptions` | 📋 Planned (slot reserved in platform-core) |
 
 **OAuth providers supported by the `auth` module:** Google (`credential` id_token), Facebook (`accessToken`).
 Routes: `POST /v1/auth/oauth/google`, `POST /v1/auth/oauth/facebook`.

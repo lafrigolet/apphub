@@ -89,6 +89,54 @@ services:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
 
+  # ── Platform Marketplace (modular monolith — port 3100) ─────────
+  # Hosts marketplace modules (orders, inventory, reviews, messaging,
+  # shipping, disputes). Communicates with platform-core via Redis events
+  # and shared PLATFORM_JWT_SECRET (so JWTs issued by auth on platform-core
+  # are accepted here without round-trip).
+  platform-marketplace:
+    build:
+      context: .
+      dockerfile: platform/marketplace/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '3100:3100'
+    environment:
+      NODE_ENV: development
+      PLATFORM_MARKETPLACE_PORT: 3100
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      EXPECTED_APP_ID: platform
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      PLATFORM_CORE_URL: http://platform-core:3000
+      # Per-module DATABASE_URLs — one Pool per module, each with its dedicated DB role
+      DATABASE_URL_ORDERS:    postgresql://svc_platform_orders:platform_orders_secret@postgres:5432/splitpay
+      DATABASE_URL_INVENTORY: postgresql://svc_platform_inventory:platform_inventory_secret@postgres:5432/splitpay
+      DATABASE_URL_REVIEWS:   postgresql://svc_platform_reviews:platform_reviews_secret@postgres:5432/splitpay
+      DATABASE_URL_MESSAGING: postgresql://svc_platform_messaging:platform_messaging_secret@postgres:5432/splitpay
+      DATABASE_URL_SHIPPING:  postgresql://svc_platform_shipping:platform_shipping_secret@postgres:5432/splitpay
+      DATABASE_URL_DISPUTES:  postgresql://svc_platform_disputes:platform_disputes_secret@postgres:5432/splitpay
+    volumes:
+      - ./platform/marketplace/src:/app/platform/marketplace/src:ro
+      - ./platform/orders/src:/app/platform/orders/src:ro
+      - ./platform/orders/migrations:/app/platform/orders/migrations:ro
+      - ./platform/inventory/src:/app/platform/inventory/src:ro
+      - ./platform/inventory/migrations:/app/platform/inventory/migrations:ro
+      - ./platform/reviews/src:/app/platform/reviews/src:ro
+      - ./platform/reviews/migrations:/app/platform/reviews/migrations:ro
+      - ./platform/messaging/src:/app/platform/messaging/src:ro
+      - ./platform/messaging/migrations:/app/platform/messaging/migrations:ro
+      - ./platform/shipping/src:/app/platform/shipping/src:ro
+      - ./platform/shipping/migrations:/app/platform/shipping/migrations:ro
+      - ./platform/disputes/src:/app/platform/disputes/src:ro
+      - ./platform/disputes/migrations:/app/platform/disputes/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
   platform-catalog:
     build:
       context: .
@@ -278,6 +326,7 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       platform-core:           { condition: service_started }
+      platform-marketplace:    { condition: service_started }
       platform-catalog:        { condition: service_started }
       platform-basket:         { condition: service_started }
       portal:                  { condition: service_started }
