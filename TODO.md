@@ -299,7 +299,7 @@
 
 ## Top 10 prioridades por impacto
 
-1. [ ] **Scheduler/cron** — desbloquea recurrencias, recordatorios, expiry, close-period en 5+ módulos
+1. [x] **Scheduler/cron** — desbloquea recurrencias, recordatorios, expiry, close-period en 5+ módulos
 2. [ ] **Object storage** — fotos, PDFs, attachments en 6+ módulos
 3. [ ] **`payments` real** — `pos.payBill`, `packages.purchase`, `bookings.deposit` no cobran
 4. [ ] **`telehealth` provider real** — el stub no funciona en producción

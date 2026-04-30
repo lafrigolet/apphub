@@ -7,6 +7,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform-scheduler` container** — fifth monolith (port 3400), single-runner
+  cron service that polls Postgres and publishes scheduled events to the other
+  4 monoliths over `platform.events`. See
+  [ADR 007](docs/adr/007-platform-scheduler.md). Ships 9 jobs:
+  - `availability-hold-purge` (`* * * * *`) — DELETE expired holds
+  - `booking-reminders` (`*/5 * * * *`) — publish `booking.reminder.due` (T-24h, T-2h)
+  - `booking-recurrence-expander` (`0 * * * *`) — materialize recurrences 30 days ahead
+  - `reservation-reminders` (`*/5 * * * *`) — publish `reservation.reminder.due`
+  - `package-expiry-warning` (`0 8 * * *`) — publish `package.expiring` (T-30d, T-7d)
+  - `package-expiry-transition` (`30 0 * * *`) — flip active → expired
+  - `practitioner-payout-close` (`0 2 * * *`) — publish `payout.period_due` per schedule
+  - `dispute-sla` (`*/30 * * * *`) — publish `dispute.sla_breached` (>48h no vendor reply)
+  - `basket-abandoned` (`0 * * * *`) — publish `basket.abandoned` for idle baskets
+  - **Postgres advisory locks** wrap each job to skip overlapping ticks.
+  - **Audit table** `platform_scheduler.runs` stores every run's status/timing/error.
+  - **Admin API** (internal-only) `/v1/scheduler/jobs`, `/v1/scheduler/runs`,
+    `/v1/scheduler/jobs/:name/run` for staff.
+  - New schema `platform_scheduler` + role `svc_platform_scheduler` (BYPASSRLS,
+    minimal cross-schema GRANTs).
+  - Idempotency columns on client modules:
+    `bookings.reminder_{24h,2h}_sent_at`, `reservations.reminder_{24h,2h}_sent_at`,
+    `packages.warning_{30d,7d}_sent_at`, `disputes.sla_breached_at`.
+  - New table `platform_practitioner_payouts.payout_schedules`
+    (period weekly/biweekly/monthly + next_run_at).
+  - Event consumers extended:
+    `notifications` handles `booking.reminder.due`, `reservation.reminder.due`,
+    `package.expiring`, `dispute.sla_breached`;
+    `practitioner-payouts` handles `payout.period_due`;
+    `disputes` handles `dispute.sla_breached`.
+
 - **`platform-appointments` container + 8 appointment modules** — fourth monolith
   container (port 3300) for appointment / scheduling workloads (clinics, salons,
   workshops, lawyers, fitness, etc.). Same modular-monolith pattern as the other three:

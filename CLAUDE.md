@@ -19,11 +19,12 @@ app-specific services under `apps/*/` keep their own containers.
 
 ```
 apphub/
-├── platform/                  # Platform-side services. Four monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments).
+├── platform/                  # Platform-side services. Five monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments + platform-scheduler).
 │   ├── core/                  # platform-core orchestrator — port 3000 (auth/notifications/payments/tenant-config/splitpay)
 │   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes/catalog/basket)
 │   ├── restaurant/            # platform-restaurant orchestrator — port 3200 (menu/reservations/floor-plan/kds/pos/delivery-dispatch)
 │   ├── appointments/          # platform-appointments orchestrator — port 3300 (services/resources/bookings/availability/intake-forms/telehealth/packages/practitioner-payouts)
+│   ├── scheduler/             # platform-scheduler — port 3400, single-runner cron for all 4 monoliths
 │   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
 │   ├── payments/              # Payments module (in platform-core) — schema platform_payments
 │   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
@@ -598,6 +599,28 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Telehealth — video room provisioning + tokens | `platform/telehealth` | `platform_telehealth` | `svc_platform_telehealth` | ✅ Implemented |
 | Packages — prepaid session bundles, balance + expiry | `platform/packages` | `platform_packages` | `svc_platform_packages` | ✅ Implemented |
 | Practitioner payouts — commissions, accruals, periodic close | `platform/practitioner-payouts` | `platform_practitioner_payouts` | `svc_platform_practitioner_payouts` | ✅ Implemented |
+
+### platform-scheduler (port 3400) — single-runner cron
+
+Cron-as-a-service container that polls Postgres + Redis and publishes events to
+the other 4 monoliths. Runs as `replicas: 1` to guarantee exactly-once. Each
+job uses Postgres advisory locks to skip overlapping ticks. Has its own role
+`svc_platform_scheduler` with `BYPASSRLS` and minimal cross-schema GRANTs.
+No public NGINX route in V1; admin endpoints (`/v1/scheduler/jobs`,
+`/v1/scheduler/runs`, `/v1/scheduler/jobs/:name/run`) are reachable only over
+the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
+
+| Job | Cron | Effect |
+|---|---|---|
+| `availability-hold-purge` | `* * * * *` | DELETE expired holds |
+| `booking-reminders` | `*/5 * * * *` | publish `booking.reminder.due` (T-24h, T-2h) |
+| `booking-recurrence-expander` | `0 * * * *` | materialize recurrent bookings 30 days ahead |
+| `reservation-reminders` | `*/5 * * * *` | publish `reservation.reminder.due` |
+| `package-expiry-warning` | `0 8 * * *` | publish `package.expiring` (T-30d, T-7d) |
+| `package-expiry-transition` | `30 0 * * *` | flip active → expired |
+| `practitioner-payout-close` | `0 2 * * *` | publish `payout.period_due` per schedule |
+| `dispute-sla` | `*/30 * * * *` | publish `dispute.sla_breached` (>48h no vendor reply) |
+| `basket-abandoned` | `0 * * * *` | publish `basket.abandoned` for idle baskets |
 
 ### Planned
 

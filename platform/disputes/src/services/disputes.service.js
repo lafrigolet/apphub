@@ -90,3 +90,22 @@ export async function handleEvent(event) {
     logger.warn({ err, type: event.type }, 'disputes event handler error')
   }
 }
+
+// Event consumer for scheduler-driven SLA breach. Moves an 'open' dispute
+// without vendor reply to 'investigating' so staff sees it in the queue;
+// the actual SLA-flag stamp on the row is owned by the scheduler so this
+// handler is just a status nudge.
+export async function handleSlaBreached(event) {
+  try {
+    const p = event.payload ?? {}
+    if (!p.appId || !p.tenantId || !p.disputeId) return
+    const ctx = { appId: p.appId, tenantId: p.tenantId, subTenantId: null, userId: null, role: 'system' }
+    await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+      const dispute = await repo.findById(c, ctx.appId, ctx.tenantId, p.disputeId)
+      if (!dispute || dispute.status !== 'open') return
+      await repo.updateStatus(c, ctx.appId, ctx.tenantId, p.disputeId, { status: 'investigating' })
+    })
+  } catch (err) {
+    logger.warn({ err }, 'handleSlaBreached error')
+  }
+}

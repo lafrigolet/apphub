@@ -1,0 +1,30 @@
+import * as availabilityHoldPurge        from './availability-hold-purge.job.js'
+import * as bookingReminders               from './booking-reminders.job.js'
+import * as bookingRecurrenceExpander      from './booking-recurrence-expander.job.js'
+import * as reservationReminders           from './reservation-reminders.job.js'
+import * as packageExpiryWarning           from './package-expiry-warning.job.js'
+import * as packageExpiryTransition        from './package-expiry-transition.job.js'
+import * as practitionerPayoutClose        from './practitioner-payout-close.job.js'
+import * as disputeSla                     from './dispute-sla.job.js'
+import * as basketAbandoned                from './basket-abandoned.job.js'
+
+import { env } from '../lib/env.js'
+
+// Each job declares its own name + cron expression in its `meta` export. The
+// orchestrator reads `enabled` from env to flip individual jobs at deploy
+// time without code changes.
+export const jobs = [
+  { mod: availabilityHoldPurge,      enabled: env.JOB_AVAILABILITY_HOLD_PURGE_ENABLED },
+  { mod: bookingReminders,            enabled: env.JOB_BOOKING_REMINDERS_ENABLED },
+  { mod: bookingRecurrenceExpander,   enabled: env.JOB_BOOKING_RECURRENCE_EXPANDER_ENABLED },
+  { mod: reservationReminders,        enabled: env.JOB_RESERVATION_REMINDERS_ENABLED },
+  { mod: packageExpiryWarning,        enabled: env.JOB_PACKAGE_EXPIRY_WARNING_ENABLED },
+  { mod: packageExpiryTransition,     enabled: env.JOB_PACKAGE_EXPIRY_TRANSITION_ENABLED },
+  { mod: practitionerPayoutClose,     enabled: env.JOB_PRACTITIONER_PAYOUT_CLOSE_ENABLED },
+  { mod: disputeSla,                  enabled: env.JOB_DISPUTE_SLA_ENABLED },
+  { mod: basketAbandoned,             enabled: env.JOB_BASKET_ABANDONED_ENABLED },
+].map((j) => ({
+  meta:    j.mod.meta,
+  run:     j.mod.run,
+  enabled: j.enabled,
+}))

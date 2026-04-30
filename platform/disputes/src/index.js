@@ -19,9 +19,15 @@ export async function register({ app, db, redis, logger }) {
     subscribe(async (_channel, raw) => {
       let event
       try { event = JSON.parse(raw) } catch { return }
-      if (event.type !== 'splitpay.chargeback.created') return
-      await service.handleEvent(event)
+      if (event.type === 'splitpay.chargeback.created') {
+        await service.handleEvent(event)
+        return
+      }
+      if (event.type === 'dispute.sla_breached') {
+        await service.handleSlaBreached(event)
+        return
+      }
     })
-    logger?.info('disputes subscribed to splitpay.chargeback.created')
+    logger?.info('disputes subscribed to splitpay.chargeback.created + dispute.sla_breached')
   })
 }

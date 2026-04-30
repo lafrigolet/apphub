@@ -33,6 +33,9 @@ CREATE SCHEMA IF NOT EXISTS platform_telehealth;
 CREATE SCHEMA IF NOT EXISTS platform_packages;
 CREATE SCHEMA IF NOT EXISTS platform_practitioner_payouts;
 
+-- platform-scheduler schema
+CREATE SCHEMA IF NOT EXISTS platform_scheduler;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -117,6 +120,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_practitioner_payouts') THEN
     CREATE ROLE svc_platform_practitioner_payouts LOGIN PASSWORD 'platform_practitioner_payouts_secret';
   END IF;
+
+  -- platform-scheduler role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_scheduler') THEN
+    CREATE ROLE svc_platform_scheduler LOGIN PASSWORD 'platform_scheduler_secret';
+  END IF;
 END
 $$;
 
@@ -152,6 +160,9 @@ GRANT USAGE ON SCHEMA platform_intake_forms         TO svc_platform_intake_forms
 GRANT USAGE ON SCHEMA platform_telehealth           TO svc_platform_telehealth;
 GRANT USAGE ON SCHEMA platform_packages             TO svc_platform_packages;
 GRANT USAGE ON SCHEMA platform_practitioner_payouts TO svc_platform_practitioner_payouts;
+
+-- USAGE grants (platform-scheduler)
+GRANT USAGE ON SCHEMA platform_scheduler            TO svc_platform_scheduler;
 
 -- DML default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
@@ -211,6 +222,10 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_packages
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_practitioner_payouts
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_practitioner_payouts;
 
+-- DML default privs (platform-scheduler)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_scheduler
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_scheduler;
+
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_auth;
@@ -268,3 +283,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_packages
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_packages;
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_practitioner_payouts
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_practitioner_payouts;
+
+-- Sequence default privs (platform-scheduler)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_scheduler
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_scheduler;

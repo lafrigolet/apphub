@@ -192,6 +192,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `platform-marketplace` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes + catalog + basket | 3100 |
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
 | `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
+| `platform-scheduler` | Single-runner cron for all 4 monoliths (9 jobs: hold purge, reminders, recurrence expander, expiry warnings, payout close, SLA breach, abandoned cart) | 3400 |
 | `yoga-studio` | All 5 yoga services + yoga-portal via PM2 | 3011–3014, 3017, 5174 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
@@ -226,6 +227,7 @@ service-to-service calls within yoga-studio use `http://localhost:<port>`.
 | 3100 | platform-marketplace |
 | 3200 | platform-restaurant |
 | 3300 | platform-appointments |
+| 3400 | platform-scheduler |
 | 3400+ | Future domain monoliths |
 | 5173 | AppHub admin portal |
 | 5174 | Yoga Studio portal (inside `yoga-studio` container) |
@@ -245,3 +247,4 @@ ADRs are stored in `docs/adr/`. Current decisions:
 | 004 | Domain-separated monolith containers (platform-core + platform-marketplace) |
 | 005 | platform-restaurant: third domain monolith for restaurant operations |
 | 006 | platform-appointments: fourth domain monolith for appointment / scheduling |
+| 007 | platform-scheduler: single-runner cron container for the 4 monoliths |

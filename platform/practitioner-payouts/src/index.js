@@ -19,9 +19,13 @@ export async function register({ app, db, redis, logger }) {
     subscribe(async (_channel, raw) => {
       let event
       try { event = JSON.parse(raw) } catch { return }
+      if (event.type === 'payout.period_due') {
+        await service.handleScheduledPayout(event)
+        return
+      }
       if (!['booking.completed', 'booking.cancelled', 'booking.no_show'].includes(event.type)) return
       await service.handleEvent(event)
     })
-    logger?.info('practitioner-payouts subscribed to booking.* events')
+    logger?.info('practitioner-payouts subscribed to booking.* + payout.period_due')
   })
 }

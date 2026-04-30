@@ -240,6 +240,40 @@ services:
       redis:    { condition: service_healthy }
 
 
+  # ── Platform-scheduler: cron runner for the 4 monoliths ─────────
+  platform-scheduler:
+    build:
+      context: .
+      dockerfile: platform/scheduler/Dockerfile
+      target: development
+    restart: unless-stopped
+    # No public port mapping — the admin endpoints are reached via the
+    # internal docker network from voragine-console. Exposing 3400 is OK in
+    # dev for curl checks but not strictly needed.
+    ports:
+      - '3400:3400'
+    environment:
+      NODE_ENV: development
+      PLATFORM_SCHEDULER_PORT: 3400
+      DATABASE_URL: postgresql://svc_platform_scheduler:platform_scheduler_secret@postgres:5432/splitpay
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      EXPECTED_APP_ID: platform
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+    volumes:
+      - ./platform/scheduler/src:/app/platform/scheduler/src:ro
+      - ./platform/scheduler/migrations:/app/platform/scheduler/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
+    depends_on:
+      postgres:              { condition: service_healthy }
+      redis:                 { condition: service_healthy }
+      platform-core:         { condition: service_started }
+      platform-marketplace:  { condition: service_started }
+      platform-restaurant:   { condition: service_started }
+      platform-appointments: { condition: service_started }
+
+
   # ── AppHub admin portal ────────────────────────────────────────
   portal:
     build:

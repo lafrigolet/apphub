@@ -86,6 +86,36 @@ export function computeCommission({ grossCents, ratePct, flatFeeCents = 0 }) {
   return Math.max(0, Math.round(Number(grossCents) * pct) + Number(flatFeeCents ?? 0))
 }
 
+// Event consumer for scheduled payout closure. Listens to payout.period_due
+// (published by platform-scheduler) and runs closePeriod for the schedule's
+// (practitionerId, periodStart, periodEnd). Failures are swallowed so a single
+// bad schedule doesn't block subsequent payouts.
+export async function handleScheduledPayout(event) {
+  try {
+    if (event.type !== 'payout.period_due') return
+    const p = event.payload ?? {}
+    if (!p.appId || !p.tenantId || !p.practitionerId || !p.periodStart || !p.periodEnd) return
+    const ctx = { appId: p.appId, tenantId: p.tenantId, subTenantId: null, userId: null, role: 'system' }
+    try {
+      await closePeriod(ctx, {
+        practitionerId: p.practitionerId,
+        periodStart:    p.periodStart,
+        periodEnd:      p.periodEnd,
+      })
+    } catch (err) {
+      // 'no accruals in period' is the expected no-op case for inactive
+      // practitioners — log info, not warn.
+      if (err?.code === 'CONFLICT') {
+        logger.info({ scheduleId: p.scheduleId, reason: err.message }, 'scheduled close: no accruals')
+      } else {
+        logger.warn({ err, scheduleId: p.scheduleId }, 'scheduled close failed')
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, 'handleScheduledPayout error')
+  }
+}
+
 // Event consumer: when a booking is completed (and has price), accrue commission
 // for each practitioner-resource attached to the booking.
 export async function handleEvent(event) {
