@@ -45,8 +45,12 @@ COPY apps/yoga-studio/yoga-portal/vite.config.js   ./apps/yoga-studio/yoga-porta
 COPY apps/yoga-studio/yoga-portal/tailwind.config.js ./apps/yoga-studio/yoga-portal/tailwind.config.js
 COPY apps/yoga-studio/yoga-portal/postcss.config.js  ./apps/yoga-studio/yoga-portal/postcss.config.js
 
-COPY apps/yoga-studio/ecosystem.config.cjs ./apps/yoga-studio/ecosystem.config.cjs
+COPY apps/yoga-studio/ecosystem.config.cjs      ./apps/yoga-studio/ecosystem.config.cjs
+COPY apps/yoga-studio/ecosystem.prod.config.cjs ./apps/yoga-studio/ecosystem.prod.config.cjs
 
 EXPOSE 3011 3012 3013 3014 3017 5174
 
+# Default = dev ecosystem (5 services + yoga-portal vite). In prod, the
+# compose override switches command to ecosystem.prod.config.cjs which
+# excludes yoga-portal (the portal runs as its own nginx-alpine container).
 CMD ["pm2-runtime", "apps/yoga-studio/ecosystem.config.cjs"]

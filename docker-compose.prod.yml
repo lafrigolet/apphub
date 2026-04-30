@@ -1,0 +1,102 @@
+# ─────────────────────────────────────────────────────────────────
+# Production override for docker-compose.yml.
+#
+# Use:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# What this changes vs. the default (dev) compose:
+#   - Every portal builds with target=production (multi-stage → nginx-alpine).
+#     RAM per portal drops from ~500 MB (vite dev) to ~10–20 MB (nginx static).
+#   - Source bind mounts are removed — the static bundle is baked into the
+#     image, so HMR is not possible (this is prod) and no live reloading.
+#   - Vite-dev port mappings (5173–5177) are dropped from host. The frontal
+#     gateway (nginx:8080) is the only public ingress; portals are reachable
+#     internally on :80 over the docker network.
+#   - yoga-portal is split out of the yoga-studio multi-service container
+#     into its own nginx-alpine service. yoga-studio's command switches to
+#     ecosystem.prod.config.cjs (which only runs the 5 backend services).
+#   - The frontal gateway loads upstream.prod.conf instead of upstream.conf.
+# ─────────────────────────────────────────────────────────────────
+
+services:
+  # ── AppHub admin portal (prod) ─────────────────────────────────
+  portal:
+    build:
+      target: production
+    ports: !reset []
+    volumes: !reset []
+
+  # ── Split Pay portal (prod) ────────────────────────────────────
+  splitpay-portal:
+    build:
+      target: production
+      args:
+        VITE_APP_ID: split-pay
+        # Empty → portal calls /api/* relatively, the frontal nginx
+        # routes it to the right backend by subdomain.
+        VITE_API_BASE_URL: ''
+    ports: !reset []
+    volumes: !reset []
+
+  # ── Aikikan portal (prod) ──────────────────────────────────────
+  aikikan-portal:
+    build:
+      target: production
+    ports: !reset []
+    volumes: !reset []
+
+  # ── Voragine Console portal (prod) ─────────────────────────────
+  voragine-console-portal:
+    build:
+      target: production
+    ports: !reset []
+    volumes: !reset []
+
+  # ── Yoga Studio backend services (no portal in prod) ───────────
+  yoga-studio:
+    # Portal is now its own service below. Keep only the 5 backend services
+    # alive in this PM2 container.
+    command: ['pm2-runtime', 'apps/yoga-studio/ecosystem.prod.config.cjs']
+    # !override drops the dev-only 5174 port mapping (vite-dev) and keeps
+    # only the backend service ports. Plain list would merge with dev.
+    ports: !override
+      - '3011:3011'
+      - '3012:3012'
+      - '3013:3013'
+      - '3014:3014'
+      - '3017:3017'
+    volumes: !reset []
+
+  # ── Yoga Studio portal (prod, standalone nginx-alpine) ─────────
+  yoga-portal:
+    build:
+      context: .
+      dockerfile: apps/yoga-studio/yoga-portal/Dockerfile
+      target: production
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost/_health || exit 1']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      - yoga-studio
+
+  # ── Frontal gateway: swap to prod upstream definitions ─────────
+  nginx:
+    volumes: !override
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/conf.d/upstream.prod.conf:/etc/nginx/conf.d/upstream.conf:ro
+      - ./infra/nginx/snippets:/etc/nginx/snippets:ro
+    depends_on:
+      redis:                   { condition: service_healthy }
+      platform-core:           { condition: service_started }
+      platform-marketplace:    { condition: service_started }
+      platform-restaurant:     { condition: service_started }
+      platform-appointments:   { condition: service_started }
+      portal:                  { condition: service_started }
+      yoga-studio:             { condition: service_started }
+      yoga-portal:             { condition: service_started }
+      splitpay-portal:         { condition: service_started }
+      aikikan-portal:          { condition: service_started }
+      voragine-console-portal: { condition: service_started }
