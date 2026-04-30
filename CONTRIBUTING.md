@@ -51,15 +51,31 @@
 7. Set `EXPECTED_APP_ID` to the app's `app_id` in the service environment
 8. Document new env vars in `.env.example`
 
-## Adding a new platform service
+## Adding a new platform module
 
-1. Copy any existing `platform/` service as a template
-2. Assign the next port in the 3000–3009 range
-3. Add the schema to `infra/postgres/init/01_platform_schemas.sql`
-4. Add the service to `docker-compose.yml`
-5. Add a `location` block to `infra/nginx/snippets/platform-routes.conf`
-6. Add an upstream block to `infra/nginx/conf.d/upstream.conf`
-7. Set `EXPECTED_APP_ID=platform`
+The platform side ships as **three monolith containers**: `platform-core` (port 3000),
+`platform-marketplace` (port 3100), `platform-restaurant` (port 3200). New cross-cutting
+capabilities are added as a **module** of the monolith whose domain they fit best — not
+as a new container.
+
+1. Pick the right monolith (core / marketplace / restaurant) — see the registry in
+   `CLAUDE.md`. If the new capability does not fit any existing domain, propose a fourth
+   monolith via an ADR before implementing.
+2. Copy any existing module (e.g. `platform/auth/`) as the template.
+3. Add the schema + dedicated DB role to `infra/postgres/init/01_platform_schemas.sql`.
+4. Export `register({ app, db, redis, logger })` and `runMigrations(superuserUrl)` from
+   `platform/<module>/src/index.js`.
+5. Wire the module into the chosen orchestrator's `moduleDescriptors` array
+   (`platform/{core,marketplace,restaurant}/src/server.js`).
+6. Add `DATABASE_URL_<MODULE>` and `SVC_PLATFORM_<MODULE>_DB_PASSWORD` to that
+   orchestrator's service in `docker-compose.yml`, plus a volume mount for the
+   module's source.
+7. Add an `/api/<module>/` block in `infra/nginx/snippets/platform-routes.conf` pointing
+   at the chosen orchestrator's upstream (`platform_core` / `platform_marketplace` /
+   `platform_restaurant`).
+8. Set `EXPECTED_APP_ID=platform` (already set on each orchestrator container).
+9. Update the platform module registry in `CLAUDE.md` and the services table in
+   `ARCHITECTURE.md`.
 
 ## Database migrations
 

@@ -7,6 +7,94 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform-appointments` container + 8 appointment modules** — fourth monolith
+  container (port 3300) for appointment / scheduling workloads (clinics, salons,
+  workshops, lawyers, fitness, etc.). Same modular-monolith pattern as the other three:
+  per-module schema + dedicated DB role, shared `PLATFORM_JWT_SECRET`, cross-container
+  communication via Redis events on `platform.events`. See
+  [ADR 006](docs/adr/006-platform-appointments-monolith.md).
+  - `platform/appointments/` — orchestrator (`server.js`, `Dockerfile`, env)
+  - `platform/services/` — bookable services catalog (duration, buffers, modality,
+    cancellation policy). Publishes `service.published`, `service.deprecated`.
+  - `platform/resources/` — practitioners, rooms, equipment, vehicles, with weekly
+    work hours and ad-hoc exceptions. Publishes `resource.unavailable`.
+  - `platform/bookings/` — appointment FSM (requested→confirmed→reminded→checked_in→
+    in_progress→completed; cancelled / no_show / rescheduled), recurrence skeleton,
+    waitlist, audit trail. Publishes `booking.{requested,confirmed,reminded,
+    checked_in,in_progress,completed,cancelled,no_show,rescheduled}` and
+    `booking.waitlist.{added,notified}`.
+  - `platform/availability/` — slot computation engine. Reads work_hours, exceptions,
+    bookings and active holds; atomic holds via tstzrange overlap checks. Publishes
+    `availability.{held,released}`.
+  - `platform/intake-forms/` — form templates (versioned), submissions, signatures.
+    Subscribes to `booking.confirmed` to auto-create pending submissions for services
+    flagged `requires_intake_form`. Publishes `intake.{requested,submitted}`.
+  - `platform/telehealth/` — provider-agnostic video room provisioning (stub generates
+    opaque ids/urls/tokens; Daily.co/Twilio/Jitsi integration is a drop-in
+    replacement). Auto-provisions a room when a `telehealth`/`hybrid` booking is
+    confirmed. Publishes `telehealth.room.{created,ended}`.
+  - `platform/packages/` — prepaid session bundles ("10 sesiones por 400€") with
+    balance tracking, validity expiry, automatic redemption on `booking.completed`
+    and refund on `booking.cancelled` / `booking.no_show`. Publishes
+    `package.{purchased,exhausted}`.
+  - `platform/practitioner-payouts/` — commission rules per (practitioner, service),
+    accruals on `booking.completed` (split evenly across attached practitioner
+    resources), reversals on cancellation/no_show, periodic close into `payouts`.
+    Publishes `payout.{created,paid}`.
+  - `infra/postgres/init/01_platform_schemas.sql` — 8 new schemas + 8 dedicated roles.
+  - `infra/nginx/snippets/platform-routes.conf` — 8 new `location /api/<module>/`
+    blocks proxying to a new `platform_appointments` upstream.
+  - `infra/nginx/conf.d/upstream.conf` — new `upstream platform_appointments`.
+  - `docker-compose.yml` — new `platform-appointments` service with per-module
+    `DATABASE_URL_*` + JWT secret + volume mounts for the 8 modules.
+  - `.env.example` — 8 `SVC_PLATFORM_<MODULE>_DB_PASSWORD` entries.
+
+- **`platform-restaurant` container + 6 restaurant modules** — third monolith container
+  (port 3200) hosting **menu, reservations, floor-plan, kds, pos, delivery-dispatch**.
+  Same modular-monolith pattern as `platform-core` / `platform-marketplace`: per-module
+  schema + dedicated DB role, in-process module loading, shared `PLATFORM_JWT_SECRET` so
+  JWTs are accepted across all three containers, cross-container communication via Redis
+  events on `platform.events`. See [ADR 005](docs/adr/005-platform-restaurant-monolith.md).
+  - `platform/restaurant/` — orchestrator (`server.js`, `Dockerfile`, env)
+  - `platform/menu/` — F&B menu: course types, modifiers, allergens, availability
+    windows, 86-list. Publishes `menu.item.eighty_sixed`, `menu.published`.
+  - `platform/reservations/` — reservations + waitlist + service hours + blackouts.
+    Publishes `reservation.{created,confirmed,seated,cancelled,no_show}`,
+    `waitlist.{added,notified}`.
+  - `platform/floor-plan/` — sections, tables, status FSM (free → reserved → occupied →
+    dirty → free), table combine. Publishes `table.{seated,cleared,combined}`.
+  - `platform/kds/` — Kitchen Display System. Stations route by course; tickets fired on
+    `order.paid` / `pos.bill.paid`; FSM fired → in_progress → ready → picked_up.
+    Publishes `kds.ticket.{fired,acked,ready,picked_up}`.
+  - `platform/pos/` — open table bills, line items, split bill (equal / percent / amounts),
+    tips, mixed payments. Publishes `pos.bill.{opened,split,paid,closed}`.
+  - `platform/delivery-dispatch/` — delivery zones, riders + GPS pings, deliveries with
+    carrier (own / glovo / uber / etc.). Subscribes `order.paid` to auto-create deliveries.
+    Publishes `delivery.{created,dispatched,picked_up,delivered}`.
+  - `infra/postgres/init/01_platform_schemas.sql` — 6 new schemas + 6 dedicated roles.
+  - `infra/nginx/snippets/platform-routes.conf` — 6 new `location /api/<module>/` blocks
+    proxying to the new `platform_restaurant` upstream.
+  - `infra/nginx/conf.d/upstream.conf` — new `upstream platform_restaurant`.
+  - `docker-compose.yml` — new `platform-restaurant` service with per-module DATABASE_URL_*.
+  - `.env.example` — 6 `SVC_PLATFORM_<MODULE>_DB_PASSWORD` entries.
+
+### Changed
+- **`catalog` and `basket` folded into `platform-marketplace`** — both modules
+  were previously standalone Docker containers (`platform-catalog:3003`,
+  `platform-basket:3004`). They are now in-process modules of `platform-marketplace`,
+  consistent with orders/inventory/reviews/messaging/shipping/disputes.
+  - Refactored `platform/catalog/src/lib/{db,redis,migrate}.js` to the lazy + configurable pattern
+  - Refactored `platform/basket/src/lib/redis.js` (no DB; basket exports a no-op `runMigrations`)
+  - Both modules now export `register({app, db?, redis})` + `runMigrations(superuserUrl?)`
+  - `platform/marketplace/src/server.js` handles modules without `databaseUrl` (basket: no Pool)
+  - `docker-compose.yml`: removed `platform-catalog` and `platform-basket` services; added
+    `DATABASE_URL_CATALOG` env + catalog/basket volume mounts to `platform-marketplace`
+  - `infra/nginx/conf.d/upstream.conf`: removed `platform_catalog` and `platform_basket` upstreams
+  - `infra/nginx/snippets/platform-routes.conf`: `/api/catalog/` and `/api/basket/` now proxy
+    to `platform_marketplace`
+  - Catalog now uses dedicated DB role `svc_platform_catalog` (was sharing `splitpay:splitpay`)
+
+### Added
 - **`platform-marketplace` container + 6 marketplace modules** — new monolith container
   (port 3100) hosting **orders, inventory, reviews, messaging, shipping, disputes**.
   Mirror architecture of `platform-core`: per-module schema + dedicated DB role,

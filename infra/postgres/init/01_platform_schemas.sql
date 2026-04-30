@@ -15,6 +15,24 @@ CREATE SCHEMA IF NOT EXISTS platform_messaging;
 CREATE SCHEMA IF NOT EXISTS platform_shipping;
 CREATE SCHEMA IF NOT EXISTS platform_disputes;
 
+-- platform-restaurant schemas
+CREATE SCHEMA IF NOT EXISTS platform_menu;
+CREATE SCHEMA IF NOT EXISTS platform_reservations;
+CREATE SCHEMA IF NOT EXISTS platform_floor_plan;
+CREATE SCHEMA IF NOT EXISTS platform_kds;
+CREATE SCHEMA IF NOT EXISTS platform_pos;
+CREATE SCHEMA IF NOT EXISTS platform_delivery_dispatch;
+
+-- platform-appointments schemas
+CREATE SCHEMA IF NOT EXISTS platform_services;
+CREATE SCHEMA IF NOT EXISTS platform_resources;
+CREATE SCHEMA IF NOT EXISTS platform_bookings;
+CREATE SCHEMA IF NOT EXISTS platform_availability;
+CREATE SCHEMA IF NOT EXISTS platform_intake_forms;
+CREATE SCHEMA IF NOT EXISTS platform_telehealth;
+CREATE SCHEMA IF NOT EXISTS platform_packages;
+CREATE SCHEMA IF NOT EXISTS platform_practitioner_payouts;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -53,6 +71,52 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_disputes') THEN
     CREATE ROLE svc_platform_disputes LOGIN PASSWORD 'platform_disputes_secret';
   END IF;
+
+  -- platform-restaurant roles
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_menu') THEN
+    CREATE ROLE svc_platform_menu LOGIN PASSWORD 'platform_menu_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_reservations') THEN
+    CREATE ROLE svc_platform_reservations LOGIN PASSWORD 'platform_reservations_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_floor_plan') THEN
+    CREATE ROLE svc_platform_floor_plan LOGIN PASSWORD 'platform_floor_plan_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_kds') THEN
+    CREATE ROLE svc_platform_kds LOGIN PASSWORD 'platform_kds_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_pos') THEN
+    CREATE ROLE svc_platform_pos LOGIN PASSWORD 'platform_pos_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_delivery_dispatch') THEN
+    CREATE ROLE svc_platform_delivery_dispatch LOGIN PASSWORD 'platform_delivery_dispatch_secret';
+  END IF;
+
+  -- platform-appointments roles
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_services') THEN
+    CREATE ROLE svc_platform_services LOGIN PASSWORD 'platform_services_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_resources') THEN
+    CREATE ROLE svc_platform_resources LOGIN PASSWORD 'platform_resources_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_bookings') THEN
+    CREATE ROLE svc_platform_bookings LOGIN PASSWORD 'platform_bookings_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_availability') THEN
+    CREATE ROLE svc_platform_availability LOGIN PASSWORD 'platform_availability_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_intake_forms') THEN
+    CREATE ROLE svc_platform_intake_forms LOGIN PASSWORD 'platform_intake_forms_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_telehealth') THEN
+    CREATE ROLE svc_platform_telehealth LOGIN PASSWORD 'platform_telehealth_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_packages') THEN
+    CREATE ROLE svc_platform_packages LOGIN PASSWORD 'platform_packages_secret';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_practitioner_payouts') THEN
+    CREATE ROLE svc_platform_practitioner_payouts LOGIN PASSWORD 'platform_practitioner_payouts_secret';
+  END IF;
 END
 $$;
 
@@ -70,6 +134,24 @@ GRANT USAGE ON SCHEMA platform_reviews       TO svc_platform_reviews;
 GRANT USAGE ON SCHEMA platform_messaging     TO svc_platform_messaging;
 GRANT USAGE ON SCHEMA platform_shipping      TO svc_platform_shipping;
 GRANT USAGE ON SCHEMA platform_disputes      TO svc_platform_disputes;
+
+-- USAGE grants (platform-restaurant)
+GRANT USAGE ON SCHEMA platform_menu               TO svc_platform_menu;
+GRANT USAGE ON SCHEMA platform_reservations       TO svc_platform_reservations;
+GRANT USAGE ON SCHEMA platform_floor_plan         TO svc_platform_floor_plan;
+GRANT USAGE ON SCHEMA platform_kds                TO svc_platform_kds;
+GRANT USAGE ON SCHEMA platform_pos                TO svc_platform_pos;
+GRANT USAGE ON SCHEMA platform_delivery_dispatch  TO svc_platform_delivery_dispatch;
+
+-- USAGE grants (platform-appointments)
+GRANT USAGE ON SCHEMA platform_services             TO svc_platform_services;
+GRANT USAGE ON SCHEMA platform_resources            TO svc_platform_resources;
+GRANT USAGE ON SCHEMA platform_bookings             TO svc_platform_bookings;
+GRANT USAGE ON SCHEMA platform_availability         TO svc_platform_availability;
+GRANT USAGE ON SCHEMA platform_intake_forms         TO svc_platform_intake_forms;
+GRANT USAGE ON SCHEMA platform_telehealth           TO svc_platform_telehealth;
+GRANT USAGE ON SCHEMA platform_packages             TO svc_platform_packages;
+GRANT USAGE ON SCHEMA platform_practitioner_payouts TO svc_platform_practitioner_payouts;
 
 -- DML default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
@@ -97,6 +179,38 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_shipping
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_disputes
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_disputes;
 
+-- DML default privs (platform-restaurant)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_menu
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_menu;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_reservations
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_reservations;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_floor_plan
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_floor_plan;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_kds
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_kds;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_pos
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_pos;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_delivery_dispatch
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_delivery_dispatch;
+
+-- DML default privs (platform-appointments)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_services
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_services;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_resources
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_resources;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_bookings
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_bookings;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_availability
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_availability;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_intake_forms
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_intake_forms;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_telehealth
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_telehealth;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_packages
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_packages;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_practitioner_payouts
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_practitioner_payouts;
+
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_auth;
@@ -122,3 +236,35 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_shipping
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_shipping;
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_disputes
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_disputes;
+
+-- Sequence default privs (platform-restaurant)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_menu
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_menu;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_reservations
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_reservations;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_floor_plan
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_floor_plan;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_kds
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_kds;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_pos
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_pos;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_delivery_dispatch
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_delivery_dispatch;
+
+-- Sequence default privs (platform-appointments)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_services
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_services;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_resources
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_resources;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_bookings
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_bookings;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_availability
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_availability;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_intake_forms
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_intake_forms;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_telehealth
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_telehealth;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_packages
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_packages;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_practitioner_payouts
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_practitioner_payouts;

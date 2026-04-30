@@ -1,7 +1,7 @@
 {
   "name": "@apphub/platform-inventory",
   "version": "0.1.0",
-  "description": "Inventory module — stock by SKU, reserve/release/commit on order events",
+  "description": "Inventory module \u2014 stock by SKU, reserve/release/commit on order events",
   "private": true,
   "type": "module",
   "main": "src/index.js",
@@ -9,9 +9,12 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test:unit": "vitest run --passWithNoTests",
+    "test:unit": "vitest run",
     "lint": "eslint src",
-    "db:migrate": "node src/lib/migrate.js"
+    "db:migrate": "node src/lib/migrate.js",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.js"
   },
   "dependencies": {
     "@apphub/platform-sdk": "workspace:*",
@@ -25,6 +28,7 @@
     "uuid": "^10.0.0"
   },
   "devDependencies": {
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0"
   }
 }

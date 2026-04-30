@@ -113,7 +113,9 @@ pnpm test
 docker compose up -d
 
 # View logs for a specific service
-docker compose logs -f platform-auth
+docker compose logs -f platform-core
+docker compose logs -f platform-marketplace
+docker compose logs -f platform-restaurant
 docker compose logs -f yoga-studio        # all yoga services + portal together
 
 # Tail PM2 process logs inside the yoga-studio container
@@ -141,6 +143,8 @@ docker compose exec postgres psql -U splitpay -d splitpay
 # Inspect a schema
 docker compose exec postgres psql -U splitpay -d splitpay -c "\dt yoga_classes.*"
 docker compose exec postgres psql -U splitpay -d splitpay -c "\dt platform_auth.*"
+docker compose exec postgres psql -U splitpay -d splitpay -c "\dt platform_orders.*"
+docker compose exec postgres psql -U splitpay -d splitpay -c "\dt platform_menu.*"
 
 # Run migrations for a specific service (dev only — auto-runs on startup)
 docker compose exec yoga-studio sh -c "cd apps/yoga-studio/yoga-classes && node src/lib/migrate.js"
@@ -148,24 +152,21 @@ docker compose exec yoga-studio sh -c "cd apps/yoga-studio/yoga-classes && node 
 
 ## Ports
 
-| Container | Service | Port |
+| Container | Modules / service | Port |
 |---|---|---|
-| platform-auth | platform/auth | 3000 |
-| platform-payments | platform/payments | 3001 |
-| platform-notifications | platform/notifications | 3002 |
-| platform-catalog | platform/catalog | 3003 |
-| platform-basket | platform/basket | 3004 |
-| platform-tenant-config | platform/tenant-config | 3005 |
+| platform-core | auth, payments, notifications, tenant-config, splitpay | 3000 |
+| platform-marketplace | orders, inventory, reviews, messaging, shipping, disputes, catalog, basket | 3100 |
+| platform-restaurant | menu, reservations, floor-plan, kds, pos, delivery-dispatch | 3200 |
 | yoga-studio | yoga-users | 3011 |
 | yoga-studio | yoga-classes | 3012 |
 | yoga-studio | yoga-bookings | 3013 |
 | yoga-studio | yoga-bonuses | 3014 |
 | yoga-studio | yoga-reporting | 3017 |
-| splitpay | splitpay | 3020 |
 | portal | AppHub admin | 5173 |
 | yoga-studio | yoga-portal | 5174 |
 | splitpay-portal | splitpay-portal | 5175 |
 | aikikan-portal | aikikan-portal | 5176 |
+| voragine-console-portal | voragine-console-portal | 5177 |
 | postgres | PostgreSQL | 5432 |
 | redis | Redis | 6379 |
 | nginx | NGINX gateway | 8080 |

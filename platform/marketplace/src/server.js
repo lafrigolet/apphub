@@ -24,6 +24,9 @@ const moduleDescriptors = [
   { name: 'reviews',   package: '@apphub/platform-reviews',   databaseUrl: env.DATABASE_URL_REVIEWS   },
   { name: 'messaging', package: '@apphub/platform-messaging', databaseUrl: env.DATABASE_URL_MESSAGING },
   { name: 'disputes',  package: '@apphub/platform-disputes',  databaseUrl: env.DATABASE_URL_DISPUTES  },
+  { name: 'catalog',   package: '@apphub/platform-catalog',   databaseUrl: env.DATABASE_URL_CATALOG   },
+  // basket is Redis-only — no databaseUrl, no Pool, no Postgres migrations.
+  { name: 'basket',    package: '@apphub/platform-basket',    databaseUrl: null                       },
 ]
 
 async function loadModule(descriptor) {
@@ -47,9 +50,14 @@ async function start() {
     await mod.runMigrations(env.MIGRATION_DATABASE_URL)
   }
 
-  // 2. Create one Pool per module, bound to its dedicated DB role
+  // 2. Create one Pool per module, bound to its dedicated DB role.
+  // Modules without a databaseUrl (e.g. basket — Redis-only) get null.
   const pools = {}
   for (const { descriptor } of modules) {
+    if (!descriptor.databaseUrl) {
+      pools[descriptor.name] = null
+      continue
+    }
     const pool = createPool(descriptor.databaseUrl)
     pool.on('error', (err) => logger.error({ err, module: descriptor.name }, 'PostgreSQL pool error'))
     pools[descriptor.name] = pool
@@ -154,7 +162,7 @@ async function start() {
     logger.info({ signal }, 'Shutdown signal received')
     try {
       await app.close()
-      await Promise.all(Object.values(pools).map((p) => p.end()))
+      await Promise.all(Object.values(pools).filter(Boolean).map((p) => p.end()))
       await redis.quit()
       logger.info('Graceful shutdown complete')
       process.exit(0)

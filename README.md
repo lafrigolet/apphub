@@ -1,57 +1,77 @@
-# SplitPay Platform
+# AppHub
 
-Multi-tenant platform for embedding split payment capabilities into any web application via Stripe Connect.
+Multi-app meta-platform. Each hosted app (yoga-studio, split-pay, aikikan, …) gets its own
+subdomain and its own app-specific microservices. All apps share a set of cross-cutting
+platform capabilities (auth, payments, notifications, catalog, basket, tenant-config,
+orders, inventory, reviews, messaging, shipping, disputes, menu, reservations,
+floor-plan, kds, pos, delivery-dispatch).
 
 ## Architecture
 
 ```
-splitpay-platform/
-├── apps/                    # React frontends (one per client app)
-├── services/                # Shared microservices
-│   └── split-payments/      # Stripe Connect split payments microservice
-├── packages/                # Shared code
-│   ├── sdk-js/              # JS client SDK for frontends
-│   ├── ui-components/       # Shared React component library
-│   └── eslint-config/       # Shared ESLint rules
-├── infra/                   # Docker, Nginx, CI/CD config
-│   ├── nginx/
-│   └── postgres/
-├── docker-compose.yml       # Local development orchestration
-├── docker-compose.prod.yml  # Production overrides
-└── turbo.json               # Turborepo task pipeline
+apphub/
+├── apps/                      # App bundles (frontends + app-specific services)
+├── platform/                  # Three modular monoliths + their modules
+│   ├── core/                  # platform-core    — port 3000
+│   ├── marketplace/           # platform-marketplace — port 3100
+│   ├── restaurant/            # platform-restaurant  — port 3200
+│   └── <module>/              # one directory per in-process module
+├── packages/                  # Shared packages (eslint-config, sdk-js, platform-sdk)
+├── infra/                     # Docker, NGINX, PostgreSQL init
+├── docker-compose.yml         # Local development orchestration
+└── turbo.json                 # Turborepo task pipeline
 ```
+
+The platform side ships as **three modular-monolith containers**. Each container hosts
+several modules in-process; each module owns its own Postgres schema, dedicated DB role,
+and routes. Modules are "ready to split" — any one can be extracted to its own container
+without business-logic changes.
 
 ## Key concepts
 
-- **Tenant**: a client app registered on the platform, identified by `tenant_id`
-- **Sub-tenant**: optional second isolation level within a tenant (e.g. marketplace vendors, SaaS orgs)
-- **Schema-per-service**: each microservice owns its PostgreSQL schema; no cross-service JOINs
-- **Row-level security**: every table is isolated by `tenant_id` + optional `sub_tenant_id` at the DB level
+- **Tenant**: a deployment of a hosted app, identified by `tenant_id`
+- **Sub-tenant**: optional second isolation level within a tenant (e.g. franchise branches)
+- **app_id + tenant_id + sub_tenant_id**: three-claim JWT identity, enforced by
+  `appGuard` and Postgres row-level security
+- **Schema-per-module**: each module owns its PostgreSQL schema; no cross-schema JOINs
+- **Row-level security**: every table is isolated by `app_id` + `tenant_id` + optional
+  `sub_tenant_id` at the DB level
+- **Modular monolith ready to split**: modules co-deploy by domain, but each one can be
+  extracted to its own container if it needs independent scaling
 
 ## Quick start
 
 ```bash
 # Prerequisites: Docker, Node 20+, pnpm 9+
-cp .env.example .env          # fill in your Stripe keys
+cp .env.example .env          # fill in your Stripe / SendGrid / OAuth keys
 pnpm install
-docker compose up -d          # starts postgres, redis, all services
-pnpm dev                      # starts all apps and services in watch mode
+docker compose up -d          # starts postgres, redis, the three monoliths,
+                              # all app services and frontends, plus NGINX
+./scripts/bootstrap.sh        # creates the first super_admin (idempotent)
 ```
 
-## Services
+Open http://voragine-console.apphub.local:8080 (after adding the alias to
+`/etc/hosts`) and start registering apps.
 
-| Service | Port | Description |
+## Platform monoliths
+
+| Container | Port | Modules |
 |---|---|---|
-| split-payments | 3001 | Stripe Connect split payments |
-| auth | 3002 | JWT authentication (coming soon) |
-| notifications | 3003 | Email / push notifications (coming soon) |
-| tenant-config | 3004 | Tenant provisioning and domain management (coming soon) |
+| `platform-core` | 3000 | auth, payments, notifications, tenant-config, splitpay |
+| `platform-marketplace` | 3100 | orders, inventory, reviews, messaging, shipping, disputes, catalog, basket |
+| `platform-restaurant` | 3200 | menu, reservations, floor-plan, kds, pos, delivery-dispatch |
+
+NGINX routes `/api/<module>/*` from any subdomain to the right monolith.
 
 ## Documentation
 
-- [CLAUDE.md](./CLAUDE.md) — AI assistant context and guidelines
+- [CLAUDE.md](./CLAUDE.md) — AI assistant context and platform module registry
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — Architecture, ADRs, container topology
 - [CONVENTIONS.md](./CONVENTIONS.md) — Code conventions
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — How to contribute
 - [DEVELOPMENT.md](./DEVELOPMENT.md) — Local development guide
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — Architecture decisions and diagramsn
 - [RUN.md](./RUN.md) — How to run the platform
+- [COMMANDS.md](./COMMANDS.md) — Quick reference for compose / pnpm / psql / redis
+- [CHANGELOG.md](./CHANGELOG.md) — Notable changes
+- [docs/adr/](./docs/adr/) — Architecture decision records
+- [docs/bootstrap.md](./docs/bootstrap.md) — First-boot bootstrap script reference
