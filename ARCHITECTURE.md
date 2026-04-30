@@ -200,6 +200,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `voragine-console-portal` | Voragine staff console (Vite dev) | 5177 |
 | `postgres` | PostgreSQL 16 | 5432 |
 | `redis` | Redis 7 | 6379 |
+| `minio` | S3-compatible object store (MinIO) | 9000 (API), 9001 (console) |
 | `nginx` | NGINX gateway | 8080 |
 
 The **four monolith containers** (`platform-core`, `platform-marketplace`,
@@ -248,3 +249,4 @@ ADRs are stored in `docs/adr/`. Current decisions:
 | 005 | platform-restaurant: third domain monolith for restaurant operations |
 | 006 | platform-appointments: fourth domain monolith for appointment / scheduling |
 | 007 | platform-scheduler: single-runner cron container for the 4 monoliths |
+| 008 | Object storage: MinIO + storage module of platform-core (presigned PUT/GET) |

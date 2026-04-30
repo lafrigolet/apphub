@@ -7,6 +7,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Object storage (MinIO + `storage` module)** — sixth infra container
+  (`minio:9000/9001`) and a new module of `platform-core` that mints presigned
+  PUT/GET URLs and registers metadata in `platform_storage.objects`. Bytes
+  never traverse Node — clients PUT directly to MinIO/S3. See
+  [ADR 008](docs/adr/008-object-storage.md).
+  - `packages/platform-sdk/src/storage.js` — S3 client + `presignPut/Get`,
+    `headObject`, `deleteObject` helpers (using `@aws-sdk/client-s3` and
+    `@aws-sdk/s3-request-presigner`).
+  - `platform/storage/` — full module: `kinds.js` catalogue (13 kinds, each
+    with MIME allowlist + maxBytes + retentionDays), service, repo, routes:
+    `POST /v1/storage/uploads`, `POST /v1/storage/objects/:id/finalize`,
+    `GET /v1/storage/objects/:id`, `GET /v1/storage/objects/:id/download-url`,
+    `DELETE /v1/storage/objects/:id`, `GET /v1/storage/objects`,
+    `GET /v1/storage/kinds`.
+  - `platform/menu` extended with `photo_object_id`; `platform/intake-forms`
+    extended with `signature_object_id`. Both keep their old URL columns for
+    back-compat.
+  - 2 new scheduler jobs: `storage-orphan-purge` (hourly) deletes pending
+    rows older than 1h; `storage-retention-purge` (daily 03:15) soft-deletes
+    objects past `retention_until` and emits `storage.object.deleted`.
+  - New schema `platform_storage`, role `svc_platform_storage`, MinIO bucket
+    `apphub`. Production swaps `S3_ENDPOINT` to AWS S3 / Cloudflare R2 with
+    no code change.
+
 - **`platform-scheduler` container** — fifth monolith (port 3400), single-runner
   cron service that polls Postgres and publishes scheduled events to the other
   4 monoliths over `platform.events`. See

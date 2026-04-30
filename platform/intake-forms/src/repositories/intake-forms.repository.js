@@ -43,12 +43,13 @@ export async function publishTemplate(client, appId, tenantId, id) {
 export async function insertSubmission(client, appId, tenantId, s) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.submissions
-       (app_id, tenant_id, template_id, booking_id, client_user_id, answers, signature_url, signed_at, status, submitted_at)
-     VALUES ($1,$2,$3,$4,$5,COALESCE($6,'{}'::jsonb),$7,$8,COALESCE($9,'pending'),$10)
+       (app_id, tenant_id, template_id, booking_id, client_user_id, answers,
+        signature_url, signature_object_id, signed_at, status, submitted_at)
+     VALUES ($1,$2,$3,$4,$5,COALESCE($6,'{}'::jsonb),$7,$8,$9,COALESCE($10,'pending'),$11)
      RETURNING *`,
     [appId, tenantId, s.templateId, s.bookingId ?? null, s.clientUserId,
-     s.answers ?? {}, s.signatureUrl ?? null, s.signedAt ?? null,
-     s.status ?? 'pending', s.submittedAt ?? null],
+     s.answers ?? {}, s.signatureUrl ?? null, s.signatureObjectId ?? null,
+     s.signedAt ?? null, s.status ?? 'pending', s.submittedAt ?? null],
   )
   return rows[0]
 }
@@ -71,14 +72,19 @@ export async function findSubmissionByBookingId(client, appId, tenantId, booking
   return rows[0] ?? null
 }
 
-export async function submitAnswers(client, appId, tenantId, id, { answers, signatureUrl }) {
+export async function submitAnswers(client, appId, tenantId, id, { answers, signatureUrl, signatureObjectId }) {
   const { rows } = await client.query(
     `UPDATE ${SCHEMA}.submissions
-     SET answers=$4, signature_url=COALESCE($5, signature_url),
-         signed_at = CASE WHEN $5 IS NOT NULL AND signed_at IS NULL THEN now() ELSE signed_at END,
+     SET answers=$4,
+         signature_url       = COALESCE($5, signature_url),
+         signature_object_id = COALESCE($6, signature_object_id),
+         signed_at = CASE
+           WHEN ($5 IS NOT NULL OR $6 IS NOT NULL) AND signed_at IS NULL THEN now()
+           ELSE signed_at
+         END,
          status='submitted', submitted_at=now(), updated_at=now()
      WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
-    [appId, tenantId, id, answers, signatureUrl ?? null],
+    [appId, tenantId, id, answers, signatureUrl ?? null, signatureObjectId ?? null],
   )
   return rows[0] ?? null
 }

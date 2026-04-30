@@ -27,6 +27,7 @@ const itemBody = z.object({
   allergens:       z.array(z.string()).optional(),
   badges:          z.array(z.string()).optional(),
   photoUrl:        z.string().url().optional(),
+  photoObjectId:   z.string().uuid().optional(),
   isAvailable:     z.boolean().optional(),
   metadata:        z.record(z.any()).optional(),
 })

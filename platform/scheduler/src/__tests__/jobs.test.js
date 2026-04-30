@@ -12,6 +12,8 @@ import * as packageTransition  from '../jobs/package-expiry-transition.job.js'
 import * as payoutClose        from '../jobs/practitioner-payout-close.job.js'
 import * as disputeSla         from '../jobs/dispute-sla.job.js'
 import * as basketAbandoned    from '../jobs/basket-abandoned.job.js'
+import * as storageOrphanPurge    from '../jobs/storage-orphan-purge.job.js'
+import * as storageRetentionPurge from '../jobs/storage-retention-purge.job.js'
 
 const mkLogger = () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() })
 
@@ -188,6 +190,46 @@ describe('basket-abandoned', () => {
     }
     const publish = vi.fn()
     const r = await basketAbandoned.run({ redis, publish, logger: mkLogger() })
+    expect(publish).not.toHaveBeenCalled()
+    expect(r.rowsAffected).toBe(0)
+  })
+})
+
+// ── storage-orphan-purge ──────────────────────────────────────────────
+describe('storage-orphan-purge', () => {
+  it('issues a single DELETE on platform_storage.objects', async () => {
+    const db = { query: vi.fn().mockResolvedValue({ rowCount: 4 }) }
+    const r  = await storageOrphanPurge.run({ db, logger: mkLogger() })
+    expect(db.query).toHaveBeenCalledTimes(1)
+    expect(db.query.mock.calls[0][0]).toMatch(/DELETE FROM platform_storage\.objects/)
+    expect(db.query.mock.calls[0][0]).toMatch(/status\s*=\s*'pending'/)
+    expect(r.rowsAffected).toBe(4)
+  })
+})
+
+// ── storage-retention-purge ───────────────────────────────────────────
+describe('storage-retention-purge', () => {
+  it('publishes storage.object.deleted per row returned by the UPDATE', async () => {
+    const db = { query: vi.fn().mockResolvedValue({
+      rows: [
+        { id: 'o1', app_id: 'a', tenant_id: 't', kind: 'signature', bucket: 'apphub', key: 'k1' },
+        { id: 'o2', app_id: 'a', tenant_id: 't', kind: 'invoice',   bucket: 'apphub', key: 'k2' },
+      ],
+    }) }
+    const publish = vi.fn()
+    const r = await storageRetentionPurge.run({ db, publish, logger: mkLogger() })
+    expect(publish).toHaveBeenCalledTimes(2)
+    expect(publish.mock.calls[0][0]).toMatchObject({
+      type: 'storage.object.deleted',
+      payload: { objectId: 'o1', kind: 'signature', reason: 'retention_expired' },
+    })
+    expect(r.rowsAffected).toBe(2)
+  })
+
+  it('returns 0 when nothing has expired', async () => {
+    const db = { query: vi.fn().mockResolvedValue({ rows: [] }) }
+    const publish = vi.fn()
+    const r = await storageRetentionPurge.run({ db, publish, logger: mkLogger() })
     expect(publish).not.toHaveBeenCalled()
     expect(r.rowsAffected).toBe(0)
   })

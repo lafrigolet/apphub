@@ -75,6 +75,12 @@ BEGIN
       EXECUTE 'GRANT SELECT, UPDATE ON ALL TABLES IN SCHEMA platform_disputes TO svc_platform_scheduler';
     END IF;
 
+    -- platform_storage — DELETE pending orphans + UPDATE retention status.
+    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'platform_storage') THEN
+      EXECUTE 'GRANT USAGE ON SCHEMA platform_storage TO svc_platform_scheduler';
+      EXECUTE 'GRANT SELECT, UPDATE, DELETE ON ALL TABLES IN SCHEMA platform_storage TO svc_platform_scheduler';
+    END IF;
+
   END IF;
 END
 $$;

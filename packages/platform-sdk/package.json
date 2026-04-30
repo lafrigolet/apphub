@@ -1,7 +1,7 @@
 {
   "name": "@apphub/platform-sdk",
   "version": "0.1.0",
-  "description": "Internal SDK: JWT guard, DB helpers, errors, logger, Redis helpers",
+  "description": "Internal SDK: JWT guard, DB helpers, errors, logger, Redis helpers, S3 storage helpers",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,9 +10,12 @@
     "./db": "./src/db.js",
     "./errors": "./src/errors.js",
     "./logger": "./src/logger.js",
-    "./redis": "./src/redis.js"
+    "./redis": "./src/redis.js",
+    "./storage": "./src/storage.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.621.0",
+    "@aws-sdk/s3-request-presigner": "^3.621.0",
     "fastify-plugin": "^5.0.0",
     "ioredis": "^5.4.1",
     "pg": "^8.12.0",

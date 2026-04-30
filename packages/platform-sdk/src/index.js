@@ -3,3 +3,4 @@ export { createPool, setTenantContext, withTenantTransaction, withTransaction } 
 export { AppError, ValidationError, NotFoundError, UnauthorizedError, ForbiddenError, ConflictError, AppMismatchError } from './errors.js'
 export { createLogger }                    from './logger.js'
 export { createRedis, publish, subscribe } from './redis.js'
+export { createStorageClient, presignPut, presignGet, headObject, deleteObject } from './storage.js'

@@ -36,6 +36,9 @@ CREATE SCHEMA IF NOT EXISTS platform_practitioner_payouts;
 -- platform-scheduler schema
 CREATE SCHEMA IF NOT EXISTS platform_scheduler;
 
+-- platform-core storage module schema
+CREATE SCHEMA IF NOT EXISTS platform_storage;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -125,6 +128,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_scheduler') THEN
     CREATE ROLE svc_platform_scheduler LOGIN PASSWORD 'platform_scheduler_secret';
   END IF;
+
+  -- platform-core storage module role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_storage') THEN
+    CREATE ROLE svc_platform_storage LOGIN PASSWORD 'platform_storage_secret';
+  END IF;
 END
 $$;
 
@@ -163,6 +171,9 @@ GRANT USAGE ON SCHEMA platform_practitioner_payouts TO svc_platform_practitioner
 
 -- USAGE grants (platform-scheduler)
 GRANT USAGE ON SCHEMA platform_scheduler            TO svc_platform_scheduler;
+
+-- USAGE grants (platform-core storage module)
+GRANT USAGE ON SCHEMA platform_storage              TO svc_platform_storage;
 
 -- DML default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
@@ -226,6 +237,10 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_practitioner_payouts
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_scheduler
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_scheduler;
 
+-- DML default privs (platform-core storage)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_storage
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_storage;
+
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_auth;
@@ -287,3 +302,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_practitioner_payouts
 -- Sequence default privs (platform-scheduler)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_scheduler
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_scheduler;
+
+-- Sequence default privs (platform-core storage)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_storage
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_storage;

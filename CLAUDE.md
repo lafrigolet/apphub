@@ -30,6 +30,7 @@ apphub/
 │   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
 │   ├── tenant-config/         # Tenant-config module (in platform-core) — schema platform_tenants
 │   ├── splitpay/              # Splitpay module (in platform-core) — schema splitpay_core
+│   ├── storage/               # Storage module (in platform-core) — schema platform_storage; S3-compatible bucket via MinIO
 │   ├── orders/                # Orders module (in platform-marketplace) — schema platform_orders
 │   ├── inventory/             # Inventory module (in platform-marketplace) — schema platform_inventory
 │   ├── reviews/               # Reviews module (in platform-marketplace) — schema platform_reviews
@@ -562,6 +563,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Email / push notifications | `platform/notifications` | `platform_notifications` | `svc_platform_notifications` | ✅ Implemented |
 | App & tenant registry | `platform/tenant-config` | `platform_tenants` | `svc_platform_tenants` | ✅ Implemented |
 | Stripe Connect (split payments) | `platform/splitpay` | `splitpay_core` | `splitpay` (shared) | ✅ Implemented |
+| Object storage (S3/MinIO presigned URLs) | `platform/storage` | `platform_storage` | `svc_platform_storage` | ✅ Implemented |
 
 ### platform-marketplace (port 3100) — marketplace transactions
 

@@ -12,16 +12,18 @@ const templateBody = z.object({
 })
 
 const submissionBody = z.object({
-  templateId:    z.string().uuid(),
-  bookingId:     z.string().uuid().optional(),
-  clientUserId:  z.string().uuid().optional(),
-  answers:       z.record(z.any()).optional(),
-  signatureUrl:  z.string().url().optional(),
+  templateId:        z.string().uuid(),
+  bookingId:         z.string().uuid().optional(),
+  clientUserId:      z.string().uuid().optional(),
+  answers:           z.record(z.any()).optional(),
+  signatureUrl:      z.string().url().optional(),
+  signatureObjectId: z.string().uuid().optional(),
 })
 
 const submitBody = z.object({
-  answers:      z.record(z.any()),
-  signatureUrl: z.string().url().optional(),
+  answers:           z.record(z.any()),
+  signatureUrl:      z.string().url().optional(),
+  signatureObjectId: z.string().uuid().optional(),
 })
 
 function ctxFromRequest(req) {

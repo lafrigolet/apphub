@@ -17,6 +17,16 @@ const envSchema = z.object({
   DATABASE_URL_PAYMENTS:       z.string().url(),
   DATABASE_URL_TENANT_CONFIG:  z.string().url(),
   DATABASE_URL_SPLITPAY:       z.string().url(),
+  DATABASE_URL_STORAGE:        z.string().url(),
+
+  // Storage module — S3-compatible object store (MinIO in dev, AWS S3/R2 in prod)
+  S3_ENDPOINT:         z.string().url(),
+  S3_REGION:           z.string().default('us-east-1'),
+  S3_ACCESS_KEY:       z.string(),
+  S3_SECRET_KEY:       z.string(),
+  S3_BUCKET:           z.string().default('apphub'),
+  S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
+  S3_PUBLIC_ENDPOINT:  z.string().url().optional(),
 
   // OAuth credentials forwarded to the auth module
   GOOGLE_CLIENT_ID:          z.string().optional(),

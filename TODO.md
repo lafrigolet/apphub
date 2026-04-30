@@ -149,7 +149,7 @@
 ### `menu` — ✅ funcional
 - [x] Modifiers, allergens, availability windows, 86-list, eventos
 - **Falta**:
-  - [ ] **Photo upload** a object storage (hoy solo URL)
+  - [x] **Photo upload** a object storage — `photo_object_id` cableado vía `platform/storage` (ADR 008)
   - [ ] **Multi-idioma** menu items (ES/EN/CA/…)
   - [ ] **Nutritional info** + calorías
   - [ ] **Dynamic pricing** (happy hour, surge)
@@ -245,10 +245,10 @@
 - [x] Templates versioned, submissions, signatures, auto-create on booking.confirmed
 - **Falta**:
   - [ ] **Form builder UI** (no hay frontend)
-  - [ ] **File upload** para attachments del cliente
+  - [ ] **File upload** para attachments del cliente (storage SDK ya disponible — kind `intake_attachment`)
   - [ ] **Conditional logic** (mostrar pregunta B si A=sí)
   - [ ] **PDF export** del cuestionario rellenado
-  - [ ] **Digital signature provider real** (DocuSign/SignNow) — hoy solo URL
+  - [x] **Digital signature provider real** — `signature_object_id` cableado vía `platform/storage` (kind `signature`, retention 7 años, ADR 008). Para integraciones DocuSign/SignNow real, pendiente.
   - [ ] **HIPAA/GDPR compliance** audit trail completo de accesos a datos clínicos
 
 ### `telehealth` — 🔧 stub provider
@@ -284,8 +284,8 @@
 
 | Área | Estado | Prioridad |
 |---|---|---|
-| **Scheduler/cron centralizado** | ❌ no existe | **alta** — bloquea recurrence, reminders, expiry warnings, close-period |
-| **Object storage** (S3/R2/MinIO) | ❌ no integrado | alta — fotos, PDFs, attachments, recordings |
+| **Scheduler/cron centralizado** | ✅ implementado (`platform-scheduler` port 3400, ADR 007) | — |
+| **Object storage** (S3/R2/MinIO) | ✅ implementado (MinIO + `platform/storage`, ADR 008). 2/12 consumidores cableados (`menu`, `intake-forms`); 10 pendientes |
 | **WebSocket gateway** para tiempo real | ❌ no hay | media — KDS, delivery tracking, messaging, telehealth waiting room |
 | **Email/SMS templates editables por tenant** | ❌ hardcoded | alta |
 | **Observability** (Prometheus + Grafana + Loki) | ❌ solo logs pino | media |
@@ -300,12 +300,12 @@
 ## Top 10 prioridades por impacto
 
 1. [x] **Scheduler/cron** — desbloquea recurrencias, recordatorios, expiry, close-period en 5+ módulos
-2. [ ] **Object storage** — fotos, PDFs, attachments en 6+ módulos
+2. [x] **Object storage** — MinIO + `platform/storage` cableado (ADR 008); 2/12 consumidores cableados (`menu`, `intake-forms`); 10 pendientes
 3. [ ] **`payments` real** — `pos.payBill`, `packages.purchase`, `bookings.deposit` no cobran
 4. [ ] **`telehealth` provider real** — el stub no funciona en producción
 5. [ ] **SMS channel en `notifications`** — recordatorios de citas/reservas
 6. [ ] **Carriers reales en `shipping`/`delivery-dispatch`**
 7. [ ] **`reviews` verified-purchase HTTP cross-container**
-8. [ ] **Recurrence expander en `bookings`**
+8. [x] **Recurrence expander en `bookings`** — `platform-scheduler` lo materializa (ADR 007)
 9. [ ] **Hold-on-create en `bookings.create`** (evitar double-booking)
 10. [ ] **Email templates editables + i18n** en `notifications`

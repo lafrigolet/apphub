@@ -12,6 +12,7 @@ COPY platform/notifications/package.json           ./platform/notifications/pack
 COPY platform/payments/package.json                ./platform/payments/package.json
 COPY platform/tenant-config/package.json           ./platform/tenant-config/package.json
 COPY platform/splitpay/package.json                ./platform/splitpay/package.json
+COPY platform/storage/package.json                 ./platform/storage/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-core...
@@ -27,6 +28,8 @@ COPY platform/tenant-config/src       ./platform/tenant-config/src
 COPY platform/tenant-config/migrations ./platform/tenant-config/migrations
 COPY platform/splitpay/src            ./platform/splitpay/src
 COPY platform/splitpay/migrations     ./platform/splitpay/migrations
+COPY platform/storage/src             ./platform/storage/src
+COPY platform/storage/migrations      ./platform/storage/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core
@@ -42,6 +45,7 @@ COPY platform/notifications/package.json           ./platform/notifications/pack
 COPY platform/payments/package.json                ./platform/payments/package.json
 COPY platform/tenant-config/package.json           ./platform/tenant-config/package.json
 COPY platform/splitpay/package.json                ./platform/splitpay/package.json
+COPY platform/storage/package.json                 ./platform/storage/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-core...
@@ -57,6 +61,8 @@ COPY platform/tenant-config/src       ./platform/tenant-config/src
 COPY platform/tenant-config/migrations ./platform/tenant-config/migrations
 COPY platform/splitpay/src            ./platform/splitpay/src
 COPY platform/splitpay/migrations     ./platform/splitpay/migrations
+COPY platform/storage/src             ./platform/storage/src
+COPY platform/storage/migrations      ./platform/storage/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core

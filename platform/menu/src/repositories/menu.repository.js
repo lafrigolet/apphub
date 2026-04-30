@@ -47,14 +47,17 @@ export async function insertItem(client, i) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.menu_items
        (app_id, tenant_id, category_id, sku, name, description, price_cents, currency,
-        course_type, station, prep_time_seconds, allergens, badges, photo_url, is_available, metadata)
+        course_type, station, prep_time_seconds, allergens, badges, photo_url, photo_object_id,
+        is_available, metadata)
      VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8,'EUR'),COALESCE($9,'main'),$10,$11,
-             COALESCE($12,'{}'::text[]), COALESCE($13,'{}'::text[]),$14,COALESCE($15,TRUE),COALESCE($16,'{}'::jsonb))
+             COALESCE($12,'{}'::text[]), COALESCE($13,'{}'::text[]),$14,$15,
+             COALESCE($16,TRUE),COALESCE($17,'{}'::jsonb))
      RETURNING *`,
     [
       i.appId, i.tenantId, i.categoryId, i.sku, i.name, i.description ?? null,
       i.priceCents, i.currency ?? 'EUR', i.courseType ?? 'main', i.station ?? null,
       i.prepTimeSeconds ?? null, i.allergens ?? [], i.badges ?? [], i.photoUrl ?? null,
+      i.photoObjectId ?? null,
       i.isAvailable ?? true, i.metadata ?? {},
     ],
   )
@@ -106,7 +109,8 @@ export async function updateItem(client, appId, tenantId, id, patch) {
   const map = {
     name: 'name', description: 'description', priceCents: 'price_cents',
     isAvailable: 'is_available', allergens: 'allergens', badges: 'badges',
-    photoUrl: 'photo_url', station: 'station', prepTimeSeconds: 'prep_time_seconds',
+    photoUrl: 'photo_url', photoObjectId: 'photo_object_id',
+    station: 'station', prepTimeSeconds: 'prep_time_seconds',
     courseType: 'course_type',
   }
   for (const [k, col] of Object.entries(map)) {

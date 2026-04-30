@@ -20,6 +20,8 @@ const envSchema = z.object({
   JOB_PRACTITIONER_PAYOUT_CLOSE_ENABLED:      z.coerce.boolean().default(true),
   JOB_DISPUTE_SLA_ENABLED:                    z.coerce.boolean().default(true),
   JOB_BASKET_ABANDONED_ENABLED:               z.coerce.boolean().default(true),
+  JOB_STORAGE_ORPHAN_PURGE_ENABLED:           z.coerce.boolean().default(true),
+  JOB_STORAGE_RETENTION_PURGE_ENABLED:        z.coerce.boolean().default(true),
 })
 
 const parsed = envSchema.safeParse(process.env)
