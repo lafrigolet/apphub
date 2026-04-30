@@ -1,13 +1,20 @@
 import { pool, withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import * as repo from '../repositories/reviews.repository.js'
+import { isVerifiedPurchase } from '../lib/orders-client.js'
 import { ConflictError, NotFoundError, ValidationError } from '../utils/errors.js'
 
 export async function createReview(ctx, input) {
+  // Verified-purchase: if the review carries an orderId AND the caller's JWT
+  // resolves to an order owned by the same buyer in a post-payment status,
+  // mark the review as verified. The check is soft-fail — if orders is down
+  // or times out, we still save the review with verified_purchase=false.
+  const verifiedPurchase = await isVerifiedPurchase(input.orderId, ctx.userId, ctx.jwt)
+
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     try {
       const review = await repo.insert(c, ctx.appId, ctx.tenantId, {
-        ...input, buyerUserId: ctx.userId,
+        ...input, buyerUserId: ctx.userId, verifiedPurchase,
       })
       await publish({
         type: 'review.created',
@@ -15,6 +22,7 @@ export async function createReview(ctx, input) {
           reviewId: review.id, appId: ctx.appId, tenantId: ctx.tenantId,
           targetType: review.target_type, targetId: review.target_id,
           rating: review.rating, buyerUserId: review.buyer_user_id,
+          verifiedPurchase: review.verified_purchase,
         },
       })
       return review

@@ -3,7 +3,7 @@
  * Start dependencies:  docker compose up postgres redis -d
  * Run:                 pnpm --filter @apphub/platform-reviews test:integration
  */
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import pg from 'pg'
 import Redis from 'ioredis'
 import { v4 as uuidv4 } from 'uuid'
@@ -172,5 +172,99 @@ describe('tenant isolation', () => {
     const list = await listByTarget(ctx(), { targetType: 'product', targetId: 'p1' })
     expect(list.every((r) => r.tenant_id === TENANT_ID)).toBe(true)
     await adminPool.query(`DELETE FROM platform_reviews.reviews WHERE app_id=$1 AND tenant_id=$2`, [APP_ID, T2])
+  })
+})
+
+// ── verified-purchase ─────────────────────────────────────────────────
+// Stub fetch globally so isVerifiedPurchase doesn't hit a real HTTP server.
+// The integration test verifies that the boolean flows through schema + repo
+// + event + the listByTarget verifiedOnly filter + the aggregate count.
+describe('verified_purchase', () => {
+  let originalFetch
+  beforeAll(() => { originalFetch = global.fetch })
+  afterAll(()  => { global.fetch  = originalFetch })
+
+  function stubFetchOrder({ buyerUserId, status }) {
+    global.fetch = vi.fn().mockResolvedValue({
+      status: 200, ok: true,
+      json: async () => ({ buyer_user_id: buyerUserId, status }),
+    })
+  }
+
+  it('marks verified=true for orderId + buyer match + paid status', async () => {
+    const userId = '11111111-1111-1111-1111-111111111111'
+    stubFetchOrder({ buyerUserId: userId, status: 'paid' })
+    const r = await createReview(
+      { ...ctx(), userId, jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pVerified', rating: 5, orderId: uuidv4() },
+    )
+    expect(r.verified_purchase).toBe(true)
+  })
+
+  it('marks verified=false when buyer mismatches', async () => {
+    stubFetchOrder({ buyerUserId: 'someone-else', status: 'paid' })
+    const r = await createReview(
+      { ...ctx(), jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pVerified-2', rating: 5, orderId: uuidv4() },
+    )
+    expect(r.verified_purchase).toBe(false)
+  })
+
+  it('marks verified=false when status is cancelled', async () => {
+    const userId = '11111111-1111-1111-1111-111111111111'
+    stubFetchOrder({ buyerUserId: userId, status: 'cancelled' })
+    const r = await createReview(
+      { ...ctx(), userId, jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pVerified-3', rating: 5, orderId: uuidv4() },
+    )
+    expect(r.verified_purchase).toBe(false)
+  })
+
+  it('marks verified=false on HTTP timeout (soft-fail)', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
+    const r = await createReview(
+      { ...ctx(), jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pVerified-4', rating: 5, orderId: uuidv4() },
+    )
+    expect(r.verified_purchase).toBe(false)
+  })
+
+  it('listByTarget verifiedOnly filters out unverified', async () => {
+    const userId = '11111111-1111-1111-1111-111111111111'
+    // 1st review: verified
+    stubFetchOrder({ buyerUserId: userId, status: 'paid' })
+    await createReview(
+      { ...ctx(), userId, jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pFilter', rating: 5, orderId: uuidv4() },
+    )
+    // 2nd review: unverified (different buyer in mock)
+    stubFetchOrder({ buyerUserId: 'someone-else', status: 'paid' })
+    await createReview(
+      { ...ctx(), userId: uuidv4(), jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pFilter', rating: 4, orderId: uuidv4() },
+    )
+
+    const all = await listByTarget(ctx(), { targetType: 'product', targetId: 'pFilter' })
+    expect(all).toHaveLength(2)
+    const onlyVerified = await listByTarget(ctx(), { targetType: 'product', targetId: 'pFilter', verifiedOnly: true })
+    expect(onlyVerified).toHaveLength(1)
+    expect(onlyVerified[0].verified_purchase).toBe(true)
+  })
+
+  it('aggregate returns verified_count', async () => {
+    const userId = '11111111-1111-1111-1111-111111111111'
+    stubFetchOrder({ buyerUserId: userId, status: 'paid' })
+    await createReview(
+      { ...ctx(), userId, jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pAgg', rating: 5, orderId: uuidv4() },
+    )
+    stubFetchOrder({ buyerUserId: 'someone-else', status: 'paid' })
+    await createReview(
+      { ...ctx(), userId: uuidv4(), jwt: 'fake.jwt' },
+      { targetType: 'product', targetId: 'pAgg', rating: 4, orderId: uuidv4() },
+    )
+    const agg = await aggregateForTarget(ctx(), { targetType: 'product', targetId: 'pAgg' })
+    expect(agg.total).toBe(2)
+    expect(agg.verified_count).toBe(1)
   })
 })

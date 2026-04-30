@@ -7,6 +7,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`reviews` verified-purchase check** — `platform/reviews` now calls
+  `platform-marketplace`'s own `/v1/orders/:id` endpoint (HTTP loopback inside
+  the same container, ready-to-split when the modules separate) to verify that
+  the supplied `orderId` belongs to the reviewing user and is in a paid/fulfilled
+  status. Result is persisted as `verified_purchase BOOLEAN` on
+  `platform_reviews.reviews`. See [ADR 009](docs/adr/009-reviews-verified-purchase.md).
+  - New column `verified_purchase` + partial index for fast verified-only listings.
+  - `GET /v1/reviews?verifiedOnly=true` filter.
+  - `GET /v1/reviews/aggregate` returns `verifiedCount` alongside `count`/avg.
+  - Soft-fail: orders unreachable / 404 / 5xx → review created with
+    `verified_purchase=false` (never blocks the user-visible action).
+  - 17 unit tests for `orders-client.js`, 6 new integration tests stubbing
+    `global.fetch`, all green.
+
 - **Object storage (MinIO + `storage` module)** — sixth infra container
   (`minio:9000/9001`) and a new module of `platform-core` that mints presigned
   PUT/GET URLs and registers metadata in `platform_storage.objects`. Bytes

@@ -15,11 +15,12 @@ const replyBody  = z.object({ body: z.string().min(1).max(4000) })
 const statusBody = z.object({ status: z.enum(['pending', 'published', 'hidden', 'removed']) })
 
 const listQuery = z.object({
-  targetType: z.enum(['product', 'vendor']),
-  targetId:   z.string().min(1),
-  status:     z.enum(['pending', 'published', 'hidden', 'removed']).optional(),
-  limit:      z.coerce.number().int().min(1).max(200).optional(),
-  offset:     z.coerce.number().int().min(0).optional(),
+  targetType:   z.enum(['product', 'vendor']),
+  targetId:     z.string().min(1),
+  status:       z.enum(['pending', 'published', 'hidden', 'removed']).optional(),
+  verifiedOnly: z.coerce.boolean().optional(),
+  limit:        z.coerce.number().int().min(1).max(200).optional(),
+  offset:       z.coerce.number().int().min(0).optional(),
 })
 
 function ctxFromRequest(req) {
@@ -29,6 +30,9 @@ function ctxFromRequest(req) {
     subTenantId: req.identity.subTenantId ?? null,
     userId: req.identity.userId,
     role: req.identity.role,
+    // Forward the raw JWT so the service can call orders/:id loopback as
+    // the same user. RLS in platform_orders enforces tenant isolation.
+    jwt: req.headers.authorization?.replace(/^Bearer\s+/i, '') ?? null,
   }
 }
 

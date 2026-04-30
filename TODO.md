@@ -87,8 +87,8 @@
 
 ### `reviews` — ✅ funcional
 - [x] CRUD, replies, agregados, evento `review.*`
+- [x] Verified-purchase check via HTTP a orders (ADR 009) — `verified_purchase` boolean + filtro `verifiedOnly` + `verified_count` en agregados
 - **Falta**:
-  - [ ] **Verified-purchase check via HTTP a orders** — hoy se acepta cualquier `order_id`
   - [ ] **Moderación con ML** (toxicidad, spam) — solo manual `pending → published`
   - [ ] **Photo/video uploads** con object storage
   - [ ] **Helpful/unhelpful voting**
@@ -305,7 +305,7 @@
 4. [ ] **`telehealth` provider real** — el stub no funciona en producción
 5. [ ] **SMS channel en `notifications`** — recordatorios de citas/reservas
 6. [ ] **Carriers reales en `shipping`/`delivery-dispatch`**
-7. [ ] **`reviews` verified-purchase HTTP cross-container**
+7. [x] **`reviews` verified-purchase HTTP cross-container** — ADR 009; `verified_purchase` flag + `verifiedOnly` filter + `verified_count` aggregate
 8. [x] **Recurrence expander en `bookings`** — `platform-scheduler` lo materializa (ADR 007)
 9. [ ] **Hold-on-create en `bookings.create`** (evitar double-booking)
 10. [ ] **Email templates editables + i18n** en `notifications`

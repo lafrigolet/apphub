@@ -14,11 +14,15 @@ vi.mock('../lib/redis.js', () => ({
   publish: vi.fn(),
 }))
 vi.mock('../repositories/reviews.repository.js')
+vi.mock('../lib/orders-client.js', () => ({
+  isVerifiedPurchase: vi.fn().mockResolvedValue(false),
+}))
 
 import * as service from '../services/reviews.service.js'
 import { withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import * as repo from '../repositories/reviews.repository.js'
+import { isVerifiedPurchase } from '../lib/orders-client.js'
 import { ConflictError, NotFoundError, ValidationError } from '@apphub/platform-sdk/errors'
 
 const APP_ID    = 'yoga-studio'
@@ -67,6 +71,39 @@ describe('createReview', () => {
     repo.insert.mockRejectedValue(new Error('boom'))
     await expect(service.createReview(ctx, { targetType: 'product', targetId: TARGET_ID, rating: 5 }))
       .rejects.toThrow('boom')
+  })
+
+  it('forwards verified=true to repo and event when orders-client says verified', async () => {
+    isVerifiedPurchase.mockResolvedValueOnce(true)
+    repo.insert.mockResolvedValue({
+      id: REVIEW_ID, target_type: 'product', target_id: TARGET_ID,
+      rating: 5, buyer_user_id: USER_ID, verified_purchase: true,
+    })
+    const ctxWithJwt = { ...ctx, jwt: 'fake.jwt' }
+    await service.createReview(ctxWithJwt, {
+      targetType: 'product', targetId: TARGET_ID, rating: 5, orderId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    })
+    expect(isVerifiedPurchase).toHaveBeenCalledWith('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', USER_ID, 'fake.jwt')
+    expect(repo.insert).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID,
+      expect.objectContaining({ verifiedPurchase: true }),
+    )
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ verifiedPurchase: true }),
+    }))
+  })
+
+  it('forwards verified=false when orderId missing', async () => {
+    isVerifiedPurchase.mockResolvedValueOnce(false)
+    repo.insert.mockResolvedValue({
+      id: REVIEW_ID, target_type: 'product', target_id: TARGET_ID,
+      rating: 5, buyer_user_id: USER_ID, verified_purchase: false,
+    })
+    await service.createReview(ctx, { targetType: 'product', targetId: TARGET_ID, rating: 5 })
+    expect(repo.insert).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID,
+      expect.objectContaining({ verifiedPurchase: false }),
+    )
   })
 })
 
