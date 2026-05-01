@@ -28,6 +28,7 @@ export default function Sidebar() {
     { k: 'config-splitpay',                  label: 'Split Pay',       icon: icons.settings },
     { k: 'config-storage',                   label: 'Object storage',  icon: icons.settings },
     { k: 'config-delivery-dispatch',         label: 'Delivery carriers', icon: icons.settings },
+    { k: 'config-telehealth',                label: 'Telehealth video',  icon: icons.settings },
   ]
 
   const splitpayItem = myApp?.splitpay_enabled

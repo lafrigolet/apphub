@@ -20,6 +20,7 @@ import NotificationsTemplateEdit   from './views/staff/config/NotificationsTempl
 import SplitpayConfig              from './views/staff/config/SplitpayConfig'
 import StorageConfig               from './views/staff/config/StorageConfig'
 import DeliveryDispatchConfig      from './views/staff/config/DeliveryDispatchConfig'
+import TelehealthConfig            from './views/staff/config/TelehealthConfig'
 
 import TenantOverview  from './views/tenant/Overview'
 import TenantAdmins    from './views/tenant/Admins'
@@ -46,6 +47,7 @@ function MainContent() {
     if (view === 'config-splitpay')                        return <SplitpayConfig />
     if (view === 'config-storage')                         return <StorageConfig />
     if (view === 'config-delivery-dispatch')               return <DeliveryDispatchConfig />
+    if (view === 'config-telehealth')                      return <TelehealthConfig />
   } else {
     if (view === 'overview')  return <TenantOverview />
     if (view === 'admins')    return <TenantAdmins />
