@@ -19,6 +19,7 @@ import NotificationsTemplates      from './views/staff/config/NotificationsTempl
 import NotificationsTemplateEdit   from './views/staff/config/NotificationsTemplateEdit'
 import SplitpayConfig              from './views/staff/config/SplitpayConfig'
 import StorageConfig               from './views/staff/config/StorageConfig'
+import DeliveryDispatchConfig      from './views/staff/config/DeliveryDispatchConfig'
 
 import TenantOverview  from './views/tenant/Overview'
 import TenantAdmins    from './views/tenant/Admins'
@@ -44,6 +45,7 @@ function MainContent() {
     if (view === 'config-notifications-template-edit')     return <NotificationsTemplateEdit />
     if (view === 'config-splitpay')                        return <SplitpayConfig />
     if (view === 'config-storage')                         return <StorageConfig />
+    if (view === 'config-delivery-dispatch')               return <DeliveryDispatchConfig />
   } else {
     if (view === 'overview')  return <TenantOverview />
     if (view === 'admins')    return <TenantAdmins />

@@ -27,6 +27,7 @@ export default function Sidebar() {
     { k: 'config-notifications-templates',   label: 'Plantillas',      icon: icons.settings },
     { k: 'config-splitpay',                  label: 'Split Pay',       icon: icons.settings },
     { k: 'config-storage',                   label: 'Object storage',  icon: icons.settings },
+    { k: 'config-delivery-dispatch',         label: 'Delivery carriers', icon: icons.settings },
   ]
 
   const splitpayItem = myApp?.splitpay_enabled

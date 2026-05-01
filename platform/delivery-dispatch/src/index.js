@@ -1,6 +1,7 @@
 import { configurePool } from './lib/db.js'
 import { configureRedis, subscribe } from './lib/redis.js'
 import { deliveryDispatchRoutes } from './routes/delivery-dispatch.routes.js'
+import { adminRoutes } from './routes/admin.routes.js'
 import * as service from './services/delivery-dispatch.service.js'
 
 export { runMigrations } from './lib/migrate.js'
@@ -14,6 +15,7 @@ export async function register({ app, db, redis, logger }) {
   }))
 
   await app.register(deliveryDispatchRoutes)
+  await app.register(adminRoutes, { prefix: '/v1/delivery-dispatch/admin' })
 
   app.addHook('onReady', async () => {
     subscribe(async (_channel, raw) => {
