@@ -8,6 +8,7 @@ import { icons } from '../../lib/icons'
 import { StatusBadge, StripeBadge, PlanBadge, RoleBadge, TwoFABadge, Avatar, DlRow, MiniMetric } from '../../lib/ui'
 import { SuspendModal, ReactivateModal, ArchiveModal, RestoreModal, ExportModal } from './modals/TenantActionModals'
 import { SplitpayConfigTabs } from './SplitpayPanels'
+import EmailDomainsManager from '../../components/EmailDomainsManager'
 
 const TABS = [
   { k: 'identity', label: 'Identificación' },
@@ -117,95 +118,22 @@ function TabState({ t }) {
         </div>
       </div>
 
-      <EmailDomainsCard tenant={t} />
-    </div>
-  )
-}
-
-function statusBadgeClasses(status) {
-  switch (status) {
-    case 'verified':  return 'bg-okbg text-ok'
-    case 'pending':   return 'bg-warnbg text-warn'
-    case 'failed':    return 'bg-dangerbg text-danger'
-    case 'suspended': return 'bg-paper2 text-ink3'
-    default:          return 'bg-paper2 text-ink3'
-  }
-}
-
-function EmailDomainsCard({ tenant }) {
-  const { toast } = useApp()
-  const [items, setItems] = useState(null)
-  const [busyId, setBusyId] = useState(null)
-
-  const scope = `?appId=${encodeURIComponent(tenant.app_id)}&tenantId=${encodeURIComponent(tenant.id)}`
-
-  function reload() {
-    setItems(null)
-    api.get(`/api/notifications/email-domains${scope}`)
-      .then((r) => setItems(r?.data ?? []))
-      .catch((err) => { setItems([]); toast(err.message ?? 'Error', 'danger') })
-  }
-
-  useEffect(() => { reload() }, [tenant.id, tenant.app_id])
-
-  async function reverify(id) {
-    setBusyId(id)
-    try {
-      await api.post(`/api/notifications/email-domains/${id}/verify${scope}`, {})
-      toast('Verificación solicitada')
-      reload()
-    } catch (err) { toast(err.message ?? 'Error', 'danger') }
-    finally { setBusyId(null) }
-  }
-
-  async function suspend(id) {
-    if (!window.confirm('Suspender este dominio? El tenant no podrá enviar correos desde él.')) return
-    setBusyId(id)
-    try {
-      await api.post(`/api/notifications/email-domains/${id}/suspend${scope}`, {})
-      toast('Dominio suspendido', 'warn')
-      reload()
-    } catch (err) { toast(err.message ?? 'Error', 'danger') }
-    finally { setBusyId(null) }
-  }
-
-  return (
-    <div className="bg-white border border-line rounded-xl shadow-card">
-      <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-        <div>
+      <div className="bg-white border border-line rounded-xl shadow-card">
+        <div className="px-5 py-4 border-b border-line">
           <div className="font-display text-[20px]">Dominios de email</div>
           <div className="text-xs text-ink3 mt-0.5">
-            Sólo lectura · El owner del tenant configura sus dominios desde su portal.
+            Configurando como staff en nombre de <span className="font-medium text-ink">{t.name}</span>.
+            Los cambios se aplican al tenant.
           </div>
         </div>
+        <div className="p-5">
+          <EmailDomainsManager
+            scopeQuery={`?appId=${encodeURIComponent(t.app_id)}&tenantId=${encodeURIComponent(t.id)}`}
+            canSuspend
+            compact
+          />
+        </div>
       </div>
-      {items === null
-        ? <div className="p-6 text-center text-ink3 text-sm">Cargando…</div>
-        : items.length === 0
-          ? <div className="p-10 dotted text-center text-ink3 text-sm">El tenant no ha configurado ningún dominio de email.</div>
-          : (
-            <table className="t">
-              <thead><tr><th>Dominio</th><th>Estado</th><th>From por defecto</th><th>Última verificación</th><th /></tr></thead>
-              <tbody>
-                {items.map((d) => (
-                  <tr key={d.id}>
-                    <td className="font-mono text-[13px]">{d.domain}</td>
-                    <td><span className={`badge ${statusBadgeClasses(d.status)}`}>{d.status}</span></td>
-                    <td className="text-[13px] text-ink2">
-                      {d.default_from_local ? `${d.default_from_local}@${d.domain}` : <span className="text-ink3">—</span>}
-                    </td>
-                    <td className="text-[12.5px] text-ink3">{d.last_checked_at ? relTime(d.last_checked_at) : '—'}</td>
-                    <td className="text-right whitespace-nowrap">
-                      <button onClick={() => reverify(d.id)} disabled={busyId === d.id} className="btn btn-ghost btn-sm mr-1">Re-verificar</button>
-                      {d.status !== 'suspended' && (
-                        <button onClick={() => suspend(d.id)} disabled={busyId === d.id} className="btn btn-ghost btn-sm text-danger">Suspender</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
     </div>
   )
 }
