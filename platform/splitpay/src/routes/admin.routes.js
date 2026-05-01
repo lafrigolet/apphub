@@ -12,7 +12,7 @@ const patchBody = z.object({
 })
 
 export async function adminRoutes(fastify) {
-  fastify.addHook('onRequest', requireRole('super_admin', 'staff'))
+  fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
   fastify.get('/config', async () => {
     const client = await pool.connect()

@@ -10,8 +10,10 @@ const patchBody = z.object({
 })
 
 export async function adminRoutes(fastify) {
-  // All admin endpoints require the staff/super_admin role.
-  fastify.addHook('onRequest', requireRole('super_admin', 'staff'))
+  // preHandler (not onRequest): appGuard sets req.identity at preHandler too,
+  // so the role check must run after that. onRequest would see identity=null
+  // and throw 401 → portal would log the user out.
+  fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
   fastify.get('/oauth-providers', async () => {
     const client = await pool.connect()

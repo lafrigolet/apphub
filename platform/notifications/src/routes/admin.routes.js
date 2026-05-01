@@ -22,7 +22,7 @@ const templateBody = z.object({
 })
 
 export async function adminRoutes(fastify) {
-  fastify.addHook('onRequest', requireRole('super_admin', 'staff'))
+  fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
   // ── Module config (SendGrid API key, sender) ──────────────────
   fastify.get('/config', async () => {

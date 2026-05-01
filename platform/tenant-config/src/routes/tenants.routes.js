@@ -62,18 +62,18 @@ export async function tenantsRoutes(fastify) {
     return tenantsService.getTenant(req.params.id)
   })
 
-  fastify.post('/v1/tenants', { onRequest: writeGuard }, async (req, reply) => {
+  fastify.post('/v1/tenants', { preHandler: writeGuard }, async (req, reply) => {
     const body = createTenantBody.parse(req.body)
     const tenant = await tenantsService.createTenant(body, actorFromRequest(req))
     return reply.status(201).send(tenant)
   })
 
-  fastify.patch('/v1/tenants/:id', { onRequest: writeGuard }, async (req) => {
+  fastify.patch('/v1/tenants/:id', { preHandler: writeGuard }, async (req) => {
     const body = updateTenantBody.parse(req.body)
     return tenantsService.updateTenant(req.params.id, body, actorFromRequest(req))
   })
 
-  fastify.patch('/v1/tenants/:id/status', { onRequest: writeGuard }, async (req) => {
+  fastify.patch('/v1/tenants/:id/status', { preHandler: writeGuard }, async (req) => {
     const body = statusBody.parse(req.body)
     return tenantsService.setTenantStatus(req.params.id, body, actorFromRequest(req))
   })
