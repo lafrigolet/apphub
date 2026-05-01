@@ -4,3 +4,4 @@ export { AppError, ValidationError, NotFoundError, UnauthorizedError, ForbiddenE
 export { createLogger }                    from './logger.js'
 export { createRedis, publish, subscribe } from './redis.js'
 export { createStorageClient, presignPut, presignGet, headObject, deleteObject } from './storage.js'
+export { encryptSecret, decryptSecret, maskSecret } from './crypto.js'

@@ -5,14 +5,32 @@ import { env } from '../lib/env.js'
 import { redis } from '../lib/redis.js'
 import { pool, withTransaction } from '../lib/db.js'
 import * as oauthRepo from '../repositories/oauth.repository.js'
+import * as providersRepo from '../repositories/oauth-providers.repository.js'
 import { publish } from '../lib/redis.js'
 import { AppError } from '../utils/errors.js'
 
 const REFRESH_TTL = env.PLATFORM_JWT_REFRESH_DAYS * 24 * 60 * 60
 
-const googleClient = env.GOOGLE_CLIENT_ID
-  ? new OAuth2Client(env.GOOGLE_CLIENT_ID)
-  : null
+// Resolve a provider's live config: prefer the DB row (set via the admin
+// UI), fall back to env vars for back-compat with pre-migration deployments.
+// Returns { clientId, clientSecret, enabled } or null if neither source has it.
+async function resolveProviderConfig(provider) {
+  const client = await pool.connect()
+  let row
+  try {
+    row = await providersRepo.getProviderConfig(client, provider)
+  } finally {
+    client.release()
+  }
+  if (row && row.clientId) return row
+  if (provider === 'google' && env.GOOGLE_CLIENT_ID) {
+    return { clientId: env.GOOGLE_CLIENT_ID, clientSecret: null, enabled: true }
+  }
+  if (provider === 'facebook' && env.FACEBOOK_APP_ID && env.FACEBOOK_APP_SECRET) {
+    return { clientId: env.FACEBOOK_APP_ID, clientSecret: env.FACEBOOK_APP_SECRET, enabled: true }
+  }
+  return null
+}
 
 function signAccess(user) {
   return jwt.sign(
@@ -62,11 +80,13 @@ async function resolveOAuthUser(client, { appId, tenantId, subTenantId, provider
 }
 
 export async function loginWithGoogle({ appId, tenantId, subTenantId, credential }) {
-  if (!googleClient) throw new AppError('OAUTH_NOT_CONFIGURED', 'Google OAuth is not configured', 501)
+  const cfg = await resolveProviderConfig('google')
+  if (!cfg || !cfg.enabled) throw new AppError('OAUTH_NOT_CONFIGURED', 'Google OAuth is not configured', 501)
 
+  const googleClient = new OAuth2Client(cfg.clientId)
   let ticket
   try {
-    ticket = await googleClient.verifyIdToken({ idToken: credential, audience: env.GOOGLE_CLIENT_ID })
+    ticket = await googleClient.verifyIdToken({ idToken: credential, audience: cfg.clientId })
   } catch {
     throw new AppError('INVALID_OAUTH_TOKEN', 'Invalid Google credential', 401)
   }
@@ -84,14 +104,15 @@ export async function loginWithGoogle({ appId, tenantId, subTenantId, credential
 }
 
 export async function loginWithFacebook({ appId, tenantId, subTenantId, accessToken }) {
-  if (!env.FACEBOOK_APP_ID || !env.FACEBOOK_APP_SECRET) {
+  const cfg = await resolveProviderConfig('facebook')
+  if (!cfg || !cfg.enabled || !cfg.clientId || !cfg.clientSecret) {
     throw new AppError('OAUTH_NOT_CONFIGURED', 'Facebook OAuth is not configured', 501)
   }
 
   // Verify token with Facebook and fetch user data
   let profile
   try {
-    const appToken = `${env.FACEBOOK_APP_ID}|${env.FACEBOOK_APP_SECRET}`
+    const appToken = `${cfg.clientId}|${cfg.clientSecret}`
     const verifyUrl = `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${appToken}`
     const verifyRes = await fetch(verifyUrl)
     const verifyData = await verifyRes.json()

@@ -24,7 +24,7 @@ export async function webhookRoutes(fastify) {
       let event
       try {
         // req.rawBody is provided by a plugin or manual parser
-        event = constructWebhookEvent(req.rawBody, signature)
+        event = await constructWebhookEvent(req.rawBody, signature)
       } catch (err) {
         logger.warn({ err }, 'Webhook signature verification failed')
         throw new AppError('INVALID_SIGNATURE', 'Webhook signature verification failed', 400)

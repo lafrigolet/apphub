@@ -12,6 +12,14 @@ import TenantDetail    from './views/staff/TenantDetail'
 import StaffList       from './views/staff/StaffList'
 import AuditGlobal     from './views/staff/AuditGlobal'
 
+import AuthProviders               from './views/staff/config/AuthProviders'
+import PaymentsConfig              from './views/staff/config/PaymentsConfig'
+import NotificationsConfig         from './views/staff/config/NotificationsConfig'
+import NotificationsTemplates      from './views/staff/config/NotificationsTemplates'
+import NotificationsTemplateEdit   from './views/staff/config/NotificationsTemplateEdit'
+import SplitpayConfig              from './views/staff/config/SplitpayConfig'
+import StorageConfig               from './views/staff/config/StorageConfig'
+
 import TenantOverview  from './views/tenant/Overview'
 import TenantAdmins    from './views/tenant/Admins'
 import TenantSettings  from './views/tenant/Settings'
@@ -23,12 +31,19 @@ function MainContent() {
   const { role, view, selectedTenant } = useApp()
 
   if (role === 'staff') {
-    if (view === 'dashboard')                 return <StaffDashboard />
-    if (view === 'apps')                      return <StaffApps />
-    if (view === 'tenants' && selectedTenant) return <TenantDetail />
-    if (view === 'tenants')                   return <StaffTenants />
-    if (view === 'staff')                     return <StaffList />
-    if (view === 'audit')                     return <AuditGlobal />
+    if (view === 'dashboard')                              return <StaffDashboard />
+    if (view === 'apps')                                   return <StaffApps />
+    if (view === 'tenants' && selectedTenant)              return <TenantDetail />
+    if (view === 'tenants')                                return <StaffTenants />
+    if (view === 'staff')                                  return <StaffList />
+    if (view === 'audit')                                  return <AuditGlobal />
+    if (view === 'config-auth')                            return <AuthProviders />
+    if (view === 'config-payments')                        return <PaymentsConfig />
+    if (view === 'config-notifications')                   return <NotificationsConfig />
+    if (view === 'config-notifications-templates')         return <NotificationsTemplates />
+    if (view === 'config-notifications-template-edit')     return <NotificationsTemplateEdit />
+    if (view === 'config-splitpay')                        return <SplitpayConfig />
+    if (view === 'config-storage')                         return <StorageConfig />
   } else {
     if (view === 'overview')  return <TenantOverview />
     if (view === 'admins')    return <TenantAdmins />

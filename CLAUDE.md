@@ -654,3 +654,25 @@ Routes: `POST /v1/auth/oauth/google`, `POST /v1/auth/oauth/facebook`.
 All secrets live in `.env` (never committed). See `.env.example` for required keys.
 Platform-wide secrets use the prefix `PLATFORM_`. App-specific secrets use the app
 prefix (e.g. `SPLITPAY_` for split-pay services).
+
+## Module-level runtime config (DB-backed, encrypted)
+
+Each module of `platform-core` exposes an `/v1/<module>/admin/config` (or
+`…/oauth-providers`, etc.) surface that voragine-console uses to bootstrap
+the module without redeploys. Secrets (Stripe keys, OAuth client_secret,
+SendGrid API key, S3 access keys) are stored in dedicated `*.config` /
+`*.settings` / `*.oauth_providers` tables, encrypted at rest with AES-256-GCM
+via `@apphub/platform-sdk/crypto`. The master key is `PLATFORM_CONFIG_ENCRYPTION_KEY`
+(32 bytes hex). Each module's runtime resolves config in this order: DB row →
+env var → throw. **All admin endpoints require `requireRole('super_admin', 'staff')`.**
+
+When you add a new module that needs runtime-configurable secrets:
+1. Add a `<schema>.config` table with `key TEXT PK CHECK(...)` + `encrypted_value BYTEA`
+   + `plain_value TEXT` (for non-secret settings).
+2. Add a `repositories/config.repository.js` using `encryptSecret`/`decryptSecret`.
+3. Add `routes/admin.routes.js` with `fastify.addHook('onRequest', requireRole('super_admin', 'staff'))`
+   and GET/PATCH endpoints.
+4. Register it in `src/index.js` under `/v1/<module>/admin`.
+5. Refactor the module's runtime to read from the new repo with env fallback.
+6. Add a section to voragine-console's sidebar + view under
+   `apps/voragine-console/voragine-console-portal/src/views/staff/config/`.

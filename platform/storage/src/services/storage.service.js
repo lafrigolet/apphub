@@ -3,34 +3,38 @@ import { createStorageClient, presignPut, presignGet, headObject } from '@apphub
 import { pool, withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import { logger } from '../lib/logger.js'
-import { env } from '../lib/env.js'
+import { getSettings } from '../lib/settings.js'
 import * as repo from '../repositories/storage.repository.js'
 import { ConflictError, NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js'
 import { getKind } from '../kinds.js'
 
 // Lazy: don't connect to S3 until the first request hits us so tests that
-// mock the S3 client don't need to touch the SDK.
+// mock the S3 client don't need to touch the SDK. Driven by the merged
+// (DB+env) settings — call configureClient(null) after a settings change to
+// force the next request to rebuild the client.
 let _client = null
 function ensureClient() {
   if (_client) return _client
+  const s = getSettings()
   _client = createStorageClient({
-    endpoint:        env.S3_ENDPOINT,
-    region:          env.S3_REGION,
-    accessKey:       env.S3_ACCESS_KEY,
-    secretKey:       env.S3_SECRET_KEY,
-    forcePathStyle:  env.S3_FORCE_PATH_STYLE,
+    endpoint:        s.endpoint,
+    region:          s.region,
+    accessKey:       s.accessKey,
+    secretKey:       s.secretKey,
+    forcePathStyle:  s.forcePathStyle,
   })
   return _client
 }
-// For tests + integration. Lets the orchestrator inject a stub client.
+// For tests + integration AND for invalidation after admin PATCH.
 export function configureClient(client) { _client = client }
 
 // Public-facing endpoint. The browser hits `localhost:9000` even though Node
 // resolves `minio:9000` — same MinIO, different DNS view. We rewrite the
-// presigned URL host in-place if S3_PUBLIC_ENDPOINT is configured.
+// presigned URL host in-place if a public endpoint is configured.
 function rewriteHost(presigned) {
-  if (!env.S3_PUBLIC_ENDPOINT) return presigned
-  return presigned.replace(env.S3_ENDPOINT, env.S3_PUBLIC_ENDPOINT)
+  const s = getSettings()
+  if (!s.publicEndpoint) return presigned
+  return presigned.replace(s.endpoint, s.publicEndpoint)
 }
 
 function objectKey(appId, tenantId, id) {
@@ -67,7 +71,7 @@ export async function requestUpload(ctx, body) {
       subTenantId: ctx.subTenantId,
       ownerUserId: ctx.userId,
       kind: body.kind,
-      bucket: env.S3_BUCKET,
+      bucket: getSettings().bucket,
       key,
       filename: body.filename,
       contentType: body.contentType,
@@ -81,7 +85,7 @@ export async function requestUpload(ctx, body) {
 
   const ttlSeconds = 600
   const rawUrl = await presignPut(ensureClient(), {
-    bucket: env.S3_BUCKET,
+    bucket: getSettings().bucket,
     key: obj.key,
     contentType: body.contentType,
     contentLength: body.sizeBytes,

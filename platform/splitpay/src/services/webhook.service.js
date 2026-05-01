@@ -1,17 +1,14 @@
-import { stripe } from '../lib/stripe.js'
+import { stripe, getWebhookSecret } from '../lib/stripe.js'
 import { pool } from '../lib/db.js'
-import { env } from '../lib/env.js'
 import { logger } from '../lib/logger.js'
 import * as paymentRepo from '../repositories/payment.repository.js'
 import { createAdditionalTransfers } from './payment.service.js'
 import { syncAccountFromStripe } from './connect-account.service.js'
 
-export function constructWebhookEvent(payload, signature) {
-  return stripe.webhooks.constructEvent(
-    payload,
-    signature,
-    env.SPLITPAY_STRIPE_WEBHOOK_SECRET,
-  )
+export async function constructWebhookEvent(payload, signature) {
+  const secret = await getWebhookSecret()
+  if (!secret) throw new Error('Stripe webhook secret not configured (set splitpay_core.config.stripe_webhook_secret)')
+  return stripe.webhooks.constructEvent(payload, signature, secret)
 }
 
 export async function handleWebhookEvent(event) {

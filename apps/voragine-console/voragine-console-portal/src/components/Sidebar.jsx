@@ -20,6 +20,13 @@ export default function Sidebar() {
     { k: 'tenants',   label: 'Tenants',   icon: icons.tenants },
     { k: 'staff',     label: 'Staff',     icon: icons.staff },
     { k: 'audit',     label: 'Audit log', icon: icons.audit },
+    { _section: 'Configuración' },
+    { k: 'config-auth',                      label: 'OAuth Providers', icon: icons.settings },
+    { k: 'config-payments',                  label: 'Stripe',          icon: icons.settings },
+    { k: 'config-notifications',             label: 'SendGrid',        icon: icons.settings },
+    { k: 'config-notifications-templates',   label: 'Plantillas',      icon: icons.settings },
+    { k: 'config-splitpay',                  label: 'Split Pay',       icon: icons.settings },
+    { k: 'config-storage',                   label: 'Object storage',  icon: icons.settings },
   ]
 
   const splitpayItem = myApp?.splitpay_enabled
@@ -52,8 +59,19 @@ export default function Sidebar() {
         <div className="px-3 pt-2 pb-3 text-[10px] uppercase tracking-[0.18em] text-ink3">
           {sectionLabel}
         </div>
-        {items.map(it => {
-          const active = view === it.k
+        {items.map((it, idx) => {
+          if (it._section) {
+            return (
+              <div key={`sec-${idx}`} className="px-4 pt-5 pb-2 text-[10px] uppercase tracking-[0.18em] text-ink3 border-t border-line mt-3">
+                {it._section}
+              </div>
+            )
+          }
+          // The template editor is a sub-route of Plantillas — highlight the
+          // parent item when the editor is open so the sidebar remains
+          // navigable from edit screens.
+          const isTemplateEditor = view === 'config-notifications-template-edit' && it.k === 'config-notifications-templates'
+          const active = view === it.k || isTemplateEditor
           return (
             <button
               key={it.k}

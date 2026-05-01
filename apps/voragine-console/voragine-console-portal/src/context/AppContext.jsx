@@ -17,6 +17,10 @@ export function AppProvider({ children }) {
   const role = roleFromIdentity(identity)
 
   const [view, setView] = useState(role === 'staff' ? 'dashboard' : 'overview')
+  // Generic per-view state — caller passes `extra` to navigate() and the view
+  // can read it via `viewState`. Used today by the template editor to know
+  // which template to load.
+  const [viewState, setViewState] = useState(null)
   const [selectedTenant, setSelectedTenant] = useState(null)
   const [tenantTab, setTenantTab] = useState('identity')
   const [filters, setFilters] = useState({ query: '', status: 'ALL', plan: 'ALL', country: 'ALL' })
@@ -42,6 +46,7 @@ export function AppProvider({ children }) {
 
   function navigate(v, extra) {
     setView(v)
+    setViewState(extra ?? null)
     if (extra?.tenant) { setSelectedTenant(extra.tenant); setTenantTab('identity') }
     window.scrollTo({ top: 0 })
   }
@@ -74,7 +79,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       identity, role, myTenant,
-      view, setView,
+      view, setView, viewState,
       selectedTenant, setSelectedTenant,
       tenantTab, setTenantTab,
       filters, setFilters,

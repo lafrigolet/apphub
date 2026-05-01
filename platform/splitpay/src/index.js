@@ -8,6 +8,8 @@ import { splitRuleRoutes } from './routes/split-rule.routes.js'
 import { paymentRoutes } from './routes/payment.routes.js'
 import { connectAccountRoutes } from './routes/connect-account.routes.js'
 import { webhookRoutes } from './routes/webhook.routes.js'
+import { adminRoutes } from './routes/admin.routes.js'
+import { reloadStripeFromDb } from './lib/stripe.js'
 
 export { runMigrations } from './lib/migrate.js'
 
@@ -82,5 +84,14 @@ export async function register({ app, db, redis }) {
     await splitpay.register(paymentRoutes,        { prefix: '/v1/splitpay/payments' })
     await splitpay.register(connectAccountRoutes, { prefix: '/v1/splitpay/connect-accounts' })
     await splitpay.register(webhookRoutes,        { prefix: '/v1/splitpay/webhooks' })
+    await splitpay.register(adminRoutes,          { prefix: '/v1/splitpay/admin' })
+  })
+
+  // Hydrate Stripe credentials from DB at boot. If neither DB nor env has
+  // them yet, the lazy fallback in stripe.js logs a warning and the first
+  // request fails gracefully (staff sets the keys via voragine-console
+  // and PATCH /v1/splitpay/admin/config reloads the Stripe client).
+  app.addHook('onReady', async () => {
+    try { await reloadStripeFromDb() } catch (err) { logger.warn({ err }, 'splitpay: deferred Stripe init') }
   })
 }

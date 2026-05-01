@@ -16,6 +16,21 @@ vi.mock('@sendgrid/mail', () => ({
   default: { setApiKey: vi.fn(), send: vi.fn() },
 }))
 
+// loadConfig() reads from DB; in the test we simulate the empty-DB case so
+// it falls back to env (mocked above). renderTemplate() also reads from DB;
+// returning null means email.service uses the inline `defaults`.
+vi.mock('../lib/db.js', () => ({
+  pool: {
+    connect: vi.fn().mockResolvedValue({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      release: vi.fn(),
+    }),
+  },
+}))
+vi.mock('../services/template-renderer.js', () => ({
+  renderTemplate: vi.fn().mockResolvedValue(null),
+}))
+
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../services/email.service.js'
 import sgMail from '@sendgrid/mail'
 import { logger } from '../lib/logger.js'

@@ -87,6 +87,10 @@ services:
       MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
       REDIS_URL: redis://redis:6379
       PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      # Master key for AES-256-GCM at-rest encryption of module config
+      # secrets stored in platform_*/config tables (auth oauth_client_secret,
+      # Stripe keys, SendGrid api key, S3 access keys, etc.).
+      PLATFORM_CONFIG_ENCRYPTION_KEY: ${PLATFORM_CONFIG_ENCRYPTION_KEY}
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       # Per-module DATABASE_URLs — one Pool per module

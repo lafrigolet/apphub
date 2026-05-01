@@ -7,6 +7,38 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Module-level runtime config UI in voragine-console** — staff can now
+  bootstrap every platform-core module from the admin portal without touching
+  `.env` or redeploying. New sidebar group "Configuración" with sections for:
+  - **OAuth Providers** (Google, Facebook): client_id + AES-GCM-encrypted
+    client_secret + enabled flag. New table `platform_auth.oauth_providers`,
+    routes `/v1/auth/admin/oauth-providers`. `oauth.service` resolves the live
+    config from DB at each login, falling back to env for back-compat.
+  - **Stripe (payments)**: publishable_key, secret_key, webhook_secret —
+    encrypted. New table `platform_payments.config`, routes `/v1/payments/admin/config`.
+  - **SendGrid + Email Templates (notifications)**: API key + sender + 6
+    seeded templates with `{{var}}` interpolation. Tables
+    `platform_notifications.config` and `…templates`. Routes
+    `/v1/notifications/admin/config`, `…/templates` (CRUD + preview).
+    `email.service` reads templates from DB with hardcoded fallback;
+    SendGrid api_key + sender resolved from DB with env fallback (cached 30s).
+  - **Stripe Connect (splitpay)**: platform_account_id + secret/publishable
+    keys + webhook secret. Table `splitpay_core.config`, routes
+    `/v1/splitpay/admin/config`. `lib/stripe.js` hydrates from DB at boot
+    via a new `reloadStripeFromDb()` hook called from `register()`.
+  - **Object storage**: S3 endpoint/region/bucket/access/secret + MinIO
+    public endpoint + force_path_style. Table `platform_storage.settings`,
+    routes `/v1/storage/admin/config` + `/admin/kinds` (read-only).
+    `storage.service` driven by a merged DB+env settings cache.
+  - **Apps & Tenants** (tenant-config): existing CRUD endpoints now require
+    `requireRole('staff')` on writes; reads remain authenticated.
+
+  All admin endpoints sit behind `requireRole('super_admin', 'staff')`. All
+  secrets are encrypted at rest with AES-256-GCM via the new
+  `@apphub/platform-sdk/crypto` helper (master key in
+  `PLATFORM_CONFIG_ENCRYPTION_KEY`, 32 bytes hex). Migration is non-breaking:
+  modules read config from DB and fall back to env for older deployments.
+
 - **`reviews` verified-purchase check** — `platform/reviews` now calls
   `platform-marketplace`'s own `/v1/orders/:id` endpoint (HTTP loopback inside
   the same container, ready-to-split when the modules separate) to verify that
