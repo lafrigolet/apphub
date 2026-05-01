@@ -47,7 +47,16 @@ export function AppProvider({ children }) {
   function navigate(v, extra) {
     setView(v)
     setViewState(extra ?? null)
-    if (extra?.tenant) { setSelectedTenant(extra.tenant); setTenantTab('identity') }
+    if (extra?.tenant) {
+      setSelectedTenant(extra.tenant)
+      setTenantTab('identity')
+    } else {
+      // Drop the tenant selection when navigating away without an explicit
+      // tenant; otherwise App.jsx keeps rendering <TenantDetail /> for any
+      // view that depends on `selectedTenant`, trapping the user in the
+      // detail page.
+      setSelectedTenant(null)
+    }
     window.scrollTo({ top: 0 })
   }
 
