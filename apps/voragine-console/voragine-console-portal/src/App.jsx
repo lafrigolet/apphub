@@ -15,6 +15,7 @@ import AuditGlobal     from './views/staff/AuditGlobal'
 import AuthProviders               from './views/staff/config/AuthProviders'
 import PaymentsConfig              from './views/staff/config/PaymentsConfig'
 import NotificationsConfig         from './views/staff/config/NotificationsConfig'
+import TwilioConfig                from './views/staff/config/TwilioConfig'
 import NotificationsTemplates      from './views/staff/config/NotificationsTemplates'
 import NotificationsTemplateEdit   from './views/staff/config/NotificationsTemplateEdit'
 import SplitpayConfig              from './views/staff/config/SplitpayConfig'
@@ -44,6 +45,7 @@ function MainContent() {
     if (view === 'config-auth')                            return <AuthProviders />
     if (view === 'config-payments')                        return <PaymentsConfig />
     if (view === 'config-notifications')                   return <NotificationsConfig />
+    if (view === 'config-twilio')                          return <TwilioConfig />
     if (view === 'config-notifications-templates')         return <NotificationsTemplates />
     if (view === 'config-notifications-template-edit')     return <NotificationsTemplateEdit />
     if (view === 'config-splitpay')                        return <SplitpayConfig />

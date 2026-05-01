@@ -12,14 +12,15 @@ export function renderString(template, vars) {
   })
 }
 
-// Look up a template by key in the DB and render it with `vars`.
+// Look up a template by (key, channel) in the DB and render it with `vars`.
+// Default channel is 'email' for back-compat with existing callers.
 // Returns { subject, text, html } on hit; null on miss (caller falls back
 // to a hardcoded default).
-export async function renderTemplate(key, vars) {
+export async function renderTemplate(key, vars, channel = 'email') {
   const client = await pool.connect()
   let row
   try {
-    row = await repo.findByKey(client, key)
+    row = await repo.findByKey(client, key, channel)
   } finally {
     client.release()
   }

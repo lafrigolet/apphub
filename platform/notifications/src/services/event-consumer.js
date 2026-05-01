@@ -6,6 +6,7 @@ import {
   sendBookingReminderEmail, sendReservationReminderEmail,
   sendPackageExpiryEmail, sendDisputeSlaInternalEmail,
 } from './email.service.js'
+import { sendBookingReminderSms } from './sms.service.js'
 
 export function startEventConsumer() {
   const sub = new Redis(env.REDIS_URL)
@@ -42,8 +43,12 @@ export function startEventConsumer() {
 
       // ── platform-scheduler events ────────────────────────────────────
       if (event.type === 'booking.reminder.due') {
-        const { clientEmail, clientName, startsAt, window } = event.payload ?? {}
+        const { clientEmail, clientPhone, clientName, startsAt, window } = event.payload ?? {}
         if (clientEmail) await sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window })
+        // SMS goes out only when the scheduler hydrated the phone number;
+        // the booking module is responsible for including it in the event
+        // payload. Stays a noop in dev / when Twilio is not configured.
+        if (clientPhone) await sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window })
       }
 
       if (event.type === 'reservation.reminder.due') {

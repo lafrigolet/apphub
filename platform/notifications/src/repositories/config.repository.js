@@ -1,7 +1,14 @@
 import { encryptSecret, decryptSecret } from '@apphub/platform-sdk/crypto'
 
-const SECRET_KEYS = ['sendgrid_api_key']
-const PLAIN_KEYS  = ['sender_email', 'sender_name']
+const SECRET_KEYS = ['sendgrid_api_key', 'twilio_api_key_secret']
+const PLAIN_KEYS  = [
+  'sender_email',
+  'sender_name',
+  'twilio_account_sid',
+  'twilio_api_key_sid',
+  'twilio_messaging_service_sid',
+  'twilio_default_sender',
+]
 
 export const KEYS = [...SECRET_KEYS, ...PLAIN_KEYS]
 

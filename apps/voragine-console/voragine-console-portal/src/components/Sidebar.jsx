@@ -24,6 +24,7 @@ export default function Sidebar() {
     { k: 'config-auth',                      label: 'OAuth Providers', icon: icons.settings },
     { k: 'config-payments',                  label: 'Stripe',          icon: icons.settings },
     { k: 'config-notifications',             label: 'SendGrid',        icon: icons.settings },
+    { k: 'config-twilio',                    label: 'Twilio (SMS)',    icon: icons.settings },
     { k: 'config-notifications-templates',   label: 'Plantillas',      icon: icons.settings },
     { k: 'config-splitpay',                  label: 'Split Pay',       icon: icons.settings },
     { k: 'config-storage',                   label: 'Object storage',  icon: icons.settings },

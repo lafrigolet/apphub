@@ -16,11 +16,11 @@ export async function findById(client, id) {
   return rows[0] ?? null
 }
 
-export async function findByKey(client, key) {
+export async function findByKey(client, key, channel = 'email') {
   const { rows } = await client.query(
     `SELECT id, key, channel, subject, body_text, body_html, variables, enabled, updated_at
-       FROM platform_notifications.templates WHERE key = $1 AND enabled`,
-    [key],
+       FROM platform_notifications.templates WHERE key = $1 AND channel = $2 AND enabled`,
+    [key, channel],
   )
   return rows[0] ?? null
 }

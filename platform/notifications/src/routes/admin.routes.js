@@ -3,12 +3,24 @@ import { requireRole } from '@apphub/platform-sdk/app-guard'
 import * as configRepo from '../repositories/config.repository.js'
 import * as tmplRepo from '../repositories/templates.repository.js'
 import { renderString } from '../services/template-renderer.js'
+import { sendTestSms, invalidateSmsConfigCache } from '../services/sms.service.js'
+import { invalidateConfigCache as invalidateEmailConfigCache } from '../services/email.service.js'
 import { pool } from '../lib/db.js'
 
 const configBody = z.object({
-  sendgrid_api_key: z.string().min(1).max(2048).optional().nullable(),
-  sender_email:     z.string().email().optional().nullable(),
-  sender_name:      z.string().max(256).optional().nullable(),
+  sendgrid_api_key:             z.string().min(1).max(2048).optional().nullable(),
+  sender_email:                 z.string().email().optional().nullable(),
+  sender_name:                  z.string().max(256).optional().nullable(),
+  twilio_account_sid:           z.string().min(1).max(64).optional().nullable(),
+  twilio_api_key_sid:           z.string().min(1).max(64).optional().nullable(),
+  twilio_api_key_secret:        z.string().min(1).max(2048).optional().nullable(),
+  twilio_messaging_service_sid: z.string().min(1).max(64).optional().nullable(),
+  twilio_default_sender:        z.string().min(1).max(32).optional().nullable(),
+})
+
+const smsTestBody = z.object({
+  to:   z.string().min(8).max(32),
+  body: z.string().min(1).max(320).optional().nullable(),
 })
 
 const templateBody = z.object({
@@ -38,8 +50,20 @@ export async function adminRoutes(fastify) {
         if (value === undefined) continue
         await configRepo.upsertValue(client, key, value)
       }
+      // Drop both senders' caches so the next send picks up new credentials
+      // without waiting 30s.
+      invalidateEmailConfigCache()
+      invalidateSmsConfigCache()
       return { data: await configRepo.listConfig(client) }
     } finally { client.release() }
+  })
+
+  // POST /v1/notifications/admin/sms/test  { to, body? }
+  // Smoke test for the Twilio config; returns the message SID on success or
+  // { stub: true } when no credentials are configured (logs to stdout).
+  fastify.post('/sms/test', async (req) => {
+    const { to, body } = smsTestBody.parse(req.body ?? {})
+    return { data: await sendTestSms(to, body) }
   })
 
   // ── Templates ────────────────────────────────────────────────
