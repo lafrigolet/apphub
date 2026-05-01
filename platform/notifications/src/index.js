@@ -2,6 +2,7 @@ import { configurePool } from './lib/db.js'
 import { configureRedis } from './lib/redis.js'
 import { startEventConsumer } from './services/event-consumer.js'
 import { adminRoutes } from './routes/admin.routes.js'
+import { emailDomainsRoutes } from './routes/email-domains.routes.js'
 
 export { runMigrations } from './lib/migrate.js'
 
@@ -13,7 +14,8 @@ export async function register({ app, db, redis }) {
     status: 'ok', module: 'notifications', timestamp: new Date().toISOString(),
   }))
 
-  await app.register(adminRoutes, { prefix: '/v1/notifications/admin' })
+  await app.register(adminRoutes,        { prefix: '/v1/notifications/admin' })
+  await app.register(emailDomainsRoutes, { prefix: '/v1/notifications/email-domains' })
 
   // Start the platform event consumer once Fastify finishes plugin registration.
   // The consumer creates its own Redis subscriber connection (pub/sub requires

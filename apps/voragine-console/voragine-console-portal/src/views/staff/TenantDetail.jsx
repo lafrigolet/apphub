@@ -63,57 +63,149 @@ function TabIdentity({ t }) {
 
 function TabState({ t }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="bg-white border border-line rounded-xl shadow-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="font-display text-[20px]">Estado actual</div>
-          <StatusBadge status={t.status} />
-        </div>
-        {t.status === 'SUSPENDED' && (
-          <div className="bg-warnbg border border-warn/30 rounded-lg p-3 text-[13px] text-warn">
-            Suspendido {t.suspendReason ? <>por <strong>{t.suspendReason}</strong></> : ''}. El tenant no puede operar hasta su reactivación.
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-line rounded-xl shadow-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-display text-[20px]">Estado actual</div>
+            <StatusBadge status={t.status} />
           </div>
-        )}
-        {t.status === 'ARCHIVED' && (
-          <div className="bg-paper2 border border-line rounded-lg p-3 text-[13px] text-ink2">
-            Archivado el {fmtDate(t.archivedAt)}. Retención: <strong>90 días</strong>.
-          </div>
-        )}
-        <div className="mt-6">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-3">Línea de estado</div>
-          <div className="flex items-center gap-2 text-[12px]">
-            <span className="badge bg-okbg text-ok"><span className="dot" style={{ background: '#2F6F4F' }} />Creado</span>
-            <span className="text-ink3">{icons.chevronR}</span>
-            <span className="badge bg-okbg text-ok"><span className="dot" style={{ background: '#2F6F4F' }} />Activo</span>
-            {t.status !== 'ACTIVE' && <><span className="text-ink3">{icons.chevronR}</span><StatusBadge status={t.status} /></>}
-          </div>
-        </div>
-      </div>
-      <div className="bg-white border border-line rounded-xl shadow-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="font-display text-[20px]">Dominios</div>
-        </div>
-        <div className="space-y-4">
-          <div className="flex items-start gap-3">
-            <span className="text-ink3 mt-0.5">{icons.globe}</span>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-ink3">Subdominio plataforma</div>
-              <div className="text-[14px] font-mono mt-0.5">{t.subdomain}.voragine.app</div>
+          {t.status === 'SUSPENDED' && (
+            <div className="bg-warnbg border border-warn/30 rounded-lg p-3 text-[13px] text-warn">
+              Suspendido {t.suspendReason ? <>por <strong>{t.suspendReason}</strong></> : ''}. El tenant no puede operar hasta su reactivación.
             </div>
-          </div>
-          <div className="border-t border-line" />
-          <div className="flex items-start gap-3">
-            <span className="text-ink3 mt-0.5">{icons.globe}</span>
-            <div className="flex-1">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-ink3">Dominio propio</div>
-              {t.customDomain
-                ? <div className="text-[14px] font-mono mt-0.5">{t.customDomain}</div>
-                : <div className="text-[13px] text-ink3 mt-0.5">No configurado</div>
-              }
+          )}
+          {t.status === 'ARCHIVED' && (
+            <div className="bg-paper2 border border-line rounded-lg p-3 text-[13px] text-ink2">
+              Archivado el {fmtDate(t.archivedAt)}. Retención: <strong>90 días</strong>.
+            </div>
+          )}
+          <div className="mt-6">
+            <div className="text-[11px] uppercase tracking-[0.14em] text-ink3 mb-3">Línea de estado</div>
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="badge bg-okbg text-ok"><span className="dot" style={{ background: '#2F6F4F' }} />Creado</span>
+              <span className="text-ink3">{icons.chevronR}</span>
+              <span className="badge bg-okbg text-ok"><span className="dot" style={{ background: '#2F6F4F' }} />Activo</span>
+              {t.status !== 'ACTIVE' && <><span className="text-ink3">{icons.chevronR}</span><StatusBadge status={t.status} /></>}
             </div>
           </div>
         </div>
+        <div className="bg-white border border-line rounded-xl shadow-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-display text-[20px]">Dominios</div>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <span className="text-ink3 mt-0.5">{icons.globe}</span>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.14em] text-ink3">Subdominio plataforma</div>
+                <div className="text-[14px] font-mono mt-0.5">{t.subdomain}.voragine.app</div>
+              </div>
+            </div>
+            <div className="border-t border-line" />
+            <div className="flex items-start gap-3">
+              <span className="text-ink3 mt-0.5">{icons.globe}</span>
+              <div className="flex-1">
+                <div className="text-[11px] uppercase tracking-[0.14em] text-ink3">Dominio propio</div>
+                {t.customDomain
+                  ? <div className="text-[14px] font-mono mt-0.5">{t.customDomain}</div>
+                  : <div className="text-[13px] text-ink3 mt-0.5">No configurado</div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <EmailDomainsCard tenant={t} />
+    </div>
+  )
+}
+
+function statusBadgeClasses(status) {
+  switch (status) {
+    case 'verified':  return 'bg-okbg text-ok'
+    case 'pending':   return 'bg-warnbg text-warn'
+    case 'failed':    return 'bg-dangerbg text-danger'
+    case 'suspended': return 'bg-paper2 text-ink3'
+    default:          return 'bg-paper2 text-ink3'
+  }
+}
+
+function EmailDomainsCard({ tenant }) {
+  const { toast } = useApp()
+  const [items, setItems] = useState(null)
+  const [busyId, setBusyId] = useState(null)
+
+  const scope = `?appId=${encodeURIComponent(tenant.app_id)}&tenantId=${encodeURIComponent(tenant.id)}`
+
+  function reload() {
+    setItems(null)
+    api.get(`/api/notifications/email-domains${scope}`)
+      .then((r) => setItems(r?.data ?? []))
+      .catch((err) => { setItems([]); toast(err.message ?? 'Error', 'danger') })
+  }
+
+  useEffect(() => { reload() }, [tenant.id, tenant.app_id])
+
+  async function reverify(id) {
+    setBusyId(id)
+    try {
+      await api.post(`/api/notifications/email-domains/${id}/verify${scope}`, {})
+      toast('Verificación solicitada')
+      reload()
+    } catch (err) { toast(err.message ?? 'Error', 'danger') }
+    finally { setBusyId(null) }
+  }
+
+  async function suspend(id) {
+    if (!window.confirm('Suspender este dominio? El tenant no podrá enviar correos desde él.')) return
+    setBusyId(id)
+    try {
+      await api.post(`/api/notifications/email-domains/${id}/suspend${scope}`, {})
+      toast('Dominio suspendido', 'warn')
+      reload()
+    } catch (err) { toast(err.message ?? 'Error', 'danger') }
+    finally { setBusyId(null) }
+  }
+
+  return (
+    <div className="bg-white border border-line rounded-xl shadow-card">
+      <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+        <div>
+          <div className="font-display text-[20px]">Dominios de email</div>
+          <div className="text-xs text-ink3 mt-0.5">
+            Sólo lectura · El owner del tenant configura sus dominios desde su portal.
+          </div>
+        </div>
+      </div>
+      {items === null
+        ? <div className="p-6 text-center text-ink3 text-sm">Cargando…</div>
+        : items.length === 0
+          ? <div className="p-10 dotted text-center text-ink3 text-sm">El tenant no ha configurado ningún dominio de email.</div>
+          : (
+            <table className="t">
+              <thead><tr><th>Dominio</th><th>Estado</th><th>From por defecto</th><th>Última verificación</th><th /></tr></thead>
+              <tbody>
+                {items.map((d) => (
+                  <tr key={d.id}>
+                    <td className="font-mono text-[13px]">{d.domain}</td>
+                    <td><span className={`badge ${statusBadgeClasses(d.status)}`}>{d.status}</span></td>
+                    <td className="text-[13px] text-ink2">
+                      {d.default_from_local ? `${d.default_from_local}@${d.domain}` : <span className="text-ink3">—</span>}
+                    </td>
+                    <td className="text-[12.5px] text-ink3">{d.last_checked_at ? relTime(d.last_checked_at) : '—'}</td>
+                    <td className="text-right whitespace-nowrap">
+                      <button onClick={() => reverify(d.id)} disabled={busyId === d.id} className="btn btn-ghost btn-sm mr-1">Re-verificar</button>
+                      {d.status !== 'suspended' && (
+                        <button onClick={() => suspend(d.id)} disabled={busyId === d.id} className="btn btn-ghost btn-sm text-danger">Suspender</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
     </div>
   )
 }

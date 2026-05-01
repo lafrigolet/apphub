@@ -26,6 +26,7 @@ import ShippingConfig              from './views/staff/config/ShippingConfig'
 import TenantOverview  from './views/tenant/Overview'
 import TenantAdmins    from './views/tenant/Admins'
 import TenantSettings  from './views/tenant/Settings'
+import TenantEmail     from './views/tenant/Email'
 import TenantSplitpay  from './views/tenant/Splitpay'
 import TenantAudit     from './views/tenant/Audit'
 import TenantDanger    from './views/tenant/Danger'
@@ -54,6 +55,7 @@ function MainContent() {
     if (view === 'overview')  return <TenantOverview />
     if (view === 'admins')    return <TenantAdmins />
     if (view === 'settings')  return <TenantSettings />
+    if (view === 'email')     return <TenantEmail />
     if (view === 'splitpay')  return <TenantSplitpay />
     if (view === 'audit')     return <TenantAudit />
     if (view === 'danger')    return <TenantDanger />

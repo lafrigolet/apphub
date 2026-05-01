@@ -40,6 +40,7 @@ export default function Sidebar() {
     { k: 'overview',  label: 'Resumen',          icon: icons.dashboard },
     { k: 'admins',    label: 'Administradores',  icon: icons.admins },
     { k: 'settings',  label: 'Ajustes',          icon: icons.settings },
+    { k: 'email',     label: 'Email',            icon: icons.settings },
     ...splitpayItem,
     { k: 'audit',     label: 'Audit log',        icon: icons.audit },
     { k: 'danger',    label: 'Zona peligrosa',   icon: icons.danger, accent: true },
@@ -49,6 +50,7 @@ export default function Sidebar() {
     { k: 'overview',  label: 'Resumen',          icon: icons.dashboard },
     { k: 'admins',    label: 'Administradores',  icon: icons.admins },
     { k: 'settings',  label: 'Ajustes',          icon: icons.settings },
+    { k: 'email',     label: 'Email',            icon: icons.settings },
     ...splitpayItem,
     { k: 'audit',     label: 'Audit log',        icon: icons.audit },
   ]
