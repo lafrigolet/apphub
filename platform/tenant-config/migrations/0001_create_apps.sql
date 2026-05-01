@@ -18,9 +18,6 @@ CREATE TABLE IF NOT EXISTS platform_tenants.tenants (
 );
 CREATE INDEX IF NOT EXISTS idx_platform_tenants_app ON platform_tenants.tenants (app_id);
 
--- Seed known apps
-INSERT INTO platform_tenants.apps (app_id, display_name, subdomain, jwt_audience)
-VALUES
-  ('yoga-studio', 'Yoga Studio', 'yoga',     'yoga-studio'),
-  ('split-pay',   'Split Pay',   'splitpay',  'split-pay')
-ON CONFLICT (app_id) DO NOTHING;
+-- No app rows are pre-seeded. After bootstrap.sh runs, only the 'platform'
+-- app (subdomain 'voragine-console') exists. Real apps are registered later
+-- via voragine-console > Apps > Nueva app.
