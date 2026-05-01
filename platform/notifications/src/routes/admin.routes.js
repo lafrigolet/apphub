@@ -33,16 +33,27 @@ const templateBody = z.object({
   enabled:   z.boolean().optional(),
 })
 
+const cfgTags = ['notifications · admin']
+const tmplTags = ['notifications · templates']
+
 export async function adminRoutes(fastify) {
   fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
-  // ── Module config (SendGrid API key, sender) ──────────────────
-  fastify.get('/config', async () => {
+  // ── Module config (SendGrid + Twilio credentials, sender identity) ───────
+  fastify.get('/config', {
+    schema: { tags: cfgTags, summary: 'List notifications module config (SendGrid + Twilio)' },
+  }, async () => {
     const client = await pool.connect()
     try { return { data: await configRepo.listConfig(client) } } finally { client.release() }
   })
 
-  fastify.patch('/config', async (req) => {
+  fastify.patch('/config', {
+    schema: {
+      tags: cfgTags,
+      summary: 'Upsert notifications module config',
+      body: configBody,
+    },
+  }, async (req) => {
     const body = configBody.parse(req.body ?? {})
     const client = await pool.connect()
     try {
@@ -61,18 +72,28 @@ export async function adminRoutes(fastify) {
   // POST /v1/notifications/admin/sms/test  { to, body? }
   // Smoke test for the Twilio config; returns the message SID on success or
   // { stub: true } when no credentials are configured (logs to stdout).
-  fastify.post('/sms/test', async (req) => {
+  fastify.post('/sms/test', {
+    schema: {
+      tags: cfgTags,
+      summary: 'Send a one-shot test SMS via Twilio (or stub-log when not configured)',
+      body: smsTestBody,
+    },
+  }, async (req) => {
     const { to, body } = smsTestBody.parse(req.body ?? {})
     return { data: await sendTestSms(to, body) }
   })
 
   // ── Templates ────────────────────────────────────────────────
-  fastify.get('/templates', async () => {
+  fastify.get('/templates', {
+    schema: { tags: tmplTags, summary: 'List notification templates' },
+  }, async () => {
     const client = await pool.connect()
     try { return { data: await tmplRepo.list(client) } } finally { client.release() }
   })
 
-  fastify.get('/templates/:id', async (req, reply) => {
+  fastify.get('/templates/:id', {
+    schema: { tags: tmplTags, summary: 'Get a notification template by id' },
+  }, async (req, reply) => {
     const client = await pool.connect()
     try {
       const t = await tmplRepo.findById(client, req.params.id)
@@ -81,7 +102,9 @@ export async function adminRoutes(fastify) {
     } finally { client.release() }
   })
 
-  fastify.post('/templates', async (req, reply) => {
+  fastify.post('/templates', {
+    schema: { tags: tmplTags, summary: 'Create a notification template', body: templateBody },
+  }, async (req, reply) => {
     const body = templateBody.parse(req.body ?? {})
     if (!body.key || !body.body_text) {
       return reply.code(400).send({ error: { code: 'VALIDATION', message: 'key and body_text required' } })
@@ -91,7 +114,9 @@ export async function adminRoutes(fastify) {
     finally { client.release() }
   })
 
-  fastify.patch('/templates/:id', async (req, reply) => {
+  fastify.patch('/templates/:id', {
+    schema: { tags: tmplTags, summary: 'Update a notification template', body: templateBody },
+  }, async (req, reply) => {
     const body = templateBody.parse(req.body ?? {})
     const client = await pool.connect()
     try {
@@ -101,7 +126,9 @@ export async function adminRoutes(fastify) {
     } finally { client.release() }
   })
 
-  fastify.delete('/templates/:id', async (req, reply) => {
+  fastify.delete('/templates/:id', {
+    schema: { tags: tmplTags, summary: 'Delete a notification template' },
+  }, async (req, reply) => {
     const client = await pool.connect()
     try {
       await tmplRepo.remove(client, req.params.id)
@@ -111,7 +138,9 @@ export async function adminRoutes(fastify) {
 
   // Renders a template with the supplied vars and returns the rendered
   // strings — useful for previewing edits before saving / sending.
-  fastify.post('/templates/:id/preview', async (req, reply) => {
+  fastify.post('/templates/:id/preview', {
+    schema: { tags: tmplTags, summary: 'Render a template with the supplied variables' },
+  }, async (req, reply) => {
     const client = await pool.connect()
     try {
       const t = await tmplRepo.findById(client, req.params.id)

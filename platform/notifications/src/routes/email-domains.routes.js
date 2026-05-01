@@ -60,8 +60,18 @@ function sendError(reply, err) {
   throw err
 }
 
+const tags = ['notifications · email-domains']
+
+const idParams = z.object({ id: z.string().uuid() })
+
 export async function emailDomainsRoutes(fastify) {
-  fastify.post('/', async (req, reply) => {
+  fastify.post('/', {
+    schema: {
+      tags,
+      summary: 'Create a tenant email-sender domain (provisions in SendGrid)',
+      body: createBody,
+    },
+  }, async (req, reply) => {
     const guarded = requireTenantOwnerOrStaff(req, reply); if (guarded) return guarded
     const body = createBody.parse(req.body ?? {})
     try {
@@ -70,24 +80,44 @@ export async function emailDomainsRoutes(fastify) {
     } catch (err) { return sendError(reply, err) }
   })
 
-  fastify.get('/', async (req) => {
+  fastify.get('/', {
+    schema: {
+      tags,
+      summary: 'List the tenant email-sender domains',
+    },
+  }, async (req) => {
     return { data: await service.listForTenant(ctxFromRequest(req)) }
   })
 
-  fastify.get('/:id', async (req, reply) => {
+  fastify.get('/:id', {
+    schema: { tags, summary: 'Get one tenant email-sender domain', params: idParams },
+  }, async (req, reply) => {
     try {
       return { data: await service.getForTenant(ctxFromRequest(req), req.params.id) }
     } catch (err) { return sendError(reply, err) }
   })
 
-  fastify.post('/:id/verify', async (req, reply) => {
+  fastify.post('/:id/verify', {
+    schema: {
+      tags,
+      summary: 'Re-validate the SendGrid CNAMEs and update domain status',
+      params: idParams,
+    },
+  }, async (req, reply) => {
     const guarded = requireTenantOwnerOrStaff(req, reply); if (guarded) return guarded
     try {
       return { data: await service.verifyForTenant(ctxFromRequest(req), req.params.id) }
     } catch (err) { return sendError(reply, err) }
   })
 
-  fastify.patch('/:id', async (req, reply) => {
+  fastify.patch('/:id', {
+    schema: {
+      tags,
+      summary: 'Update default-from / reply-to of a verified domain',
+      params: idParams,
+      body: defaultsBody,
+    },
+  }, async (req, reply) => {
     const guarded = requireTenantOwnerOrStaff(req, reply); if (guarded) return guarded
     const body = defaultsBody.parse(req.body ?? {})
     try {
@@ -95,7 +125,14 @@ export async function emailDomainsRoutes(fastify) {
     } catch (err) { return sendError(reply, err) }
   })
 
-  fastify.post('/:id/suspend', async (req, reply) => {
+  fastify.post('/:id/suspend', {
+    schema: {
+      tags,
+      summary: 'Suspend a domain (staff only) — sends from it are blocked',
+      params: idParams,
+      body: suspendBody,
+    },
+  }, async (req, reply) => {
     const guarded = requireStaff(req, reply); if (guarded) return guarded
     const body = suspendBody.parse(req.body ?? {})
     try {
@@ -103,7 +140,9 @@ export async function emailDomainsRoutes(fastify) {
     } catch (err) { return sendError(reply, err) }
   })
 
-  fastify.delete('/:id', async (req, reply) => {
+  fastify.delete('/:id', {
+    schema: { tags, summary: 'Delete a domain (also removes it from SendGrid)', params: idParams },
+  }, async (req, reply) => {
     const guarded = requireTenantOwnerOrStaff(req, reply); if (guarded) return guarded
     try {
       await service.deleteForTenant(ctxFromRequest(req), req.params.id)

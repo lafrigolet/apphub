@@ -26,15 +26,28 @@ const patchBody = z.object({
 
 const BOOL_KEYS = new Set(['uber_enabled', 'glovo_enabled', 'stuart_enabled'])
 
+const tags = ['delivery-dispatch · admin']
+
 export async function adminRoutes(fastify) {
   fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
-  fastify.get('/config', async () => {
+  fastify.get('/config', {
+    schema: {
+      tags,
+      summary: 'List delivery-carrier credentials (Uber/Glovo/Stuart)',
+    },
+  }, async () => {
     const client = await pool.connect()
     try { return { data: await repo.listForAdmin(client) } } finally { client.release() }
   })
 
-  fastify.patch('/config', async (req) => {
+  fastify.patch('/config', {
+    schema: {
+      tags,
+      summary: 'Upsert delivery-carrier credentials (Uber/Glovo/Stuart)',
+      body: patchBody,
+    },
+  }, async (req) => {
     const body = patchBody.parse(req.body ?? {})
     const client = await pool.connect()
     try {

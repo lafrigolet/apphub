@@ -19,15 +19,28 @@ const patchBody = z.object({
   jitsi_private_key:      z.string().min(1).max(8192).optional().nullable(),
 })
 
+const tags = ['telehealth · admin']
+
 export async function adminRoutes(fastify) {
   fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
-  fastify.get('/config', async () => {
+  fastify.get('/config', {
+    schema: {
+      tags,
+      summary: 'List video-provider credentials (Daily/Twilio/Whereby/Jitsi)',
+    },
+  }, async () => {
     const client = await pool.connect()
     try { return { data: await repo.listForAdmin(client) } } finally { client.release() }
   })
 
-  fastify.patch('/config', async (req) => {
+  fastify.patch('/config', {
+    schema: {
+      tags,
+      summary: 'Upsert video-provider credentials',
+      body: patchBody,
+    },
+  }, async (req) => {
     const body = patchBody.parse(req.body ?? {})
     const client = await pool.connect()
     try {
