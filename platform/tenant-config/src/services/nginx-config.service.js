@@ -8,25 +8,24 @@ import { logger } from '../lib/logger.js'
 const CONF_KEY       = process.env.NGINX_CONF_KEY       ?? 'nginx:configs'
 const RELOAD_CHANNEL = process.env.NGINX_RELOAD_CHANNEL ?? 'nginx:reload'
 
+// The upstream alias (with concrete port) is defined statically in
+// infra/nginx/conf.d/upstream.conf for every portal — convention:
+// <subdomain_with_underscores>_portal. We just reference it here, so the
+// rendered server block stays valid even when portals listen on different
+// ports (5173, 5174, 5175, 5176, 5177, …).
 const APP_TEMPLATE = `# Auto-generated for app {{app_id}} (subdomain: {{subdomain}}) at {{timestamp}}
 # Source of truth: Redis hash field {{conf_key}}/{{subdomain}}.
 server {
   listen 80;
   server_name {{subdomain}}.apphub.local {{subdomain}}.apphub.com;
 
-  # Use Docker's internal DNS so the portal upstream is resolved at request
-  # time (the container may be created after this server block loads).
-  resolver 127.0.0.11 valid=10s ipv6=off;
-
   # Platform APIs (auth, tenants, payments, splitpay, …)
   include /etc/nginx/snippets/platform-routes.conf;
 
-  # App frontend. By convention the portal container is named "{{subdomain}}-portal"
-  # and listens on 5180. If the container does not exist yet, NGINX returns 502
-  # until it is created.
-  set $portal_upstream "{{subdomain}}-portal:5180";
+  # App frontend — proxies to the upstream block defined for this portal in
+  # /etc/nginx/conf.d/upstream.conf. NGINX returns 502 until the container is up.
   location / {
-    proxy_pass http://$portal_upstream;
+    proxy_pass http://{{upstream_alias}};
     proxy_set_header Host              $host;
     proxy_set_header X-Real-IP         $remote_addr;
     proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
@@ -38,6 +37,10 @@ server {
   }
 }
 `
+
+function upstreamAlias(subdomain) {
+  return `${String(subdomain).replace(/-/g, '_')}_portal`
+}
 
 function render(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, k) =>
@@ -52,10 +55,11 @@ function render(template, vars) {
  */
 export async function writeAppNginxConfig({ appId, subdomain }) {
   const conf = render(APP_TEMPLATE, {
-    app_id:    appId,
+    app_id:         appId,
     subdomain,
-    conf_key:  CONF_KEY,
-    timestamp: new Date().toISOString(),
+    upstream_alias: upstreamAlias(subdomain),
+    conf_key:       CONF_KEY,
+    timestamp:      new Date().toISOString(),
   })
   await redis.hset(CONF_KEY, subdomain, conf)
   await redis.publish(RELOAD_CHANNEL, subdomain).catch(() => {})
