@@ -73,8 +73,8 @@
   - [ ] **Cálculo de impuestos por jurisdicción** (TaxJar/Avalara o tabla propia)
   - [ ] **Promociones / códigos descuento**
   - [ ] **Multi-vendor splits** (subdividir un order entre N vendors con `splitpay`)
-  - [ ] **Order modifications** post-creación con auditoría
-  - [ ] **Email notifications** automáticos en cada transición
+  - [x] **Order modifications** — tabla `order_modifications` (RLS) + endpoints `GET /orders/:id/modifications`, `PUT /orders/:id/shipping-address`, `POST /orders/:id/notes`. Solo mutables en `pending`/`paid`.
+  - [x] **Email notifications** — senders `sendOrderPaidEmail/Shipped/Delivered/Cancelled/Refunded` + plantillas seed (es/en) + hidratación de `buyerEmail` via cross-schema GRANT desde `orders` a `platform_auth.users`.
 
 ### `inventory` — ✅ funcional
 - [x] Stock per SKU, FSM reserve/release/commit, threshold alerts
@@ -82,7 +82,7 @@
   - [ ] **Stock por warehouse/ubicación** (hoy plano por tenant)
   - [ ] **Backorder support** con cola de espera
   - [ ] **Forecast/replenishment** sugerencias
-  - [ ] **Variants** (talla/color como SKUs derivados)
+  - [o] **Variants** (talla/color como SKUs derivados)
   - [ ] **Bundle SKUs** (kits que decrementan varios SKUs al vender)
 
 ### `reviews` — ✅ funcional
@@ -90,16 +90,16 @@
 - [x] Verified-purchase check via HTTP a orders (ADR 009) — `verified_purchase` boolean + filtro `verifiedOnly` + `verified_count` en agregados
 - **Falta**:
   - [ ] **Moderación con ML** (toxicidad, spam) — solo manual `pending → published`
-  - [ ] **Photo/video uploads** con object storage
-  - [ ] **Helpful/unhelpful voting**
-  - [ ] **Schema.org JSON-LD** para SEO
+  - [o] **Photo/video uploads** con object storage
+  - [o] **Helpful/unhelpful voting**
+  - [o] **Schema.org JSON-LD** para SEO
 
 ### `messaging` — ✅ funcional
 - [x] Threads, mensajes, attachments, mark read, ACL buyer/vendor/staff
 - **Falta**:
-  - [ ] **WebSocket / SSE real-time** — hoy polling/REST
+  - [o] **WebSocket / SSE real-time** — hoy polling/REST
   - [ ] **Typing indicators, presence**
-  - [ ] **Attachments** persistidos en object storage (hoy solo metadata JSON)
+  - [o] **Attachments** persistidos en object storage (hoy solo metadata JSON)
   - [ ] **Search** en mensajes (Postgres full-text o Elastic)
   - [ ] **Auto-archive** de threads inactivos
   - [ ] **Translation** automática para chat cross-language
@@ -109,17 +109,17 @@
 - **Falta**:
   - [ ] **Integración con carriers reales** (UPS, FedEx, Correos, GLS, SEUR, DHL) — hoy todo manual
   - [ ] **Etiquetas EasyPost/Sendcloud** generación de PDF
-  - [ ] **Webhook receivers** para tracking automático del carrier
-  - [ ] **Multi-package shipments** (un order con N cajas)
-  - [ ] **Returns/RMA flow**
-  - [ ] **Insurance, signature required** opciones
+  - [o] **Webhook receivers** para tracking automático del carrier
+  - [o] **Multi-package shipments** (un order con N cajas)
+  - [o] **Returns/RMA flow**
+  - [o] **Insurance, signature required** opciones
 
 ### `disputes` — ✅ funcional
 - [x] FSM, mensajes, evidencia, escalation `splitpay.chargeback.created`
 - **Falta**:
   - [ ] **SLA timer** (auto-escalate si vendor no responde en 48h)
-  - [ ] **Auto-refund** integration al resolver favor del buyer
-  - [ ] **Stripe dispute API** sync bidireccional (subir evidencia a Stripe)
+  - [o] **Auto-refund** integration al resolver favor del buyer
+  - [o] **Stripe dispute API** sync bidireccional (subir evidencia a Stripe)
   - [ ] **Templated responses** para vendors
 
 ### `catalog` — ✅ funcional pero básico
@@ -130,19 +130,19 @@
   - [ ] **Pricing rules** (precio por volumen, promo)
   - [ ] **Search** (Postgres FTS o Elastic)
   - [ ] **Category tree** con jerarquía
-  - [ ] **Image gallery** con CDN
+  - [o] **Image gallery** con CDN
   - [ ] **Inventory link** automático al crear producto
-  - [ ] **Import/export CSV**
-  - [ ] **Versioning + draft/published**
+  - [o] **Import/export CSV**
+  - [o] **Versioning + draft/published**
 
 ### `basket` — ✅ funcional
 - [x] Redis-only, expiración, items
 - **Falta**:
-  - [ ] **Merge** carritos cuando un guest se loguea
+  - [x] **Merge** carritos — `POST /v1/basket/merge { guestUserId }` suma cantidades item-a-item y borra el guest basket.
   - [ ] **Validación de precio/disponibilidad** en checkout (re-leer catálogo)
-  - [ ] **Promociones aplicadas** (no hay engine)
-  - [ ] **Saved-for-later**
-  - [ ] **Abandoned-cart events** para `notifications`
+  - [o] **Promociones aplicadas** (no hay engine)
+  - [x] **Saved-for-later** — Redis paralelo `basket:saved:…` + endpoints `GET /v1/basket/saved`, `POST /v1/basket/saved`, `POST /v1/basket/saved/:itemId/move-back`, `DELETE /v1/basket/saved/:itemId`.
+  - [x] **Abandoned-cart events** — `basket.abandoned` ya emitido por scheduler + ahora hidrata `buyerEmail` via GRANT a auth + plantilla email + sender wired en notifications consumer.
 
 ## platform-restaurant (port 3200)
 

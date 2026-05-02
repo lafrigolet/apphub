@@ -210,6 +210,21 @@ export async function sendPackageExhaustedEmail(to, { locale = 'es' } = {}) {
   await send({ to, ...tmpl })
 }
 
+export async function sendBasketAbandonedEmail(to, { itemCount, locale = 'es' }) {
+  const itemNoun = locale === 'en'
+    ? (itemCount === 1 ? 'item' : 'items')
+    : (itemCount === 1 ? 'artículo' : 'artículos')
+  const tmpl = await compose('basket.abandoned', { itemCount, itemNoun }, {
+    subject: locale === 'en'
+      ? `Your basket is waiting (${itemCount} ${itemNoun})`
+      : `Tu carrito te espera (${itemCount} ${itemNoun})`,
+    text: locale === 'en'
+      ? `Hi,\n\nYou left ${itemCount} ${itemNoun} in your basket. Pick up where you left off whenever you want.`
+      : `Hola,\n\nDejaste ${itemCount} ${itemNoun} en tu carrito. Cuando quieras, retoma la compra.`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
 function formatAmount(cents, currency, locale) {
   if (cents == null) return ''
   try {

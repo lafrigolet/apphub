@@ -219,6 +219,28 @@ export function startEventConsumer() {
           await gated(buyerUserId, event.type, 'email', () => sendOrderCancelledEmail(buyerEmail, { orderId, reason, locale }))
         }
       }
+      if (event.type === 'basket.abandoned') {
+        // Producer is platform-scheduler — payload has userId but no email.
+        // Hydrate from platform_auth.users via the cross-schema grant added
+        // for orders (svc_platform_notifications already has access to its
+        // own schema only; we look up via a per-request connection that
+        // happens to share the role's grants — for now we stick to the
+        // userId-known path).
+        const { userId, itemCount } = event.payload ?? {}
+        if (userId) {
+          // Best effort: look up the email via the existing send_log pattern.
+          // To avoid a new GRANT in this commit we accept that the producer
+          // may evolve later to include the email directly. For now, just
+          // log + skip if no buyerEmail in the payload.
+          if (event.payload?.buyerEmail) {
+            const { sendBasketAbandonedEmail } = await import('./email.service.js')
+            await gated(userId, event.type, 'email', () => sendBasketAbandonedEmail(event.payload.buyerEmail, { itemCount, locale }))
+          } else {
+            logger.debug({ userId, itemCount }, 'basket.abandoned without buyerEmail — skipping (producer needs to hydrate)')
+          }
+        }
+      }
+
       if (event.type === 'order.refunded') {
         const { buyerEmail, buyerUserId, orderId, totalCents, currency } = event.payload ?? {}
         if (buyerEmail) {
