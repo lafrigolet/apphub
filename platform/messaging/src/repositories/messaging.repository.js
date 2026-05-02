@@ -64,3 +64,41 @@ export async function markRead(client, appId, tenantId, messageId) {
   )
   return rowCount > 0
 }
+
+// ── Storage-backed attachments ──────────────────────────────────────────
+
+export async function findMessageById(client, appId, tenantId, messageId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.messages WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, messageId],
+  )
+  return rows[0] ?? null
+}
+
+export async function insertAttachment(client, appId, tenantId, messageId, { objectId, kind, displayOrder }) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.message_attachments (app_id, tenant_id, message_id, object_id, kind, display_order)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0))
+     RETURNING *`,
+    [appId, tenantId, messageId, objectId, kind, displayOrder ?? 0],
+  )
+  return rows[0]
+}
+
+export async function listAttachments(client, appId, tenantId, messageId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.message_attachments
+       WHERE app_id=$1 AND tenant_id=$2 AND message_id=$3
+       ORDER BY display_order, created_at`,
+    [appId, tenantId, messageId],
+  )
+  return rows
+}
+
+export async function deleteAttachment(client, appId, tenantId, attachmentId) {
+  const { rowCount } = await client.query(
+    `DELETE FROM ${SCHEMA}.message_attachments WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, attachmentId],
+  )
+  return rowCount > 0
+}

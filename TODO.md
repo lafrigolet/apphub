@@ -99,7 +99,7 @@
 - **Falta**:
   - [o] **WebSocket / SSE real-time** — hoy polling/REST
   - [ ] **Typing indicators, presence**
-  - [o] **Attachments** persistidos en object storage (hoy solo metadata JSON)
+  - [x] **Attachments** persistidos en object storage — tabla `message_attachments` (RLS) referenciando `platform_storage.objects.id` con `kind` (image/video/file) + `display_order`; endpoints `GET/POST /v1/messages/threads/:id/messages/:mid/attachments`, `DELETE …/:attachmentId`. La columna JSON `messages.attachments` se mantiene por compat con clientes antiguos.
   - [ ] **Search** en mensajes (Postgres full-text o Elastic)
   - [ ] **Auto-archive** de threads inactivos
   - [ ] **Translation** automática para chat cross-language
