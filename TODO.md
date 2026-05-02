@@ -376,37 +376,32 @@ todas las apps tenant-facing, y `splitpay` solo donde `splitpay_enabled = TRUE`.
 al shell de tenant-console como pieza compartida con voragine-console (vía
 `packages/`?) — decisión a tomar al portarlo.
 
-### Fase 3 — Manifests nuevos por módulo (orden por valor/coste)
-- [ ] `notifications` — Plantillas editables per-tenant (cuando exista la
-  feature DB-side; hoy son globales). Email domains ya cubierto.
-- [ ] `basket` — CRUD de promo codes (`Comercial · Promociones`). Reusa los
-  endpoints `GET/PUT/DELETE /v1/basket/promos[/:code]` ya existentes.
-- [ ] `services` — editor con tabs (Identidad · Pricing tiers · Cancelación ·
-  Galería de imágenes). Conecta a las features de `appointments` (commit
-  `290114d`).
-- [ ] `bookings` — listado de reservas con filtros + detalle + acciones
-  (cancel con cancellation policy enforcement, reschedule).
-- [ ] `availability` — slot grid visualizado (read-only por ahora).
-- [ ] `packages` — CRUD plantillas + auditoría de transfers / family sharing
-  / auto-renew (read-only para staff/owner; las acciones las hace el cliente
-  desde el portal del cliente).
-- [ ] `orders` — listado + detalle + modifications log + buttons (cambiar
-  status, cambiar dirección, añadir nota).
-- [ ] `inventory` — listado SKU + variants editor (compacto).
-- [ ] `shipping` — devoluciones (Operaciones · Devoluciones), shipments,
-  multi-package, log de webhook receivers (read-only).
-- [ ] `disputes` — listado + detalle + botón "Submit evidence to Stripe"
-  (consume el endpoint `POST /v1/disputes/:id/submit-to-stripe`).
-- [ ] `reviews` — moderación (`pending → published/hidden`).
-- [ ] `messaging` — listado de threads (real-time queda en ADR 010 deferido).
-- [ ] `catalog` — listado + editor de items + image gallery + import/export
-  CSV (botones que pegan a los endpoints existentes).
-- [ ] `intake-forms` — listado de submissions + descarga PDF (endpoint
-  ya existe).
-- [ ] `practitioner-payouts` — listado + descarga PDF + filtro por periodo.
-- [ ] `telehealth` — listado de salas activas (read-only).
-- [ ] `splitpay` — heredada de voragine-console; mismo flujo de Stripe Connect
-  pero scopeado al propio tenant (sin `?tenantId=…` query).
+### Fase 3 — Manifests nuevos por módulo (orden por valor/coste) ✅
+Primer pase: cada módulo del registro (excepto `notifications`-templates,
+deferido a feature DB-side) tiene manifest + view de listado/edición
+mínima viable. Las views priorizan listar + acción puntual; UX más
+profundo se itera después.
+- [ ] `notifications` — Plantillas editables per-tenant (deferido — la
+  feature DB-side todavía no existe; hoy son globales). Email domains
+  cubierto en Fase 1.
+- [x] `basket` — CRUD de promo codes (`Comercial · Promociones`).
+- [x] `services` — editor con tabs (Identidad · Pricing tiers ·
+  Cancelación · Galería).
+- [x] `bookings` — listado con filtro de status + cancelar.
+- [x] `availability` — slot grid read-only por servicio.
+- [x] `packages` — listado de plantillas (compras read-only).
+- [x] `orders` — listado + cambio de status inline.
+- [x] `inventory` — listado SKU + edit on-hand inline.
+- [x] `shipping` — tabs Devoluciones (aprobar) · Zonas y tarifas.
+- [x] `disputes` — listado + botón "Submit evidence to Stripe".
+- [x] `reviews` — moderación (`pending → published/hidden`).
+- [x] `messaging` — listado de threads (real-time deferido en ADR 010).
+- [x] `catalog` — listado + cambio de status + export CSV.
+- [x] `intake-forms` — listado de plantillas (PDF de submissions vía API).
+- [x] `practitioner-payouts` — listado + filtro por periodo + PDF.
+- [x] `telehealth` — listado read-only de bookings virtuales con sala.
+- [x] `splitpay` — ya cubierto por Fase 2 (`platform/splitpay`, scopeado
+  al tenant del JWT).
 
 ### Fase 4 — Despliegue + cutover
 - [ ] DNS / nginx multi-host: cada tenant servido en
