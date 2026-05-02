@@ -14,13 +14,14 @@ export default function TenantSettings() {
   useEffect(() => {
     if (!t) return
     setForm({
-      displayName:  t.display_name ?? '',
-      legalName:    t.legal_name ?? '',
-      cif:          t.cif ?? '',
-      country:      t.country ?? 'ES',
-      contactEmail: t.contact_email ?? '',
-      contactPhone: t.contact_phone ?? '',
-      address:      t.address ?? '',
+      displayName:   t.display_name ?? '',
+      legalName:     t.legal_name ?? '',
+      cif:           t.cif ?? '',
+      country:       t.country ?? 'ES',
+      contactEmail:  t.contact_email ?? '',
+      contactPhone:  t.contact_phone ?? '',
+      address:       t.address ?? '',
+      defaultLocale: t.default_locale ?? 'es',
     })
   }, [t])
 
@@ -33,13 +34,14 @@ export default function TenantSettings() {
     setSaving(true); setError(null)
     try {
       await api.patch(`/api/tenants/tenants/${t.id}`, {
-        displayName:  form.displayName || undefined,
-        legalName:    form.legalName   || undefined,
-        cif:          form.cif         || undefined,
-        country:      form.country     || undefined,
-        contactEmail: form.contactEmail || undefined,
-        contactPhone: form.contactPhone || undefined,
-        address:      form.address     || undefined,
+        displayName:   form.displayName || undefined,
+        legalName:     form.legalName   || undefined,
+        cif:           form.cif         || undefined,
+        country:       form.country     || undefined,
+        contactEmail:  form.contactEmail || undefined,
+        contactPhone:  form.contactPhone || undefined,
+        address:       form.address     || undefined,
+        defaultLocale: form.defaultLocale || undefined,
       })
       toast('Cambios guardados')
     } catch (err) {
@@ -93,6 +95,25 @@ export default function TenantSettings() {
                 <option value="FR">Francia</option>
                 <option value="GB">Reino Unido</option>
               </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white border border-line rounded-xl shadow-card p-6">
+          <div className="mb-5">
+            <div className="font-display text-[20px]">Notificaciones</div>
+            <div className="text-xs text-ink3 mt-0.5">Idioma por defecto para emails y SMS de este tenant</div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="label mb-1.5">Idioma por defecto</div>
+              <select className="select" value={form.defaultLocale} onChange={(e) => upd('defaultLocale', e.target.value)}>
+                <option value="es">Español (es)</option>
+                <option value="en">English (en)</option>
+              </select>
+              <div className="text-[11px] text-ink3 mt-1">
+                Se usa cuando la reserva/cita no trae locale explícito. Los recordatorios del scheduler usan este valor.
+              </div>
             </div>
           </div>
         </section>

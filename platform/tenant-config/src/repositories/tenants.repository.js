@@ -3,6 +3,7 @@ const FULL_COLUMNS = `
   legal_name, cif, country, contact_email, contact_phone, address,
   plan, custom_domain, stripe_status, suspend_reason, archived_at,
   volume_month_cents, tx_month, balance_cents,
+  default_locale,
   created_at
 `
 
@@ -61,6 +62,7 @@ const ALLOWED_UPDATE_FIELDS = {
   volumeMonthCents:  'volume_month_cents',
   txMonth:           'tx_month',
   balanceCents:      'balance_cents',
+  defaultLocale:     'default_locale',
 }
 
 export async function update(client, id, fields) {

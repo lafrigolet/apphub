@@ -36,6 +36,7 @@ function TabIdentity({ t }) {
             : '—'}</DlRow>
           <DlRow label="Teléfono">{t.contactPhone || '—'}</DlRow>
           <DlRow label="Dirección">{t.address || '—'}</DlRow>
+          <DlRow label="Idioma por defecto"><span className="font-mono uppercase">{t.defaultLocale ?? 'es'}</span></DlRow>
         </dl>
       </div>
       <div className="space-y-4">

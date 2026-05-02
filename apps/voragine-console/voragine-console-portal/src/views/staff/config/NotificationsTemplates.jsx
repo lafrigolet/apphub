@@ -5,13 +5,20 @@ import { api } from '../../../lib/api'
 export default function NotificationsTemplates() {
   const { toast, navigate } = useApp()
   const [templates, setTemplates] = useState([])
+  const [supportedLocales, setSupportedLocales] = useState([])
   const [loading, setLoading] = useState(true)
   const [localeFilter, setLocaleFilter] = useState('all')
 
   function reload() {
     setLoading(true)
-    api.get('/api/notifications/admin/templates')
-      .then((r) => setTemplates(r?.data ?? []))
+    Promise.all([
+      api.get('/api/notifications/admin/templates'),
+      api.get('/api/notifications/admin/locales').catch(() => ({ data: [] })),
+    ])
+      .then(([tmpls, locs]) => {
+        setTemplates(tmpls?.data ?? [])
+        setSupportedLocales((locs?.data ?? []).filter((l) => l.enabled))
+      })
       .catch((err) => toast(err.message ?? 'Error', 'danger'))
       .finally(() => setLoading(false))
   }
@@ -27,7 +34,8 @@ export default function NotificationsTemplates() {
   }
 
   async function newLocale(t) {
-    const locale = window.prompt(`Nuevo locale para "${t.key}" (${t.channel}). Ejemplos: en, ca, fr`, '')
+    const options = supportedLocales.map((l) => `${l.locale} (${l.label})`).join(', ') || 'es, en'
+    const locale = window.prompt(`Nuevo locale para "${t.key}" (${t.channel}). Soportados: ${options}`, '')
     if (!locale) return
     try {
       const created = await api.post('/api/notifications/admin/templates', {
@@ -44,10 +52,15 @@ export default function NotificationsTemplates() {
     } catch (err) { toast(err.message ?? 'Error', 'danger') }
   }
 
+  // Prefer the supported_locales table; if it's empty fall back to the locales
+  // present in the existing rows so the UI still works in fresh installs.
   const locales = useMemo(() => {
+    if (supportedLocales.length > 0) {
+      return ['all', ...supportedLocales.map((l) => l.locale)]
+    }
     const s = new Set(templates.map((t) => t.locale).filter(Boolean))
     return ['all', ...Array.from(s).sort()]
-  }, [templates])
+  }, [templates, supportedLocales])
 
   const visible = localeFilter === 'all'
     ? templates

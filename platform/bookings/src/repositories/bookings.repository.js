@@ -27,8 +27,8 @@ export async function insertBookingAtomic(client, appId, tenantId, b) {
      INSERT INTO ${SCHEMA}.bookings
        (app_id, tenant_id, sub_tenant_id, service_id, client_user_id, client_name, client_email, client_phone,
         starts_at, ends_at, status, notes, internal_notes,
-        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata)
-     SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb)
+        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata, locale)
+     SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb),$22
      WHERE NOT EXISTS (SELECT 1 FROM overlapping)
      RETURNING *`,
     [
@@ -39,6 +39,7 @@ export async function insertBookingAtomic(client, appId, tenantId, b) {
       b.recurrenceId ?? null, b.parentBookingId ?? null, b.packageId ?? null,
       b.priceCents ?? null, b.currency ?? null, b.source ?? 'portal', b.metadata ?? {},
       b.resourceIds,
+      b.locale ?? null,
     ],
   )
   return rows[0] ?? null
@@ -52,8 +53,8 @@ export async function insertBooking(client, appId, tenantId, b) {
     `INSERT INTO ${SCHEMA}.bookings
        (app_id, tenant_id, sub_tenant_id, service_id, client_user_id, client_name, client_email, client_phone,
         starts_at, ends_at, status, notes, internal_notes,
-        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb))
+        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata, locale)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb),$21)
      RETURNING *`,
     [
       appId, tenantId, b.subTenantId ?? null, b.serviceId, b.clientUserId,
@@ -62,6 +63,7 @@ export async function insertBooking(client, appId, tenantId, b) {
       b.notes ?? null, b.internalNotes ?? null,
       b.recurrenceId ?? null, b.parentBookingId ?? null, b.packageId ?? null,
       b.priceCents ?? null, b.currency ?? null, b.source ?? 'portal', b.metadata ?? {},
+      b.locale ?? null,
     ],
   )
   return rows[0]

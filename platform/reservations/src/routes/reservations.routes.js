@@ -11,6 +11,9 @@ const reservationBody = z.object({
   tableId:          z.string().uuid().optional(),
   notes:            z.string().max(512).optional(),
   source:           z.enum(['portal','phone','walk_in','partner']).optional(),
+  // Optional preferred locale for reminder notifications. When null, the
+  // scheduler falls back to the tenant's default_locale and finally to 'es'.
+  locale:           z.string().min(2).max(8).optional(),
 })
 
 const statusBody = z.object({

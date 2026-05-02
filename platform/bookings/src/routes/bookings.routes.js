@@ -23,6 +23,10 @@ const bookingBody = z.object({
   currency:         z.string().length(3).optional(),
   source:           z.enum(['portal','phone','staff','partner','recurrence']).optional(),
   metadata:         z.record(z.any()).optional(),
+  // Optional preferred locale for notifications related to this booking
+  // (reminders, status changes). When null, the scheduler falls back to the
+  // tenant's default_locale and finally to 'es'.
+  locale:           z.string().min(2).max(8).optional(),
 })
 
 const statusBody = z.object({

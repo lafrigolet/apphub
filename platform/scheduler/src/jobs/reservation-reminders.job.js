@@ -16,15 +16,20 @@ export async function run({ db, publish, logger }) {
   let total = 0
   for (const w of WINDOWS) {
     const { rows } = await db.query(
-      `UPDATE platform_reservations.reservations
-       SET ${w.column} = now()
-       WHERE status = 'confirmed'
-         AND ${w.column} IS NULL
-         AND reserved_for BETWEEN
-             now() + ($1 || ' minutes')::interval - ($2 || ' minutes')::interval
-         AND now() + ($1 || ' minutes')::interval + ($2 || ' minutes')::interval
-       RETURNING id, app_id, tenant_id, guest_user_id, guest_email, guest_phone, guest_name,
-                 party_size, reserved_for, table_id`,
+      `WITH updated AS (
+         UPDATE platform_reservations.reservations
+            SET ${w.column} = now()
+          WHERE status = 'confirmed'
+            AND ${w.column} IS NULL
+            AND reserved_for BETWEEN
+                now() + ($1 || ' minutes')::interval - ($2 || ' minutes')::interval
+            AND now() + ($1 || ' minutes')::interval + ($2 || ' minutes')::interval
+          RETURNING id, app_id, tenant_id, guest_user_id, guest_email, guest_phone, guest_name,
+                    party_size, reserved_for, table_id, locale
+       )
+       SELECT u.*, COALESCE(u.locale, t.default_locale, 'es') AS resolved_locale
+         FROM updated u
+         LEFT JOIN platform_tenants.tenants t ON t.id = u.tenant_id`,
       [String(w.offsetMinutes), String(w.slack)],
     )
     for (const r of rows) {
@@ -42,6 +47,7 @@ export async function run({ db, publish, logger }) {
           reservedFor:   r.reserved_for,
           tableId:       r.table_id,
           window:        w.label,
+          locale:        r.resolved_locale,
         },
       })
     }

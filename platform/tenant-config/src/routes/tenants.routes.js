@@ -31,6 +31,10 @@ const updateTenantBody = z.object({
   volumeMonthCents: z.number().int().min(0).optional(),
   txMonth:          z.number().int().min(0).optional(),
   balanceCents:     z.number().int().optional(),
+  // Default locale used by platform-scheduler reminder jobs to localize
+  // notifications when neither the booking/reservation nor the user carries
+  // an explicit locale.
+  defaultLocale:    z.string().min(2).max(8).optional(),
 })
 
 function actorFromRequest(req) {

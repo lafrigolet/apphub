@@ -17,15 +17,24 @@ const WINDOWS = [
 export async function run({ db, publish, logger }) {
   let total = 0
   for (const w of WINDOWS) {
+    // Locale resolution: booking.locale → tenant.default_locale → 'es'.
+    // The CTE-style UPDATE-then-SELECT lets us pull the tenant's default
+    // locale alongside the updated row in a single round-trip.
     const { rows } = await db.query(
-      `UPDATE platform_bookings.bookings
-       SET ${w.column} = now()
-       WHERE status IN ('confirmed','reminded')
-         AND ${w.column} IS NULL
-         AND starts_at BETWEEN
-             now() + ($1 || ' minutes')::interval - ($2 || ' minutes')::interval
-         AND now() + ($1 || ' minutes')::interval + ($2 || ' minutes')::interval
-       RETURNING id, app_id, tenant_id, service_id, client_user_id, client_email, client_phone, client_name, starts_at, ends_at`,
+      `WITH updated AS (
+         UPDATE platform_bookings.bookings
+            SET ${w.column} = now()
+          WHERE status IN ('confirmed','reminded')
+            AND ${w.column} IS NULL
+            AND starts_at BETWEEN
+                now() + ($1 || ' minutes')::interval - ($2 || ' minutes')::interval
+            AND now() + ($1 || ' minutes')::interval + ($2 || ' minutes')::interval
+          RETURNING id, app_id, tenant_id, service_id, client_user_id,
+                    client_email, client_phone, client_name, starts_at, ends_at, locale
+       )
+       SELECT u.*, COALESCE(u.locale, t.default_locale, 'es') AS resolved_locale
+         FROM updated u
+         LEFT JOIN platform_tenants.tenants t ON t.id = u.tenant_id`,
       [String(w.offsetMinutes), String(w.slack)],
     )
     for (const b of rows) {
@@ -43,6 +52,7 @@ export async function run({ db, publish, logger }) {
           startsAt:     b.starts_at,
           endsAt:       b.ends_at,
           window:       w.label,
+          locale:       b.resolved_locale,
         },
       })
     }

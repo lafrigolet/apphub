@@ -138,6 +138,24 @@ export async function adminRoutes(fastify) {
     } finally { client.release() }
   })
 
+  // ── Supported locales ────────────────────────────────────────
+  fastify.get('/locales', {
+    schema: {
+      tags: cfgTags,
+      summary: 'List supported notification locales (frontend uses this for dropdowns)',
+    },
+  }, async () => {
+    const client = await pool.connect()
+    try {
+      const { rows } = await client.query(
+        `SELECT locale, label, enabled, updated_at
+           FROM platform_notifications.supported_locales
+          ORDER BY locale`,
+      )
+      return { data: rows }
+    } finally { client.release() }
+  })
+
   // Renders a template with the supplied vars and returns the rendered
   // strings — useful for previewing edits before saving / sending.
   fastify.post('/templates/:id/preview', {

@@ -35,6 +35,7 @@ export function adaptTenant(db) {
     contactEmail:  db.contact_email,
     contactPhone:  db.contact_phone,
     address:       db.address,
+    defaultLocale: db.default_locale ?? 'es',
   }
 }
 
