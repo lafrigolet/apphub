@@ -119,3 +119,110 @@ export async function listRedemptions(client, appId, tenantId, packageId) {
   )
   return rows
 }
+
+// ── Authorised users (family / household sharing) ───────────────────────
+
+export async function listAuthorizedUsers(client, appId, tenantId, packageId) {
+  const { rows } = await client.query(
+    `SELECT * FROM platform_packages.package_authorized_users
+       WHERE app_id=$1 AND tenant_id=$2 AND package_id=$3
+       ORDER BY created_at`,
+    [appId, tenantId, packageId],
+  )
+  return rows
+}
+
+export async function addAuthorizedUser(client, appId, tenantId, packageId, { userId, displayName, addedBy }) {
+  const { rows } = await client.query(
+    `INSERT INTO platform_packages.package_authorized_users
+       (app_id, tenant_id, package_id, user_id, display_name, added_by)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (package_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name
+     RETURNING *`,
+    [appId, tenantId, packageId, userId, displayName ?? null, addedBy ?? null],
+  )
+  return rows[0]
+}
+
+export async function removeAuthorizedUser(client, appId, tenantId, packageId, userId) {
+  const { rowCount } = await client.query(
+    `DELETE FROM platform_packages.package_authorized_users
+       WHERE app_id=$1 AND tenant_id=$2 AND package_id=$3 AND user_id=$4`,
+    [appId, tenantId, packageId, userId],
+  )
+  return rowCount > 0
+}
+
+export async function isAuthorized(client, appId, tenantId, packageId, userId) {
+  const { rows } = await client.query(
+    `SELECT 1 FROM platform_packages.package_authorized_users
+       WHERE app_id=$1 AND tenant_id=$2 AND package_id=$3 AND user_id=$4 LIMIT 1`,
+    [appId, tenantId, packageId, userId],
+  )
+  return rows.length > 0
+}
+
+// ── Transfer / gifting log + ownership change ───────────────────────────
+
+export async function transferOwnership(client, appId, tenantId, packageId, fromUserId, toUserId, kind, message, actorUserId) {
+  const { rows: pkgRows } = await client.query(
+    `UPDATE platform_packages.purchased_packages
+        SET client_user_id = $4
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3 AND client_user_id=$5
+      RETURNING *`,
+    [appId, tenantId, packageId, toUserId, fromUserId],
+  )
+  if (!pkgRows[0]) return null
+  const { rows: trRows } = await client.query(
+    `INSERT INTO platform_packages.package_transfers
+       (app_id, tenant_id, package_id, from_user_id, to_user_id, kind, message, actor_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [appId, tenantId, packageId, fromUserId, toUserId, kind, message ?? null, actorUserId ?? null],
+  )
+  return { package: pkgRows[0], transfer: trRows[0] }
+}
+
+export async function listTransfers(client, appId, tenantId, packageId) {
+  const { rows } = await client.query(
+    `SELECT * FROM platform_packages.package_transfers
+       WHERE app_id=$1 AND tenant_id=$2 AND package_id=$3
+       ORDER BY created_at DESC`,
+    [appId, tenantId, packageId],
+  )
+  return rows
+}
+
+// ── Auto-renew flag toggle ──────────────────────────────────────────────
+
+export async function setAutoRenew(client, appId, tenantId, packageId, autoRenew) {
+  const { rows } = await client.query(
+    `UPDATE platform_packages.purchased_packages
+        SET auto_renew = $4, updated_at = now()
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+      RETURNING *`,
+    [appId, tenantId, packageId, !!autoRenew],
+  )
+  return rows[0] ?? null
+}
+
+// Build a fresh purchased_packages row cloned from `template` and link it
+// back via renewed_from. Used by the renewal flow (manual today; cron later).
+export async function insertRenewal(client, appId, tenantId, original, template) {
+  const { rows } = await client.query(
+    `INSERT INTO platform_packages.purchased_packages
+       (app_id, tenant_id, template_id, client_user_id, service_id,
+        total_sessions, remaining_sessions, price_paid_cents, currency,
+        status, expires_at, auto_renew, renewed_from)
+     VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, 'active',
+             now() + ($9 || ' days')::interval, $10, $11)
+     RETURNING *`,
+    [
+      appId, tenantId, template.id, original.client_user_id, template.service_id,
+      template.total_sessions, template.price_cents, template.currency,
+      String(template.validity_days),
+      original.auto_renew, original.id,
+    ],
+  )
+  return rows[0]
+}

@@ -209,8 +209,8 @@
 - [x] CRUD, modality, buffers, cancellation policy
 - **Falta**:
   - [ ] **Multi-idioma** name/description
-  - [ ] **Photo gallery**
-  - [ ] **Pricing tiers** (precio según día/hora)
+  - [x] **Photo gallery** — tabla `service_images` referenciando `platform_storage.objects.id` con `display_order`; endpoints `GET/POST /v1/services/:id/images`, `DELETE /:id/images/:imageId`.
+  - [x] **Pricing tiers** (precio según día/hora) — tabla `service_pricing_tiers` con `days_of_week` + `start_minute`/`end_minute`; engine puro `resolvePrice` (especificidad + ventana más corta gana); endpoint `GET /v1/services/:id/quote?at=<iso>`.
   - [ ] **Bundling con `packages`** automatizado
 
 ### `resources` — ✅ funcional
@@ -219,27 +219,27 @@
   - [ ] **Round-robin / load-balancing** entre profesionales (hoy se elige uno)
   - [ ] **Skill matrix** (no todos hacen todo aunque ofrezcan el mismo servicio)
   - [ ] **Vacation request workflow** (request → approve → exception)
-  - [ ] **Calendar integrations** (Google Calendar / Outlook two-way sync)
+  - [ ] **Calendar integrations** (Google Calendar / Outlook two-way sync) — diferido a propósito; ADR 011 fija el diseño (módulo `platform/calendar-sync` con OAuth + webhook receiver + sync engine + token refresher en scheduler). No se complica la plataforma hasta que la demanda lo justifique.
 
 ### `bookings` — ✅ funcional con FSM completo
 - [x] FSM, recurrence skeleton, reschedule, waitlist, audit
 - **Falta**:
-  - [ ] **Recurrence engine real** — hoy hay schema `recurrences` y `rrule` pero **nadie lo expande** a bookings concretos. Necesita un cron-job que materialice instancias.
-  - [ ] **Llamada a `availability.holdSlot`** dentro de `createBooking` para evitar double-booking — hoy permite crear sobre slot ocupado
-  - [ ] **Reminders schedule** (T-24h, T-2h) — necesita scheduler/cron
+  - [x] **Recurrence engine real** — `platform-scheduler/booking-recurrence-expander.job.js` (cron `0 * * * *`) materializa instancias 30 días vista (ADR 007).
+  - [x] **Llamada a `availability.holdSlot`** dentro de `createBooking` — `holdId` opcional consumido atómicamente + `insertBookingAtomic` con guard `tstzrange && tstzrange` (commit `c7f547c`).
+  - [x] **Reminders schedule** (T-24h, T-2h) — `platform-scheduler/booking-reminders.job.js` (cron `*/5 * * * *`) emite `booking.reminder.due` con `clientEmail`/`clientPhone`/`locale` resueltos.
   - [ ] **No-show tarjeta de garantía** integración con `payments`
   - [ ] **Resource conflict detection** al crear (validación cruzada con `availability`)
-  - [ ] **Cancellation policy enforcement** (cobrar fee si se cancela <24h)
+  - [x] **Cancellation policy enforcement** — `cancelBooking` lee `services.cancellation_policy` JSONB (`freeUpToMinutes`, `feePercent` / `feeFlatCents`, `graceMinutesAfterCreate`), calcula `feeCents` y publica `booking.fee.charged` para que payments/splitpay cobre. Staff puede saltar con `{ skipPolicy: true }`.
 
 ### `availability` — ✅ funcional
 - [x] Slot computation, atomic holds via tstzrange
 - **Falta**:
-  - [ ] **Caché Redis** del slot grid (hoy recomputa cada query — caro a escala)
+  - [x] **Caché Redis** del slot grid — clave `availability:slots:<app>:<tenant>:v<version>:<sigParams>` con TTL 60s; cada hold/release bumpea `availability:rv:<resource>` invalidando la versión.
   - [ ] **Multi-resource consolidation** (cita que requiere médico + sala simultáneos)
-  - [ ] **Capacity > 1** (clases grupales con N slots por hora)
+  - [x] **Capacity > 1** — `services.capacity` y `resources.capacity` se respetan; `slotCapacity = min(...)`; los slots ahora exponen `capacity` y `remaining` en la respuesta. Bookings/holds suman vs el cap; `exceptions` siguen siendo hard-block.
   - [ ] **Time-zone awareness** (hoy todo UTC; importa para tenants multi-país)
   - [ ] **Hold cleanup background job** (cron) en lugar de cleanup oportunista
-  - [ ] **Step granularity configurable** por servicio (hoy 15 min hardcoded)
+  - [x] **Step granularity configurable** por servicio — nueva columna `services.step_minutes` (default 15) leída por `availability.listSlots`.
 
 ### `intake-forms` — ✅ funcional
 - [x] Templates versioned, submissions, signatures, auto-create on booking.confirmed
@@ -247,7 +247,7 @@
   - [ ] **Form builder UI** (no hay frontend)
   - [ ] **File upload** para attachments del cliente (storage SDK ya disponible — kind `intake_attachment`)
   - [ ] **Conditional logic** (mostrar pregunta B si A=sí)
-  - [ ] **PDF export** del cuestionario rellenado
+  - [x] **PDF export** del cuestionario rellenado — `GET /v1/intake-forms/submissions/:id/pdf` devuelve `application/pdf` generado por `@apphub/platform-sdk/simple-pdf` (Helvetica, multi-página, dep-free).
   - [x] **Digital signature provider real** — `signature_object_id` cableado vía `platform/storage` (kind `signature`, retention 7 años, ADR 008). Para integraciones DocuSign/SignNow real, pendiente.
   - [ ] **HIPAA/GDPR compliance** audit trail completo de accesos a datos clínicos
 
@@ -265,17 +265,17 @@
 - [x] Templates, purchase, redeem on booking.completed, refund on cancel
 - **Falta**:
   - [ ] **Llamada real a `payments`** al comprar — hoy guarda `price_paid_cents` pero no cobra
-  - [ ] **Expiry warning emails** (T-30d, T-7d) — necesita scheduler
-  - [ ] **Family sharing** (un bono usado por varios usuarios autorizados)
-  - [ ] **Transfer / gifting** entre usuarios
-  - [ ] **Renewal automático** opcional
+  - [x] **Expiry warning emails** (T-30d, T-7d) — `platform-scheduler/package-expiry-warning.job.js` (cron `0 8 * * *`) emite `package.expiring`; el consumer envía email + (opcional) digest.
+  - [x] **Family sharing** — tabla `package_authorized_users` (UNIQUE `(package_id, user_id)`); endpoints `GET/POST /v1/packages/purchases/:id/authorized-users`, `DELETE …/:userId`. `redeem()` acepta tanto al owner como a cualquier autorizado.
+  - [x] **Transfer / gifting** entre usuarios — `POST /v1/packages/purchases/:id/transfer { toUserId, kind: 'transfer'|'gift', message? }` cambia ownership atómicamente y registra log en `package_transfers`. Lista vía `GET …/transfers`.
+  - [x] **Renewal automático** opcional — flags `auto_renew_default` (template) y `auto_renew` + `renewed_from` (purchase). Endpoints `PUT /v1/packages/purchases/:id/auto-renew` y `POST /:id/renew` (clona el template a una purchase nueva). El cron de renovación automática queda como work-item futuro pero la mecánica está lista.
 
 ### `practitioner-payouts` — ✅ funcional
 - [x] Rules, accruals, close period, mark paid
 - **Falta**:
   - [ ] **Integración con `splitpay`** para liquidación automática (hoy se marca paid manualmente con `external_ref`)
-  - [ ] **Scheduling automático** (cierre de quincena/mes via cron)
-  - [ ] **PDF report descargable** por profesional
+  - [x] **Scheduling automático** (cierre de quincena/mes via cron) — `platform-scheduler/practitioner-payout-close.job.js` (cron `0 2 * * *`) emite `payout.period_due` por schedule del tenant.
+  - [x] **PDF report descargable** por profesional — `GET /v1/practitioner-payouts/payouts/:id/pdf` (`application/pdf`) con cabecera del periodo + tabla de devengos, generado por `@apphub/platform-sdk/simple-pdf`.
   - [ ] **Tax withholding** (IRPF en España)
   - [ ] **1099/Modelo 347** generation
   - [ ] **Adjustment workflow** (correcciones aprobadas)

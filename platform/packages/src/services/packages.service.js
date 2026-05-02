@@ -64,8 +64,23 @@ export async function listPurchases(ctx, clientUserId, opts) {
 }
 
 // ── Redeem ──────────────────────────────────────────────────────────
+//
+// A package can be redeemed by its owner OR by any user listed in
+// platform_packages.package_authorized_users (family/household sharing).
+// System ctx (event-consumer driven from booking.completed) bypasses the
+// check because the ownership has already been validated upstream.
+async function ensureRedeemAllowed(client, ctx, packageId) {
+  if (ctx.role === 'system' || ['staff', 'super_admin'].includes(ctx.role)) return
+  const pkg = await repo.findPurchaseById(client, ctx.appId, ctx.tenantId, packageId)
+  if (!pkg) throw new NotFoundError('package')
+  if (pkg.client_user_id === ctx.userId) return
+  const ok = await repo.isAuthorized(client, ctx.appId, ctx.tenantId, packageId, ctx.userId)
+  if (!ok) throw new ConflictError('user is not authorised to redeem this package')
+}
+
 export async function redeem(ctx, { packageId, bookingId }) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    await ensureRedeemAllowed(c, ctx, packageId)
     const updated = await repo.decrementSessions(c, ctx.appId, ctx.tenantId, packageId, -1)
     if (!updated) throw new ConflictError('package has no remaining sessions or is invalid')
     await repo.insertRedemption(c, ctx.appId, ctx.tenantId, {
@@ -78,6 +93,116 @@ export async function redeem(ctx, { packageId, bookingId }) {
       })
     }
     return updated
+  })
+}
+
+// ── Family sharing ──────────────────────────────────────────────────────
+
+export async function listAuthorizedUsers(ctx, packageId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    return repo.listAuthorizedUsers(c, ctx.appId, ctx.tenantId, packageId)
+  })
+}
+
+export async function addAuthorizedUser(ctx, packageId, body) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    if (pkg.client_user_id !== ctx.userId && !['staff', 'super_admin'].includes(ctx.role)) {
+      throw new ConflictError('only the owner can share a package')
+    }
+    return repo.addAuthorizedUser(c, ctx.appId, ctx.tenantId, packageId, {
+      userId:      body.userId,
+      displayName: body.displayName,
+      addedBy:     ctx.userId,
+    })
+  })
+}
+
+export async function removeAuthorizedUser(ctx, packageId, userId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    if (pkg.client_user_id !== ctx.userId && !['staff', 'super_admin'].includes(ctx.role)) {
+      throw new ConflictError('only the owner can revoke shared access')
+    }
+    const ok = await repo.removeAuthorizedUser(c, ctx.appId, ctx.tenantId, packageId, userId)
+    if (!ok) throw new NotFoundError('authorized user')
+  })
+}
+
+// ── Transfer / gifting ──────────────────────────────────────────────────
+
+export async function transferPackage(ctx, packageId, body) {
+  const kind = body.kind === 'gift' ? 'gift' : 'transfer'
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    if (pkg.client_user_id !== ctx.userId && !['staff', 'super_admin'].includes(ctx.role)) {
+      throw new ConflictError('only the current owner can transfer a package')
+    }
+    if (pkg.client_user_id === body.toUserId) {
+      throw new ConflictError('package already belongs to that user')
+    }
+    const r = await repo.transferOwnership(
+      c, ctx.appId, ctx.tenantId, packageId,
+      pkg.client_user_id, body.toUserId, kind, body.message, ctx.userId,
+    )
+    if (!r) throw new ConflictError('transfer failed (concurrent change?)')
+    await publish({
+      type: 'package.transferred',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId,
+        packageId, fromUserId: pkg.client_user_id, toUserId: body.toUserId, kind,
+      },
+    })
+    return r
+  })
+}
+
+export async function listTransfers(ctx, packageId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listTransfers(c, ctx.appId, ctx.tenantId, packageId),
+  )
+}
+
+// ── Auto-renew toggle + manual renew ───────────────────────────────────
+
+export async function setAutoRenew(ctx, packageId, autoRenew) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    if (pkg.client_user_id !== ctx.userId && !['staff', 'super_admin'].includes(ctx.role)) {
+      throw new ConflictError('only the owner can toggle auto-renew')
+    }
+    return repo.setAutoRenew(c, ctx.appId, ctx.tenantId, packageId, autoRenew)
+  })
+}
+
+// Manually creates a renewal package (used by the owner from the UI; the
+// cron-driven flow can call this same path with role='system' once the
+// scheduler job is implemented).
+export async function renewPackage(ctx, packageId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    if (pkg.client_user_id !== ctx.userId && !['staff', 'super_admin', 'system'].includes(ctx.role)) {
+      throw new ConflictError('only the owner can renew a package')
+    }
+    const tmpl = await repo.findTemplateById(c, ctx.appId, ctx.tenantId, pkg.template_id)
+    if (!tmpl) throw new NotFoundError('template')
+    const renewed = await repo.insertRenewal(c, ctx.appId, ctx.tenantId, pkg, tmpl)
+    await publish({
+      type: 'package.renewed',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId,
+        oldPackageId: packageId, newPackageId: renewed.id,
+        clientUserId: renewed.client_user_id,
+      },
+    })
+    return renewed
   })
 }
 

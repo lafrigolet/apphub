@@ -73,4 +73,16 @@ export async function intakeFormsRoutes(fastify) {
   fastify.post('/v1/intake-forms/submissions/:id/review', async (req) =>
     service.reviewSubmission(ctxFromRequest(req), req.params.id),
   )
+
+  // PDF export of a filled submission. Returns application/pdf bytes with
+  // Content-Disposition: attachment; the engine is in
+  // packages/platform-sdk/src/simple-pdf.js (Helvetica, text-only, multipage).
+  fastify.get('/v1/intake-forms/submissions/:id/pdf', {
+    schema: { tags: ['intake-forms · pdf'], summary: 'Download the filled submission as a PDF' },
+  }, async (req, reply) => {
+    const { filename, pdf } = await service.exportSubmissionPdf(ctxFromRequest(req), req.params.id)
+    reply.header('content-type', 'application/pdf')
+    reply.header('content-disposition', `attachment; filename="${filename}"`)
+    return reply.send(pdf)
+  })
 }

@@ -120,3 +120,53 @@ export async function handleEvent(event) {
 }
 
 export { subscribe }
+
+// ── PDF export of a filled submission ──────────────────────────────────
+import { createTextPdf } from '@apphub/platform-sdk/simple-pdf'
+
+export async function exportSubmissionPdf(ctx, id) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const submission = await repo.findSubmissionById(c, ctx.appId, ctx.tenantId, id)
+    if (!submission) throw new NotFoundError('submission')
+    const template = await repo.findTemplateById(c, ctx.appId, ctx.tenantId, submission.template_id)
+
+    const lines = []
+    lines.push(`Plantilla: ${template?.name ?? submission.template_id}`)
+    lines.push(`Versión: ${template?.version ?? '—'}`)
+    if (submission.booking_id) lines.push(`Reserva: ${submission.booking_id}`)
+    lines.push(`Estado: ${submission.status ?? '—'}`)
+    lines.push(`Enviado: ${submission.submitted_at ? new Date(submission.submitted_at).toLocaleString('es-ES') : '—'}`)
+    lines.push('')
+
+    const fields    = Array.isArray(template?.fields) ? template.fields : []
+    const answers   = submission.answers ?? {}
+    if (fields.length) {
+      for (const f of fields) {
+        const value = answers[f.key]
+        lines.push(`${f.label ?? f.key}:`)
+        if (value == null || value === '') lines.push('  —')
+        else if (Array.isArray(value))     lines.push(`  ${value.join(', ')}`)
+        else if (typeof value === 'object') lines.push(`  ${JSON.stringify(value)}`)
+        else                                lines.push(`  ${value}`)
+        lines.push('')
+      }
+    } else {
+      // No template fields known — dump answers as KV.
+      for (const [k, v] of Object.entries(answers)) {
+        lines.push(`${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+      }
+    }
+    if (submission.signature_object_id) {
+      lines.push('')
+      lines.push(`Firma digital adjunta — object_id: ${submission.signature_object_id}`)
+    }
+
+    return {
+      filename: `intake-${id}.pdf`,
+      pdf: createTextPdf({
+        title: `Cuestionario · ${template?.name ?? submission.template_id}`,
+        lines,
+      }),
+    }
+  })
+}

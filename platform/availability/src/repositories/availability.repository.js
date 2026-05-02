@@ -5,7 +5,7 @@ const SCHEMA = 'platform_availability'
 
 export async function getServiceById(client, appId, tenantId, serviceId) {
   const { rows } = await client.query(
-    `SELECT id, duration_minutes, buffer_before_minutes, buffer_after_minutes, capacity, modality
+    `SELECT id, duration_minutes, buffer_before_minutes, buffer_after_minutes, capacity, modality, step_minutes
      FROM platform_services.services
      WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
     [appId, tenantId, serviceId],
