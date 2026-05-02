@@ -312,30 +312,43 @@ por categoría operativa (Negocio · Operaciones · Comercial · Conversaciones 
 Configuración) para navegación profunda. La metáfora "microservicio" no se
 filtra al usuario.
 
-### Fase 0 — Fundaciones (un commit)
-- [ ] Migración `tenant-config/000N_app_enabled_modules.sql` — añade
-  `enabled_modules TEXT[] NOT NULL DEFAULT '{}'` a `platform_tenants.apps` y
-  semilla los sets actuales (`yoga-studio`, `aikikan`, `split-pay`, `bastardo`).
-- [ ] Endpoint `GET /v1/apps/:appId` ya devuelve la fila — añadir
-  `enabled_modules` al payload (campo nuevo en el DTO).
-- [ ] Bootstrap del app `apps/tenant-console/tenant-console-portal/` (puerto
-  5178) siguiendo el flow "Bootstrap app `<name>`" de CLAUDE.md.
-- [ ] Upstream NGINX + server block dinámico (sidecar Redis) cuando se
-  registre el app en `platform_tenants.apps`.
+### Fase 0 — Fundaciones (commit `90e1189`) ✅
+- [x] Migración `platform/tenant-config/migrations/0006_app_enabled_modules.sql`
+  — añade `enabled_modules TEXT[] NOT NULL DEFAULT '{}'` a `platform_tenants.apps`
+  y semilla los sets actuales (`yoga-studio`, `aikikan`, `split-pay`,
+  `voragine-console`).
+- [x] Endpoint `GET /v1/apps/:appId` y `GET /v1/apps` devuelven `enabled_modules`
+  en el payload. Nuevo `PUT /v1/apps/:appId/enabled-modules { modules: string[] }`
+  para que staff edite el set sin tocar SQL.
+- [x] Bootstrap del app `apps/tenant-console/tenant-console-portal/` (puerto 5178)
+  con `package.json` / `vite.config.js` (allowedHosts incluye `.apphub.local`
+  wildcard para per-tenant subdomains) / `Dockerfile` (dev + nginx-alpine prod).
+- [x] Upstream NGINX (`infra/nginx/conf.d/upstream.conf` + `upstream.prod.conf`)
+  y seed `infra/nginx/seed/tenant-console.conf`. Server block per-tenant ya se
+  renderea dinámicamente desde Redis vía `tenant-config/nginx-config.service.js`.
+- [x] Producción: commit `e432ade` añade el bloque `tenant-console-portal` a
+  `docker-compose.prod.yml` (target=production, sin port mapping, sin volumes —
+  baked dist/) y el upstream prod paralelo.
 
-### Fase 1 — Shell genérico
-- [ ] `src/shell/` con: `App.jsx`, `Sidebar.jsx`, `Topbar.jsx`,
-  `DashboardGrid.jsx`, `lib/{api,auth,context,icons}`, `ManifestLoader.jsx`.
-- [ ] Sidebar renderiza por categorías predefinidas (Negocio · Operaciones ·
-  Comercial · Conversaciones · Configuración + Inicio). Categorías sin módulos
-  activos no se renderizan.
-- [ ] DashboardGrid invoca `manifest.dashboardCards[].summary(api)` en paralelo
-  con `Promise.allSettled`; cards con error se renderizan en estado de fallo
-  sin tirar el resto.
-- [ ] Lazy-load por manifest (Vite code-split). Un manifest cuyo módulo no está
-  en `enabled_modules` no se carga.
-- [ ] Carga del idioma per-tenant desde `tenant.default_locale` (ya existe la
-  columna).
+### Fase 1 — Shell genérico (commit `529d737`) ✅
+- [x] `src/shell/` con `App.jsx` / `Sidebar.jsx` / `Topbar.jsx` /
+  `DashboardGrid.jsx` / `LoginView.jsx` / `ManifestLoader.js` +
+  `lib/{api,auth,categories,context,icons}`.
+- [x] Sidebar renderiza por categorías predefinidas (Inicio + Negocio /
+  Operaciones / Comercial / Conversaciones / Configuración). Categorías sin
+  entradas no se renderizan.
+- [x] `DashboardGrid` invoca cada `manifest.dashboardCards[].summary(api)` en
+  paralelo con `Promise.allSettled`; cards con error se renderizan en estado
+  de fallo sin tirar el resto.
+- [x] Lazy-load por manifest vía `import.meta.glob('../modules/*/manifest.jsx')`
+  con `eager:false`. Un manifest cuyo `id` no está en `enabled_modules` no se
+  carga.
+- [x] Primer manifest cableado: `notifications` con `EmailDomainsView`
+  reutilizando el `EmailDomainsManager` (copiado de voragine-console; las
+  imports apuntan a `../shell/lib`).
+- [ ] Carga del idioma per-tenant desde `tenant.default_locale` (la columna
+  existe; el shell todavía no usa el valor — pendiente de wiring i18n
+  cuando entren más manifests).
 
 ### Fase 2 — Migración del rol tenant existente
 **No tocar voragine-console** — solo replicar las views ahí presentes en la
