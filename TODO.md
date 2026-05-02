@@ -319,4 +319,11 @@
    con `tstzrange && tstzrange` por recurso como red de seguridad. 409 cuando
    el slot ya está tomado o el hold no coincide. Tests unit (5 nuevos) +
    integration (overlap rechazado, cancelado libera slot).
-10. [ ] **Email templates editables + i18n** en `notifications`
+10. [x] **Email templates editables + i18n** en `notifications`. Plantillas
+    ya editables desde `voragine-console > Configuración > Plantillas`. i18n:
+    columna `locale` en `templates` con UNIQUE `(key, channel, locale)` y
+    fallback a `'es'` cuando el locale pedido no existe. 8 plantillas
+    sembradas en `en` (6 email + 2 sms). Senders aceptan `locale` opcional;
+    el event-consumer lo extrae de `event.payload.locale`. UI: filtro por
+    locale + botón "+ Locale" para clonar una plantilla a otro idioma + edit
+    form con campo `locale`.

@@ -12,15 +12,17 @@ export function renderString(template, vars) {
   })
 }
 
-// Look up a template by (key, channel) in the DB and render it with `vars`.
-// Default channel is 'email' for back-compat with existing callers.
-// Returns { subject, text, html } on hit; null on miss (caller falls back
-// to a hardcoded default).
-export async function renderTemplate(key, vars, channel = 'email') {
+// Look up a template by (key, channel, locale) in the DB and render it with
+// `vars`. Default channel is 'email' and default locale is 'es' for
+// back-compat with existing callers. The repository falls back to 'es' when
+// the requested locale has no row, so passing an unknown locale never breaks
+// — it just degrades to Spanish. Returns { subject, text, html, locale } on
+// hit; null on miss (caller falls back to a hardcoded default).
+export async function renderTemplate(key, vars, channel = 'email', locale = 'es') {
   const client = await pool.connect()
   let row
   try {
-    row = await repo.findByKey(client, key, channel)
+    row = await repo.findByKey(client, key, channel, locale)
   } finally {
     client.release()
   }
@@ -29,5 +31,6 @@ export async function renderTemplate(key, vars, channel = 'email') {
     subject: renderString(row.subject, vars),
     text:    renderString(row.body_text, vars),
     html:    renderString(row.body_html, vars),
+    locale:  row.locale,
   }
 }

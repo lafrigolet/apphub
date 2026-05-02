@@ -94,25 +94,31 @@ export async function sendTestSms(to, body) {
   return send({ to, body: body ?? 'Test from AppHub notifications.' })
 }
 
-async function compose(key, vars, fallback) {
-  const fromDb = await renderTemplate(key, vars, 'sms')
+async function compose(key, vars, fallback, locale) {
+  const fromDb = await renderTemplate(key, vars, 'sms', locale)
   return fromDb ?? fallback
 }
 
-export async function sendBookingReminderSms(to, { name, startsAt, window }) {
-  const when = new Date(startsAt).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })
-  const lead = window === 't_minus_24h' ? 'mañana' : 'en 2 horas'
+function intlLocale(loc) { return loc === 'en' ? 'en-GB' : 'es-ES' }
+
+export async function sendBookingReminderSms(to, { name, startsAt, window, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const lead = locale === 'en'
+    ? (window === 't_minus_24h' ? 'tomorrow'  : 'in 2 hours')
+    : (window === 't_minus_24h' ? 'mañana'    : 'en 2 horas')
   const tmpl = await compose('booking.reminder.due', { lead, when, name }, {
     text: `Recordatorio: tu cita es ${lead} (${when}). Si no puedes asistir, cancela con antelación.`,
-  })
+  }, locale)
   return send({ to, body: tmpl.text })
 }
 
-export async function sendReservationReminderSms(to, { name, reservedFor, partySize, window }) {
-  const when = new Date(reservedFor).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })
-  const lead = window === 't_minus_24h' ? 'mañana' : 'en 2 horas'
+export async function sendReservationReminderSms(to, { name, reservedFor, partySize, window, locale = 'es' }) {
+  const when = new Date(reservedFor).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const lead = locale === 'en'
+    ? (window === 't_minus_24h' ? 'tomorrow'  : 'in 2 hours')
+    : (window === 't_minus_24h' ? 'mañana'    : 'en 2 horas')
   const tmpl = await compose('reservation.reminder.due', { lead, when, partySize, name }, {
     text: `Recordatorio: tu reserva es ${lead} (${when}) para ${partySize} personas. Si no puedes asistir, cancela con antelación.`,
-  })
+  }, locale)
   return send({ to, body: tmpl.text })
 }

@@ -53,65 +53,82 @@ async function send(msg) {
 
 // Try to render the named template from DB; if not present, fall back to the
 // hardcoded `defaults` so the system keeps working even before a staff edit.
-async function compose(key, vars, defaults) {
-  const fromDb = await renderTemplate(key, vars)
+// `locale` is forwarded to renderTemplate which falls back to 'es' when the
+// requested locale has no row.
+async function compose(key, vars, defaults, locale) {
+  const fromDb = await renderTemplate(key, vars, 'email', locale)
   return fromDb ?? defaults
 }
 
-export async function sendWelcomeEmail(to, appId) {
+// Locale-aware lead-time labels used in the hardcoded fallbacks. The DB
+// templates carry their own translated wording so most paths skip these.
+function leadEs(window) {
+  return window === 't_minus_24h' ? 'mañana' : 'en 2 horas'
+}
+function leadEn(window) {
+  return window === 't_minus_24h' ? 'tomorrow' : 'in 2 hours'
+}
+function intlLocale(loc) {
+  // Map our short locale to a BCP-47 tag for Intl.DateTimeFormat.
+  return loc === 'en' ? 'en-GB' : 'es-ES'
+}
+
+export async function sendWelcomeEmail(to, appId, locale = 'es') {
   const tmpl = await compose('user.welcome', { appId }, {
     subject: `Bienvenido a ${appId}`,
     text: `Hola,\n\nTu cuenta en ${appId} ha sido creada correctamente. ¡Bienvenido!\n\nEl equipo de AIKIKAN`,
     html: `<p>Hola,</p><p>Tu cuenta en <strong>${appId}</strong> ha sido creada correctamente. ¡Bienvenido!</p><p>El equipo de AIKIKAN</p>`,
-  })
+  }, locale)
   await send({ to, ...tmpl })
 }
 
-export async function sendPasswordResetEmail(to, resetUrl) {
+export async function sendPasswordResetEmail(to, resetUrl, locale = 'es') {
   const tmpl = await compose('auth.password_reset', { resetUrl }, {
     subject: 'Restablecer contraseña — AIKIKAN',
     text: `Haz clic en el siguiente enlace para restablecer tu contraseña (válido 1 hora):\n\n${resetUrl}\n\nSi no solicitaste este cambio, ignora este mensaje.`,
     html: `<p>Haz clic en el siguiente enlace para restablecer tu contraseña (válido 1 hora):</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>Si no solicitaste este cambio, ignora este mensaje.</p>`,
-  })
+  }, locale)
   await send({ to, ...tmpl })
 }
 
-export async function sendBookingReminderEmail(to, { name, startsAt, window }) {
-  const when = new Date(startsAt).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })
-  const lead = window === 't_minus_24h' ? 'mañana' : 'en 2 horas'
+export async function sendBookingReminderEmail(to, { name, startsAt, window, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const lead = locale === 'en' ? leadEn(window) : leadEs(window)
   const namePrefix = name ? ' ' + name : ''
   const tmpl = await compose('booking.reminder.due', { namePrefix, lead, when }, {
     subject: `Recordatorio: tu cita es ${lead}`,
     text: `Hola${namePrefix},\n\nTe recordamos que tienes una cita ${lead} (${when}).\n\nSi no puedes asistir, por favor cancela con antelación.`,
-  })
+  }, locale)
   await send({ to, ...tmpl })
 }
 
-export async function sendReservationReminderEmail(to, { name, reservedFor, partySize, window }) {
-  const when = new Date(reservedFor).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })
-  const lead = window === 't_minus_24h' ? 'mañana' : 'en 2 horas'
+export async function sendReservationReminderEmail(to, { name, reservedFor, partySize, window, locale = 'es' }) {
+  const when = new Date(reservedFor).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const lead = locale === 'en' ? leadEn(window) : leadEs(window)
   const namePrefix = name ? ' ' + name : ''
   const tmpl = await compose('reservation.reminder.due', { namePrefix, lead, when, partySize }, {
     subject: `Recordatorio: tu reserva es ${lead}`,
     text: `Hola${namePrefix},\n\nTe recordamos tu reserva ${lead} (${when}) para ${partySize} personas.\n\nSi no puedes asistir, te agradeceríamos que canceles con antelación.`,
-  })
+  }, locale)
   await send({ to, ...tmpl })
 }
 
-export async function sendPackageExpiryEmail(to, { remainingSessions, expiresAt, window }) {
-  const expires = new Date(expiresAt).toLocaleDateString('es-ES')
-  const lead = window === 't_minus_30d' ? 'en 30 días' : 'en 7 días'
+export async function sendPackageExpiryEmail(to, { remainingSessions, expiresAt, window, locale = 'es' }) {
+  const expires = new Date(expiresAt).toLocaleDateString(intlLocale(locale))
+  const lead = locale === 'en'
+    ? (window === 't_minus_30d' ? 'in 30 days' : 'in 7 days')
+    : (window === 't_minus_30d' ? 'en 30 días' : 'en 7 días')
   const tmpl = await compose('package.expiring', { expires, lead, remainingSessions }, {
     subject: `Tu bono caduca ${lead}`,
     text: `Hola,\n\nTu bono caduca el ${expires} (${lead}). Te quedan ${remainingSessions} sesión(es) por usar.\n\nReserva ahora para no perderlas.`,
-  })
+  }, locale)
   await send({ to, ...tmpl })
 }
 
-export async function sendDisputeSlaInternalEmail(to, { disputeId, orderId, openedAt }) {
+export async function sendDisputeSlaInternalEmail(to, { disputeId, orderId, openedAt, locale = 'es' }) {
   const tmpl = await compose('dispute.sla_breached.staff', { disputeId, orderId, openedAt }, {
     subject: '[STAFF] Disputa sin respuesta del vendedor (>48h)',
     text: `Disputa ${disputeId} sobre el pedido ${orderId} (abierta ${openedAt}) lleva más de 48 h sin respuesta del vendedor. Revisar y escalar.`,
-  })
+  }, locale)
   await send({ to, ...tmpl })
 }

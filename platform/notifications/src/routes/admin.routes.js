@@ -26,6 +26,8 @@ const smsTestBody = z.object({
 const templateBody = z.object({
   key:       z.string().min(1).max(128).optional(),
   channel:   z.enum(['email', 'sms', 'push']).optional(),
+  // BCP-47-ish short tag (e.g. 'es', 'en', 'ca'). Defaults to 'es' on insert.
+  locale:    z.string().min(2).max(8).optional(),
   subject:   z.string().max(512).optional().nullable(),
   body_text: z.string().min(1).max(20000).optional(),
   body_html: z.string().max(40000).optional().nullable(),

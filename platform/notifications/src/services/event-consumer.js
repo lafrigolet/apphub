@@ -28,33 +28,39 @@ export function startEventConsumer() {
     }
 
     try {
+      // Locale is optional on every event payload. Senders default to 'es'
+      // when missing, and the template repo falls back to 'es' rows when the
+      // requested locale has no row — so an unknown/missing locale never
+      // breaks delivery.
+      const locale = event.payload?.locale ?? 'es'
+
       if (event.type === 'user.registered') {
         const { email, appId } = event.payload ?? {}
-        if (email) await sendWelcomeEmail(email, appId)
+        if (email) await sendWelcomeEmail(email, appId, locale)
       }
 
       if (event.type === 'auth.password_reset_requested') {
         const { email, token } = event.payload ?? {}
         if (email && token) {
           const resetUrl = `${process.env.APP_BASE_URL ?? 'http://aikikan.apphub.local:8080'}/reset-password?token=${token}`
-          await sendPasswordResetEmail(email, resetUrl)
+          await sendPasswordResetEmail(email, resetUrl, locale)
         }
       }
 
       // ── platform-scheduler events ────────────────────────────────────
       if (event.type === 'booking.reminder.due') {
         const { clientEmail, clientPhone, clientName, startsAt, window } = event.payload ?? {}
-        if (clientEmail) await sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window })
+        if (clientEmail) await sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window, locale })
         // SMS goes out only when the scheduler hydrated the phone number;
         // the booking module is responsible for including it in the event
         // payload. Stays a noop in dev / when Twilio is not configured.
-        if (clientPhone) await sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window })
+        if (clientPhone) await sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window, locale })
       }
 
       if (event.type === 'reservation.reminder.due') {
         const { guestEmail, guestPhone, guestName, reservedFor, partySize, window } = event.payload ?? {}
-        if (guestEmail) await sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window })
-        if (guestPhone) await sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window })
+        if (guestEmail) await sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window, locale })
+        if (guestPhone) await sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window, locale })
       }
 
       if (event.type === 'package.expiring') {
@@ -62,14 +68,14 @@ export function startEventConsumer() {
         // it. For V1 we look it up via auth's user_id → email cache; falling
         // back to a noop if missing. This is a known limitation tracked in TODO.
         const { remainingSessions, expiresAt, window, clientEmail } = event.payload ?? {}
-        if (clientEmail) await sendPackageExpiryEmail(clientEmail, { remainingSessions, expiresAt, window })
+        if (clientEmail) await sendPackageExpiryEmail(clientEmail, { remainingSessions, expiresAt, window, locale })
       }
 
       if (event.type === 'dispute.sla_breached') {
         const staffEmail = process.env.STAFF_OPS_EMAIL
         if (staffEmail) {
           const { disputeId, orderId, openedAt } = event.payload ?? {}
-          await sendDisputeSlaInternalEmail(staffEmail, { disputeId, orderId, openedAt })
+          await sendDisputeSlaInternalEmail(staffEmail, { disputeId, orderId, openedAt, locale })
         }
       }
     } catch (err) {
