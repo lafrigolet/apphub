@@ -109,10 +109,10 @@
 - **Falta**:
   - [ ] **Integración con carriers reales** (UPS, FedEx, Correos, GLS, SEUR, DHL) — hoy todo manual
   - [ ] **Etiquetas EasyPost/Sendcloud** generación de PDF
-  - [o] **Webhook receivers** para tracking automático del carrier
-  - [o] **Multi-package shipments** (un order con N cajas)
-  - [o] **Returns/RMA flow**
-  - [o] **Insurance, signature required** opciones
+  - [x] **Webhook receivers** — `POST /v1/shipping/webhooks/:carrier` (público) con HMAC-SHA256 verificado para EasyPost contra `easypost_webhook_secret`; tabla `carrier_webhook_events` con UNIQUE `(carrier, event_external_id)` para idempotencia; transición automática del shipment cuando el carrier reporta `in_transit`/`delivered`/`returned`.
+  - [x] **Multi-package shipments** — tabla `shipment_packages` (RLS) con auto-numbering por shipment + endpoints `GET/POST /v1/shipping/shipments/:id/packages`. Cada paquete con su propio `tracking_code`/dimensiones/peso/status.
+  - [ ] **Returns/RMA flow** (queda fuera de este lote — necesita FSM propio + integración con orders)
+  - [x] **Insurance, signature required** — columnas `insurance_amount_cents`/`insurance_currency`/`signature_required` en shipments y aceptadas en `POST /v1/shipping/shipments`.
 
 ### `disputes` — ✅ funcional
 - [x] FSM, mensajes, evidencia, escalation `splitpay.chargeback.created`
