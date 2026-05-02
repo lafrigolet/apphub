@@ -1,9 +1,24 @@
-// JWT auth helpers. The login form posts {email, password}; the auth service
-// resolves (app_id, tenant_id, role) from the user record and returns an
-// access token whose claims drive the rest of the shell.
+// JWT auth helpers. Token is stored in localStorage under a configurable
+// key — by default `apphub.token`, but a host portal (e.g. aikikan) can
+// `configureAuth({ tokenKey: 'aikikan_access_token' })` so the package
+// reads/writes the same key the host already uses. configureAuth must be
+// called BEFORE the AppProvider mounts (it reads the key synchronously
+// in useState init).
 import { api } from './api'
 
-const TOKEN_KEY = 'apphub.token'
+let TOKEN_KEY = 'apphub.token'
+let consumed = false
+
+export function configureAuth({ tokenKey } = {}) {
+  if (tokenKey && tokenKey !== TOKEN_KEY) TOKEN_KEY = tokenKey
+  // Re-run the fragment consumer with the (possibly new) key. Guarded so
+  // we don't strip the URL on every render; the underlying matcher does
+  // nothing when the fragment has already been removed.
+  if (!consumed) {
+    consumeTokenFromFragment()
+    consumed = true
+  }
+}
 
 // Cross-origin handoff: otros portales (aikikan, futuros) que tengan su
 // propio login pueden mandar a un admin a la tenant-console pegándole un
@@ -17,7 +32,6 @@ function consumeTokenFromFragment() {
   try {
     const token = decodeURIComponent(m[1])
     localStorage.setItem(TOKEN_KEY, token)
-    // Strip token from URL — preserve other hash params if there were any.
     const remaining = window.location.hash
       .replace(/(^#|&)token=[^&]+/, '')
       .replace(/^#&/, '#')
@@ -27,6 +41,9 @@ function consumeTokenFromFragment() {
     // malformed — ignore
   }
 }
+// Default no-op import-time call so apps that don't configure still get
+// the legacy `apphub.token` behaviour. configureAuth re-runs it with the
+// host's key when wired up.
 consumeTokenFromFragment()
 
 export async function login({ email, password }) {

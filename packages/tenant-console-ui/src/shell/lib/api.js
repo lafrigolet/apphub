@@ -1,9 +1,12 @@
 // Thin fetch wrapper used by every shell + module view.
 // Same shape as voragine-console's lib/api.js (raises 'apphub:unauthorized'
 // on 401 so the shell can drop to the login screen).
-const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+//
+// Reads the JWT via the auth module so the host portal's tokenKey choice
+// (configurable via configureAuth) is honored consistently.
+import { getToken, logout } from './auth'
 
-function getToken() { return localStorage.getItem('apphub.token') }
+const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 async function request(method, path, body) {
   const headers = { 'Content-Type': 'application/json' }
@@ -17,7 +20,7 @@ async function request(method, path, body) {
   })
 
   if (res.status === 401) {
-    localStorage.removeItem('apphub.token')
+    logout()
     window.dispatchEvent(new CustomEvent('apphub:unauthorized'))
     throw Object.assign(new Error('Unauthorized'), { status: 401 })
   }

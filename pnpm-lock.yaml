@@ -97,6 +97,9 @@ importers:
 
   apps/aikikan/aikikan-portal:
     dependencies:
+      '@apphub/tenant-console-ui':
+        specifier: workspace:*
+        version: link:../../../packages/tenant-console-ui
       '@react-oauth/google':
         specifier: ^0.12.1
         version: 0.12.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -235,6 +238,9 @@ importers:
 
   apps/tenant-console/tenant-console-portal:
     dependencies:
+      '@apphub/tenant-console-ui':
+        specifier: workspace:*
+        version: link:../../../packages/tenant-console-ui
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -621,6 +627,15 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
+
+  packages/tenant-console-ui:
+    dependencies:
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
 
   packages/tsconfig: {}
 

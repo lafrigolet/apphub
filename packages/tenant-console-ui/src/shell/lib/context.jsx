@@ -35,7 +35,7 @@ function detectSubdomain() {
   return sub
 }
 
-export function AppProvider({ children }) {
+export function AppProvider({ children, detectHostTenant = true }) {
   const [identity, setIdentity] = useState(() => getIdentity())
   const [app,       setApp]       = useState(null)
   const [tenant,    setTenant]    = useState(null)
@@ -62,7 +62,11 @@ export function AppProvider({ children }) {
   // 1b. On first mount, resolve the subdomain → tenant binding via the
   //     public endpoint. We don't fail the boot on errors — the user can
   //     still log in from the generic tenant-console.* host.
+  //     Hosts that embed the shell (e.g. aikikan-portal mounting the
+  //     console for an admin login) pass `detectHostTenant={false}` so
+  //     the host's own subdomain is not misread as a tenant subdomain.
   useEffect(() => {
+    if (!detectHostTenant) return
     const sub = detectSubdomain()
     if (!sub) return
     // Note the double /tenants/tenants/: nginx strips the first segment

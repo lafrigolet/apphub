@@ -93,9 +93,12 @@ function Shell() {
   )
 }
 
-export default function App() {
+// Public shell entry. Hosts can pass `detectHostTenant={false}` when
+// embedding inside another portal whose subdomain is NOT a tenant
+// subdomain (e.g. aikikan-portal mounting the admin shell inline).
+export default function App({ detectHostTenant = true } = {}) {
   return (
-    <AppProvider>
+    <AppProvider detectHostTenant={detectHostTenant}>
       <Shell />
     </AppProvider>
   )

@@ -29,19 +29,13 @@ function LoginForm({ onClose, onLoggedIn }) {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
 
-  // Después de cualquier flujo de login (password / Google / Facebook) la
-  // decisión de a dónde mandar al usuario depende exclusivamente de su
-  // rol: admin → tenant-console (otra origin), socio → portal aikikan.
-  // El servidor es la única autoridad sobre el rol; aquí leemos lo que
-  // ya viene en `data.role`.
+  // Después de cualquier flujo de login (password / Google / Facebook)
+  // notificamos al padre y cerramos el modal. El padre (App.jsx) decide
+  // qué montar según el rol:
+  //   admin → <AdminShell> (consola embebida, paquete @apphub/tenant-console-ui)
+  //   socio → <MemberHome>
+  // No hay hard-redirect: el admin se queda en aikikan.apphub.local.
   function dispatchByRole(data) {
-    if (auth.isAdminRole(data.role)) {
-      // Hard-redirect: la tenant-console vive en otra subdomain y el
-      // token cruza por el fragmento (no se envía al server, no aparece
-      // en logs ni referers).
-      window.location.href = auth.tenantConsoleUrl(data.accessToken)
-      return
-    }
     onLoggedIn?.(data)
     onClose()
   }
