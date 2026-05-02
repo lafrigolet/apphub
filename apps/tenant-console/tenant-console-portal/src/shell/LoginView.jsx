@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { login } from './lib/auth'
+import { useApp } from './lib/context'
 
 export default function LoginView({ onSuccess }) {
+  const { hostTenant } = useApp()
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState(null)
@@ -20,14 +22,26 @@ export default function LoginView({ onSuccess }) {
     }
   }
 
+  // The kicker reflects the host the user reached. On a per-tenant subdomain
+  // we show the tenant's display name; on the generic tenant-console.* host
+  // we keep the neutral "Tenant Console" label.
+  const kicker = hostTenant?.displayName ?? 'Tenant Console'
+  const notFound = hostTenant?.notFound
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-paper">
       <form onSubmit={submit} className="w-full max-w-sm bg-white border border-line rounded-2xl shadow-card p-8 space-y-5">
         <div>
-          <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Tenant Console</div>
+          <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">{kicker}</div>
           <h1 className="font-display text-[32px] leading-tight tracking-tight">
             <span className="italic font-normal">Inicia sesión</span>
           </h1>
+          {notFound && (
+            <div className="mt-3 bg-warnbg border border-warn/30 rounded-md p-3 text-[12px] text-warn">
+              El subdominio <span className="font-mono">{hostTenant.subdomain}</span> no
+              corresponde a ningún tenant activo. Si crees que es un error, avisa al equipo de plataforma.
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-[12px] uppercase tracking-[0.14em] text-ink3 mb-1">Email</label>

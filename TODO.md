@@ -403,15 +403,20 @@ profundo se itera después.
 - [x] `splitpay` — ya cubierto por Fase 2 (`platform/splitpay`, scopeado
   al tenant del JWT).
 
-### Fase 4 — Despliegue + cutover
-- [ ] DNS / nginx multi-host: cada tenant servido en
-  `<tenant.subdomain>.apphub.com` redirige a tenant-console-portal.
-- [ ] Login flow per-tenant: el JWT válido en voragine-console como
-  `owner`/`admin` debe valer en tenant-console (mismo `appGuard`, mismo JWT
-  secret).
-- [ ] Cutover: voragine-console deja de servir el rol owner/admin (App.jsx
-  branch para `role !== 'staff'` redirige a `<tenant>.apphub.com`).
-- [ ] Documentación: ADR-012 con la decisión de la consola separada.
+### Fase 4 — Despliegue + cutover ✅
+- [x] DNS / nginx multi-host: cada tenant servido en
+  `<tenant.subdomain>.apphub.{local,com}` proxiea a `tenant_console_portal`.
+  Implementado vía `writeTenantNginxConfig` (sidecar Redis + backfill al
+  arrancar platform-core).
+- [x] Login flow per-tenant: el JWT del rol owner/admin se emite en
+  `POST /v1/auth/login` y vale en cualquier host (subdomain del tenant o
+  `tenant-console.*` genérico). El shell resuelve subdomain → tenant vía
+  `GET /v1/tenants/by-subdomain/:subdomain` (público) y enseña una banner
+  si el JWT no coincide con el host.
+- [x] Cutover: voragine-console muestra `TenantHandoff` cuando
+  `role !== 'staff'`, con CTA al subdomain del propio tenant. No hace hard
+  redirect — preserva back/forward y URL bar.
+- [x] Documentación: ADR-012 (`docs/adr/012-tenant-console-multi-host-routing.md`).
 
 ### Decisiones diferidas (cuando hagan falta)
 - **Custom domains de tenants** — hoy `subdomain.apphub.com`; cuando un tenant

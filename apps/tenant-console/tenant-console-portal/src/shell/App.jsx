@@ -51,11 +51,35 @@ function Toasts() {
   )
 }
 
+// Banner shown when the user logged in but their JWT's tenant_id differs
+// from the tenant bound to the current subdomain. This catches the
+// "logged in at acme.apphub.local but the JWT is for bastardo" case
+// without forcing a hard redirect — the user keeps a one-click escape.
+function HostMismatchBanner() {
+  const { hostTenant, tenant, onLogout } = useApp()
+  if (!hostTenant?.subdomain || !tenant?.subdomain) return null
+  if (hostTenant.tenantId === tenant.id) return null
+  const target = `${window.location.protocol}//${tenant.subdomain}.${window.location.hostname.split('.').slice(1).join('.')}${window.location.port ? ':' + window.location.port : ''}/`
+  return (
+    <div className="bg-warnbg border-b border-warn/30 px-4 py-2 text-[12.5px] text-warn flex items-center justify-between">
+      <div>
+        Estás en <span className="font-mono">{hostTenant.subdomain}</span> pero tu sesión es del tenant
+        <span className="font-medium"> {tenant.display_name}</span>.
+      </div>
+      <div className="flex items-center gap-3">
+        <a href={target} className="underline">Ir a {tenant.subdomain}.*</a>
+        <button onClick={onLogout} className="underline">Cerrar sesión</button>
+      </div>
+    </div>
+  )
+}
+
 function Shell() {
   const { identity, onLogin } = useApp()
   if (!identity) return <LoginView onSuccess={onLogin} />
   return (
     <div className="min-h-screen flex flex-col">
+      <HostMismatchBanner />
       <Topbar />
       <div className="flex-1 flex">
         <Sidebar />

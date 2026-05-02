@@ -62,6 +62,14 @@ export async function tenantsRoutes(fastify) {
     return tenantsService.listTenants(appId)
   })
 
+  // Public subdomain → tenant lookup. Used by tenant-console-portal to pre-
+  // populate the login form with the right app context (so the user knows
+  // they are signing into Acme, not the staff console). Returns minimal
+  // fields — no PII.
+  fastify.get('/v1/tenants/by-subdomain/:subdomain', { config: { public: true } }, async (req) => {
+    return tenantsService.getTenantBySubdomain(req.params.subdomain)
+  })
+
   fastify.get('/v1/tenants/:id', async (req) => {
     return tenantsService.getTenant(req.params.id)
   })

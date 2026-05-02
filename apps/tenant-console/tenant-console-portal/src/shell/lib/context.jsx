@@ -18,6 +18,23 @@ import { loadManifests } from '../ManifestLoader'
 const Ctx = createContext(null)
 export const useApp = () => useContext(Ctx)
 
+// Derive the tenant subdomain from the current host. Returns null when we're
+// on the platform "tenant-console" subdomain itself (which is generic and
+// doesn't bind to a specific tenant) or when the hostname has no subdomain
+// component (e.g. the user hits localhost directly).
+function detectSubdomain() {
+  if (typeof window === 'undefined') return null
+  const host = window.location.hostname
+  // Strip the platform suffix and inspect what's left. The platform suffix
+  // is the trailing two labels (apphub.local / apphub.com / …); anything
+  // before it is the tenant subdomain.
+  const parts = host.split('.')
+  if (parts.length < 3) return null               // no subdomain
+  const sub = parts[0]
+  if (sub === 'tenant-console') return null       // generic console
+  return sub
+}
+
 export function AppProvider({ children }) {
   const [identity, setIdentity] = useState(() => getIdentity())
   const [app,       setApp]       = useState(null)
@@ -25,6 +42,11 @@ export function AppProvider({ children }) {
   const [manifests, setManifests] = useState([])
   const [bootError, setBootError] = useState(null)
   const [booting,   setBooting]   = useState(false)
+  // Host-derived tenant context, resolved before login so the LoginView
+  // can render "Sign in to <Tenant>" with the right name. Stays null for
+  // the generic tenant-console.* host.
+  const [hostTenant, setHostTenant] = useState(null)
+  const [hostMismatch, setHostMismatch] = useState(false)
   const [view, setView] = useState('home')
   const [viewState, setViewState] = useState(null)
   const [toasts, setToasts] = useState([])
@@ -35,6 +57,22 @@ export function AppProvider({ children }) {
     const handler = () => { setIdentity(null); setApp(null); setTenant(null); setManifests([]) }
     window.addEventListener('apphub:unauthorized', handler)
     return () => window.removeEventListener('apphub:unauthorized', handler)
+  }, [])
+
+  // 1b. On first mount, resolve the subdomain → tenant binding via the
+  //     public endpoint. We don't fail the boot on errors — the user can
+  //     still log in from the generic tenant-console.* host.
+  useEffect(() => {
+    const sub = detectSubdomain()
+    if (!sub) return
+    // Note the double /tenants/tenants/: nginx strips the first segment
+    // when proxying /api/tenants/* → platform-core/v1/* so the public
+    // endpoint mounted at /v1/tenants/by-subdomain/:subdomain is reached
+    // via /api/tenants/tenants/by-subdomain/:subdomain. Same convention
+    // every other tenant-config caller uses.
+    api.get(`/api/tenants/tenants/by-subdomain/${encodeURIComponent(sub)}`)
+      .then((row) => setHostTenant(row))
+      .catch(() => setHostTenant({ notFound: true, subdomain: sub }))
   }, [])
 
   // 2. After login (or initial mount with stored token), load app + tenant +
@@ -52,6 +90,11 @@ export function AppProvider({ children }) {
         if (cancelled) return
         setApp(appRow)
         setTenant(tenantRow)
+        // Surface "you logged in from acme.apphub.local but your JWT is
+        // for bastardo" as a soft warning so the user can re-route.
+        if (hostTenant?.tenantId && tenantRow?.id && hostTenant.tenantId !== tenantRow.id) {
+          setHostMismatch(true)
+        }
         const ms = await loadManifests(appRow?.enabled_modules ?? [])
         if (cancelled) return
         setManifests(ms)
@@ -98,9 +141,10 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     identity, app, tenant, myTenant, role, manifests, routes,
     view, viewState, booting, bootError, toasts, modal,
+    hostTenant, hostMismatch,
     navigate, toast, openModal, closeModal,
     onLogin, onLogout, logout,
-  }), [identity, app, tenant, myTenant, role, manifests, routes, view, viewState, booting, bootError, toasts, modal, navigate, toast, openModal, closeModal, onLogin, onLogout, logout])
+  }), [identity, app, tenant, myTenant, role, manifests, routes, view, viewState, booting, bootError, toasts, modal, hostTenant, hostMismatch, navigate, toast, openModal, closeModal, onLogin, onLogout, logout])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

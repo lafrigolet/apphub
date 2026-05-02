@@ -75,3 +75,68 @@ export async function deleteAppNginxConfig({ subdomain }) {
   await redis.publish(RELOAD_CHANNEL, subdomain).catch(() => {})
   logger.info({ subdomain }, 'NGINX conf removed from Redis')
 }
+
+// Per-tenant template — every tenant subdomain proxies to the *same*
+// tenant-console upstream; the tenant-console figures out which tenant it
+// is from the JWT (app_id + tenant_id claims). The Host header is preserved
+// so the shell can also derive the subdomain client-side for sanity checks.
+const TENANT_TEMPLATE = `# Auto-generated for tenant {{tenant_id}} (subdomain: {{subdomain}}) at {{timestamp}}
+# Source of truth: Redis hash field {{conf_key}}/tenant--{{subdomain}}.
+server {
+  listen 80;
+  server_name {{subdomain}}.apphub.local {{subdomain}}.apphub.com;
+
+  # Same platform APIs every other portal exposes.
+  include /etc/nginx/snippets/platform-routes.conf;
+
+  # Tenant Console frontend — shared upstream for all tenants.
+  location / {
+    proxy_pass http://tenant_console_portal;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade    $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
+  }
+}
+`
+
+// Tenant subdomains share the global Redis hash with app subdomains; we
+// namespace keys with a `tenant--` prefix so app + tenant subdomain spaces
+// can't collide. (App subdomains are top-level subdomains of the platform
+// itself: yoga, splitpay, …; tenant subdomains are per-customer.)
+function tenantConfKey(subdomain) {
+  return `tenant--${subdomain}`
+}
+
+/**
+ * Publish the NGINX server block for a newly-registered tenant. Idempotent —
+ * called on tenant create AND on platform-core boot for every existing
+ * tenant (backfill), so a brand-new infra without seeded Redis ends up with
+ * the right map after first boot.
+ */
+export async function writeTenantNginxConfig({ tenantId, subdomain }) {
+  if (!subdomain) {
+    logger.warn({ tenantId }, 'Tenant has no subdomain — skipping NGINX conf')
+    return
+  }
+  const conf = render(TENANT_TEMPLATE, {
+    tenant_id: tenantId,
+    subdomain,
+    conf_key:  CONF_KEY,
+    timestamp: new Date().toISOString(),
+  })
+  await redis.hset(CONF_KEY, tenantConfKey(subdomain), conf)
+  await redis.publish(RELOAD_CHANNEL, subdomain).catch(() => {})
+  logger.info({ subdomain, tenantId }, 'NGINX tenant conf written to Redis')
+}
+
+export async function deleteTenantNginxConfig({ subdomain }) {
+  if (!subdomain) return
+  await redis.hdel(CONF_KEY, tenantConfKey(subdomain))
+  await redis.publish(RELOAD_CHANNEL, subdomain).catch(() => {})
+  logger.info({ subdomain }, 'NGINX tenant conf removed from Redis')
+}

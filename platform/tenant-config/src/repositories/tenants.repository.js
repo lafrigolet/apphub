@@ -25,6 +25,23 @@ export async function findById(client, id) {
   return rows[0] ?? null
 }
 
+export async function findBySubdomain(client, subdomain) {
+  const { rows } = await client.query(
+    `SELECT ${FULL_COLUMNS} FROM platform_tenants.tenants WHERE subdomain = $1`,
+    [subdomain],
+  )
+  return rows[0] ?? null
+}
+
+// Backfill helper: every non-archived tenant. Used on platform-core boot to
+// re-publish NGINX server blocks idempotently.
+export async function findAllActive(client) {
+  const { rows } = await client.query(
+    `SELECT ${FULL_COLUMNS} FROM platform_tenants.tenants WHERE status <> 'archived'`,
+  )
+  return rows
+}
+
 export async function create(client, { appId, displayName, subdomain }) {
   const { rows } = await client.query(
     `INSERT INTO platform_tenants.tenants (app_id, display_name, subdomain)
