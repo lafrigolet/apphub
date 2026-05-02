@@ -140,7 +140,7 @@
 - **Falta**:
   - [x] **Merge** carritos — `POST /v1/basket/merge { guestUserId }` suma cantidades item-a-item y borra el guest basket.
   - [ ] **Validación de precio/disponibilidad** en checkout (re-leer catálogo)
-  - [o] **Promociones aplicadas** (no hay engine)
+  - [x] **Promociones aplicadas** — engine puro `evaluate(basket, promo)` con `percent` (basis points), `fixed_amount`, `free_shipping`; restricciones `minSubtotalCents` + `expiresAt` + `enabled`. Promo store Redis (`basket:promo:<app>:<tenant>:<CODE>`). Endpoints: `GET /v1/basket/summary`, `POST/DELETE /v1/basket/promo`, CRUD staff/admin `GET/PUT/DELETE /v1/basket/promos[/:code]`. La promo aplicada se persiste en el JSON del basket; `summary` la auto-revoca si la definición se deshabilita/borra.
   - [x] **Saved-for-later** — Redis paralelo `basket:saved:…` + endpoints `GET /v1/basket/saved`, `POST /v1/basket/saved`, `POST /v1/basket/saved/:itemId/move-back`, `DELETE /v1/basket/saved/:itemId`.
   - [x] **Abandoned-cart events** — `basket.abandoned` ya emitido por scheduler + ahora hidrata `buyerEmail` via GRANT a auth + plantilla email + sender wired en notifications consumer.
 
