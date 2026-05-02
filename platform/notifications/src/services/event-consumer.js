@@ -15,6 +15,7 @@ import {
   sendReservationCancelledSms,
 } from './sms.service.js'
 import { checkRateLimit } from './rate-limit.service.js'
+import { shouldDigest, enqueueDigest } from './digest.service.js'
 
 // Rate-limit gate: skip the send when the per-user/hour or per-user/day cap
 // is hit. We only check when userId is present — staff/system messages bypass.
@@ -27,6 +28,17 @@ async function gated(userId, eventClass, channel, fn) {
     }
   }
   await fn()
+}
+
+// Email-only digest hook. Returns true when the event was buffered (and the
+// caller should NOT send immediately); false when the caller should proceed
+// with the immediate send. SMS bypasses the digest by design — text messages
+// are usually time-sensitive and digesting them defeats the channel's value.
+async function maybeDigestEmail(event, { userId, to, locale }) {
+  if (!userId || !to) return false
+  if (!(await shouldDigest(event.type))) return false
+  await enqueueDigest({ userId, eventType: event.type, payload: event.payload, locale, to })
+  return true
 }
 
 export function startEventConsumer() {
@@ -104,47 +116,66 @@ export function startEventConsumer() {
       // ── New event subscriptions ──────────────────────────────────────
       if (event.type === 'booking.confirmed' || event.type === 'booking.reminded') {
         const { clientEmail, clientPhone, clientName, clientUserId, startsAt } = event.payload ?? {}
-        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingConfirmedEmail(clientEmail, { name: clientName, startsAt, locale }))
-        if (clientPhone) await gated(clientUserId, event.type, 'sms',   () => sendBookingConfirmedSms(clientPhone, { startsAt, locale }))
+        if (clientEmail && !await maybeDigestEmail(event, { userId: clientUserId, to: clientEmail, locale })) {
+          await gated(clientUserId, event.type, 'email', () => sendBookingConfirmedEmail(clientEmail, { name: clientName, startsAt, locale }))
+        }
+        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingConfirmedSms(clientPhone, { startsAt, locale }))
       }
 
       if (event.type === 'booking.cancelled') {
         const { clientEmail, clientPhone, clientName, clientUserId, startsAt, reason } = event.payload ?? {}
-        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingCancelledEmail(clientEmail, { name: clientName, startsAt, reason, locale }))
-        if (clientPhone) await gated(clientUserId, event.type, 'sms',   () => sendBookingCancelledSms(clientPhone, { startsAt, locale }))
+        if (clientEmail && !await maybeDigestEmail(event, { userId: clientUserId, to: clientEmail, locale })) {
+          await gated(clientUserId, event.type, 'email', () => sendBookingCancelledEmail(clientEmail, { name: clientName, startsAt, reason, locale }))
+        }
+        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingCancelledSms(clientPhone, { startsAt, locale }))
       }
 
       if (event.type === 'booking.rescheduled') {
-        // The bookings service publishes { oldBookingId, newBookingId, startsAt, endsAt } —
-        // use new startsAt for the recipient-facing message. clientEmail / clientPhone
-        // come from the cloned booking so the producer must hydrate them.
         const { clientEmail, clientPhone, clientName, clientUserId, startsAt } = event.payload ?? {}
-        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingRescheduledEmail(clientEmail, { name: clientName, startsAt, locale }))
-        if (clientPhone) await gated(clientUserId, event.type, 'sms',   () => sendBookingRescheduledSms(clientPhone, { startsAt, locale }))
+        if (clientEmail && !await maybeDigestEmail(event, { userId: clientUserId, to: clientEmail, locale })) {
+          await gated(clientUserId, event.type, 'email', () => sendBookingRescheduledEmail(clientEmail, { name: clientName, startsAt, locale }))
+        }
+        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingRescheduledSms(clientPhone, { startsAt, locale }))
       }
 
       if (event.type === 'reservation.created') {
         const { guestEmail, guestName, guestUserId, reservedFor, partySize } = event.payload ?? {}
-        if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationCreatedEmail(guestEmail, { name: guestName, reservedFor, partySize, locale }))
+        if (guestEmail && !await maybeDigestEmail(event, { userId: guestUserId, to: guestEmail, locale })) {
+          await gated(guestUserId, event.type, 'email', () => sendReservationCreatedEmail(guestEmail, { name: guestName, reservedFor, partySize, locale }))
+        }
       }
 
       if (event.type === 'reservation.cancelled') {
         const { guestEmail, guestPhone, guestName, guestUserId, reservedFor } = event.payload ?? {}
-        if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationCancelledEmail(guestEmail, { name: guestName, reservedFor, locale }))
-        if (guestPhone) await gated(guestUserId, event.type, 'sms',   () => sendReservationCancelledSms(guestPhone, { reservedFor, locale }))
+        if (guestEmail && !await maybeDigestEmail(event, { userId: guestUserId, to: guestEmail, locale })) {
+          await gated(guestUserId, event.type, 'email', () => sendReservationCancelledEmail(guestEmail, { name: guestName, reservedFor, locale }))
+        }
+        if (guestPhone) await gated(guestUserId, event.type, 'sms', () => sendReservationCancelledSms(guestPhone, { reservedFor, locale }))
       }
 
       if (event.type === 'package.exhausted') {
         const { clientEmail, clientUserId } = event.payload ?? {}
-        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendPackageExhaustedEmail(clientEmail, { locale }))
+        if (clientEmail && !await maybeDigestEmail(event, { userId: clientUserId, to: clientEmail, locale })) {
+          await gated(clientUserId, event.type, 'email', () => sendPackageExhaustedEmail(clientEmail, { locale }))
+        }
+      }
+
+      // Internal event published by platform-scheduler at the configured
+      // cadence. Drains every per-user digest queue into one composed email
+      // each. Idempotent under concurrent firings (renames the queue key
+      // before reading).
+      if (event.type === 'notifications.digest.flush') {
+        const { flushAll } = await import('./digest.service.js')
+        const { sendRaw }  = await import('./email.service.js')
+        const result = await flushAll({ send: sendRaw, logger })
+        logger.info(result, 'digest flushed')
       }
 
       if (event.type === 'payout.paid') {
-        // Practitioner payout — recipient is the practitioner identified by
-        // the payout row's user_id. Producer must hydrate practitionerEmail
-        // and the human-readable amount/period.
         const { practitionerEmail, practitionerUserId, amount, periodLabel, externalRef } = event.payload ?? {}
-        if (practitionerEmail) await gated(practitionerUserId, event.type, 'email', () => sendPayoutPaidEmail(practitionerEmail, { amount, periodLabel, externalRef, locale }))
+        if (practitionerEmail && !await maybeDigestEmail(event, { userId: practitionerUserId, to: practitionerEmail, locale })) {
+          await gated(practitionerUserId, event.type, 'email', () => sendPayoutPaidEmail(practitionerEmail, { amount, periodLabel, externalRef, locale }))
+        }
       }
     } catch (err) {
       logger.error({ err, event }, 'Error handling event')

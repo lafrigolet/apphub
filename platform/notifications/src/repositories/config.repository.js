@@ -10,6 +10,7 @@ const PLAIN_KEYS  = [
   'twilio_default_sender',
   'rate_limit_per_user_per_hour',
   'rate_limit_per_user_per_day',
+  'digest_mode',
 ]
 
 export const KEYS = [...SECRET_KEYS, ...PLAIN_KEYS]

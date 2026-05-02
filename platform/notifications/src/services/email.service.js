@@ -33,6 +33,10 @@ async function loadConfig() {
 // Public — call after a config change to drop the cache.
 export function invalidateConfigCache() { cache.expiresAt = 0 }
 
+// Public passthrough used by the digest flush job (which composes its own
+// subject/body and just needs the underlying SendGrid send).
+export async function sendRaw(msg) { await send(msg) }
+
 async function send(msg) {
   const cfg = await loadConfig()
   const isDev = env.NODE_ENV === 'development' || !cfg.sendgridApiKey || cfg.sendgridApiKey === 'dev_no_sendgrid'

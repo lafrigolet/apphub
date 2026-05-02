@@ -20,6 +20,9 @@ const configBody = z.object({
   // Per-user rate limit caps. Numeric strings (or null/empty for unlimited).
   rate_limit_per_user_per_hour: z.string().max(8).optional().nullable(),
   rate_limit_per_user_per_day:  z.string().max(8).optional().nullable(),
+  // Digest mode: 'off' (default — send each event immediately) or 'daily'
+  // (buffer non-urgent events into one composed email per user per day).
+  digest_mode:                  z.enum(['off', 'daily']).optional().nullable(),
 })
 
 const smsTestBody = z.object({
@@ -72,6 +75,8 @@ export async function adminRoutes(fastify) {
       invalidateEmailConfigCache()
       invalidateSmsConfigCache()
       invalidateRateLimitCache()
+      const { invalidateDigestModeCache } = await import('../services/digest.service.js')
+      invalidateDigestModeCache()
       return { data: await configRepo.listConfig(client) }
     } finally { client.release() }
   })
