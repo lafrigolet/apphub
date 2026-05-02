@@ -76,6 +76,75 @@ export async function deleteById(client, appId, tenantId, id) {
   return rowCount > 0
 }
 
+// ── Voting (helpful/unhelpful) ──────────────────────────────────────────
+
+export async function upsertVote(client, appId, tenantId, reviewId, voterUserId, voteValue) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.review_votes (app_id, tenant_id, review_id, voter_user_id, vote_value)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (review_id, voter_user_id) DO UPDATE
+       SET vote_value = EXCLUDED.vote_value, created_at = now()
+     RETURNING *`,
+    [appId, tenantId, reviewId, voterUserId, voteValue],
+  )
+  return rows[0]
+}
+
+export async function deleteVote(client, appId, tenantId, reviewId, voterUserId) {
+  const { rowCount } = await client.query(
+    `DELETE FROM ${SCHEMA}.review_votes
+       WHERE app_id=$1 AND tenant_id=$2 AND review_id=$3 AND voter_user_id=$4`,
+    [appId, tenantId, reviewId, voterUserId],
+  )
+  return rowCount > 0
+}
+
+export async function recomputeVoteCounts(client, appId, tenantId, reviewId) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.reviews
+        SET helpful_count = (
+              SELECT COUNT(*) FROM ${SCHEMA}.review_votes
+               WHERE review_id = $3 AND vote_value =  1),
+            unhelpful_count = (
+              SELECT COUNT(*) FROM ${SCHEMA}.review_votes
+               WHERE review_id = $3 AND vote_value = -1)
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+      RETURNING helpful_count, unhelpful_count`,
+    [appId, tenantId, reviewId],
+  )
+  return rows[0] ?? null
+}
+
+// ── Media (photo/video attachments via platform_storage) ────────────────
+
+export async function insertMedia(client, appId, tenantId, reviewId, m) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.review_media (app_id, tenant_id, review_id, object_id, kind, display_order)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0))
+     RETURNING *`,
+    [appId, tenantId, reviewId, m.objectId, m.kind, m.displayOrder ?? 0],
+  )
+  return rows[0]
+}
+
+export async function listMedia(client, appId, tenantId, reviewId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.review_media
+       WHERE app_id=$1 AND tenant_id=$2 AND review_id=$3
+       ORDER BY display_order, created_at`,
+    [appId, tenantId, reviewId],
+  )
+  return rows
+}
+
+export async function deleteMedia(client, appId, tenantId, mediaId) {
+  const { rowCount } = await client.query(
+    `DELETE FROM ${SCHEMA}.review_media WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, mediaId],
+  )
+  return rowCount > 0
+}
+
 export async function insertReply(client, appId, tenantId, reviewId, vendorUserId, body) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.review_replies (app_id, tenant_id, review_id, vendor_user_id, body)

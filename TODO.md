@@ -90,9 +90,9 @@
 - [x] Verified-purchase check via HTTP a orders (ADR 009) — `verified_purchase` boolean + filtro `verifiedOnly` + `verified_count` en agregados
 - **Falta**:
   - [ ] **Moderación con ML** (toxicidad, spam) — solo manual `pending → published`
-  - [o] **Photo/video uploads** con object storage
-  - [o] **Helpful/unhelpful voting**
-  - [o] **Schema.org JSON-LD** para SEO
+  - [x] **Photo/video uploads** — tabla `review_media` referencia `platform_storage.objects.id`; endpoints `GET/POST /v1/reviews/:id/media`, `DELETE /:id/media/:mediaId`. Solo el autor (o staff) puede adjuntar.
+  - [x] **Helpful/unhelpful voting** — tabla `review_votes` con UNIQUE `(review_id, voter_user_id)`; agregados `helpful_count`/`unhelpful_count` en la fila review; endpoints `PUT/DELETE /v1/reviews/:id/vote`. No permite votar tu propia review.
+  - [x] **Schema.org JSON-LD** para SEO — endpoint público `GET /v1/reviews/jsonld?targetType&targetId` que devuelve un objeto Schema.org Product+AggregateRating+Review listo para `<script type="application/ld+json">`.
 
 ### `messaging` — ✅ funcional
 - [x] Threads, mensajes, attachments, mark read, ACL buyer/vendor/staff
