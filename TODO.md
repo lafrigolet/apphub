@@ -350,22 +350,27 @@ filtra al usuario.
   existe; el shell todavía no usa el valor — pendiente de wiring i18n
   cuando entren más manifests).
 
-### Fase 2 — Migración del rol tenant existente
+### Fase 2 — Migración del rol tenant existente ✅
 **No tocar voragine-console** — solo replicar las views ahí presentes en la
 nueva app, manteniendo voragine-console intacto hasta que la migración sea
 1:1. Las vistas a portar:
-- [ ] `views/tenant/Overview.jsx` → manifest `tenants` (Inicio).
-- [ ] `views/tenant/Settings.jsx` → manifest `tenants` (Configuración ·
+- [x] `views/tenant/Overview.jsx` → manifest `tenants` (Inicio).
+- [x] `views/tenant/Settings.jsx` → manifest `tenants` (Configuración ·
   Identidad). Ya incluye `default_locale`.
-- [ ] `views/tenant/Admins.jsx` → manifest `auth` (Configuración ·
+- [x] `views/tenant/Admins.jsx` → manifest `auth` (Configuración ·
   Administradores).
-- [ ] `views/tenant/Email.jsx` (que ya usa `EmailDomainsManager.jsx`
+- [x] `views/tenant/Email.jsx` (que ya usa `EmailDomainsManager.jsx`
   compartido) → manifest `notifications` (Configuración · Email domains).
-- [ ] `views/tenant/Splitpay.jsx` → manifest `splitpay` (solo si
+  *(hecho en Fase 1)*
+- [x] `views/tenant/Splitpay.jsx` → manifest `splitpay` (solo si
   `app.splitpay_enabled`).
-- [ ] `views/tenant/Audit.jsx` → manifest `audit` (Configuración).
-- [ ] `views/tenant/Danger.jsx` → manifest `tenants` (Configuración · Zona
+- [x] `views/tenant/Audit.jsx` → manifest `audit` (Configuración).
+- [x] `views/tenant/Danger.jsx` → manifest `tenants` (Configuración · Zona
   peligrosa).
+
+Manifest seed: migración `0007_baseline_tenant_console_modules.sql`
+añade `tenants`, `auth`, `audit`, `notifications` a `enabled_modules` en
+todas las apps tenant-facing, y `splitpay` solo donde `splitpay_enabled = TRUE`.
 
 `EmailDomainsManager.jsx` ya está extraído a `components/`; copiarlo / mover
 al shell de tenant-console como pieza compartida con voragine-console (vía

@@ -17,6 +17,19 @@ function MainContent() {
   return r
 }
 
+function ModalContainer() {
+  const { modal, closeModal } = useApp()
+  if (!modal) return null
+  const sizeClass = modal.size === 'lg' ? 'max-w-2xl' : modal.size === 'sm' ? 'max-w-sm' : 'max-w-lg'
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30" onClick={closeModal}>
+      <div className={`w-full ${sizeClass} bg-white rounded-2xl shadow-pop overflow-hidden`} onClick={(e) => e.stopPropagation()}>
+        {modal.content}
+      </div>
+    </div>
+  )
+}
+
 function Toasts() {
   const { toasts } = useApp()
   if (!toasts.length) return null
@@ -50,6 +63,7 @@ function Shell() {
           <MainContent />
         </main>
       </div>
+      <ModalContainer />
       <Toasts />
     </div>
   )

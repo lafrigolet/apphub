@@ -28,6 +28,7 @@ export function AppProvider({ children }) {
   const [view, setView] = useState('home')
   const [viewState, setViewState] = useState(null)
   const [toasts, setToasts] = useState([])
+  const [modal, setModal] = useState(null)
 
   // 1. Logout on 401 anywhere in the app.
   useEffect(() => {
@@ -76,6 +77,15 @@ export function AppProvider({ children }) {
   const onLogin = useCallback(() => { setIdentity(getIdentity()); setView('home') }, [])
   const onLogout = useCallback(() => { libLogout(); setIdentity(null); setView('home') }, [])
 
+  const openModal  = useCallback((content, opts = {}) => setModal({ content, size: opts.size ?? 'md' }), [])
+  const closeModal = useCallback(() => setModal(null), [])
+
+  // Some ported voragine-console views read `myTenant`, `logout` and `role`
+  // directly off the context. Aliased here so we don't touch the views' code.
+  const myTenant = tenant
+  const logout   = onLogout
+  const role     = identity?.role ?? null
+
   // The route map is built from every manifest's `routes` object. Each route
   // is a (lazy or sync) function returning a JSX element; the shell calls it
   // when the matching `view` key is active.
@@ -86,10 +96,11 @@ export function AppProvider({ children }) {
   }, [manifests])
 
   const value = useMemo(() => ({
-    identity, app, tenant, manifests, routes,
-    view, viewState, booting, bootError, toasts,
-    navigate, toast, onLogin, onLogout,
-  }), [identity, app, tenant, manifests, routes, view, viewState, booting, bootError, toasts, navigate, toast, onLogin, onLogout])
+    identity, app, tenant, myTenant, role, manifests, routes,
+    view, viewState, booting, bootError, toasts, modal,
+    navigate, toast, openModal, closeModal,
+    onLogin, onLogout, logout,
+  }), [identity, app, tenant, myTenant, role, manifests, routes, view, viewState, booting, bootError, toasts, modal, navigate, toast, openModal, closeModal, onLogin, onLogout, logout])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
