@@ -17,6 +17,10 @@ const splitpayBody = z.object({
   enabled: z.boolean(),
 })
 
+const enabledModulesBody = z.object({
+  modules: z.array(z.string().min(1).max(64)).max(32),
+})
+
 export async function appsRoutes(fastify) {
   fastify.get('/v1/apps', async () => {
     return appsService.listApps()
@@ -40,5 +44,12 @@ export async function appsRoutes(fastify) {
   fastify.patch('/v1/apps/:appId/splitpay', async (req) => {
     const { enabled } = splitpayBody.parse(req.body)
     return appsService.setAppSplitpayEnabled(req.params.appId, enabled)
+  })
+
+  // Replace the enabled_modules array for an app. Drives which manifests the
+  // tenant-console-portal mounts at boot. Staff-only.
+  fastify.put('/v1/apps/:appId/enabled-modules', async (req) => {
+    const { modules } = enabledModulesBody.parse(req.body)
+    return appsService.setAppEnabledModules(req.params.appId, modules)
   })
 }

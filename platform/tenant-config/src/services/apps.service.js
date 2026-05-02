@@ -49,3 +49,9 @@ export async function setAppSplitpayEnabled(appId, enabled) {
   if (!app) throw new NotFoundError('App')
   return app
 }
+
+export async function setAppEnabledModules(appId, modules) {
+  const app = await withTransaction(pool, (client) => appsRepo.updateEnabledModules(client, appId, modules))
+  if (!app) throw new NotFoundError('App')
+  return app
+}
