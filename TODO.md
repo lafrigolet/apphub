@@ -118,8 +118,8 @@
 - [x] FSM, mensajes, evidencia, escalation `splitpay.chargeback.created`
 - **Falta**:
   - [ ] **SLA timer** (auto-escalate si vendor no responde en 48h)
-  - [o] **Auto-refund** integration al resolver favor del buyer
-  - [o] **Stripe dispute API** sync bidireccional (subir evidencia a Stripe)
+  - [x] **Auto-refund** integration — `resolve(resolved_buyer)` con `resolution_amount_cents > 0` publica `dispute.refund.requested` (que splitpay consume); `refund_requested_at` previene doble disparo idempotentemente.
+  - [x] **Stripe dispute API** sync bidireccional — entrante: `splitpay.chargeback.created` persiste `stripe_dispute_id` en disputes; saliente: `POST /v1/disputes/:id/submit-to-stripe` publica `dispute.evidence.submit` con la evidencia interna que splitpay reenvía a Stripe.
   - [ ] **Templated responses** para vendors
 
 ### `catalog` — ✅ funcional pero básico

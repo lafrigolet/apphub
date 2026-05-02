@@ -29,6 +29,11 @@ const listQuery = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 })
 
+const idParams = z.object({ id: z.string().uuid() })
+
+const tags     = ['disputes']
+const stripeTags = ['disputes · stripe sync']
+
 function ctxFromRequest(req) {
   return {
     appId: req.identity.appId,
@@ -40,35 +45,54 @@ function ctxFromRequest(req) {
 }
 
 export async function disputesRoutes(fastify) {
-  fastify.post('/v1/disputes', async (req, reply) => {
+  fastify.post('/v1/disputes', {
+    schema: { tags, summary: 'Open a dispute on an order', body: createBody },
+  }, async (req, reply) => {
     const body = createBody.parse(req.body)
     const d = await service.openDispute(ctxFromRequest(req), body)
     return reply.status(201).send(d)
   })
 
-  fastify.get('/v1/disputes', async (req) => {
+  fastify.get('/v1/disputes', {
+    schema: { tags, summary: 'List disputes (filterable by status)' },
+  }, async (req) => {
     const q = listQuery.parse(req.query)
     return service.listDisputes(ctxFromRequest(req), q)
   })
 
-  fastify.get('/v1/disputes/:id', async (req) => {
+  fastify.get('/v1/disputes/:id', {
+    schema: { tags, summary: 'Get a dispute with messages + evidence', params: idParams },
+  }, async (req) => {
     return service.getDispute(ctxFromRequest(req), req.params.id)
   })
 
-  fastify.post('/v1/disputes/:id/messages', async (req, reply) => {
+  fastify.post('/v1/disputes/:id/messages', {
+    schema: { tags, summary: 'Post a message in the dispute thread', params: idParams, body: messageBody },
+  }, async (req, reply) => {
     const body = messageBody.parse(req.body)
     const m = await service.postMessage(ctxFromRequest(req), req.params.id, body.body, body.attachments)
     return reply.status(201).send(m)
   })
 
-  fastify.post('/v1/disputes/:id/evidence', async (req, reply) => {
+  fastify.post('/v1/disputes/:id/evidence', {
+    schema: { tags, summary: 'Upload internal evidence to a dispute', params: idParams, body: evidenceBody },
+  }, async (req, reply) => {
     const body = evidenceBody.parse(req.body)
     const e = await service.uploadEvidence(ctxFromRequest(req), req.params.id, body.kind, body.data)
     return reply.status(201).send(e)
   })
 
-  fastify.patch('/v1/disputes/:id/resolve', async (req) => {
+  fastify.patch('/v1/disputes/:id/resolve', {
+    schema: { tags, summary: 'Resolve a dispute (auto-publishes refund.requested when resolved_buyer)', params: idParams, body: resolveBody },
+  }, async (req) => {
     const body = resolveBody.parse(req.body)
     return service.resolve(ctxFromRequest(req), req.params.id, body)
+  })
+
+  // ── Stripe dispute API sync (push internal evidence to Stripe) ───────
+  fastify.post('/v1/disputes/:id/submit-to-stripe', {
+    schema: { tags: stripeTags, summary: 'Forward the collected evidence to Stripe via splitpay', params: idParams },
+  }, async (req) => {
+    return service.submitEvidenceToStripe(ctxFromRequest(req), req.params.id)
   })
 }
