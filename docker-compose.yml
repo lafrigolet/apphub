@@ -433,6 +433,34 @@ services:
       - ./apps/aikikan/aikikan-portal/src:/app/apps/aikikan/aikikan-portal/src:ro
       - ./apps/aikikan/aikikan-portal/public:/app/apps/aikikan/aikikan-portal/public:ro
 
+  # ── Aikikan backend monolith (port 3030) ──────────────────────
+  # First app to follow the pattern in ADR 013: one container, one schema
+  # `app_aikikan`, one role `svc_app_aikikan`. Domain code (members,
+  # events, dues, …) lives in folders under src/, NOT in separate schemas.
+  aikikan-server:
+    build:
+      context: .
+      dockerfile: apps/aikikan/aikikan-server/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '3030:3030'
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      PORT: '3030'
+      DATABASE_URL: postgresql://svc_app_aikikan:app_aikikan_secret@postgres:5432/splitpay
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      EXPECTED_APP_ID: aikikan
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    volumes:
+      - ./apps/aikikan/aikikan-server/src:/app/apps/aikikan/aikikan-server/src:ro
+      - ./apps/aikikan/aikikan-server/migrations:/app/apps/aikikan/aikikan-server/migrations:ro
+
   # ── Voragine Console (frontend 5177) ──────────────────────────
   voragine-console-portal:
     build:
@@ -505,6 +533,7 @@ services:
       yoga-studio:             { condition: service_started }
       splitpay-portal:         { condition: service_started }
       aikikan-portal:          { condition: service_started }
+      aikikan-server:          { condition: service_started }
       voragine-console-portal: { condition: service_started }
       tenant-console-portal:   { condition: service_started }
 

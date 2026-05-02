@@ -293,10 +293,315 @@
 | **Audit log centralizado** cross-módulos | parcial (algunos tienen audit propio) | media |
 | **HTTP transport entre contenedores** con auth | ❌ todo Redis events | media |
 | **Tests E2E** entre los 4 monoliths | ❌ solo unit + integration por módulo | media |
-| **Backup/restore** automatizado de Postgres | ❌ no | alta producción |
+| **Backup/restore** automatizado de Postgres | ❌ no — implementar ahora (ver subitems abajo) | alta producción |
+| **Pool RO opcional** (`DATABASE_URL_RO` con fallback) | ❌ no — implementar ahora (subitems abajo) | baja hoy, deja el cluster trivial cuando llegue |
 | **i18n** | parcial (notifications via `(key,channel,locale)` UNIQUE; resto del UI todavía hardcoded) | alta para mercado ES |
 | **Frontend para staff** (voragine-console) | parcial — `staff/*` cubierto, suficiente para roadmap actual | media |
 | **Frontend para tenants** (tenant-console nueva) | ❌ no existe; ver bloque dedicado abajo | alta |
+
+### Pre-cluster: los dos cambios que sí hacemos ahora
+
+Ambos quitan deuda de producción real y, cuando se decida activar el
+bloque HA, reducen el coste de implementarlo de ~7 días a ~2-3.
+
+**Backup/restore de Postgres — 3 niveles defense-in-depth (alta · producción)**
+
+La estrategia es **3-2-1**: 3 copias, 2 tipos de soporte, 1 fuera de la
+infraestructura primaria. Cada nivel cubre un modo de fallo distinto.
+
+*Nivel 1 — PITR (Point-In-Time Recovery) continuo. RPO <1 min · RTO ~30 min.*
+- [ ] Job en `platform-scheduler`: `postgres-basebackup` (cron `0 3 * * 0`,
+  domingos 3am). Ejecuta `pg_basebackup -F tar -z` y sube al bucket
+  `apphub-backups/postgres/<date>.tar.gz.enc` vía `@aws-sdk/client-s3`.
+- [ ] WAL archiving continuo: configurar `archive_mode=on`,
+  `archive_command='aws s3 cp %p s3://apphub-backups/wal/%f'`. Cubre el
+  caso "DELETE sin WHERE hace 12h, restaurar al segundo previo".
+- [ ] Retención: lifecycle rule en MinIO — basebackups 90 días, WAL 14
+  días. Definir en `infra/minio/init/buckets.json`.
+
+*Nivel 2 — Off-host volumétrico. RPO 24h · RTO ~1h.*
+- [ ] El propio MinIO ya está fuera del proceso Postgres → cubre fallos
+  del proceso DB. Asegurar que el bucket vive en **otro disco/volumen**
+  que el data dir de Postgres (en `docker-compose.yml`, `minio_data` ya
+  es volumen separado de `postgres_data` ✓).
+- [ ] **Cuando se haga el split a varios hosts** (bloque HA), mover el
+  bucket de backups a un host distinto del primary. Marcar dependencia
+  cruzada en el ADR-017 ("cluster en una caja").
+
+*Nivel 3 — DR del proveedor / cross-region. RPO 24h-7d · RTO horas.*
+- [ ] **Hetzner Cloud Backups activados** en el panel (1 click, +20%
+  coste del servidor). Snapshot semanal del disco entero, retención 7
+  imágenes. Cubre "host se incendia / fs corruption / kernel panic".
+- [ ] `mc mirror` daily del bucket `apphub-backups` → bucket externo
+  (Backblaze B2 o AWS S3 Glacier). Cubre "cuenta Hetzner comprometida o
+  región caída". ~$5/mes para decenas de GB. Diferible hasta primer
+  cliente con SLA contractual, pero documentar la decisión cuando
+  llegue.
+
+*Cross-cutting (no opcional, audit blockers):*
+- [ ] **Cifrado en reposo**: `pg_basebackup` → pipe `gpg -c` con clave
+  AES-256 antes de subir; o usar SSE-S3 server-side encryption en el
+  bucket. La clave/passphrase **nunca** en el mismo bucket — sólo en el
+  secret manager (`PLATFORM_CONFIG_ENCRYPTION_KEY` ya existe; añadir
+  `BACKUP_ENCRYPTION_KEY`).
+- [ ] **Cifrado en tránsito**: TLS para todas las transferencias
+  S3/MinIO. Hoy MinIO local usa HTTP en docker network — aceptable
+  *dentro* del host; al hacer cross-region exigir HTTPS endpoint.
+- [ ] **Inmutabilidad / object-lock** en el bucket de backups (MinIO
+  soporta `mc retention set`). Un atacante con creds no puede borrar
+  backups antes de que expiren. Auditor SOC 2 lo va a pedir.
+- [ ] **Control de acceso**: rol IAM/MinIO `backup-writer` (solo
+  PUT/HEAD), `backup-reader` (solo GET, restore-only), separados de las
+  creds que usa la app. Nadie tiene DELETE excepto un job
+  administrativo que pasa por el log.
+- [ ] **Runbook `docs/runbooks/postgres-restore.md`**: cómo restaurar de
+  un basebackup + replay de WAL hasta un timestamp dado, paso a paso,
+  con un humano cronometrando. Sin runbook practicado, RTO real = 6×
+  RTO teórico.
+- [ ] **Smoke test mensual**: cron que descarga el último backup, lo
+  restaura en un container efímero, ejecuta `SELECT count(*) FROM
+  platform_tenants.tenants` y reporta. **Sin smoke test el backup no
+  existe.** El reporte se archiva como evidencia para auditoría.
+- [ ] **Política escrita**: `docs/policies/backup-recovery.md` con RPO
+  y RTO declarados, frecuencias, retención, encargados. Una página.
+  Lo va a pedir cualquier auditor literalmente palabra por palabra.
+
+**Pool RO opcional con fallback (baja hoy, paga después)**
+- [ ] `@apphub/platform-sdk/db`: añadir `createPoolRO(url)` que si la
+  env var no está, devuelve el pool principal. Cambia 0 callers cuando
+  no hay réplica.
+- [ ] Cada `platform/<modulo>/src/server.js` (o el `register` del
+  módulo) instancia `db` y `dbRo`, pasa ambos a las repos. Empezar por
+  los read-paths más pesados (catalog list, audit log, dashboard
+  summaries) y dejarlos como `dbRo`; el resto puede seguir usando `db`.
+- [ ] `.env.example`: documentar `DATABASE_URL_RO` por módulo
+  (`DATABASE_URL_RO_AUTH`, `DATABASE_URL_RO_CATALOG`, …) con default
+  vacío = usa el primary.
+- [ ] Cuando llegue el momento del cluster, el cambio total es: levantar
+  el replica + setear las env vars. Cero refactor de código.
+
+## Compliance baseline — preparación para auditoría
+
+No tenemos auditor encima hoy, pero el primer cliente enterprise
+(SOC 2 Type II), el primer auditor GDPR/AEPD, o cualquier inversor en
+Series A pedirá los mismos controles. **Hacerlos progresivamente desde
+ahora cuesta 5-10× menos que rehacerlos contra reloj cuando llegue el
+deadline**. Todos son items pequeños sueltos — el valor compound viene
+de tenerlos todos cuando suena el teléfono.
+
+**Triggers que activan la auditoría real:**
+- Primer cliente B2B enterprise con cuestionario CAIQ/SIG (SOC 2 Type II
+  exigido); 6 meses prep, $15-50k/año al auditor.
+- Inversor Series A: due-diligence técnica + pen-test.
+- Denuncia GDPR a la AEPD: te toca demostrar Art. 32 (medidas técnicas
+  apropiadas) en <30 días.
+- Vendor con datos médicos pidiendo BAA HIPAA (telehealth).
+
+**Política / documentación (cada doc = 1-2 páginas, no más)**
+- [ ] `docs/policies/backup-recovery.md` — ya listado arriba. RPO/RTO
+  declarados, frecuencias, encargado.
+- [ ] `docs/policies/access-control.md` — quién tiene acceso a qué (DB
+  superuser, Hetzner panel, MinIO admin, Stripe dashboard, GitHub repo
+  admin). Revisión trimestral documentada.
+- [ ] `docs/policies/incident-response.md` — qué se considera incidente,
+  quién es on-call, cuándo se notifica al cliente (GDPR Art. 33: 72h
+  para data breach), template de post-mortem.
+- [ ] `docs/policies/data-retention.md` — qué se borra y cuándo. Hoy hay
+  archived_at en tenants pero no purga real. Definir TTL por tipo de
+  dato (audit log infinito, sessions 30d, logs 90d, …).
+- [ ] `docs/policies/vendor-list.md` — sub-procesadores (Stripe,
+  Hetzner, SendGrid, Twilio, etc.) con qué dato les llega y BAA/DPA
+  firmado. GDPR Art. 28 lo exige nominalmente.
+
+**Controles técnicos (palancas con código)**
+- [ ] **Cifrado en reposo cubierto end-to-end**: ya lo está la DB de
+  config (`PLATFORM_CONFIG_ENCRYPTION_KEY`); extender a backups
+  (`BACKUP_ENCRYPTION_KEY`); auditar que no quedan secretos en plano
+  en `.env` versionados o logs.
+- [ ] **TLS interno entre containers** (cuando se haga el split de
+  hosts): hoy es docker network, vale; en multi-host pasar a TLS o
+  Tailscale/WireGuard. Documentar la decisión.
+- [ ] **Audit log inmutable**: `platform_tenants.audit_log` ya existe
+  pero permite UPDATE/DELETE al rol. Añadir `REVOKE UPDATE, DELETE` y
+  particionar por mes para que la retención sea dropear partition.
+- [ ] **MFA obligatoria para super_admin/staff**: `auth` ya tiene 2FA
+  field; hacer enforced para roles privilegiados.
+- [ ] **Logging de accesos administrativos**: cada acción de staff que
+  toque datos de un tenant debe quedar en audit log con `actor_user_id`
+  + `actor_role`. Mayoría hecho; auditar gaps.
+- [ ] **Pen-test anual**: presupuesto reservado, $5-15k a una boutique
+  (Cobalt, Bishop Fox para SOC 2, OWASP-aligned tester para EU). El
+  reporte es deliverable obligatorio del SOC 2 Type II.
+- [ ] **Vulnerability scanning continuo** de dependencias: GitHub
+  Dependabot ya viene con repos pública; activarlo + Snyk/Trivy en CI
+  para imágenes Docker. Auditor lo da por sentado.
+
+**Procesos (los olvidados)**
+- [ ] **Onboarding/offboarding de empleados**: checklist con accesos
+  que se conceden/revocan. Hoy somos pocos; cuando seamos 5+ esto se
+  pierde sin checklist.
+- [ ] **Revisión trimestral de accesos**: alguien (yo) repasa quién
+  tiene qué y firma. Bullet point en calendario.
+- [ ] **Tabletop exercise anual**: simular un incidente (data breach,
+  ransomware, fuga de creds) y ejecutar el incident-response. Lección
+  aprendida → mejora del runbook. Auditor lo pregunta.
+- [ ] **DPIA** (Data Protection Impact Assessment) para features
+  sensibles: telehealth, intake-forms (datos médicos en algunos casos),
+  practitioner-payouts (datos fiscales). Plantilla AEPD existe.
+
+## HA / clustering de la infra compartida — **DIFERIDO hasta señal de necesidad**
+
+Hoy `postgres`, `redis`, `nginx` y `minio` corren como single-instance en
+`docker-compose.yml`. Este bloque queda **diferido**: la decisión es
+**no** clusterizar antes de tiempo. Razones:
+- No hay carga ni SLA que lo justifique (single-node aguanta órdenes de
+  magnitud por encima del tráfico actual).
+- HA en una sola caja no es HA real — si el host cae, todas las réplicas
+  caen. La validación tiene valor, pero pequeño hasta que se trasladen a
+  hosts separados (donde aparecen los problemas reales: DNS interno,
+  latencia, particiones).
+- Algunos cambios envejecen mal (migrar a Sentinel hoy puede chocar con
+  un rewrite a Redis Cluster en V2).
+
+**Triggers para activar este bloque** (cualquiera basta):
+- p99 queries > 100 ms sostenido, o `tup_returned` creciendo > 50% mes a mes.
+- Primer cliente con SLA contractual (>99.5%) o auditor pidiendo plan DR.
+- Segundo incidente en 6 meses por single point of failure.
+- > 50 tenants activos o > 1 GB/día de tráfico.
+
+**Lo que SÍ hacemos ahora** (movido al bucket activo de "Trabajo
+transversal" arriba): backup automatizado de Postgres a MinIO + pool RO
+opcional con fallback. Esos dos quitan deuda de producción real y
+dejan el cluster trivial cuando llegue la hora.
+
+El detalle por componente queda capturado abajo como referencia para
+cuando se reactive — no es trabajo en cola.
+
+### Postgres — primary + standby (streaming replication)
+
+- [ ] Añadir servicio `postgres-replica` en `docker-compose.yml` con la
+  misma imagen `postgres:16-alpine`, su propio volumen
+  (`postgres_replica_data`) y env `POSTGRES_PRIMARY_HOST=postgres`. Boot
+  arranca con `pg_basebackup -h postgres -U replicator -D /var/lib/postgresql/data -X stream` antes de `docker-entrypoint`.
+- [ ] Crear el rol `replicator` con `REPLICATION` en
+  `infra/postgres/init/00_replication.sql`; añadir entrada en
+  `pg_hba.conf` para la red `apphub_default`.
+- [ ] Configurar el primary con `wal_level=replica`, `max_wal_senders=10`,
+  `wal_keep_size=512MB`, `synchronous_commit=on`,
+  `synchronous_standby_names='replica1'` (sync) o dejarlo async para
+  empezar. Documentar tradeoff RPO en el ADR.
+- [ ] Healthcheck del replica que verifica
+  `SELECT pg_is_in_recovery()` y lag (`pg_last_wal_receive_lsn()` vs
+  `pg_last_wal_replay_lsn()`).
+- [ ] Variable `DATABASE_URL_RO` en cada módulo (read-only pool apuntando
+  al replica). Empezar con un puñado de read-paths obvios (catalog
+  list, audit log, dashboard summaries) para no acoplarlo todo en V1.
+- [ ] Backup/restore: `pg_basebackup` → S3/MinIO desde un cron del
+  scheduler; `wal-g` o `barman` se evalúan en V2. Archivar los WAL al
+  bucket `apphub-backups`.
+- [ ] Failover playbook: `pg_promote()` en el replica + repunte
+  manual del `DATABASE_URL` master en `.env` y `docker compose up -d`.
+  Failover automático (`patroni` / `pg_auto_failover`) queda fuera de
+  V1; documentar que V1 es manual.
+- [ ] ADR-013: "Postgres primary + 1 standby async". Recoge: por qué no
+  multi-master, por qué async, qué se replica (todo el cluster),
+  RPO/RTO esperados, hooks para pasar a sync.
+
+### Redis — replication + Sentinel (HA con failover automático)
+
+- [ ] Servicios `redis-replica` (1 instancia para empezar) y `sentinel`
+  (mínimo 3 para quórum, todos en compose). Imagen `redis:7-alpine`.
+- [ ] Config `redis.conf`: `replicaof redis 6379`, `replica-read-only yes`.
+  Sentinel: `sentinel monitor apphub redis 6379 2`, `down-after-milliseconds 5000`,
+  `failover-timeout 60000`, `parallel-syncs 1`.
+- [ ] Healthcheck del replica que valida `INFO replication | grep role:slave`.
+- [ ] Migrar todos los clientes `ioredis` a constructor Sentinel:
+  `new Redis({ sentinels: [...], name: 'apphub' })`. Añadir
+  `REDIS_SENTINELS` a `.env.example` (`redis:26379,sentinel-2:26379,sentinel-3:26379`).
+  Mantener compat con `REDIS_URL` para entornos sin Sentinel (tests).
+- [ ] Audit del uso actual de Redis: pub/sub (cross-module events),
+  rate-limit (`@fastify/rate-limit`), nginx config hash, idempotency
+  keys de Stripe, basket/holds. Verificar que cada uno tolera la
+  pérdida transitoria durante el failover (re-suscribir pub/sub al
+  reconnect, etc).
+- [ ] Persistencia: AOF `everysec` + RDB cada 5 min, ambos al volumen
+  por instancia. Reproducir el set en cada réplica para que fallback
+  sin pérdida sea factible.
+- [ ] ADR-014: "Redis replicación + Sentinel". Tradeoffs vs Cluster
+  (sharding) — descartado para V1 porque ningún workload llega al
+  límite de una instancia, complica pub/sub cross-slot, y forces a
+  rewrite de todos los `KEYS`/`SCAN` patterns.
+
+### NGINX — gateway activo/activo (multi-instance + LB del host)
+
+- [ ] Replicar el servicio `nginx` a 2 instancias (`nginx-1`, `nginx-2`)
+  con la misma config; el sidecar Redis-driven ya soporta múltiples
+  consumidores del mismo hash, así que ambos convergen al mismo
+  estado en <2s. Exponer puerto 8080 sólo desde un load balancer
+  delante (HAProxy o un tercer NGINX en modo `stream`/`upstream`).
+- [ ] Container `gateway-lb` (HAProxy o `nginx:alpine`) con healthchecks
+  HTTP a `/health` de cada nginx; pesos iguales, `leastconn`. Stickiness
+  no hace falta — todos los portales son JWT-stateless.
+- [ ] Validar que la rate-limit zone (`limit_req zone=api`) sigue siendo
+  útil siendo per-instance. Si se considera crítico aplicar el límite
+  globalmente, mover el rate-limit a un middleware de Redis
+  (`@fastify/rate-limit` + Redis store en cada monolito) y desactivar
+  el de NGINX. Decisión: mantenerlo per-instance en V1; el
+  rate-limit de los monolitos ya hace de cinturón global.
+- [ ] WebSocket sticky: cuando WS entre (ADR 010 deferido), añadir
+  `ip_hash` o `hash $arg_session_id consistent` en el LB para que la
+  conexión persista a la misma nginx-N. Hoy no aplica.
+- [ ] ADR-015: "NGINX gateway activo/activo". Recoge cómo ambos
+  consumen del mismo hash Redis y por qué eso reemplaza el patrón
+  master/standby (sidecar polling = consensus eventual sin coordinador).
+
+### MinIO — distributed mode (4 nodos mínimo, erasure coding)
+
+- [ ] Sustituir el servicio `minio` single-node por 4 servicios
+  `minio-1` … `minio-4` con un volumen propio cada uno y arg
+  `minio server http://minio-{1...4}/data`. MinIO requiere mínimo 4
+  drives (en Docker, 4 contenedores) para erasure coding.
+- [ ] Cliente apunta a un alias DNS round-robin
+  (`minio-1,minio-2,minio-3,minio-4`) o a un mini-LB delante. La SDK
+  `@aws-sdk/client-s3` reintenta sola en 503/IO, así que round-robin
+  basta.
+- [ ] Migración de datos: `mc mirror` desde la instancia single-node
+  actual al cluster nuevo, antes de cambiar `OBJECT_STORAGE_ENDPOINT`
+  en `.env`. Validar que `platform/storage` y los 2 consumidores
+  (menu, intake-forms, reviews) siguen funcionando con presigned URLs.
+- [ ] Healthcheck distribuido: `mc admin info`. Marcar el primer error
+  como warning (cluster con un drive caído sigue sirviendo si el
+  parity permite).
+- [ ] Backup: lifecycle rules a un bucket secundario (cold) o
+  cron `mc mirror minio backup-target/` por sched-platform.
+- [ ] ADR-016: "MinIO distributed mode 4×1". Recoge la decisión de
+  empezar con 4 nodos paritarios (EC:2) en vez de pasar directamente
+  a 8 (EC:4); el upgrade es no-disruptivo via `mc admin decommission`.
+
+### Cross-cutting
+
+- [ ] `docker-compose.yml` crece bastante: separar en
+  `docker-compose.yml` (apps + monolitos) +
+  `docker-compose.infra.yml` (postgres replica, redis replica + 3
+  sentinels, 4 minio, 2 nginx + LB). Documentar el orden de boot:
+  `docker compose -f docker-compose.infra.yml up -d` antes del
+  resto. Healthchecks + `depends_on: { condition: service_healthy }`
+  garantizan que platform-core no arranca hasta que el primary
+  postgres y el quórum sentinel estén verdes.
+- [ ] Tests de chaos manuales: matar primary postgres, matar 1 nginx,
+  matar 2 sentinels (mantener quórum), matar 1 minio (debe seguir
+  sirviendo), verificar que la app sigue respondiendo. Documentar
+  cada experimento en `docs/runbooks/`.
+- [ ] Variables `.env.example` — añadir `DATABASE_URL_RO`,
+  `REDIS_SENTINELS`, `OBJECT_STORAGE_ENDPOINTS` (lista). Mantener
+  defaults single-node para que `pnpm dev` siga funcionando sin el
+  cluster levantado.
+- [ ] ADR-017: "Layout 'cluster en una caja'". Justifica por qué la V1
+  HA arranca con todos los nodos en la misma máquina (validar
+  topología, runbooks, healthchecks) antes de trasladarlos a hosts
+  separados; el rewrite del compose-file ya deja la cuenta lista para
+  hacer split en 2-3 hosts moviendo `services.<x>.networks` y
+  exponiendo puertos.
 
 ## tenant-console (frontend per-tenant, modular)
 

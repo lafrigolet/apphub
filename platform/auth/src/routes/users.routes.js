@@ -12,6 +12,10 @@ const roleBody = z.object({
   role: z.string().min(1).max(32),
 })
 
+const profileBody = z.object({
+  displayName: z.string().min(1).max(128).optional(),
+})
+
 const STAFF_ROLES = new Set(['staff', 'super_admin', 'admin', 'owner'])
 
 function requireStaffOrAdmin(req) {
@@ -21,6 +25,19 @@ function requireStaffOrAdmin(req) {
 }
 
 export async function usersRoutes(fastify) {
+  // Perfil propio: cualquier usuario autenticado puede leer/editar su
+  // propia ficha. La identidad sale del JWT, no de la URL — así no se
+  // puede pedir el perfil de otro user pasando un id distinto. Se
+  // monta antes que `/:id` para que el router elija la ruta exacta.
+  fastify.get('/v1/users/me', async (req) => {
+    return usersService.getMe(req.identity)
+  })
+
+  fastify.patch('/v1/users/me', async (req) => {
+    const body = profileBody.parse(req.body)
+    return usersService.updateMe(body, req.identity)
+  })
+
   fastify.get('/v1/users', async (req) => {
     requireStaffOrAdmin(req)
     const { appId, tenantId, role } = listQuery.parse(req.query)

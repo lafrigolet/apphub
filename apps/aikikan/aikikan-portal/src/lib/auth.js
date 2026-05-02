@@ -8,11 +8,24 @@ const BASE = '/api/auth'
 // rol (en la práctica `user`) es socio y se queda en el portal aikikan.
 const ADMIN_ROLES = new Set(['owner', 'admin', 'staff', 'super_admin'])
 
+// Strip falsy fields. El schema zod del backend declara los IDs como
+// `.uuid().optional()`, lo cual acepta `undefined` pero NO una cadena
+// vacía: si VITE_AIKIKAN_TENANT_ID no está poblada, mandar `tenantId: ''`
+// devolvería 422. Eliminar las claves vacías antes de serializar evita
+// ese caso y deja al servicio resolver el tenant por email.
+function compact(obj) {
+  const out = {}
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== '' && v != null) out[k] = v
+  }
+  return out
+}
+
 async function post(path, body) {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(compact(body)),
   })
   const json = await res.json()
   if (!res.ok) throw new Error(json.error?.message ?? 'Error desconocido')

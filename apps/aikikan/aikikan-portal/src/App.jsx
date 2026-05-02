@@ -57,8 +57,8 @@ export default function App() {
       <About />
       <Masters />
       <Videos />
-      <Contact />
       <Dojos />
+      <Contact />
       <Footer />
       {loginOpen && <Login onClose={() => setLoginOpen(false)} onLoggedIn={handleLoggedIn} />}
     </>
