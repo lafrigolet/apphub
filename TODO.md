@@ -37,7 +37,7 @@
 - [x] Event consumer para `user.registered`, `auth.password_reset_requested`
 - **Falta**:
   - [x] **SMS** (Twilio) — Phase 0+1 wired (commits d2ba91d, b38af3d)
-  - [o] **Push notifications** (FCM/APNs) — no hay
+  - [x] **Push notifications** — FCM HTTP v1 (Android + iOS vía APNs key + Web Push) con OAuth2 token cacheado, dev-stub fallback, registro de devices vía `POST /v1/notifications/devices`, sender wrappers para reminders + booking.confirmed, garbage-collect automático de tokens UNREGISTERED. APNs nativo se reservan keys (team_id/key_id/bundle_id/p8) para integración HTTP/2 directa futura.
   - [ ] **WhatsApp Business API**
   - [x] **Plantillas editables** desde voragine-console (CRUD por staff)
   - [x] **i18n** de plantillas (`(key, channel, locale)` UNIQUE + fallback a `'es'` + 8 plantillas seed en `en` + `default_locale` per-tenant + locale per-row en bookings/reservations + cadena de resolución en scheduler)

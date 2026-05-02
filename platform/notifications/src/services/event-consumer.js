@@ -16,6 +16,9 @@ import {
 } from './sms.service.js'
 import { checkRateLimit } from './rate-limit.service.js'
 import { shouldDigest, enqueueDigest } from './digest.service.js'
+import {
+  sendBookingReminderPush, sendBookingConfirmedPush, sendReservationReminderPush,
+} from './push.service.js'
 
 // Rate-limit gate: skip the send when the per-user/hour or per-user/day cap
 // is hit. We only check when userId is present — staff/system messages bypass.
@@ -82,18 +85,22 @@ export function startEventConsumer() {
 
       // ── platform-scheduler events ────────────────────────────────────
       if (event.type === 'booking.reminder.due') {
-        const { clientEmail, clientPhone, clientName, clientUserId, startsAt, window } = event.payload ?? {}
+        const { appId, tenantId, clientEmail, clientPhone, clientName, clientUserId, startsAt, window } = event.payload ?? {}
+        const pushCtx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
         if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window, locale }))
         // SMS goes out only when the scheduler hydrated the phone number;
         // the booking module is responsible for including it in the event
         // payload. Stays a noop in dev / when Twilio is not configured.
         if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window, locale }))
+        if (clientUserId) await gated(clientUserId, event.type, 'push', () => sendBookingReminderPush(pushCtx, clientUserId, { startsAt, window, locale }))
       }
 
       if (event.type === 'reservation.reminder.due') {
-        const { guestEmail, guestPhone, guestName, guestUserId, reservedFor, partySize, window } = event.payload ?? {}
+        const { appId, tenantId, guestEmail, guestPhone, guestName, guestUserId, reservedFor, partySize, window } = event.payload ?? {}
+        const pushCtx = { appId, tenantId, subTenantId: null, userId: guestUserId, role: 'system' }
         if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window, locale }))
         if (guestPhone) await gated(guestUserId, event.type, 'sms',   () => sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window, locale }))
+        if (guestUserId) await gated(guestUserId, event.type, 'push',  () => sendReservationReminderPush(pushCtx, guestUserId, { reservedFor, partySize, window, locale }))
       }
 
       if (event.type === 'package.expiring') {
@@ -115,11 +122,13 @@ export function startEventConsumer() {
 
       // ── New event subscriptions ──────────────────────────────────────
       if (event.type === 'booking.confirmed' || event.type === 'booking.reminded') {
-        const { clientEmail, clientPhone, clientName, clientUserId, startsAt } = event.payload ?? {}
+        const { appId, tenantId, clientEmail, clientPhone, clientName, clientUserId, startsAt } = event.payload ?? {}
+        const pushCtx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
         if (clientEmail && !await maybeDigestEmail(event, { userId: clientUserId, to: clientEmail, locale })) {
           await gated(clientUserId, event.type, 'email', () => sendBookingConfirmedEmail(clientEmail, { name: clientName, startsAt, locale }))
         }
         if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingConfirmedSms(clientPhone, { startsAt, locale }))
+        if (clientUserId) await gated(clientUserId, event.type, 'push', () => sendBookingConfirmedPush(pushCtx, clientUserId, { startsAt, locale }))
       }
 
       if (event.type === 'booking.cancelled') {

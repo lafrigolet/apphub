@@ -23,6 +23,16 @@ const configBody = z.object({
   // Digest mode: 'off' (default — send each event immediately) or 'daily'
   // (buffer non-urgent events into one composed email per user per day).
   digest_mode:                  z.enum(['off', 'daily']).optional().nullable(),
+  // Push (FCM HTTP v1). Service account JSON is the full string of the
+  // GCP-issued service-account file; we parse it at send time.
+  fcm_project_id:               z.string().min(1).max(128).optional().nullable(),
+  fcm_service_account_json:     z.string().min(1).max(16384).optional().nullable(),
+  // APNs reserved keys (slot for future native APNs support).
+  apns_team_id:                 z.string().min(1).max(64).optional().nullable(),
+  apns_key_id:                  z.string().min(1).max(64).optional().nullable(),
+  apns_bundle_id:               z.string().min(1).max(256).optional().nullable(),
+  apns_p8_key:                  z.string().min(1).max(8192).optional().nullable(),
+  apns_environment:             z.enum(['sandbox', 'production']).optional().nullable(),
 })
 
 const smsTestBody = z.object({
@@ -76,7 +86,9 @@ export async function adminRoutes(fastify) {
       invalidateSmsConfigCache()
       invalidateRateLimitCache()
       const { invalidateDigestModeCache } = await import('../services/digest.service.js')
+      const { invalidatePushConfigCache } = await import('../services/push.service.js')
       invalidateDigestModeCache()
+      invalidatePushConfigCache()
       return { data: await configRepo.listConfig(client) }
     } finally { client.release() }
   })
