@@ -111,7 +111,7 @@
   - [ ] **Etiquetas EasyPost/Sendcloud** generación de PDF
   - [x] **Webhook receivers** — `POST /v1/shipping/webhooks/:carrier` (público) con HMAC-SHA256 verificado para EasyPost contra `easypost_webhook_secret`; tabla `carrier_webhook_events` con UNIQUE `(carrier, event_external_id)` para idempotencia; transición automática del shipment cuando el carrier reporta `in_transit`/`delivered`/`returned`.
   - [x] **Multi-package shipments** — tabla `shipment_packages` (RLS) con auto-numbering por shipment + endpoints `GET/POST /v1/shipping/shipments/:id/packages`. Cada paquete con su propio `tracking_code`/dimensiones/peso/status.
-  - [ ] **Returns/RMA flow** (queda fuera de este lote — necesita FSM propio + integración con orders)
+  - [x] **Returns/RMA flow** — tablas `returns` + `return_items` (RLS, cascade) con FSM `requested → approved → label_issued → shipped → received → restocked → refunded` (+ `rejected` y `cancelled`). Endpoints `POST /v1/shipping/returns`, `GET`, `:id`, `:id/{approve,reject,cancel,issue-label,shipped,receive,restock,refund}`. Eventos `return.<status>`; `restock` publica `inventory.restock.requested` por SKU recibido en condición `new`/`open_box`; `refund` publica `return.refund.requested` para que splitpay emita el reintegro Stripe.
   - [x] **Insurance, signature required** — columnas `insurance_amount_cents`/`insurance_currency`/`signature_required` en shipments y aceptadas en `POST /v1/shipping/shipments`.
 
 ### `disputes` — ✅ funcional
