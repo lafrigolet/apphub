@@ -5,6 +5,30 @@ import { api } from './api'
 
 const TOKEN_KEY = 'apphub.token'
 
+// Cross-origin handoff: otros portales (aikikan, futuros) que tengan su
+// propio login pueden mandar a un admin a la tenant-console pegándole un
+// fragmento `#token=<jwt>`. Lo guardamos en localStorage y limpiamos el
+// fragmento para que no quede en bookmarks ni en historial. Los fragments
+// no viajan al server, así que el JWT no aparece en logs ni referers.
+function consumeTokenFromFragment() {
+  if (typeof window === 'undefined' || !window.location.hash) return
+  const m = window.location.hash.match(/(?:^#|&)token=([^&]+)/)
+  if (!m) return
+  try {
+    const token = decodeURIComponent(m[1])
+    localStorage.setItem(TOKEN_KEY, token)
+    // Strip token from URL — preserve other hash params if there were any.
+    const remaining = window.location.hash
+      .replace(/(^#|&)token=[^&]+/, '')
+      .replace(/^#&/, '#')
+      .replace(/^#$/, '')
+    window.history.replaceState(null, '', window.location.pathname + window.location.search + remaining)
+  } catch {
+    // malformed — ignore
+  }
+}
+consumeTokenFromFragment()
+
 export async function login({ email, password }) {
   const res = await api.post('/api/auth/login', { email, password })
   const accessToken = res?.data?.accessToken ?? res?.accessToken
