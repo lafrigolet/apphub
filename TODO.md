@@ -82,7 +82,7 @@
   - [ ] **Stock por warehouse/ubicación** (hoy plano por tenant)
   - [ ] **Backorder support** con cola de espera
   - [ ] **Forecast/replenishment** sugerencias
-  - [o] **Variants** (talla/color como SKUs derivados)
+  - [x] **Variants** — cada variante es su propio SKU con `parent_sku` + `option_values` JSONB y `display_name`. Endpoints `GET/POST /v1/inventory/:sku/variants`. UNIQUE `(app_id, tenant_id, parent_sku, option_values::text)` para evitar combinaciones duplicadas; reserve/release/commit siguen siendo per-SKU sin cambios al FSM.
   - [ ] **Bundle SKUs** (kits que decrementan varios SKUs al vender)
 
 ### `reviews` — ✅ funcional
