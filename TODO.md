@@ -286,16 +286,129 @@
 |---|---|---|
 | **Scheduler/cron centralizado** | ✅ implementado (`platform-scheduler` port 3400, ADR 007) | — |
 | **Object storage** (S3/R2/MinIO) | ✅ implementado (MinIO + `platform/storage`, ADR 008). 2/12 consumidores cableados (`menu`, `intake-forms`); 10 pendientes |
-| **WebSocket gateway** para tiempo real | ❌ no hay | media — KDS, delivery tracking, messaging, telehealth waiting room |
-| **Email/SMS templates editables por tenant** | ❌ hardcoded | alta |
+| **WebSocket gateway** para tiempo real | ❌ no hay (ADR 010 deferido) | media — KDS, delivery tracking, messaging, telehealth waiting room |
+| **Email/SMS templates editables por tenant** | ✅ DB-backed editables + i18n (ver `notifications`) | — |
 | **Observability** (Prometheus + Grafana + Loki) | ❌ solo logs pino | media |
 | **Distributed tracing** (OpenTelemetry) | ❌ no | media |
 | **Audit log centralizado** cross-módulos | parcial (algunos tienen audit propio) | media |
 | **HTTP transport entre contenedores** con auth | ❌ todo Redis events | media |
 | **Tests E2E** entre los 4 monoliths | ❌ solo unit + integration por módulo | media |
 | **Backup/restore** automatizado de Postgres | ❌ no | alta producción |
-| **i18n** | ❌ todo en EN hardcoded | alta para mercado ES |
-| **Frontend para staff** (admin de cada módulo) | parcial — solo voragine-console básico | alta |
+| **i18n** | parcial (notifications via `(key,channel,locale)` UNIQUE; resto del UI todavía hardcoded) | alta para mercado ES |
+| **Frontend para staff** (voragine-console) | parcial — `staff/*` cubierto, suficiente para roadmap actual | media |
+| **Frontend para tenants** (tenant-console nueva) | ❌ no existe; ver bloque dedicado abajo | alta |
+
+## tenant-console (frontend per-tenant, modular)
+
+Consola de administración que cada tenant accede en su `<tenant>.apphub.com` (o
+custom domain). voragine-console se queda **únicamente con `staff/*`** — el rol
+`owner`/`admin` deja de servirse desde allí cuando esta nueva app esté
+operativa. Se monta dinámicamente: cada `platform/<modulo>` aporta un
+**manifest** con `dashboardCards` + `sidebar` + `routes`; el shell carga sólo
+los manifests cuyo `capability` está en `apps.enabled_modules` del tenant.
+
+UX híbrida — dashboard de cards (resumen + atajos) en `/`, sidebar agrupado
+por categoría operativa (Negocio · Operaciones · Comercial · Conversaciones ·
+Configuración) para navegación profunda. La metáfora "microservicio" no se
+filtra al usuario.
+
+### Fase 0 — Fundaciones (un commit)
+- [ ] Migración `tenant-config/000N_app_enabled_modules.sql` — añade
+  `enabled_modules TEXT[] NOT NULL DEFAULT '{}'` a `platform_tenants.apps` y
+  semilla los sets actuales (`yoga-studio`, `aikikan`, `split-pay`, `bastardo`).
+- [ ] Endpoint `GET /v1/apps/:appId` ya devuelve la fila — añadir
+  `enabled_modules` al payload (campo nuevo en el DTO).
+- [ ] Bootstrap del app `apps/tenant-console/tenant-console-portal/` (puerto
+  5178) siguiendo el flow "Bootstrap app `<name>`" de CLAUDE.md.
+- [ ] Upstream NGINX + server block dinámico (sidecar Redis) cuando se
+  registre el app en `platform_tenants.apps`.
+
+### Fase 1 — Shell genérico
+- [ ] `src/shell/` con: `App.jsx`, `Sidebar.jsx`, `Topbar.jsx`,
+  `DashboardGrid.jsx`, `lib/{api,auth,context,icons}`, `ManifestLoader.jsx`.
+- [ ] Sidebar renderiza por categorías predefinidas (Negocio · Operaciones ·
+  Comercial · Conversaciones · Configuración + Inicio). Categorías sin módulos
+  activos no se renderizan.
+- [ ] DashboardGrid invoca `manifest.dashboardCards[].summary(api)` en paralelo
+  con `Promise.allSettled`; cards con error se renderizan en estado de fallo
+  sin tirar el resto.
+- [ ] Lazy-load por manifest (Vite code-split). Un manifest cuyo módulo no está
+  en `enabled_modules` no se carga.
+- [ ] Carga del idioma per-tenant desde `tenant.default_locale` (ya existe la
+  columna).
+
+### Fase 2 — Migración del rol tenant existente
+**No tocar voragine-console** — solo replicar las views ahí presentes en la
+nueva app, manteniendo voragine-console intacto hasta que la migración sea
+1:1. Las vistas a portar:
+- [ ] `views/tenant/Overview.jsx` → manifest `tenants` (Inicio).
+- [ ] `views/tenant/Settings.jsx` → manifest `tenants` (Configuración ·
+  Identidad). Ya incluye `default_locale`.
+- [ ] `views/tenant/Admins.jsx` → manifest `auth` (Configuración ·
+  Administradores).
+- [ ] `views/tenant/Email.jsx` (que ya usa `EmailDomainsManager.jsx`
+  compartido) → manifest `notifications` (Configuración · Email domains).
+- [ ] `views/tenant/Splitpay.jsx` → manifest `splitpay` (solo si
+  `app.splitpay_enabled`).
+- [ ] `views/tenant/Audit.jsx` → manifest `audit` (Configuración).
+- [ ] `views/tenant/Danger.jsx` → manifest `tenants` (Configuración · Zona
+  peligrosa).
+
+`EmailDomainsManager.jsx` ya está extraído a `components/`; copiarlo / mover
+al shell de tenant-console como pieza compartida con voragine-console (vía
+`packages/`?) — decisión a tomar al portarlo.
+
+### Fase 3 — Manifests nuevos por módulo (orden por valor/coste)
+- [ ] `notifications` — Plantillas editables per-tenant (cuando exista la
+  feature DB-side; hoy son globales). Email domains ya cubierto.
+- [ ] `basket` — CRUD de promo codes (`Comercial · Promociones`). Reusa los
+  endpoints `GET/PUT/DELETE /v1/basket/promos[/:code]` ya existentes.
+- [ ] `services` — editor con tabs (Identidad · Pricing tiers · Cancelación ·
+  Galería de imágenes). Conecta a las features de `appointments` (commit
+  `290114d`).
+- [ ] `bookings` — listado de reservas con filtros + detalle + acciones
+  (cancel con cancellation policy enforcement, reschedule).
+- [ ] `availability` — slot grid visualizado (read-only por ahora).
+- [ ] `packages` — CRUD plantillas + auditoría de transfers / family sharing
+  / auto-renew (read-only para staff/owner; las acciones las hace el cliente
+  desde el portal del cliente).
+- [ ] `orders` — listado + detalle + modifications log + buttons (cambiar
+  status, cambiar dirección, añadir nota).
+- [ ] `inventory` — listado SKU + variants editor (compacto).
+- [ ] `shipping` — devoluciones (Operaciones · Devoluciones), shipments,
+  multi-package, log de webhook receivers (read-only).
+- [ ] `disputes` — listado + detalle + botón "Submit evidence to Stripe"
+  (consume el endpoint `POST /v1/disputes/:id/submit-to-stripe`).
+- [ ] `reviews` — moderación (`pending → published/hidden`).
+- [ ] `messaging` — listado de threads (real-time queda en ADR 010 deferido).
+- [ ] `catalog` — listado + editor de items + image gallery + import/export
+  CSV (botones que pegan a los endpoints existentes).
+- [ ] `intake-forms` — listado de submissions + descarga PDF (endpoint
+  ya existe).
+- [ ] `practitioner-payouts` — listado + descarga PDF + filtro por periodo.
+- [ ] `telehealth` — listado de salas activas (read-only).
+- [ ] `splitpay` — heredada de voragine-console; mismo flujo de Stripe Connect
+  pero scopeado al propio tenant (sin `?tenantId=…` query).
+
+### Fase 4 — Despliegue + cutover
+- [ ] DNS / nginx multi-host: cada tenant servido en
+  `<tenant.subdomain>.apphub.com` redirige a tenant-console-portal.
+- [ ] Login flow per-tenant: el JWT válido en voragine-console como
+  `owner`/`admin` debe valer en tenant-console (mismo `appGuard`, mismo JWT
+  secret).
+- [ ] Cutover: voragine-console deja de servir el rol owner/admin (App.jsx
+  branch para `role !== 'staff'` redirige a `<tenant>.apphub.com`).
+- [ ] Documentación: ADR-012 con la decisión de la consola separada.
+
+### Decisiones diferidas (cuando hagan falta)
+- **Custom domains de tenants** — hoy `subdomain.apphub.com`; cuando un tenant
+  quiera `admin.bastardo.com`, ya está la columna `tenants.custom_domain`.
+- **Per-tenant feature flags** (subset de `enabled_modules` desactivable per
+  tenant) — `enabled_modules` cubre el caso "qué módulos tiene el app"; el
+  override per-tenant es trabajo aparte que ya está en TODO de
+  `tenant-config`.
+- **Sub-tenants** — estructura ya soportada en JWT; la UI de cambiar de
+  sub-tenant entra como pieza del shell cuando el primer tenant la pida.
 
 ## Top 10 prioridades por impacto
 
