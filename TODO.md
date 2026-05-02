@@ -130,10 +130,10 @@
   - [ ] **Pricing rules** (precio por volumen, promo)
   - [ ] **Search** (Postgres FTS o Elastic)
   - [ ] **Category tree** con jerarquía
-  - [o] **Image gallery** con CDN
+  - [x] **Image gallery** — tabla `item_images` con `object_id` (platform_storage) + `display_order`; endpoints `GET/POST /v1/items/:id/images`, `DELETE /:id/images/:imageId`. CDN queda como URL pública del bucket.
   - [ ] **Inventory link** automático al crear producto
-  - [o] **Import/export CSV**
-  - [o] **Versioning + draft/published**
+  - [x] **Import/export CSV** — `GET /v1/items/export.csv`, `POST /v1/items/import.csv { csv }` con parser de quoted-strings; devuelve `{rowsTotal, inserted, updated, errors}`. Match por `id` para update.
+  - [x] **Versioning + draft/published** — columnas `status` (draft|published|archived) + `version_number` + tabla `item_versions` (snapshot append-only); endpoints `PATCH /v1/items/:id/status`, `GET /v1/items/:id/versions`. Snapshot al transicionar a `published`.
 
 ### `basket` — ✅ funcional
 - [x] Redis-only, expiración, items
