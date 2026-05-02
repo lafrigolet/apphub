@@ -107,3 +107,12 @@ export async function sendBookingReminderSms(to, { name, startsAt, window }) {
   })
   return send({ to, body: tmpl.text })
 }
+
+export async function sendReservationReminderSms(to, { name, reservedFor, partySize, window }) {
+  const when = new Date(reservedFor).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })
+  const lead = window === 't_minus_24h' ? 'mañana' : 'en 2 horas'
+  const tmpl = await compose('reservation.reminder.due', { lead, when, partySize, name }, {
+    text: `Recordatorio: tu reserva es ${lead} (${when}) para ${partySize} personas. Si no puedes asistir, cancela con antelación.`,
+  })
+  return send({ to, body: tmpl.text })
+}

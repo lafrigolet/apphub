@@ -6,7 +6,7 @@ import {
   sendBookingReminderEmail, sendReservationReminderEmail,
   sendPackageExpiryEmail, sendDisputeSlaInternalEmail,
 } from './email.service.js'
-import { sendBookingReminderSms } from './sms.service.js'
+import { sendBookingReminderSms, sendReservationReminderSms } from './sms.service.js'
 
 export function startEventConsumer() {
   const sub = new Redis(env.REDIS_URL)
@@ -52,8 +52,9 @@ export function startEventConsumer() {
       }
 
       if (event.type === 'reservation.reminder.due') {
-        const { guestEmail, guestName, reservedFor, partySize, window } = event.payload ?? {}
+        const { guestEmail, guestPhone, guestName, reservedFor, partySize, window } = event.payload ?? {}
         if (guestEmail) await sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window })
+        if (guestPhone) await sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window })
       }
 
       if (event.type === 'package.expiring') {

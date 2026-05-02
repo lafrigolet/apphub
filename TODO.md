@@ -303,7 +303,14 @@
 2. [x] **Object storage** — MinIO + `platform/storage` cableado (ADR 008); 2/12 consumidores cableados (`menu`, `intake-forms`); 10 pendientes
 3. [ ] **`payments` real** — `pos.payBill`, `packages.purchase`, `bookings.deposit` no cobran
 4. [ ] **`telehealth` provider real** — el stub no funciona en producción
-5. [ ] **SMS channel en `notifications`** — recordatorios de citas/reservas
+5. [x] **SMS channel en `notifications`** — recordatorios de citas/reservas.
+   Twilio cliente con dev-stub fallback, configuración en voragine-console
+   (Account SID + API Key + Messaging Service SID), `templates UNIQUE(key,channel)`,
+   plantillas SMS sembradas para `booking.reminder.due` y `reservation.reminder.due`,
+   columnas `phone_*` en `platform_auth.users`, event-consumer enchufa SMS cuando
+   el payload trae `clientPhone`/`guestPhone` (los jobs `booking-reminders` y
+   `reservation-reminders` del scheduler ya los hidratan). Smoke-test endpoint
+   `POST /v1/notifications/admin/sms/test`.
 6. [ ] **Carriers reales en `shipping`/`delivery-dispatch`**
 7. [x] **`reviews` verified-purchase HTTP cross-container** — ADR 009; `verified_purchase` flag + `verifiedOnly` filter + `verified_count` aggregate
 8. [x] **Recurrence expander en `bookings`** — `platform-scheduler` lo materializa (ADR 007)
