@@ -5,8 +5,29 @@ import {
   sendWelcomeEmail, sendPasswordResetEmail,
   sendBookingReminderEmail, sendReservationReminderEmail,
   sendPackageExpiryEmail, sendDisputeSlaInternalEmail,
+  sendBookingConfirmedEmail, sendBookingCancelledEmail, sendBookingRescheduledEmail,
+  sendReservationCreatedEmail, sendReservationCancelledEmail,
+  sendPackageExhaustedEmail, sendPayoutPaidEmail,
 } from './email.service.js'
-import { sendBookingReminderSms, sendReservationReminderSms } from './sms.service.js'
+import {
+  sendBookingReminderSms, sendReservationReminderSms,
+  sendBookingConfirmedSms, sendBookingCancelledSms, sendBookingRescheduledSms,
+  sendReservationCancelledSms,
+} from './sms.service.js'
+import { checkRateLimit } from './rate-limit.service.js'
+
+// Rate-limit gate: skip the send when the per-user/hour or per-user/day cap
+// is hit. We only check when userId is present — staff/system messages bypass.
+async function gated(userId, eventClass, channel, fn) {
+  if (userId) {
+    const v = await checkRateLimit({ userId, eventClass, channel })
+    if (!v.allowed) {
+      logger.info({ userId, eventClass, channel, reason: v.reason }, 'notification suppressed by rate-limit')
+      return
+    }
+  }
+  await fn()
+}
 
 export function startEventConsumer() {
   const sub = new Redis(env.REDIS_URL)
@@ -35,48 +56,95 @@ export function startEventConsumer() {
       const locale = event.payload?.locale ?? 'es'
 
       if (event.type === 'user.registered') {
-        const { email, appId } = event.payload ?? {}
-        if (email) await sendWelcomeEmail(email, appId, locale)
+        const { email, appId, userId } = event.payload ?? {}
+        if (email) await gated(userId, event.type, 'email', () => sendWelcomeEmail(email, appId, locale))
       }
 
       if (event.type === 'auth.password_reset_requested') {
-        const { email, token } = event.payload ?? {}
+        const { email, token, userId } = event.payload ?? {}
         if (email && token) {
           const resetUrl = `${process.env.APP_BASE_URL ?? 'http://aikikan.apphub.local:8080'}/reset-password?token=${token}`
-          await sendPasswordResetEmail(email, resetUrl, locale)
+          await gated(userId, event.type, 'email', () => sendPasswordResetEmail(email, resetUrl, locale))
         }
       }
 
       // ── platform-scheduler events ────────────────────────────────────
       if (event.type === 'booking.reminder.due') {
-        const { clientEmail, clientPhone, clientName, startsAt, window } = event.payload ?? {}
-        if (clientEmail) await sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window, locale })
+        const { clientEmail, clientPhone, clientName, clientUserId, startsAt, window } = event.payload ?? {}
+        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window, locale }))
         // SMS goes out only when the scheduler hydrated the phone number;
         // the booking module is responsible for including it in the event
         // payload. Stays a noop in dev / when Twilio is not configured.
-        if (clientPhone) await sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window, locale })
+        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window, locale }))
       }
 
       if (event.type === 'reservation.reminder.due') {
-        const { guestEmail, guestPhone, guestName, reservedFor, partySize, window } = event.payload ?? {}
-        if (guestEmail) await sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window, locale })
-        if (guestPhone) await sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window, locale })
+        const { guestEmail, guestPhone, guestName, guestUserId, reservedFor, partySize, window } = event.payload ?? {}
+        if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window, locale }))
+        if (guestPhone) await gated(guestUserId, event.type, 'sms',   () => sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window, locale }))
       }
 
       if (event.type === 'package.expiring') {
         // The scheduler doesn't carry the user's email — clients should hydrate
         // it. For V1 we look it up via auth's user_id → email cache; falling
         // back to a noop if missing. This is a known limitation tracked in TODO.
-        const { remainingSessions, expiresAt, window, clientEmail } = event.payload ?? {}
-        if (clientEmail) await sendPackageExpiryEmail(clientEmail, { remainingSessions, expiresAt, window, locale })
+        const { remainingSessions, expiresAt, window, clientEmail, clientUserId } = event.payload ?? {}
+        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendPackageExpiryEmail(clientEmail, { remainingSessions, expiresAt, window, locale }))
       }
 
       if (event.type === 'dispute.sla_breached') {
         const staffEmail = process.env.STAFF_OPS_EMAIL
         if (staffEmail) {
           const { disputeId, orderId, openedAt } = event.payload ?? {}
+          // Staff dispatch — bypass rate limit (same recipient, low volume).
           await sendDisputeSlaInternalEmail(staffEmail, { disputeId, orderId, openedAt, locale })
         }
+      }
+
+      // ── New event subscriptions ──────────────────────────────────────
+      if (event.type === 'booking.confirmed' || event.type === 'booking.reminded') {
+        const { clientEmail, clientPhone, clientName, clientUserId, startsAt } = event.payload ?? {}
+        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingConfirmedEmail(clientEmail, { name: clientName, startsAt, locale }))
+        if (clientPhone) await gated(clientUserId, event.type, 'sms',   () => sendBookingConfirmedSms(clientPhone, { startsAt, locale }))
+      }
+
+      if (event.type === 'booking.cancelled') {
+        const { clientEmail, clientPhone, clientName, clientUserId, startsAt, reason } = event.payload ?? {}
+        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingCancelledEmail(clientEmail, { name: clientName, startsAt, reason, locale }))
+        if (clientPhone) await gated(clientUserId, event.type, 'sms',   () => sendBookingCancelledSms(clientPhone, { startsAt, locale }))
+      }
+
+      if (event.type === 'booking.rescheduled') {
+        // The bookings service publishes { oldBookingId, newBookingId, startsAt, endsAt } —
+        // use new startsAt for the recipient-facing message. clientEmail / clientPhone
+        // come from the cloned booking so the producer must hydrate them.
+        const { clientEmail, clientPhone, clientName, clientUserId, startsAt } = event.payload ?? {}
+        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingRescheduledEmail(clientEmail, { name: clientName, startsAt, locale }))
+        if (clientPhone) await gated(clientUserId, event.type, 'sms',   () => sendBookingRescheduledSms(clientPhone, { startsAt, locale }))
+      }
+
+      if (event.type === 'reservation.created') {
+        const { guestEmail, guestName, guestUserId, reservedFor, partySize } = event.payload ?? {}
+        if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationCreatedEmail(guestEmail, { name: guestName, reservedFor, partySize, locale }))
+      }
+
+      if (event.type === 'reservation.cancelled') {
+        const { guestEmail, guestPhone, guestName, guestUserId, reservedFor } = event.payload ?? {}
+        if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationCancelledEmail(guestEmail, { name: guestName, reservedFor, locale }))
+        if (guestPhone) await gated(guestUserId, event.type, 'sms',   () => sendReservationCancelledSms(guestPhone, { reservedFor, locale }))
+      }
+
+      if (event.type === 'package.exhausted') {
+        const { clientEmail, clientUserId } = event.payload ?? {}
+        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendPackageExhaustedEmail(clientEmail, { locale }))
+      }
+
+      if (event.type === 'payout.paid') {
+        // Practitioner payout — recipient is the practitioner identified by
+        // the payout row's user_id. Producer must hydrate practitionerEmail
+        // and the human-readable amount/period.
+        const { practitionerEmail, practitionerUserId, amount, periodLabel, externalRef } = event.payload ?? {}
+        if (practitionerEmail) await gated(practitionerUserId, event.type, 'email', () => sendPayoutPaidEmail(practitionerEmail, { amount, periodLabel, externalRef, locale }))
       }
     } catch (err) {
       logger.error({ err, event }, 'Error handling event')

@@ -5,6 +5,7 @@ import * as tmplRepo from '../repositories/templates.repository.js'
 import { renderString } from '../services/template-renderer.js'
 import { sendTestSms, invalidateSmsConfigCache } from '../services/sms.service.js'
 import { invalidateConfigCache as invalidateEmailConfigCache } from '../services/email.service.js'
+import { invalidateRateLimitCache } from '../services/rate-limit.service.js'
 import { pool } from '../lib/db.js'
 
 const configBody = z.object({
@@ -16,6 +17,9 @@ const configBody = z.object({
   twilio_api_key_secret:        z.string().min(1).max(2048).optional().nullable(),
   twilio_messaging_service_sid: z.string().min(1).max(64).optional().nullable(),
   twilio_default_sender:        z.string().min(1).max(32).optional().nullable(),
+  // Per-user rate limit caps. Numeric strings (or null/empty for unlimited).
+  rate_limit_per_user_per_hour: z.string().max(8).optional().nullable(),
+  rate_limit_per_user_per_day:  z.string().max(8).optional().nullable(),
 })
 
 const smsTestBody = z.object({
@@ -63,10 +67,11 @@ export async function adminRoutes(fastify) {
         if (value === undefined) continue
         await configRepo.upsertValue(client, key, value)
       }
-      // Drop both senders' caches so the next send picks up new credentials
-      // without waiting 30s.
+      // Drop sender + rate-limit caches so the next send picks up new
+      // credentials/limits without waiting 30s.
       invalidateEmailConfigCache()
       invalidateSmsConfigCache()
+      invalidateRateLimitCache()
       return { data: await configRepo.listConfig(client) }
     } finally { client.release() }
   })

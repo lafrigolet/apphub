@@ -8,6 +8,8 @@ const PLAIN_KEYS  = [
   'twilio_api_key_sid',
   'twilio_messaging_service_sid',
   'twilio_default_sender',
+  'rate_limit_per_user_per_hour',
+  'rate_limit_per_user_per_day',
 ]
 
 export const KEYS = [...SECRET_KEYS, ...PLAIN_KEYS]

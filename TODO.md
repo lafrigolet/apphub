@@ -36,15 +36,15 @@
 - [x] Email vía SendGrid (con fallback log en dev)
 - [x] Event consumer para `user.registered`, `auth.password_reset_requested`
 - **Falta**:
-  - [ ] **SMS** (Twilio/MessageBird) — restaurant/appointments lo necesitan para recordatorios
-  - [ ] **Push notifications** (FCM/APNs) — no hay
+  - [x] **SMS** (Twilio) — Phase 0+1 wired (commits d2ba91d, b38af3d)
+  - [o] **Push notifications** (FCM/APNs) — no hay
   - [ ] **WhatsApp Business API**
-  - [ ] **Plantillas versionadas y editables por tenant** — hoy hardcoded
-  - [ ] **i18n** de plantillas (ES/EN/CA/…)
+  - [x] **Plantillas editables** desde voragine-console (CRUD por staff)
+  - [x] **i18n** de plantillas (`(key, channel, locale)` UNIQUE + fallback a `'es'` + 8 plantillas seed en `en` + `default_locale` per-tenant + locale per-row en bookings/reservations + cadena de resolución en scheduler)
   - [ ] **Bounce/complaint handling** (webhooks SendGrid → suprimir destinatarios)
-  - [ ] **Rate limiting por usuario** para evitar spam
-  - [ ] **Digest mode** (agrupar varios eventos en un email)
-  - [ ] **Suscripción a más eventos**: `booking.confirmed/reminded/rescheduled`, `reservation.*`, `package.exhausted`, `payout.paid`
+  - [x] **Rate limiting por usuario** — Redis-counter por `(user, event, channel)` con ventanas hora/día configurables desde voragine-console
+  - [o] **Digest mode** (agrupar varios eventos en un email)
+  - [x] **Suscripción a más eventos**: `booking.confirmed/reminded/rescheduled/cancelled`, `reservation.created/cancelled`, `package.exhausted`, `payout.paid` — senders email+sms + plantillas seed (es/en) + 8 plantillas adicionales
 
 ### `tenant-config` — ✅ funcional
 - [x] Apps + tenants + sub-tenants

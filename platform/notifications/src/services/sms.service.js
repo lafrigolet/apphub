@@ -122,3 +122,37 @@ export async function sendReservationReminderSms(to, { name, reservedFor, partyS
   }, locale)
   return send({ to, body: tmpl.text })
 }
+
+// ── New event SMS senders ─────────────────────────────────────────────
+
+export async function sendBookingConfirmedSms(to, { startsAt, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const tmpl = await compose('booking.confirmed', { when }, {
+    text: locale === 'en' ? `Your appointment is confirmed for ${when}.` : `Tu cita ha sido confirmada para el ${when}.`,
+  }, locale)
+  return send({ to, body: tmpl.text })
+}
+
+export async function sendBookingCancelledSms(to, { startsAt, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const tmpl = await compose('booking.cancelled', { when }, {
+    text: locale === 'en' ? `Your appointment on ${when} has been cancelled.` : `Tu cita del ${when} ha sido cancelada.`,
+  }, locale)
+  return send({ to, body: tmpl.text })
+}
+
+export async function sendBookingRescheduledSms(to, { startsAt, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const tmpl = await compose('booking.rescheduled', { when }, {
+    text: locale === 'en' ? `Your appointment has been rescheduled to ${when}.` : `Tu cita ha sido reprogramada para el ${when}.`,
+  }, locale)
+  return send({ to, body: tmpl.text })
+}
+
+export async function sendReservationCancelledSms(to, { reservedFor, locale = 'es' }) {
+  const when = new Date(reservedFor).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const tmpl = await compose('reservation.cancelled', { when }, {
+    text: locale === 'en' ? `Your reservation on ${when} has been cancelled.` : `Tu reserva del ${when} ha sido cancelada.`,
+  }, locale)
+  return send({ to, body: tmpl.text })
+}

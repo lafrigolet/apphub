@@ -132,3 +132,86 @@ export async function sendDisputeSlaInternalEmail(to, { disputeId, orderId, open
   }, locale)
   await send({ to, ...tmpl })
 }
+
+// ── New event senders (subscribed in event-consumer) ──────────────────
+
+export async function sendBookingConfirmedEmail(to, { name, startsAt, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const namePrefix = name ? ' ' + name : ''
+  const tmpl = await compose('booking.confirmed', { namePrefix, when }, {
+    subject: locale === 'en' ? `Your appointment is confirmed — ${when}` : `Tu cita está confirmada — ${when}`,
+    text: (locale === 'en'
+      ? `Hi${namePrefix},\n\nYour appointment has been confirmed for ${when}.\n\nIf you need to cancel or reschedule, please do it in advance.`
+      : `Hola${namePrefix},\n\nTu cita ha sido confirmada para el ${when}.\n\nSi necesitas cancelar o cambiarla, hazlo con antelación.`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendBookingCancelledEmail(to, { name, startsAt, reason, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const namePrefix = name ? ' ' + name : ''
+  const reasonLine = reason ? (locale === 'en' ? ` Reason: ${reason}.` : ` Motivo: ${reason}.`) : ''
+  const tmpl = await compose('booking.cancelled', { namePrefix, when, reasonLine }, {
+    subject: locale === 'en' ? 'Your appointment has been cancelled' : 'Tu cita ha sido cancelada',
+    text: (locale === 'en'
+      ? `Hi${namePrefix},\n\nYour appointment on ${when} has been cancelled.${reasonLine}\n\nYou can book another slot whenever you want.`
+      : `Hola${namePrefix},\n\nTu cita del ${when} ha sido cancelada.${reasonLine}\n\nSi quieres reservar otro hueco, te esperamos.`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendBookingRescheduledEmail(to, { name, startsAt, locale = 'es' }) {
+  const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const namePrefix = name ? ' ' + name : ''
+  const tmpl = await compose('booking.rescheduled', { namePrefix, when }, {
+    subject: locale === 'en' ? `Your appointment has been rescheduled — ${when}` : `Tu cita ha sido reprogramada — ${when}`,
+    text: (locale === 'en'
+      ? `Hi${namePrefix},\n\nYour appointment has been rescheduled to ${when}.\n\nIf this new time does not work, please reply to this email.`
+      : `Hola${namePrefix},\n\nTu cita ha sido reprogramada para el ${when}.\n\nSi la nueva fecha no te encaja, escríbenos.`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendReservationCreatedEmail(to, { name, reservedFor, partySize, locale = 'es' }) {
+  const when = new Date(reservedFor).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const namePrefix = name ? ' ' + name : ''
+  const tmpl = await compose('reservation.created', { namePrefix, when, partySize }, {
+    subject: locale === 'en' ? `Reservation received — ${when} for ${partySize}` : `Reserva recibida — ${when} para ${partySize}`,
+    text: (locale === 'en'
+      ? `Hi${namePrefix},\n\nWe have received your reservation for ${when} (${partySize} guests). We will confirm it shortly.`
+      : `Hola${namePrefix},\n\nHemos recibido tu reserva para el ${when} (${partySize} personas). Te avisaremos en cuanto la confirmemos.`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendReservationCancelledEmail(to, { name, reservedFor, locale = 'es' }) {
+  const when = new Date(reservedFor).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
+  const namePrefix = name ? ' ' + name : ''
+  const tmpl = await compose('reservation.cancelled', { namePrefix, when }, {
+    subject: locale === 'en' ? 'Your reservation has been cancelled' : 'Tu reserva ha sido cancelada',
+    text: (locale === 'en'
+      ? `Hi${namePrefix},\n\nYour reservation on ${when} has been cancelled.`
+      : `Hola${namePrefix},\n\nTu reserva del ${when} ha sido cancelada.`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendPackageExhaustedEmail(to, { locale = 'es' } = {}) {
+  const tmpl = await compose('package.exhausted', {}, {
+    subject: locale === 'en' ? 'Your package is fully used' : 'Has agotado las sesiones de tu bono',
+    text: (locale === 'en'
+      ? 'Hi,\n\nYou have used the last session of your package. We hope to see you again soon.'
+      : 'Hola,\n\nHas utilizado la última sesión de tu bono. ¡Esperamos verte pronto de nuevo!'),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendPayoutPaidEmail(to, { amount, periodLabel, externalRef, locale = 'es' }) {
+  const tmpl = await compose('payout.paid', { amount, periodLabel, externalRef }, {
+    subject: locale === 'en' ? `Your ${amount} payout has been paid` : `Tu liquidación de ${amount} se ha pagado`,
+    text: (locale === 'en'
+      ? `Hi,\n\nYour payout for period ${periodLabel} has been paid: ${amount}. Reference: ${externalRef}.`
+      : `Hola,\n\nTu liquidación correspondiente al periodo ${periodLabel} ha sido pagada por importe de ${amount}. Referencia: ${externalRef}.`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
