@@ -97,7 +97,7 @@
 ### `messaging` — ✅ funcional
 - [x] Threads, mensajes, attachments, mark read, ACL buyer/vendor/staff
 - **Falta**:
-  - [o] **WebSocket / SSE real-time** — hoy polling/REST
+  - [ ] **WebSocket / SSE real-time** — diferido a propósito; ADR 010 fija el diseño (Redis Pub/Sub broadcaster + sticky sessions nginx + ruta `GET /v1/messages/threads/:id/stream` con catch-up vía `?since=<messageId>`). REST/polling sigue como camino canónico hasta que typing/presence/live-receipts se prioricen.
   - [ ] **Typing indicators, presence**
   - [x] **Attachments** persistidos en object storage — tabla `message_attachments` (RLS) referenciando `platform_storage.objects.id` con `kind` (image/video/file) + `display_order`; endpoints `GET/POST /v1/messages/threads/:id/messages/:mid/attachments`, `DELETE …/:attachmentId`. La columna JSON `messages.attachments` se mantiene por compat con clientes antiguos.
   - [ ] **Search** en mensajes (Postgres full-text o Elastic)
