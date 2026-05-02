@@ -307,5 +307,9 @@
 6. [ ] **Carriers reales en `shipping`/`delivery-dispatch`**
 7. [x] **`reviews` verified-purchase HTTP cross-container** — ADR 009; `verified_purchase` flag + `verifiedOnly` filter + `verified_count` aggregate
 8. [x] **Recurrence expander en `bookings`** — `platform-scheduler` lo materializa (ADR 007)
-9. [ ] **Hold-on-create en `bookings.create`** (evitar double-booking)
+9. [x] **Hold-on-create en `bookings.create`** (evitar double-booking) — `holdId`
+   opcional consumido atómicamente dentro de la transacción + `insertBookingAtomic`
+   con `tstzrange && tstzrange` por recurso como red de seguridad. 409 cuando
+   el slot ya está tomado o el hold no coincide. Tests unit (5 nuevos) +
+   integration (overlap rechazado, cancelado libera slot).
 10. [ ] **Email templates editables + i18n** en `notifications`

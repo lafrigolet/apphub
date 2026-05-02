@@ -54,7 +54,7 @@ describe('createBooking', () => {
   })
 
   it('persists, attaches resources, records initial event, publishes booking.requested', async () => {
-    repo.insertBooking.mockResolvedValue({
+    repo.insertBookingAtomic.mockResolvedValue({
       id: BOOK_ID, status: 'requested', service_id: SVC_ID,
       client_user_id: USER_ID, starts_at: baseBody.startsAt, ends_at: baseBody.endsAt,
     })
@@ -73,6 +73,70 @@ describe('createBooking', () => {
       type: 'booking.requested',
       payload: expect.objectContaining({ bookingId: BOOK_ID, resourceIds: [RES_ID] }),
     }))
+  })
+
+  it('throws ConflictError when atomic insert returns null (slot already taken)', async () => {
+    repo.insertBookingAtomic.mockResolvedValue(null)
+    await expect(service.createBooking(ctx, baseBody)).rejects.toThrow(ConflictError)
+  })
+
+  it('rejects 409 when holdId points to an expired/missing hold', async () => {
+    repo.consumeHold.mockResolvedValue(null)
+    const HOLD_ID = '55555555-5555-5555-5555-555555555555'
+    await expect(service.createBooking(ctx, { ...baseBody, holdId: HOLD_ID })).rejects.toThrow(ConflictError)
+    // Atomic insert must not even be attempted when the hold check fails.
+    expect(repo.insertBookingAtomic).not.toHaveBeenCalled()
+  })
+
+  it('consumes a valid hold and proceeds with the booking', async () => {
+    const HOLD_ID = '55555555-5555-5555-5555-555555555555'
+    repo.consumeHold.mockResolvedValue({
+      id: HOLD_ID,
+      service_id: SVC_ID,
+      resource_id: RES_ID,
+      starts_at: new Date(baseBody.startsAt),
+      ends_at:   new Date(baseBody.endsAt),
+      client_user_id: USER_ID,
+    })
+    repo.insertBookingAtomic.mockResolvedValue({
+      id: BOOK_ID, status: 'requested', service_id: SVC_ID,
+      client_user_id: USER_ID, starts_at: baseBody.startsAt, ends_at: baseBody.endsAt,
+    })
+    repo.findById.mockResolvedValue({ id: BOOK_ID })
+    repo.listResources.mockResolvedValue([RES_ID])
+    repo.listEvents.mockResolvedValue([])
+
+    await service.createBooking(ctx, { ...baseBody, holdId: HOLD_ID })
+    expect(repo.consumeHold).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, HOLD_ID)
+    expect(repo.insertBookingAtomic).toHaveBeenCalled()
+  })
+
+  it('rejects 409 when hold window does not match the booking window', async () => {
+    const HOLD_ID = '55555555-5555-5555-5555-555555555555'
+    repo.consumeHold.mockResolvedValue({
+      id: HOLD_ID,
+      service_id: SVC_ID,
+      resource_id: RES_ID,
+      // 5 min later — mismatch
+      starts_at: new Date('2026-05-01T10:05:00Z'),
+      ends_at:   new Date('2026-05-01T10:35:00Z'),
+      client_user_id: USER_ID,
+    })
+    await expect(service.createBooking(ctx, { ...baseBody, holdId: HOLD_ID })).rejects.toThrow(ConflictError)
+  })
+
+  it('rejects 409 when hold resource is not in the booking resources', async () => {
+    const HOLD_ID  = '55555555-5555-5555-5555-555555555555'
+    const OTHER_R  = '66666666-6666-6666-6666-666666666666'
+    repo.consumeHold.mockResolvedValue({
+      id: HOLD_ID,
+      service_id: SVC_ID,
+      resource_id: OTHER_R,
+      starts_at: new Date(baseBody.startsAt),
+      ends_at:   new Date(baseBody.endsAt),
+      client_user_id: USER_ID,
+    })
+    await expect(service.createBooking(ctx, { ...baseBody, holdId: HOLD_ID })).rejects.toThrow(ConflictError)
   })
 })
 

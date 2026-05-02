@@ -29,10 +29,37 @@ export async function createBooking(ctx, body) {
   if (new Date(body.endsAt) <= new Date(body.startsAt)) throw new ValidationError('endsAt must be after startsAt')
 
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
-    const b = await repo.insertBooking(c, ctx.appId, ctx.tenantId, {
+    // Optional hold-on-create flow: client first calls POST /v1/availability/holds
+    // to atomically reserve the slot, then sends holdId here. We re-validate
+    // the hold matches the booking window/resource and consume it inside the
+    // same transaction. The hold mechanism is what prevents two concurrent
+    // /v1/bookings calls from selling the same slot to different clients.
+    if (body.holdId) {
+      const hold = await repo.consumeHold(c, ctx.appId, ctx.tenantId, body.holdId)
+      if (!hold) throw new ConflictError('hold is invalid, expired, or already consumed')
+      if (!body.resourceIds.includes(hold.resource_id)) {
+        throw new ConflictError('hold resource does not match booking resources')
+      }
+      if (hold.starts_at.toISOString() !== new Date(body.startsAt).toISOString()
+          || hold.ends_at.toISOString() !== new Date(body.endsAt).toISOString()) {
+        throw new ConflictError('hold window does not match booking window')
+      }
+      if (hold.service_id !== body.serviceId) {
+        throw new ConflictError('hold serviceId does not match booking serviceId')
+      }
+    }
+
+    // Defence in depth: even when a valid hold was consumed we still run the
+    // overlap-guarded insert. An overlap here means an existing non-cancelled
+    // booking already owned the slot — e.g. from a recurrence-expander run
+    // that bypassed the hold flow.
+    const b = await repo.insertBookingAtomic(c, ctx.appId, ctx.tenantId, {
       ...body, subTenantId: ctx.subTenantId,
       clientUserId: body.clientUserId ?? ctx.userId,
+      resourceIds: body.resourceIds,
     })
+    if (!b) throw new ConflictError('slot already booked')
+
     for (const rid of body.resourceIds) {
       await repo.attachResource(c, ctx.appId, ctx.tenantId, b.id, rid)
     }
