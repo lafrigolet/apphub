@@ -210,6 +210,66 @@ export async function sendPackageExhaustedEmail(to, { locale = 'es' } = {}) {
   await send({ to, ...tmpl })
 }
 
+function formatAmount(cents, currency, locale) {
+  if (cents == null) return ''
+  try {
+    return new Intl.NumberFormat(intlLocale(locale), { style: 'currency', currency: currency || 'EUR' })
+      .format(cents / 100)
+  } catch { return `${(cents / 100).toFixed(2)} ${currency || ''}`.trim() }
+}
+
+export async function sendOrderPaidEmail(to, { orderId, totalCents, currency, locale = 'es' }) {
+  const total = formatAmount(totalCents, currency, locale)
+  const tmpl = await compose('order.paid', { orderId, total }, {
+    subject: locale === 'en' ? `Payment received · Order #${orderId}` : `Pago confirmado · Pedido #${orderId}`,
+    text: locale === 'en'
+      ? `Hi,\n\nWe have received the payment for your order #${orderId} (${total}). We will notify you when it ships.`
+      : `Hola,\n\nHemos recibido el pago de tu pedido #${orderId} (${total}). Te avisaremos cuando se envíe.`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendOrderShippedEmail(to, { orderId, trackingCode, carrier, locale = 'es' }) {
+  const trackingLine = trackingCode
+    ? (locale === 'en' ? ` Tracking: ${carrier ?? ''} ${trackingCode}.` : ` Seguimiento: ${carrier ?? ''} ${trackingCode}.`)
+    : ''
+  const tmpl = await compose('order.shipped', { orderId, trackingLine }, {
+    subject: locale === 'en' ? `Your order is on its way · #${orderId}` : `Tu pedido va en camino · #${orderId}`,
+    text: (locale === 'en' ? `Hi,\n\nYour order #${orderId} is on its way.${trackingLine}` : `Hola,\n\nTu pedido #${orderId} ya está en camino.${trackingLine}`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendOrderDeliveredEmail(to, { orderId, locale = 'es' }) {
+  const tmpl = await compose('order.delivered', { orderId }, {
+    subject: locale === 'en' ? `Order delivered · #${orderId}` : `Pedido entregado · #${orderId}`,
+    text: locale === 'en' ? `Hi,\n\nYour order #${orderId} has been delivered. We hope you enjoy it.` : `Hola,\n\nTu pedido #${orderId} ha sido entregado. Esperamos que disfrutes de tu compra.`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendOrderCancelledEmail(to, { orderId, reason, locale = 'es' }) {
+  const reasonLine = reason ? (locale === 'en' ? ` Reason: ${reason}.` : ` Motivo: ${reason}.`) : ''
+  const tmpl = await compose('order.cancelled', { orderId, reasonLine }, {
+    subject: locale === 'en' ? `Order cancelled · #${orderId}` : `Pedido cancelado · #${orderId}`,
+    text: (locale === 'en'
+      ? `Hi,\n\nYour order #${orderId} has been cancelled.${reasonLine} If this is not what you expected, please contact support.`
+      : `Hola,\n\nTu pedido #${orderId} ha sido cancelado.${reasonLine} Si esto no es lo que esperabas, contacta con soporte.`),
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendOrderRefundedEmail(to, { orderId, totalCents, currency, locale = 'es' }) {
+  const total = formatAmount(totalCents, currency, locale)
+  const tmpl = await compose('order.refunded', { orderId, total }, {
+    subject: locale === 'en' ? `Refund issued · #${orderId}` : `Reembolso emitido · #${orderId}`,
+    text: locale === 'en'
+      ? `Hi,\n\nWe have issued a refund for your order #${orderId} (${total}). It can take several days to appear on your statement.`
+      : `Hola,\n\nHemos emitido el reembolso de tu pedido #${orderId} (${total}). Puede tardar varios días en reflejarse en tu cuenta.`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
 export async function sendPayoutPaidEmail(to, { amount, periodLabel, externalRef, locale = 'es' }) {
   const tmpl = await compose('payout.paid', { amount, periodLabel, externalRef }, {
     subject: locale === 'en' ? `Your ${amount} payout has been paid` : `Tu liquidación de ${amount} se ha pagado`,

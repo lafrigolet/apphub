@@ -109,6 +109,22 @@ export async function changeStatus(ctx, id, toStatus, reason) {
     await repo.recordStatusChange(client, id, ctx.appId, ctx.tenantId, order.status, toStatus, { userId: ctx.userId, role: ctx.role }, reason)
     const items = await repo.findItemsByOrderId(client, ctx.appId, ctx.tenantId, id)
 
+    // Hydrate the buyer's email so the notifications module can deliver
+    // an email on transitions without doing a cross-module HTTP call. The
+    // grant on platform_auth.users is added in this module's migration 0002.
+    // If the lookup fails (auth not deployed, RLS, etc.) we publish anyway
+    // so the order FSM doesn't depend on auth availability.
+    let buyerEmail = null
+    try {
+      const u = await client.query(
+        `SELECT email FROM platform_auth.users WHERE id = $1 LIMIT 1`,
+        [order.buyer_user_id],
+      )
+      buyerEmail = u.rows[0]?.email ?? null
+    } catch (err) {
+      logger.warn({ err, userId: order.buyer_user_id }, 'orders: buyer email lookup failed')
+    }
+
     await publish({
       type: `order.${toStatus}`,
       payload: {
@@ -116,8 +132,11 @@ export async function changeStatus(ctx, id, toStatus, reason) {
         appId: ctx.appId,
         tenantId: ctx.tenantId,
         buyerUserId: order.buyer_user_id,
+        buyerEmail,
         items: items.map((i) => ({ sku: i.sku, qty: i.qty })),
         totalCents: order.total_cents,
+        currency: order.currency,
+        reason,
       },
     })
 
@@ -131,6 +150,62 @@ export async function cancelOrder(ctx, id, reason) {
 
 export async function refundOrder(ctx, id, reason) {
   return changeStatus(ctx, id, 'refunded', reason)
+}
+
+// ── Order modifications (post-creation audit trail) ─────────────────────
+
+const MUTABLE_STATUSES = new Set(['pending', 'paid'])
+
+function ensureMutable(order) {
+  if (!MUTABLE_STATUSES.has(order.status)) {
+    throw new ConflictError(`order in status ${order.status} cannot be modified`)
+  }
+}
+
+export async function listModifications(ctx, id) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
+    const order = await repo.findOrderById(client, ctx.appId, ctx.tenantId, id)
+    if (!order) throw new NotFoundError('order')
+    return repo.listModifications(client, ctx.appId, ctx.tenantId, id)
+  })
+}
+
+export async function changeShippingAddress(ctx, id, address, reason) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
+    const order = await repo.findOrderById(client, ctx.appId, ctx.tenantId, id)
+    if (!order) throw new NotFoundError('order')
+    ensureMutable(order)
+    const before = await repo.findShippingAddress(client, ctx.appId, ctx.tenantId, id)
+    await repo.replaceShippingAddress(client, ctx.appId, ctx.tenantId, id, address)
+    const mod = await repo.insertModification(client, {
+      appId: ctx.appId, tenantId: ctx.tenantId, orderId: id,
+      type: 'shipping_address_changed',
+      before, after: address, reason,
+      actorUserId: ctx.userId, actorRole: ctx.role,
+    })
+    await publish({
+      type: 'order.modified',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId, orderId: id,
+        buyerUserId: order.buyer_user_id,
+        modificationType: 'shipping_address_changed', modificationId: mod.id,
+      },
+    })
+    return mod
+  })
+}
+
+export async function addOrderNote(ctx, id, note) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
+    const order = await repo.findOrderById(client, ctx.appId, ctx.tenantId, id)
+    if (!order) throw new NotFoundError('order')
+    return repo.insertModification(client, {
+      appId: ctx.appId, tenantId: ctx.tenantId, orderId: id,
+      type: 'note_added',
+      before: null, after: { note },
+      actorUserId: ctx.userId, actorRole: ctx.role,
+    })
+  })
 }
 
 // ── Event consumer: react to upstream events ─────────────────────────────

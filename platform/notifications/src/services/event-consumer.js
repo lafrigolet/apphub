@@ -186,6 +186,46 @@ export function startEventConsumer() {
           await gated(practitionerUserId, event.type, 'email', () => sendPayoutPaidEmail(practitionerEmail, { amount, periodLabel, externalRef, locale }))
         }
       }
+
+      // ── orders lifecycle ────────────────────────────────────────────
+      // The orders module hydrates the buyer's email on each transition
+      // before publishing (see orders.service.changeStatus). When the
+      // payload doesn't carry buyerEmail this is a no-op.
+      if (event.type === 'order.paid') {
+        const { buyerEmail, buyerUserId, orderId, totalCents, currency } = event.payload ?? {}
+        if (buyerEmail && !await maybeDigestEmail(event, { userId: buyerUserId, to: buyerEmail, locale })) {
+          const { sendOrderPaidEmail } = await import('./email.service.js')
+          await gated(buyerUserId, event.type, 'email', () => sendOrderPaidEmail(buyerEmail, { orderId, totalCents, currency, locale }))
+        }
+      }
+      if (event.type === 'order.shipped') {
+        const { buyerEmail, buyerUserId, orderId, trackingCode, carrier } = event.payload ?? {}
+        if (buyerEmail) {
+          const { sendOrderShippedEmail } = await import('./email.service.js')
+          await gated(buyerUserId, event.type, 'email', () => sendOrderShippedEmail(buyerEmail, { orderId, trackingCode, carrier, locale }))
+        }
+      }
+      if (event.type === 'order.delivered') {
+        const { buyerEmail, buyerUserId, orderId } = event.payload ?? {}
+        if (buyerEmail) {
+          const { sendOrderDeliveredEmail } = await import('./email.service.js')
+          await gated(buyerUserId, event.type, 'email', () => sendOrderDeliveredEmail(buyerEmail, { orderId, locale }))
+        }
+      }
+      if (event.type === 'order.cancelled') {
+        const { buyerEmail, buyerUserId, orderId, reason } = event.payload ?? {}
+        if (buyerEmail) {
+          const { sendOrderCancelledEmail } = await import('./email.service.js')
+          await gated(buyerUserId, event.type, 'email', () => sendOrderCancelledEmail(buyerEmail, { orderId, reason, locale }))
+        }
+      }
+      if (event.type === 'order.refunded') {
+        const { buyerEmail, buyerUserId, orderId, totalCents, currency } = event.payload ?? {}
+        if (buyerEmail) {
+          const { sendOrderRefundedEmail } = await import('./email.service.js')
+          await gated(buyerUserId, event.type, 'email', () => sendOrderRefundedEmail(buyerEmail, { orderId, totalCents, currency, locale }))
+        }
+      }
     } catch (err) {
       logger.error({ err, event }, 'Error handling event')
     }
