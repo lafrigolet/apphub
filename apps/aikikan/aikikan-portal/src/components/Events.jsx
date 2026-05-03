@@ -1,54 +1,37 @@
-import { useEffect, useMemo, useState } from 'react'
-import { getAccessToken, getIdentity, isAdminRole } from '../lib/auth.js'
+import { useEffect, useState } from 'react'
+import { getIdentity, isAdminRole } from '../lib/auth.js'
+import EventModal, { deleteEvent } from './EventModal.jsx'
 
 const MONTHS_ES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 
-// Visualization helpers — el endpoint devuelve `date` (YYYY-MM-DD); el
-// landing muestra mes (3 letras) + año + nombre + localización.
 function formatDate(iso) {
   const d = new Date(iso)
   return { month: MONTHS_ES[d.getMonth()], year: String(d.getFullYear()) }
 }
 
-async function api(method, path, body) {
-  const token = getAccessToken()
-  const res = await fetch(path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body != null ? JSON.stringify(body) : undefined,
-  })
-  if (res.status === 204) return null
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error?.message ?? res.statusText)
-  return json
-}
-
 export default function Events() {
-  const [events, setEvents] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState(null)
+  const [events, setEvents]     = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
 
   const identity = getIdentity()
   const isAdmin  = identity && isAdminRole(identity.role)
 
-  const load = () => {
+  function load() {
     setLoading(true); setError(null)
-    api('GET', '/api/aikikan/events')
-      .then(setEvents)
-      .catch((e) => setError(e.message))
+    fetch('/api/aikikan/events')
+      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then((arr) => setEvents(Array.isArray(arr) ? arr : []))
+      .catch((err) => setError(err.message ?? 'Error'))
       .finally(() => setLoading(false))
   }
-
-  useEffect(() => { load() }, [])
+  useEffect(load, [])
 
   async function handleDelete(id) {
     if (!confirm('¿Eliminar este evento?')) return
-    try { await api('DELETE', `/api/aikikan/events/${id}`); load() }
-    catch (e) { alert(e.message) }
+    try { await deleteEvent(id); load() }
+    catch (err) { alert(err.message) }
   }
 
   return (
@@ -98,73 +81,11 @@ export default function Events() {
       </div>
 
       {modalOpen && (
-        <NewEventModal
+        <EventModal
           onClose={() => setModalOpen(false)}
           onCreated={() => { setModalOpen(false); load() }}
         />
       )}
     </section>
-  )
-}
-
-function NewEventModal({ onClose, onCreated }) {
-  const [date, setDate]     = useState('')
-  const [name, setName]     = useState('')
-  const [location, setLoc]  = useState('')
-  const [busy, setBusy]     = useState(false)
-  const [error, setError]   = useState(null)
-
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  async function submit(e) {
-    e.preventDefault()
-    setBusy(true); setError(null)
-    try {
-      await api('POST', '/api/aikikan/events', {
-        date, name,
-        ...(location ? { location } : {}),
-      })
-      onCreated()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="event-modal-overlay" onClick={onClose}>
-      <div className="event-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="event-modal-header">
-          <h2>Nuevo evento</h2>
-          <button className="event-modal-close" onClick={onClose} aria-label="Cerrar">×</button>
-        </div>
-        <form className="event-modal-body" onSubmit={submit}>
-          <div className="event-modal-field">
-            <label className="event-modal-label">Fecha</label>
-            <input type="date" required className="event-modal-input" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div className="event-modal-field">
-            <label className="event-modal-label">Nombre del evento</label>
-            <input type="text" required className="event-modal-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={256} placeholder="Seminario Nacional de Primavera" />
-          </div>
-          <div className="event-modal-field">
-            <label className="event-modal-label">Ubicación (opcional)</label>
-            <input type="text" className="event-modal-input" value={location} onChange={(e) => setLoc(e.target.value)} maxLength={256} placeholder="/ Madrid · Convocatoria abierta" />
-          </div>
-          {error && <div className="event-modal-error">{error}</div>}
-          <div className="event-modal-actions">
-            <button type="button" onClick={onClose} className="event-modal-btn" disabled={busy}>Cancelar</button>
-            <button type="submit" className="event-modal-btn primary" disabled={busy || !date || !name.trim()}>
-              {busy ? 'Guardando…' : 'Crear'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   )
 }
