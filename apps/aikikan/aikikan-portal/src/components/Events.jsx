@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getIdentity, isAdminRole } from '../lib/auth.js'
 import EventModal, { deleteEvent } from './EventModal.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
 
 const MONTHS_ES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 
@@ -14,6 +15,7 @@ export default function Events() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(null)   // evento a confirmar borrado
 
   const identity = getIdentity()
   const isAdmin  = identity && isAdminRole(identity.role)
@@ -28,9 +30,9 @@ export default function Events() {
   }
   useEffect(load, [])
 
-  async function handleDelete(id) {
-    if (!confirm('¿Eliminar este evento?')) return
-    try { await deleteEvent(id); load() }
+  async function confirmDelete() {
+    if (!pendingDelete) return
+    try { await deleteEvent(pendingDelete.id); load() }
     catch (err) { alert(err.message) }
   }
 
@@ -55,7 +57,7 @@ export default function Events() {
                 </div>
                 {isAdmin ? (
                   <button
-                    onClick={() => handleDelete(e.id)}
+                    onClick={() => setPendingDelete(e)}
                     className="event-trash"
                     title="Eliminar evento"
                     aria-label="Eliminar evento"
@@ -84,6 +86,15 @@ export default function Events() {
         <EventModal
           onClose={() => setModalOpen(false)}
           onCreated={() => { setModalOpen(false); load() }}
+        />
+      )}
+      {pendingDelete && (
+        <ConfirmModal
+          title="Eliminar evento"
+          message={`¿Eliminar el evento "${pendingDelete.name}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={confirmDelete}
+          onClose={() => setPendingDelete(null)}
         />
       )}
     </section>

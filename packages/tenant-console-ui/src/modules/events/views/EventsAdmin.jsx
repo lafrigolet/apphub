@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../../../shell/lib/context'
 import { api } from '../../../shell/lib/api'
+import ConfirmDialog from '../../../shell/lib/ConfirmDialog.jsx'
 
 // CRUD de eventos en el AdminShell. Fuente de datos:
 //   GET    /api/aikikan/events  (público)
@@ -14,6 +15,7 @@ export default function EventsAdmin() {
   const [loading, setLoad]  = useState(true)
   const [error, setError]   = useState(null)
   const [open, setOpen]     = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
   function load() {
     setLoad(true); setError(null)
@@ -25,9 +27,9 @@ export default function EventsAdmin() {
 
   useEffect(load, [])
 
-  async function remove(id) {
-    if (!confirm('¿Eliminar este evento?')) return
-    try { await api.delete(`/api/aikikan/events/${id}`); toast?.('Evento eliminado'); load() }
+  async function confirmDelete() {
+    if (!pendingDelete) return
+    try { await api.delete(`/api/aikikan/events/${pendingDelete.id}`); toast?.('Evento eliminado'); load() }
     catch (e) { toast?.(e.message, 'danger') }
   }
 
@@ -74,7 +76,7 @@ export default function EventsAdmin() {
                   <td className="px-4 py-2.5">{e.name}</td>
                   <td className="px-4 py-2.5 text-ink2">{e.location ?? <em className="text-ink3">—</em>}</td>
                   <td className="px-4 py-2.5 text-right">
-                    <button onClick={() => remove(e.id)} className="text-[12px] text-danger hover:underline">Eliminar</button>
+                    <button onClick={() => setPendingDelete(e)} className="text-[12px] text-danger hover:underline">Eliminar</button>
                   </td>
                 </tr>
               ))}
@@ -87,6 +89,15 @@ export default function EventsAdmin() {
         <NewEventModal
           onClose={() => setOpen(false)}
           onCreated={() => { setOpen(false); toast?.('Evento creado'); load() }}
+        />
+      )}
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Eliminar evento"
+          message={`¿Eliminar el evento "${pendingDelete.name}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={confirmDelete}
+          onClose={() => setPendingDelete(null)}
         />
       )}
     </div>
