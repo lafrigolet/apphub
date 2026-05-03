@@ -355,6 +355,27 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .footer-links { display: flex; gap: 2rem; }
 .footer-links a { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .1em; color: rgba(9,9,8,.22); text-decoration: none; transition: color .2s; }
 .footer-links a:hover { color: var(--accent); }
+.footer-link-btn { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .1em; color: rgba(9,9,8,.22); background: none; border: none; padding: 0; cursor: none; transition: color .2s; }
+.footer-link-btn:hover { color: var(--accent); }
+
+/* ── Legal modal (privacidad / aviso legal / cookies) ─────────────── */
+.legal-modal-overlay     { position: fixed; inset: 0; background: rgba(9,9,8,.55); z-index: 9500; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.legal-modal             { background: #f4efe6; max-width: 720px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; border: 1px solid rgba(188,0,45,.25); }
+.legal-modal-header      { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 2rem; border-bottom: 1px solid rgba(9,9,8,.1); flex-shrink: 0; }
+.legal-modal-header h2   { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: .12em; color: #090908; }
+.legal-modal-close       { background: transparent; border: none; font-size: 1.5rem; line-height: 1; color: rgba(9,9,8,.5); cursor: none; }
+.legal-modal-close:hover { color: var(--accent); }
+.legal-modal-body        { padding: 1.5rem 2rem 2rem; overflow-y: auto; color: #090908; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.65; font-size: 1.02rem; }
+.legal-modal-body h3     { font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: .15em; color: var(--accent); margin: 1.4rem 0 .6rem; }
+.legal-modal-body h3:first-child { margin-top: 0; }
+.legal-modal-body h4     { font-family: 'Space Mono', monospace; font-size: .82rem; letter-spacing: .12em; text-transform: uppercase; color: rgba(9,9,8,.7); margin: 1rem 0 .35rem; }
+.legal-modal-body p      { margin-bottom: .7rem; color: rgba(9,9,8,.85); }
+.legal-modal-body ul     { list-style: none; padding: 0; margin: 0 0 .7rem; }
+.legal-modal-body ul li  { padding-left: 1.1rem; position: relative; margin-bottom: .25rem; color: rgba(9,9,8,.85); }
+.legal-modal-body ul li::before { content: '/'; position: absolute; left: 0; color: var(--accent); font-family: 'Space Mono', monospace; }
+.legal-modal-body strong { color: #090908; }
+.legal-modal-body a      { color: var(--accent); text-decoration: underline; }
+.legal-modal-body .legal-meta { font-family: 'Space Mono', monospace; font-size: .72rem; letter-spacing: .12em; color: rgba(9,9,8,.45); margin-bottom: 1rem; }
 
 .btn-outline { display: inline-flex; align-items: center; gap: .75rem; font-family: 'Space Mono', monospace; font-size: .76rem; letter-spacing: .15em; text-transform: uppercase; color: var(--white); border: 1px solid rgba(244,67,54,.3); padding: .75rem 1.5rem; text-decoration: none; transition: border-color .2s, color .2s; cursor: none; }
 .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
@@ -389,6 +410,10 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
    anchor jump a #consola / #area-socio — sin esto el primer pixel del
    shell queda tapado por el Nav. */
 .aikikan-embed-shell { scroll-margin-top: 76px; }
+
+/* ── Dojo card admin trash ──────────────────────────────────────────── */
+.dojo-trash              { position: absolute; top: .75rem; right: .75rem; background: transparent; border: 1px solid rgba(138,44,44,.4); color: var(--accent); font-size: 1rem; line-height: 1; padding: .15rem .55rem; cursor: none; transition: background .2s, color .2s; }
+.dojo-trash:hover        { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── Video card admin trash ──────────────────────────────────────────── */
 .vc-trash                { position: absolute; top: .5rem; right: .5rem; z-index: 4; background: rgba(244,239,230,.92); border: 1px solid rgba(138,44,44,.5); color: var(--accent); font-size: 1rem; line-height: 1; padding: .15rem .55rem; cursor: none; transition: background .2s, color .2s; }
