@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import useScrollReveal from './hooks/useScrollReveal.js'
 import Cursor from './components/Cursor.jsx'
 import Nav from './components/Nav.jsx'
@@ -17,37 +18,10 @@ import MemberHome from './components/MemberHome.jsx'
 import AdminShell from './components/AdminShell.jsx'
 import { getIdentity, clearSession, isAdminRole } from './lib/auth.js'
 
-export default function App() {
-  useScrollReveal()
-  const [loginOpen, setLoginOpen] = useState(false)
-  const [identity, setIdentity] = useState(() => getIdentity())
-
-  function handleLoggedIn() {
-    setIdentity(getIdentity())
-  }
-
-  function handleLogout() {
-    clearSession()
-    setIdentity(null)
-  }
-
-  // Admin autenticado → la consola de admin se monta INLINE en este SPA
-  // (vía @apphub/tenant-console-ui). No salimos de aikikan.apphub.local.
-  // Cuando el shell hace logout (apphub:unauthorized), volvemos a la
-  // landing — el AdminShell wrapper escucha ese evento y llama onExit.
-  if (identity && isAdminRole(identity.role)) {
-    return <AdminShell onExit={handleLogout} />
-  }
-
-  // Socio autenticado → área privada del portal aikikan.
-  if (identity && !isAdminRole(identity.role)) {
-    return <MemberHome identity={identity} onLogout={handleLogout} />
-  }
-
+// Landing pública: la home / con todo el contenido de marketing.
+function LandingPage() {
   return (
-    <>
-      <Cursor />
-      <Nav onLoginOpen={() => setLoginOpen(true)} />
+    <div className="landing">
       <Hero />
       <PullQuote />
       <Recognition />
@@ -57,6 +31,87 @@ export default function App() {
       <Dojos />
       <Contact />
       <Footer />
+    </div>
+  )
+}
+
+// Guards: solo admins entran a /consola; solo socios a /area-socio.
+function RequireAdmin({ identity, children }) {
+  if (!identity || !isAdminRole(identity.role)) return <Navigate to="/" replace />
+  return children
+}
+function RequireMember({ identity, children }) {
+  if (!identity || isAdminRole(identity.role))  return <Navigate to="/" replace />
+  return children
+}
+
+export default function App() {
+  useScrollReveal()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [identity, setIdentity]   = useState(() => getIdentity())
+
+  // react-router v6 NO scrollea automáticamente al hash al cambiar de
+  // ruta. Cuando el Nav apunta a /#about y estamos en /consola, hay que
+  // hacerlo a mano: esperamos un tick para que la landing termine de
+  // montarse y luego scrollIntoView al elemento del id.
+  useEffect(() => {
+    if (!location.hash) return
+    const id = location.hash.slice(1)
+    const t = setTimeout(() => {
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+    return () => clearTimeout(t)
+  }, [location.pathname, location.hash])
+
+  function handleLoggedIn() {
+    const id = getIdentity()
+    setIdentity(id)
+    if (id && isAdminRole(id.role)) navigate('/consola')
+    else if (id)                     navigate('/area-socio')
+  }
+  function handleLogout() {
+    clearSession()
+    setIdentity(null)
+    navigate('/')
+  }
+
+  // El <Nav> y el <Cursor> envuelven a TODAS las rutas — la cabecera
+  // queda visible en /, /consola y /area-socio sin diferencia.
+  return (
+    <>
+      <Cursor />
+      <div className="landing">
+        <Nav
+          onLoginOpen={() => setLoginOpen(true)}
+          identity={identity}
+          onLogout={handleLogout}
+        />
+      </div>
+
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route
+          path="/consola"
+          element={
+            <RequireAdmin identity={identity}>
+              <AdminShell onExit={handleLogout} />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/area-socio"
+          element={
+            <RequireMember identity={identity}>
+              <MemberHome identity={identity} onLogout={handleLogout} />
+            </RequireMember>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
       {loginOpen && <Login onClose={() => setLoginOpen(false)} onLoggedIn={handleLoggedIn} />}
     </>
   )

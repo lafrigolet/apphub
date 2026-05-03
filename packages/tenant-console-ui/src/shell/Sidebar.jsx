@@ -2,7 +2,7 @@ import { useApp } from './lib/context'
 import { CATEGORIES, categoryLabel } from './lib/categories'
 import { icons } from './lib/icons'
 
-export default function Sidebar() {
+export default function Sidebar({ embedded = false }) {
   const { manifests, view, navigate } = useApp()
 
   // Bucket sidebar entries by category, preserving the order CATEGORIES
@@ -16,8 +16,15 @@ export default function Sidebar() {
     }
   }
 
+  // Standalone shell tiene su Topbar 56px arriba; embebido el host
+  // pone su propio Nav (76px en aikikan) — el sidebar offsetea
+  // distinto en cada caso para no quedar tapado.
+  const stickyClass = embedded
+    ? 'sticky top-[76px] self-start h-[calc(100vh-76px)] min-h-[calc(100vh-76px)]'
+    : 'sticky top-14 self-start h-[calc(100vh-56px)] min-h-[calc(100vh-56px)]'
+
   return (
-    <aside className="w-60 shrink-0 border-r border-line min-h-[calc(100vh-56px)] bg-paper sticky top-14 self-start h-[calc(100vh-56px)] overflow-y-auto">
+    <aside className={`w-60 shrink-0 border-r border-line bg-paper overflow-y-auto ${stickyClass}`}>
       <nav className="p-3">
         {/* Inicio is always visible. */}
         <button

@@ -35,5 +35,14 @@ export default function AdminShell({ onExit }) {
     return () => window.removeEventListener('apphub:unauthorized', handler)
   }, [onExit])
 
-  return <TenantAdminShell detectHostTenant={false} />
+  // El Nav fixed de la landing ocupa ~76px arriba. El shell embebido:
+  //   - suprime su Topbar interno (no duplicar barra superior),
+  //   - su Sidebar usa top:76 sticky,
+  //   - el wrapper exterior reserva 76px de padding-top para no
+  //     quedar tapado por el Nav.
+  return (
+    <div style={{ paddingTop: 76 }}>
+      <TenantAdminShell detectHostTenant={false} embedded={true} />
+    </div>
+  )
 }

@@ -74,15 +74,15 @@ function HostMismatchBanner() {
   )
 }
 
-function Shell() {
+function Shell({ embedded = false }) {
   const { identity, onLogin } = useApp()
   if (!identity) return <LoginView onSuccess={onLogin} />
   return (
     <div className="min-h-screen flex flex-col">
-      <HostMismatchBanner />
-      <Topbar />
+      {!embedded && <HostMismatchBanner />}
+      {!embedded && <Topbar />}
       <div className="flex-1 flex">
-        <Sidebar />
+        <Sidebar embedded={embedded} />
         <main className="flex-1 min-w-0">
           <MainContent />
         </main>
@@ -93,13 +93,16 @@ function Shell() {
   )
 }
 
-// Public shell entry. Hosts can pass `detectHostTenant={false}` when
-// embedding inside another portal whose subdomain is NOT a tenant
-// subdomain (e.g. aikikan-portal mounting the admin shell inline).
-export default function App({ detectHostTenant = true } = {}) {
+// Public shell entry. Hosts pass:
+//   - `detectHostTenant={false}` when embedding inside another portal
+//     whose subdomain is NOT a tenant subdomain.
+//   - `embedded={true}` to suppress the shell's own Topbar and the
+//     mismatch banner; the host's nav takes over the top of the page
+//     and the sidebar starts below it (76px offset).
+export default function App({ detectHostTenant = true, embedded = false } = {}) {
   return (
     <AppProvider detectHostTenant={detectHostTenant}>
-      <Shell />
+      <Shell embedded={embedded} />
     </AppProvider>
   )
 }

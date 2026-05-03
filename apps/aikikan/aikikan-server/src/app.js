@@ -8,6 +8,7 @@ import { appGuard } from '@apphub/platform-sdk/app-guard'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { logger } from './lib/logger.js'
 import { membersRoutes } from './routes/members.routes.js'
+import { eventsRoutes }  from './routes/events.routes.js'
 
 export function createApp() {
   const fastify = Fastify({ logger: false, ignoreTrailingSlash: true })
@@ -43,6 +44,7 @@ export function createApp() {
   }))
 
   fastify.register(membersRoutes)
+  fastify.register(eventsRoutes)
 
   fastify.setNotFoundHandler((req, reply) => {
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } })
