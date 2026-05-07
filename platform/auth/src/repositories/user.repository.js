@@ -111,3 +111,20 @@ export async function softDelete(client, id) {
   )
   return rowCount > 0
 }
+
+// Self-service profile update — sólo campos seguros (display_name por
+// ahora). Email y role NO se pueden cambiar desde aquí: cambio de email
+// debería pasar por un flujo de verificación; cambio de role siempre es
+// admin/staff. updated_at lo movemos para que la última edición quede en
+// audit-able shape.
+export async function updateProfile(client, id, { displayName }) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.users
+     SET display_name = COALESCE($2, display_name),
+         updated_at   = now()
+     WHERE id = $1
+     RETURNING ${PUBLIC_COLUMNS}`,
+    [id, displayName ?? null],
+  )
+  return rows[0] ?? null
+}

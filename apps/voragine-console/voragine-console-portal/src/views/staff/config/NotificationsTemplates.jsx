@@ -1,16 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../../context/AppContext'
 import { api } from '../../../lib/api'
 
 export default function NotificationsTemplates() {
   const { toast, navigate } = useApp()
   const [templates, setTemplates] = useState([])
+  const [supportedLocales, setSupportedLocales] = useState([])
   const [loading, setLoading] = useState(true)
+  const [localeFilter, setLocaleFilter] = useState('all')
 
   function reload() {
     setLoading(true)
-    api.get('/api/notifications/admin/templates')
-      .then((r) => setTemplates(r?.data ?? []))
+    Promise.all([
+      api.get('/api/notifications/admin/templates'),
+      api.get('/api/notifications/admin/locales').catch(() => ({ data: [] })),
+    ])
+      .then(([tmpls, locs]) => {
+        setTemplates(tmpls?.data ?? [])
+        setSupportedLocales((locs?.data ?? []).filter((l) => l.enabled))
+      })
       .catch((err) => toast(err.message ?? 'Error', 'danger'))
       .finally(() => setLoading(false))
   }
@@ -20,10 +28,43 @@ export default function NotificationsTemplates() {
   async function toggle(t) {
     try {
       await api.patch(`/api/notifications/admin/templates/${t.id}`, { enabled: !t.enabled })
-      toast(`Template ${t.key} ${t.enabled ? 'deshabilitada' : 'habilitada'}`)
+      toast(`Template ${t.key} (${t.locale}) ${t.enabled ? 'deshabilitada' : 'habilitada'}`)
       reload()
     } catch (err) { toast(err.message, 'danger') }
   }
+
+  async function newLocale(t) {
+    const options = supportedLocales.map((l) => `${l.locale} (${l.label})`).join(', ') || 'es, en'
+    const locale = window.prompt(`Nuevo locale para "${t.key}" (${t.channel}). Soportados: ${options}`, '')
+    if (!locale) return
+    try {
+      const created = await api.post('/api/notifications/admin/templates', {
+        key:       t.key,
+        channel:   t.channel,
+        locale:    locale.trim().toLowerCase(),
+        subject:   t.subject,
+        body_text: t.body_text,
+        body_html: t.body_html,
+        variables: t.variables,
+      })
+      toast(`Variante ${locale} creada — abre el editor`)
+      navigate('config-notifications-template-edit', { templateId: created?.data?.id })
+    } catch (err) { toast(err.message ?? 'Error', 'danger') }
+  }
+
+  // Prefer the supported_locales table; if it's empty fall back to the locales
+  // present in the existing rows so the UI still works in fresh installs.
+  const locales = useMemo(() => {
+    if (supportedLocales.length > 0) {
+      return ['all', ...supportedLocales.map((l) => l.locale)]
+    }
+    const s = new Set(templates.map((t) => t.locale).filter(Boolean))
+    return ['all', ...Array.from(s).sort()]
+  }, [templates, supportedLocales])
+
+  const visible = localeFilter === 'all'
+    ? templates
+    : templates.filter((t) => t.locale === localeFilter)
 
   if (loading) return <div className="p-10 text-center text-ink3">Cargando…</div>
 
@@ -35,9 +76,17 @@ export default function NotificationsTemplates() {
           <h1 className="font-display text-[44px] leading-none tracking-tight"><span className="italic font-normal">Plantillas</span></h1>
           <p className="text-ink3 mt-3 max-w-2xl">
             {templates.length} plantilla(s) registradas. Cualquier evento sin plantilla en DB cae al texto hardcoded del código.
+            La búsqueda usa <code className="font-mono">(key, channel, locale)</code>; si el locale pedido no existe se usa <code className="font-mono">es</code> como fallback.
           </p>
         </div>
         <button onClick={() => navigate('config-notifications')} className="btn btn-ghost">← Configuración</button>
+      </div>
+
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-[12px] uppercase tracking-[0.14em] text-ink3">Locale</span>
+        <select value={localeFilter} onChange={(e) => setLocaleFilter(e.target.value)} className="input">
+          {locales.map((l) => <option key={l} value={l}>{l === 'all' ? 'Todos' : l}</option>)}
+        </select>
       </div>
 
       <div className="card overflow-hidden">
@@ -46,6 +95,7 @@ export default function NotificationsTemplates() {
             <tr>
               <th className="text-left p-3">Key</th>
               <th className="text-left p-3">Channel</th>
+              <th className="text-left p-3">Locale</th>
               <th className="text-left p-3">Subject</th>
               <th className="text-left p-3">Vars</th>
               <th className="text-left p-3">Estado</th>
@@ -53,10 +103,11 @@ export default function NotificationsTemplates() {
             </tr>
           </thead>
           <tbody>
-            {templates.map((t) => (
+            {visible.map((t) => (
               <tr key={t.id} className="border-t border-line">
                 <td className="p-3 font-mono">{t.key}</td>
                 <td className="p-3">{t.channel}</td>
+                <td className="p-3 font-mono uppercase">{t.locale}</td>
                 <td className="p-3 max-w-xs truncate">{t.subject ?? <span className="text-ink3 italic">—</span>}</td>
                 <td className="p-3">
                   {(t.variables ?? []).map((v) => (
@@ -68,7 +119,8 @@ export default function NotificationsTemplates() {
                     {t.enabled ? '✓ habilitada' : '✗ deshabilitada'}
                   </button>
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right whitespace-nowrap">
+                  <button onClick={() => newLocale(t)} className="btn btn-ghost text-[12px] mr-1">+ Locale</button>
                   <button onClick={() => navigate('config-notifications-template-edit', { templateId: t.id })} className="btn btn-ghost text-[12px]">Editar</button>
                 </td>
               </tr>

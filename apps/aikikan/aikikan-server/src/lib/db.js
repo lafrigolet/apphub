@@ -1,0 +1,9 @@
+import { createPool, withTenantTransaction, withTransaction } from '@apphub/platform-sdk/db'
+import { env } from './env.js'
+import { logger } from './logger.js'
+
+export const pool = createPool(env.DATABASE_URL)
+pool.on('error', (err) => logger.error({ err }, 'PostgreSQL pool error'))
+
+// Re-export the SDK helpers so route/service code only imports from here.
+export { withTenantTransaction, withTransaction }

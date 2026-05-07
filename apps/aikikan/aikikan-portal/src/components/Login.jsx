@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import * as auth from '../lib/auth.js'
 
@@ -21,7 +20,7 @@ function GoogleButton({ onSuccess, onError, disabled }) {
   )
 }
 
-function LoginForm({ onClose }) {
+function LoginForm({ onClose, onLoggedIn }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,13 +28,16 @@ function LoginForm({ onClose }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const navigate = useNavigate()
 
-  function postLogin(data) {
+  // Después de cualquier flujo de login (password / Google / Facebook)
+  // notificamos al padre y cerramos el modal. El padre (App.jsx) decide
+  // qué montar según el rol:
+  //   admin → <AdminShell> (consola embebida, paquete @apphub/tenant-console-ui)
+  //   socio → <MemberHome>
+  // No hay hard-redirect: el admin se queda en aikikan.apphub.local.
+  function dispatchByRole(data) {
+    onLoggedIn?.(data)
     onClose()
-    if (data?.role === 'owner' || data?.role === 'admin') {
-      navigate('/consola')
-    }
   }
 
   async function handleSubmit(e) {
@@ -45,7 +47,7 @@ function LoginForm({ onClose }) {
     try {
       if (mode === 'login') {
         const data = await auth.login({ email, password })
-        postLogin(data)
+        dispatchByRole(data)
       } else {
         await auth.register({ email, password })
         setSuccess('Cuenta creada. Ahora puedes iniciar sesión.')
@@ -63,7 +65,7 @@ function LoginForm({ onClose }) {
     setLoading(true)
     try {
       const data = await auth.loginGoogle(accessToken)
-      postLogin(data)
+      dispatchByRole(data)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -77,7 +79,7 @@ function LoginForm({ onClose }) {
       if (response.authResponse?.accessToken) {
         setLoading(true)
         auth.loginFacebook(response.authResponse.accessToken)
-          .then(postLogin)
+          .then((data) => dispatchByRole(data))
           .catch((err) => setError(err.message))
           .finally(() => setLoading(false))
       } else {
@@ -173,11 +175,11 @@ function LoginForm({ onClose }) {
   )
 }
 
-export default function Login({ onClose }) {
+export default function Login({ onClose, onLoggedIn }) {
   return (
     <div className="login-overlay">
       <div className="login-backdrop" onClick={onClose}></div>
-      <LoginForm onClose={onClose} />
+      <LoginForm onClose={onClose} onLoggedIn={onLoggedIn} />
     </div>
   )
 }

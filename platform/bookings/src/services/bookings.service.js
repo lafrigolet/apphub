@@ -29,10 +29,37 @@ export async function createBooking(ctx, body) {
   if (new Date(body.endsAt) <= new Date(body.startsAt)) throw new ValidationError('endsAt must be after startsAt')
 
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
-    const b = await repo.insertBooking(c, ctx.appId, ctx.tenantId, {
+    // Optional hold-on-create flow: client first calls POST /v1/availability/holds
+    // to atomically reserve the slot, then sends holdId here. We re-validate
+    // the hold matches the booking window/resource and consume it inside the
+    // same transaction. The hold mechanism is what prevents two concurrent
+    // /v1/bookings calls from selling the same slot to different clients.
+    if (body.holdId) {
+      const hold = await repo.consumeHold(c, ctx.appId, ctx.tenantId, body.holdId)
+      if (!hold) throw new ConflictError('hold is invalid, expired, or already consumed')
+      if (!body.resourceIds.includes(hold.resource_id)) {
+        throw new ConflictError('hold resource does not match booking resources')
+      }
+      if (hold.starts_at.toISOString() !== new Date(body.startsAt).toISOString()
+          || hold.ends_at.toISOString() !== new Date(body.endsAt).toISOString()) {
+        throw new ConflictError('hold window does not match booking window')
+      }
+      if (hold.service_id !== body.serviceId) {
+        throw new ConflictError('hold serviceId does not match booking serviceId')
+      }
+    }
+
+    // Defence in depth: even when a valid hold was consumed we still run the
+    // overlap-guarded insert. An overlap here means an existing non-cancelled
+    // booking already owned the slot — e.g. from a recurrence-expander run
+    // that bypassed the hold flow.
+    const b = await repo.insertBookingAtomic(c, ctx.appId, ctx.tenantId, {
       ...body, subTenantId: ctx.subTenantId,
       clientUserId: body.clientUserId ?? ctx.userId,
+      resourceIds: body.resourceIds,
     })
+    if (!b) throw new ConflictError('slot already booked')
+
     for (const rid of body.resourceIds) {
       await repo.attachResource(c, ctx.appId, ctx.tenantId, b.id, rid)
     }
@@ -123,8 +150,110 @@ export async function reschedule(ctx, id, { startsAt, endsAt, reason }) {
   })
 }
 
-export async function cancelBooking(ctx, id, reason) {
-  return changeStatus(ctx, id, 'cancelled', reason)
+// ── Cancellation policy enforcement ────────────────────────────────────
+//
+// Each service can carry a JSONB cancellation_policy of the shape:
+//   {
+//     freeUpToMinutes:   1440,   // free if cancelled ≥ N min before start
+//     feePercent:        50,     // % of price_cents charged otherwise
+//     feeFlatCents:      null,   // OR a flat fee — feePercent wins when both set
+//     graceMinutesAfterCreate: 30  // free for the first N min after booking
+//   }
+//
+// We enforce in cancelBooking: compute fee_cents, persist on the booking
+// metadata, and publish booking.fee.charged so payments/splitpay can react.
+// Staff/super_admin bypass via { skipPolicy: true }.
+async function loadCancellationPolicy(client, ctx, serviceId) {
+  // Cross-schema read: bookings already has SELECT grant on platform_services.services
+  // through availability's mirror grant block. Guarded with try/catch so
+  // a missing grant returns no policy rather than blowing up.
+  try {
+    const { rows } = await client.query(
+      `SELECT cancellation_policy, price_cents, currency
+         FROM platform_services.services
+         WHERE app_id=$1 AND tenant_id=$2 AND id=$3 LIMIT 1`,
+      [ctx.appId, ctx.tenantId, serviceId],
+    )
+    return rows[0] ?? null
+  } catch { return null }
+}
+
+function evaluateCancellationFee(policy, { startsAt, createdAt, pricedAtCents }) {
+  if (!policy) return { feeCents: 0, reason: 'no policy' }
+  const now = Date.now()
+  const start = new Date(startsAt).getTime()
+  const created = new Date(createdAt).getTime()
+  const minutesUntilStart = Math.floor((start - now) / 60_000)
+  const minutesSinceCreate = Math.floor((now - created) / 60_000)
+
+  if (policy.graceMinutesAfterCreate && minutesSinceCreate < policy.graceMinutesAfterCreate) {
+    return { feeCents: 0, reason: `within ${policy.graceMinutesAfterCreate}-min grace window after create` }
+  }
+  if (policy.freeUpToMinutes != null && minutesUntilStart >= policy.freeUpToMinutes) {
+    return { feeCents: 0, reason: `cancelled ${minutesUntilStart} min before start (≥ ${policy.freeUpToMinutes})` }
+  }
+
+  let feeCents = 0
+  if (policy.feePercent != null) {
+    feeCents = Math.floor((Number(pricedAtCents) || 0) * (Number(policy.feePercent) / 100))
+  } else if (policy.feeFlatCents != null) {
+    feeCents = Number(policy.feeFlatCents) || 0
+  }
+  return { feeCents, reason: feeCents > 0 ? 'late cancellation fee' : 'no fee defined' }
+}
+
+export async function cancelBooking(ctx, id, reason, opts = {}) {
+  const skipPolicy = !!opts.skipPolicy && ['staff', 'super_admin'].includes(ctx.role)
+
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const b = await repo.findById(c, ctx.appId, ctx.tenantId, id)
+    if (!b) throw new NotFoundError('booking')
+    if (['cancelled', 'completed', 'rescheduled'].includes(b.status)) {
+      throw new ConflictError(`cannot cancel a booking in status ${b.status}`)
+    }
+
+    let feeCents = 0
+    let policyReason = 'policy bypassed by staff'
+    if (!skipPolicy) {
+      const svc = await loadCancellationPolicy(c, ctx, b.service_id)
+      const verdict = evaluateCancellationFee(svc?.cancellation_policy, {
+        startsAt:        b.starts_at,
+        createdAt:       b.created_at,
+        pricedAtCents:   b.price_cents ?? svc?.price_cents ?? 0,
+      })
+      feeCents = verdict.feeCents
+      policyReason = verdict.reason
+    }
+
+    if (!transitionAllowed(b.status, 'cancelled')) {
+      throw new ConflictError(`cannot transition booking from ${b.status} to cancelled`)
+    }
+    const updated = await repo.setStatus(c, ctx.appId, ctx.tenantId, id, 'cancelled')
+    await repo.recordEvent(c, ctx.appId, ctx.tenantId, id, b.status, 'cancelled', ctx.userId, reason ?? 'cancelled')
+
+    await publish({
+      type: 'booking.cancelled',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId, bookingId: id,
+        clientUserId: b.client_user_id, clientEmail: b.client_email, clientPhone: b.client_phone,
+        clientName: b.client_name, startsAt: b.starts_at, reason,
+        feeCents, feeReason: policyReason,
+      },
+    })
+
+    if (feeCents > 0) {
+      await publish({
+        type: 'booking.fee.charged',
+        payload: {
+          appId: ctx.appId, tenantId: ctx.tenantId,
+          bookingId: id, clientUserId: b.client_user_id,
+          feeCents, currency: b.currency ?? null,
+          reason: 'late_cancellation', policyReason,
+        },
+      })
+    }
+    return updated
+  })
 }
 
 // Waitlist

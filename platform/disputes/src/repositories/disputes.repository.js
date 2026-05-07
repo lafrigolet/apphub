@@ -100,3 +100,38 @@ export async function listEvidence(client, appId, tenantId, disputeId) {
   )
   return rows
 }
+
+// ── Stripe sync + refund tracking ───────────────────────────────────────
+
+export async function setStripeDisputeId(client, appId, tenantId, id, stripeDisputeId) {
+  const { rows } = await client.query(
+    `UPDATE platform_disputes.disputes
+        SET stripe_dispute_id = $4
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+      RETURNING *`,
+    [appId, tenantId, id, stripeDisputeId],
+  )
+  return rows[0] ?? null
+}
+
+export async function markRefundRequested(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `UPDATE platform_disputes.disputes
+        SET refund_requested_at = COALESCE(refund_requested_at, now())
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+      RETURNING refund_requested_at, resolution_amount_cents, order_id, stripe_dispute_id`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
+export async function markEvidenceSubmitted(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `UPDATE platform_disputes.disputes
+        SET evidence_submitted_at = now()
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+      RETURNING evidence_submitted_at`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}

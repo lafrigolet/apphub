@@ -1,12 +1,35 @@
 const SCHEMA = 'platform_bookings'
 
-export async function insertBooking(client, appId, tenantId, b) {
+// Atomic insert that refuses if any non-cancelled booking already overlaps
+// the same time window on any of the requested resources. The overlap test
+// uses tstzrange(...) && tstzrange(...) — same operator availability uses to
+// gate hold creation. Returns null if a conflict was detected so the caller
+// can map it to 409 SLOT_TAKEN.
+//
+// `resourceIds` is required: the check is per-resource, so a booking with no
+// resources couldn't be guarded. `bookings.service.createBooking` already
+// validates this.
+export async function insertBookingAtomic(client, appId, tenantId, b) {
+  if (!Array.isArray(b.resourceIds) || b.resourceIds.length === 0) {
+    throw new Error('resourceIds required for atomic insert')
+  }
   const { rows } = await client.query(
-    `INSERT INTO ${SCHEMA}.bookings
+    `WITH overlapping AS (
+       SELECT 1
+       FROM ${SCHEMA}.bookings ob
+       JOIN ${SCHEMA}.booking_resources obr ON obr.booking_id = ob.id
+       WHERE ob.app_id = $1 AND ob.tenant_id = $2
+         AND obr.resource_id = ANY($21::uuid[])
+         AND ob.status NOT IN ('cancelled','no_show','rescheduled','completed')
+         AND tstzrange(ob.starts_at, ob.ends_at, '[)')
+             && tstzrange($9::timestamptz, $10::timestamptz, '[)')
+     )
+     INSERT INTO ${SCHEMA}.bookings
        (app_id, tenant_id, sub_tenant_id, service_id, client_user_id, client_name, client_email, client_phone,
         starts_at, ends_at, status, notes, internal_notes,
-        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb))
+        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata, locale)
+     SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb),$22
+     WHERE NOT EXISTS (SELECT 1 FROM overlapping)
      RETURNING *`,
     [
       appId, tenantId, b.subTenantId ?? null, b.serviceId, b.clientUserId,
@@ -15,9 +38,49 @@ export async function insertBooking(client, appId, tenantId, b) {
       b.notes ?? null, b.internalNotes ?? null,
       b.recurrenceId ?? null, b.parentBookingId ?? null, b.packageId ?? null,
       b.priceCents ?? null, b.currency ?? null, b.source ?? 'portal', b.metadata ?? {},
+      b.resourceIds,
+      b.locale ?? null,
+    ],
+  )
+  return rows[0] ?? null
+}
+
+// Legacy unguarded insert — kept for callers that don't deal in resource
+// windows (recurrence expander, waitlist conversions, internal admin).
+// New code should prefer insertBookingAtomic.
+export async function insertBooking(client, appId, tenantId, b) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.bookings
+       (app_id, tenant_id, sub_tenant_id, service_id, client_user_id, client_name, client_email, client_phone,
+        starts_at, ends_at, status, notes, internal_notes,
+        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata, locale)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb),$21)
+     RETURNING *`,
+    [
+      appId, tenantId, b.subTenantId ?? null, b.serviceId, b.clientUserId,
+      b.clientName ?? null, b.clientEmail ?? null, b.clientPhone ?? null,
+      b.startsAt, b.endsAt, b.status ?? 'requested',
+      b.notes ?? null, b.internalNotes ?? null,
+      b.recurrenceId ?? null, b.parentBookingId ?? null, b.packageId ?? null,
+      b.priceCents ?? null, b.currency ?? null, b.source ?? 'portal', b.metadata ?? {},
+      b.locale ?? null,
     ],
   )
   return rows[0]
+}
+
+// Atomic hold consume: deletes the hold if it still exists and is not
+// expired, returning the row so the caller can validate its window/resource
+// match the booking being created. Returns null on miss (expired, deleted,
+// or wrong tenant).
+export async function consumeHold(client, appId, tenantId, holdId) {
+  const { rows } = await client.query(
+    `DELETE FROM platform_availability.holds
+      WHERE app_id = $1 AND tenant_id = $2 AND id = $3 AND expires_at > now()
+      RETURNING id, service_id, resource_id, starts_at, ends_at, client_user_id`,
+    [appId, tenantId, holdId],
+  )
+  return rows[0] ?? null
 }
 
 export async function attachResource(client, appId, tenantId, bookingId, resourceId) {

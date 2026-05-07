@@ -4,14 +4,15 @@ export async function insertReservation(client, r) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.reservations
        (app_id, tenant_id, sub_tenant_id, guest_user_id, guest_name, guest_email, guest_phone,
-        party_size, reserved_for, duration_minutes, table_id, status, notes, source)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE($10,90),$11,COALESCE($12,'requested'),$13,COALESCE($14,'portal'))
+        party_size, reserved_for, duration_minutes, table_id, status, notes, source, locale)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE($10,90),$11,COALESCE($12,'requested'),$13,COALESCE($14,'portal'),$15)
      RETURNING *`,
     [
       r.appId, r.tenantId, r.subTenantId ?? null, r.guestUserId ?? null,
       r.guestName, r.guestEmail ?? null, r.guestPhone ?? null,
       r.partySize, r.reservedFor, r.durationMinutes ?? 90,
       r.tableId ?? null, r.status ?? 'requested', r.notes ?? null, r.source ?? 'portal',
+      r.locale ?? null,
     ],
   )
   return rows[0]

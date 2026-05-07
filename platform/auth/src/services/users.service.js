@@ -80,6 +80,27 @@ export async function changeRole({ id, role }, identity) {
   })
 }
 
+// Self-service: cualquier usuario autenticado puede leer/actualizar su
+// propio perfil. El JWT (req.identity) es la única fuente de verdad sobre
+// quién es; ningún parámetro lo identifica.
+export async function getMe(identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+  return withStaffContext(async (client) => {
+    const user = await userRepo.findAnywhereById(client, identity.userId)
+    if (!user) throw new NotFoundError('User')
+    return user
+  })
+}
+
+export async function updateMe({ displayName }, identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+  return withStaffContext(async (client) => {
+    const updated = await userRepo.updateProfile(client, identity.userId, { displayName })
+    if (!updated) throw new NotFoundError('User')
+    return updated
+  })
+}
+
 export async function revokeUser({ id }, identity) {
   if (!identity?.userId) throw new ForbiddenError()
   if (id === identity.userId) throw new ForbiddenError('Cannot revoke yourself')

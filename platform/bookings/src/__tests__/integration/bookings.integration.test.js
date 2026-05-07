@@ -73,6 +73,35 @@ describe('createBooking', () => {
     body.endsAt = body.startsAt
     await expect(createBooking(ctx(), body)).rejects.toThrow(ValidationError)
   })
+
+  it('rejects with ConflictError when an existing non-cancelled booking overlaps the same resource window', async () => {
+    const sharedResource = uuidv4()
+    const first  = buildBooking()
+    const second = buildBooking()
+    first.resourceIds  = [sharedResource]
+    second.resourceIds = [sharedResource]
+    // Same window — should collide.
+    second.startsAt = first.startsAt
+    second.endsAt   = first.endsAt
+
+    await createBooking(ctx(), first)
+    await expect(createBooking(ctx(), second)).rejects.toThrow(ConflictError)
+  })
+
+  it('does NOT collide when one of the overlapping bookings was cancelled', async () => {
+    const sharedResource = uuidv4()
+    const first  = buildBooking()
+    first.resourceIds  = [sharedResource]
+    const a = await createBooking(ctx(), first)
+    await cancelBooking(ctx(), a.id, 'free up the slot')
+
+    const second = buildBooking()
+    second.resourceIds = [sharedResource]
+    second.startsAt = first.startsAt
+    second.endsAt   = first.endsAt
+    const b = await createBooking(ctx(), second)
+    expect(b.id).not.toBe(a.id)
+  })
 })
 
 describe('FSM', () => {

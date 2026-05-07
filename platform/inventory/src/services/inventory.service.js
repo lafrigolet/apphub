@@ -16,10 +16,13 @@ export async function listItems(ctx, opts) {
   )
 }
 
-export async function upsertItem(ctx, { sku, qtyOnHand, lowStockThreshold }) {
+export async function upsertItem(ctx, { sku, qtyOnHand, lowStockThreshold, parentSku, optionValues, displayName }) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
     const before = await repo.findBySku(client, ctx.appId, ctx.tenantId, sku)
-    const after  = await repo.upsert(client, { appId: ctx.appId, tenantId: ctx.tenantId, sku, qtyOnHand, lowStockThreshold })
+    const after  = await repo.upsert(client, {
+      appId: ctx.appId, tenantId: ctx.tenantId, sku, qtyOnHand, lowStockThreshold,
+      parentSku, optionValues, displayName,
+    })
     const delta = after.qty_on_hand - (before?.qty_on_hand ?? 0)
     if (delta !== 0) {
       await repo.recordMovement(client, {
@@ -29,6 +32,43 @@ export async function upsertItem(ctx, { sku, qtyOnHand, lowStockThreshold }) {
     }
     await publish({ type: 'inventory.adjusted', payload: { appId: ctx.appId, tenantId: ctx.tenantId, sku, qtyOnHand: after.qty_on_hand } })
     return after
+  })
+}
+
+// ── Variants ────────────────────────────────────────────────────────────
+
+export async function listVariants(ctx, parentSku) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
+    const parent = await repo.findBySku(client, ctx.appId, ctx.tenantId, parentSku)
+    if (!parent) throw new NotFoundError('parent SKU')
+    const variants = await repo.listVariants(client, ctx.appId, ctx.tenantId, parentSku)
+    return { parent, variants }
+  })
+}
+
+export async function addVariant(ctx, parentSku, { sku, optionValues, qtyOnHand, lowStockThreshold, displayName }) {
+  if (!sku || sku === parentSku) throw new ConflictError('variant SKU must differ from parent SKU')
+  if (!optionValues || Object.keys(optionValues).length === 0) {
+    throw new ConflictError('variant requires at least one option value (e.g. {"size":"M"})')
+  }
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
+    const parent = await repo.findBySku(client, ctx.appId, ctx.tenantId, parentSku)
+    if (!parent) throw new NotFoundError('parent SKU')
+    if (parent.parent_sku) throw new ConflictError('parent SKU is itself a variant — flatten the hierarchy')
+
+    const existing = await repo.findByParentAndOptions(client, ctx.appId, ctx.tenantId, parentSku, optionValues)
+    if (existing) throw new ConflictError(`variant for these options already exists (sku=${existing.sku})`)
+
+    try {
+      return await repo.upsert(client, {
+        appId: ctx.appId, tenantId: ctx.tenantId,
+        sku, qtyOnHand: qtyOnHand ?? 0, lowStockThreshold,
+        parentSku, optionValues, displayName,
+      })
+    } catch (err) {
+      if (err.code === '23505') throw new ConflictError('variant collides with an existing row')
+      throw err
+    }
   })
 }
 

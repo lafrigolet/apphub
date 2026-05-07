@@ -136,6 +136,14 @@ Every JWT issued by `platform/auth` carries:
     from another `platform/<module>/`. Cross-module communication goes through (a) the
     module's public HTTP API, (b) Redis pub/sub on `platform.events`, or (c) shared utilities
     in `@apphub/platform-sdk`. This is what keeps the monolith ready to split.
+14. **App-specific code is a monolith with one schema** — see ADR 013. New apps live in
+    `apps/<app>/<app>-server/` with a single schema `app_<app>` and a single role
+    `svc_app_<app>`. Granular schema separation is reserved for `platform_*`. Tenant
+    isolation in `app_<app>` is by row (`(app_id, tenant_id, sub_tenant_id)` + RLS),
+    same as in `platform_*`. The app monolith MUST NOT cross-schema-read `platform_*`;
+    it talks to platform via HTTP module APIs or Redis events. Legacy apps keeping the
+    multi-schema layout (yoga-studio's `yoga_*` schemas) are documented as such; new
+    apps default to `app_<app>`.
 
 ## Modular monolith architecture
 
@@ -215,8 +223,11 @@ separate container.
 - Database columns: `snake_case`
 - Environment variables: `SCREAMING_SNAKE_CASE`
 - API routes: `/v1/resource-name` (kebab, versioned)
-- Platform schemas: `platform_auth`, `platform_payments`, … (prefix `platform_`)
-- App schemas: `yoga_classes`, `splitpay_core`, … (prefix `{app}_`)
+- Platform schemas: `platform_<modulo>` (prefix `platform_`); role `svc_platform_<modulo>`
+- App schemas: `app_<app>` (single schema per app, prefix `app_`); role `svc_app_<app>`.
+  See ADR 013. Legacy apps may keep their pre-ADR layout (yoga-studio uses `yoga_users`,
+  `yoga_classes`, `yoga_bookings`, `yoga_bonuses`, `yoga_reporting`); new apps must use
+  `app_<app>`.
 
 ## Commands
 
@@ -357,27 +368,42 @@ to the `platform-core` container; does **not** create a new container.
    role URL, call `await module.runMigrations(MIGRATION_DATABASE_URL)`, then
    `await module.register({ app, db, redis, logger })`.
 
-### Step 5 — CREATE a new app-specific service (ports 3030+)
+### Step 5 — CREATE the app monolith (one container per app, ports 3030+)
 
-Used for concerns that only apply to one app. **App-specific services run in their own
-container** (unlike platform modules), so they need the full standalone scaffold.
+Per ADR 013, app-specific code runs in **one monolith container per app** with a
+**single schema `app_<app>` and a single role `svc_app_<app>`**. Different domains
+(members, events, dues, …) live in folders within the same `src/` tree, NOT in
+separate schemas. Granular schema separation is reserved for `platform_*` modules.
 
 1. **Determine port**: scan `docker-compose.yml` + `upstream.conf`; pick the lowest free
-   port above the app's existing service ports
-2. Create `apps/<name>/<name>-<svc>/` with full scaffold:
-   - `package.json` — name `@<name>/<name>-<svc>`; deps: fastify, @fastify/helmet,
+   port ≥ 3030.
+2. Create `apps/<app>/<app>-server/` with the full scaffold:
+   - `package.json` — name `@<app>/<app>-server`; deps: fastify, @fastify/helmet,
      @fastify/cors, @fastify/sensible, @fastify/rate-limit, @apphub/platform-sdk, dotenv,
-     ajv-formats
-   - `src/app.js` — same registration pattern as `platform/auth/src/app.js` pre-monolith
-     (helmet, cors, rate-limit, appGuard, sensible, route files)
-   - `src/server.js` — `migrate()` then `app.listen`
-   - `src/lib/{env,logger,db,redis,migrate}.js`
-   - `src/routes/<resource>.routes.js`, `src/services/<resource>.service.js`,
-     `src/repositories/<resource>.repository.js`
-   - `migrations/001_init.sql` — schema `<app>_<svc>`, role `svc_<app>_<svc>`, tables, RLS
+     ajv-formats, pg, ioredis.
+   - `src/app.js` — same registration pattern as `platform/auth/src/app.js`
+     (helmet, cors, rate-limit, appGuard with `EXPECTED_APP_ID=<app>`, sensible,
+     route files for every dominio).
+   - `src/server.js` — `runMigrations()` then `app.listen({ port: 3030, host: '0.0.0.0' })`.
+   - `src/lib/{env,logger,db,redis,migrate}.js`. The `db.js` exposes a single Pool
+     using `svc_app_<app>` and the `withTenantTransaction` helper from
+     `@apphub/platform-sdk/db`.
+   - `src/routes/<dominio>.routes.js`, `src/services/<dominio>.service.js`,
+     `src/repositories/<dominio>.repository.js` — one set per dominio. ALL repos
+     query `app_<app>.<table>` (the same single schema) — never another app's, never
+     `platform_*`.
+   - `src/events/` — Redis subscribers to `platform:events` (e.g. `user.revoked` →
+     delete the matching row in the app's tables).
+   - `migrations/001_init.sql`, `migrations/0002_…sql`, … — one shared sequence; tables
+     across all dominios live here. The schema and role themselves are provisioned in
+     `infra/postgres/init/<N>_app_<app>_schema.sql`, not in the migrations.
    - `Dockerfile` — workspace-context multi-stage; copy pnpm-workspace.yaml + packages/ +
-     `apps/<name>/<name>-<svc>/package.json`; install
-     `--filter @<name>/<name>-<svc>`; copy src; `CMD ["node", "src/server.js"]`
+     `apps/<app>/<app>-server/package.json`; install `--filter @<app>/<app>-server`;
+     copy src; `CMD ["node", "--watch", "src/server.js"]` (development) /
+     `CMD ["node", "src/server.js"]` (production).
+3. Cross-app communication MUST use HTTP module APIs or Redis events. Direct SQL
+   into `platform_*` from the app monolith is forbidden — same rule as between
+   platform modules.
 
 ### Step 6 — PostgreSQL init SQL
 

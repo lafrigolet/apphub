@@ -86,3 +86,96 @@ export async function remove(ctx, id) {
     if (!ok) throw new NotFoundError('review')
   })
 }
+
+// ── Voting (helpful / unhelpful) ─────────────────────────────────────────
+
+export async function vote(ctx, reviewId, voteValue) {
+  if (![-1, 1].includes(voteValue)) throw new ValidationError('voteValue must be -1 or 1')
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const review = await repo.findById(c, ctx.appId, ctx.tenantId, reviewId)
+    if (!review) throw new NotFoundError('review')
+    if (review.buyer_user_id === ctx.userId) {
+      throw new ConflictError('cannot vote on your own review')
+    }
+    await repo.upsertVote(c, ctx.appId, ctx.tenantId, reviewId, ctx.userId, voteValue)
+    return repo.recomputeVoteCounts(c, ctx.appId, ctx.tenantId, reviewId)
+  })
+}
+
+export async function unvote(ctx, reviewId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const review = await repo.findById(c, ctx.appId, ctx.tenantId, reviewId)
+    if (!review) throw new NotFoundError('review')
+    await repo.deleteVote(c, ctx.appId, ctx.tenantId, reviewId, ctx.userId)
+    return repo.recomputeVoteCounts(c, ctx.appId, ctx.tenantId, reviewId)
+  })
+}
+
+// ── Media (photo/video) ─────────────────────────────────────────────────
+
+export async function attachMedia(ctx, reviewId, body) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const review = await repo.findById(c, ctx.appId, ctx.tenantId, reviewId)
+    if (!review) throw new NotFoundError('review')
+    if (review.buyer_user_id !== ctx.userId && !['staff', 'super_admin'].includes(ctx.role)) {
+      throw new ConflictError('only the review author can attach media')
+    }
+    return repo.insertMedia(c, ctx.appId, ctx.tenantId, reviewId, body)
+  })
+}
+
+export async function listMedia(ctx, reviewId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listMedia(c, ctx.appId, ctx.tenantId, reviewId),
+  )
+}
+
+export async function detachMedia(ctx, mediaId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const ok = await repo.deleteMedia(c, ctx.appId, ctx.tenantId, mediaId)
+    if (!ok) throw new NotFoundError('media')
+  })
+}
+
+// ── Schema.org JSON-LD (SEO) ─────────────────────────────────────────────
+//
+// Returns an aggregateRating + a few sample reviews shaped according to
+// schema.org/Product. Frontends can drop this directly into a
+// <script type="application/ld+json"> tag on PDP pages so Google / Bing
+// surface star ratings in SERP. We deliberately don't embed PII (no
+// reviewer email/full name); only the rating, title, and body excerpt.
+export async function jsonLd(ctx, query) {
+  if (!query.targetType || !query.targetId) throw new ValidationError('targetType and targetId required')
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const agg     = await repo.aggregate(c, ctx.appId, ctx.tenantId, query)
+    const reviews = await repo.listByTarget(c, ctx.appId, ctx.tenantId, { ...query, status: 'published', limit: 10, offset: 0 })
+
+    const isProduct = query.targetType === 'product'
+    const root = {
+      '@context': 'https://schema.org',
+      '@type':    isProduct ? 'Product' : 'Organization',
+      name:       query.targetName ?? query.targetId,
+      ...(isProduct ? { sku: query.targetId } : { identifier: query.targetId }),
+    }
+    if (Number(agg.count) > 0) {
+      root.aggregateRating = {
+        '@type':       'AggregateRating',
+        ratingValue:   Number(agg.average),
+        reviewCount:   Number(agg.count),
+        bestRating:    5,
+        worstRating:   1,
+      }
+    }
+    if (reviews.length > 0) {
+      root.review = reviews.map((r) => ({
+        '@type':         'Review',
+        reviewRating:    { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 },
+        author:          { '@type': 'Person', name: 'Verified buyer' },
+        reviewBody:      (r.body || '').slice(0, 1000),
+        ...(r.title ? { name: r.title } : {}),
+        datePublished:   new Date(r.created_at).toISOString().slice(0, 10),
+      }))
+    }
+    return root
+  })
+}

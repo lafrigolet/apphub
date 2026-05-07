@@ -92,3 +92,75 @@ export async function listCategories(client, appId, tenantId) {
   )
   return rows
 }
+
+// ── Photo gallery (object_id ref into platform_storage) ─────────────────
+
+export async function listImages(client, appId, tenantId, serviceId) {
+  const { rows } = await client.query(
+    `SELECT id, service_id, object_id, alt_text, display_order, created_at
+       FROM platform_services.service_images
+       WHERE app_id=$1 AND tenant_id=$2 AND service_id=$3
+       ORDER BY display_order, created_at`,
+    [appId, tenantId, serviceId],
+  )
+  return rows
+}
+
+export async function insertImage(client, appId, tenantId, serviceId, { objectId, altText, displayOrder }) {
+  const { rows } = await client.query(
+    `INSERT INTO platform_services.service_images
+       (app_id, tenant_id, service_id, object_id, alt_text, display_order)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0))
+     RETURNING *`,
+    [appId, tenantId, serviceId, objectId, altText ?? null, displayOrder ?? 0],
+  )
+  return rows[0]
+}
+
+export async function deleteImage(client, appId, tenantId, imageId) {
+  const { rowCount } = await client.query(
+    `DELETE FROM platform_services.service_images
+       WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, imageId],
+  )
+  return rowCount > 0
+}
+
+// ── Pricing tiers ───────────────────────────────────────────────────────
+
+export async function listPricingTiers(client, appId, tenantId, serviceId) {
+  const { rows } = await client.query(
+    `SELECT * FROM platform_services.service_pricing_tiers
+       WHERE app_id=$1 AND tenant_id=$2 AND service_id=$3
+       ORDER BY created_at`,
+    [appId, tenantId, serviceId],
+  )
+  return rows
+}
+
+export async function insertPricingTier(client, appId, tenantId, serviceId, t) {
+  const { rows } = await client.query(
+    `INSERT INTO platform_services.service_pricing_tiers
+       (app_id, tenant_id, service_id, label, days_of_week, start_minute, end_minute, price_cents, enabled)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, TRUE))
+     RETURNING *`,
+    [
+      appId, tenantId, serviceId, t.label,
+      t.daysOfWeek ?? null,
+      t.startMinute ?? null,
+      t.endMinute ?? null,
+      t.priceCents,
+      t.enabled,
+    ],
+  )
+  return rows[0]
+}
+
+export async function deletePricingTier(client, appId, tenantId, tierId) {
+  const { rowCount } = await client.query(
+    `DELETE FROM platform_services.service_pricing_tiers
+       WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, tierId],
+  )
+  return rowCount > 0
+}

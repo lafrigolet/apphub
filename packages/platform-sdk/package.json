@@ -12,7 +12,8 @@
     "./logger": "./src/logger.js",
     "./redis": "./src/redis.js",
     "./storage": "./src/storage.js",
-    "./crypto": "./src/crypto.js"
+    "./crypto": "./src/crypto.js",
+    "./simple-pdf": "./src/simple-pdf.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.621.0",

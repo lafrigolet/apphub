@@ -73,4 +73,65 @@ export async function packagesRoutes(fastify) {
     const body = redeemBody.parse(req.body)
     return service.refundSession(ctxFromRequest(req), body)
   })
+
+  // ── Family sharing ───────────────────────────────────────────────────
+  const sharingTags  = ['packages · sharing']
+  const transferTags = ['packages · transfers']
+  const renewalTags  = ['packages · renewal']
+  const idParams     = z.object({ id: z.string().uuid() })
+  const userIdParams = z.object({ id: z.string().uuid(), userId: z.string().uuid() })
+  const shareBody    = z.object({
+    userId:      z.string().uuid(),
+    displayName: z.string().max(128).optional(),
+  })
+  const transferBody = z.object({
+    toUserId:    z.string().uuid(),
+    kind:        z.enum(['transfer', 'gift']).optional(),
+    message:     z.string().max(500).optional(),
+  })
+  const autoRenewBody = z.object({ autoRenew: z.boolean() })
+
+  fastify.get('/v1/packages/purchases/:id/authorized-users', {
+    schema: { tags: sharingTags, summary: 'List users authorised to redeem this package', params: idParams },
+  }, async (req) => ({ data: await service.listAuthorizedUsers(ctxFromRequest(req), req.params.id) }))
+
+  fastify.post('/v1/packages/purchases/:id/authorized-users', {
+    schema: { tags: sharingTags, summary: 'Authorise another user to redeem this package', params: idParams, body: shareBody },
+  }, async (req, reply) => {
+    const body = shareBody.parse(req.body)
+    return reply.status(201).send(await service.addAuthorizedUser(ctxFromRequest(req), req.params.id, body))
+  })
+
+  fastify.delete('/v1/packages/purchases/:id/authorized-users/:userId', {
+    schema: { tags: sharingTags, summary: 'Revoke authorised access', params: userIdParams },
+  }, async (req, reply) => {
+    await service.removeAuthorizedUser(ctxFromRequest(req), req.params.id, req.params.userId)
+    return reply.status(204).send()
+  })
+
+  // ── Transfer / gifting ───────────────────────────────────────────────
+  fastify.post('/v1/packages/purchases/:id/transfer', {
+    schema: { tags: transferTags, summary: 'Transfer or gift the package to another user', params: idParams, body: transferBody },
+  }, async (req) => {
+    const body = transferBody.parse(req.body)
+    return service.transferPackage(ctxFromRequest(req), req.params.id, body)
+  })
+
+  fastify.get('/v1/packages/purchases/:id/transfers', {
+    schema: { tags: transferTags, summary: 'List transfer history of this package', params: idParams },
+  }, async (req) => ({ data: await service.listTransfers(ctxFromRequest(req), req.params.id) }))
+
+  // ── Auto-renew toggle + manual renew ─────────────────────────────────
+  fastify.put('/v1/packages/purchases/:id/auto-renew', {
+    schema: { tags: renewalTags, summary: 'Toggle auto-renewal on a package', params: idParams, body: autoRenewBody },
+  }, async (req) => {
+    const body = autoRenewBody.parse(req.body)
+    return service.setAutoRenew(ctxFromRequest(req), req.params.id, body.autoRenew)
+  })
+
+  fastify.post('/v1/packages/purchases/:id/renew', {
+    schema: { tags: renewalTags, summary: 'Manually renew a package (clones the template into a fresh purchase)', params: idParams },
+  }, async (req, reply) => {
+    return reply.status(201).send(await service.renewPackage(ctxFromRequest(req), req.params.id))
+  })
 }

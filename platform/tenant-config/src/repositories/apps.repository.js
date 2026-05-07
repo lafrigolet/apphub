@@ -1,5 +1,5 @@
 const APP_COLUMNS = `
-  id, app_id, display_name, subdomain, jwt_audience, status, splitpay_enabled, created_at
+  id, app_id, display_name, subdomain, jwt_audience, status, splitpay_enabled, enabled_modules, created_at
 `
 
 export async function findAll(client) {
@@ -41,6 +41,15 @@ export async function updateSplitpayEnabled(client, appId, enabled) {
     `UPDATE platform_tenants.apps SET splitpay_enabled = $2 WHERE app_id = $1
      RETURNING ${APP_COLUMNS}`,
     [appId, enabled],
+  )
+  return rows[0] ?? null
+}
+
+export async function updateEnabledModules(client, appId, modules) {
+  const { rows } = await client.query(
+    `UPDATE platform_tenants.apps SET enabled_modules = $2 WHERE app_id = $1
+     RETURNING ${APP_COLUMNS}`,
+    [appId, modules],
   )
   return rows[0] ?? null
 }

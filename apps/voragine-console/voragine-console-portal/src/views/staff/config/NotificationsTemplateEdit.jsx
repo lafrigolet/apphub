@@ -24,7 +24,11 @@ export default function NotificationsTemplateEdit() {
     setSaving(true)
     try {
       await api.patch(`/api/notifications/admin/templates/${id}`, {
-        subject: t.subject, body_text: t.body_text, body_html: t.body_html, variables: t.variables,
+        locale:    t.locale,
+        subject:   t.subject,
+        body_text: t.body_text,
+        body_html: t.body_html,
+        variables: t.variables,
       })
       toast('Plantilla guardada')
       reload()
@@ -45,10 +49,26 @@ export default function NotificationsTemplateEdit() {
     <div className="p-8 max-w-4xl fade-up">
       <div className="mb-6">
         <button onClick={() => navigate('config-notifications-templates')} className="text-[12px] text-ink3 hover:text-ink">← Plantillas</button>
-        <h1 className="font-display text-[36px] mt-2"><span className="italic font-normal">{t.key}</span></h1>
+        <h1 className="font-display text-[36px] mt-2">
+          <span className="italic font-normal">{t.key}</span>
+          <span className="ml-3 text-[14px] uppercase tracking-wider px-2 py-0.5 rounded bg-paper2 text-ink2 align-middle font-mono">
+            {t.channel} · {t.locale}
+          </span>
+        </h1>
       </div>
 
       <div className="card p-6 space-y-5">
+        <div>
+          <label className="block text-[12px] uppercase tracking-[0.14em] text-ink3 mb-1">Locale</label>
+          <input
+            value={t.locale ?? ''}
+            onChange={(e) => setT({ ...t, locale: e.target.value.trim().toLowerCase() })}
+            placeholder="es"
+            className="input w-32 font-mono"
+          />
+          <div className="text-[11px] text-ink3 mt-1">Cambiar el locale crea/migra esta fila a esa variante. Mantén único <code className="font-mono">(key, channel, locale)</code>.</div>
+        </div>
+
         <div>
           <label className="block text-[12px] uppercase tracking-[0.14em] text-ink3 mb-1">Subject</label>
           <input value={t.subject ?? ''} onChange={(e) => setT({ ...t, subject: e.target.value })} className="input w-full" />

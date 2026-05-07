@@ -183,3 +183,51 @@ export async function handleEvent(event) {
 }
 
 export { subscribe }
+
+// ── PDF report (period statement) ───────────────────────────────────────
+import { createTextPdf } from '@apphub/platform-sdk/simple-pdf'
+
+function fmtAmount(cents, currency) {
+  if (cents == null) return ''
+  try {
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: currency || 'EUR' })
+      .format(cents / 100)
+  } catch { return `${(cents / 100).toFixed(2)} ${currency || ''}`.trim() }
+}
+
+export async function exportPayoutPdf(ctx, payoutId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const payout = await repo.findPayoutById(c, ctx.appId, ctx.tenantId, payoutId)
+    if (!payout) throw new NotFoundError('payout')
+    const accruals = await repo.listAccruals(c, ctx.appId, ctx.tenantId, {
+      practitionerId: payout.practitioner_id,
+      from:           payout.period_start,
+      to:             payout.period_end,
+    })
+
+    const lines = []
+    lines.push(`Profesional: ${payout.practitioner_id}`)
+    lines.push(`Periodo: ${new Date(payout.period_start).toLocaleDateString('es-ES')} — ${new Date(payout.period_end).toLocaleDateString('es-ES')}`)
+    lines.push(`Estado: ${payout.status}`)
+    if (payout.external_ref) lines.push(`Referencia externa: ${payout.external_ref}`)
+    lines.push(`Moneda: ${payout.currency ?? 'EUR'}`)
+    lines.push('')
+    lines.push(`Total bruto: ${fmtAmount(payout.gross_amount_cents, payout.currency)}`)
+    lines.push(`Total neto: ${fmtAmount(payout.net_amount_cents,   payout.currency)}`)
+    lines.push('')
+    lines.push(`Devengos del periodo (${accruals.length}):`)
+    lines.push('-'.repeat(70))
+    for (const a of accruals) {
+      const at = new Date(a.created_at).toLocaleDateString('es-ES')
+      lines.push(`${at} · booking ${a.booking_id?.slice(0, 8) ?? '—'} · ${fmtAmount(a.amount_cents, payout.currency)} · ${a.status}`)
+    }
+
+    return {
+      filename: `payout-${payoutId.slice(0, 8)}.pdf`,
+      pdf: createTextPdf({
+        title: 'Liquidación profesional',
+        lines,
+      }),
+    }
+  })
+}

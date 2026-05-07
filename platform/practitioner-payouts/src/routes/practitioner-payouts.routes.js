@@ -92,4 +92,14 @@ export async function payoutsRoutes(fastify) {
       status:         req.query?.status,
     }),
   )
+
+  // PDF statement for a single payout — period header + accrual lines.
+  fastify.get('/v1/practitioner-payouts/payouts/:id/pdf', {
+    schema: { tags: ['practitioner-payouts · pdf'], summary: 'Download a payout statement as PDF' },
+  }, async (req, reply) => {
+    const { filename, pdf } = await service.exportPayoutPdf(ctxFromRequest(req), req.params.id)
+    reply.header('content-type', 'application/pdf')
+    reply.header('content-disposition', `attachment; filename="${filename}"`)
+    return reply.send(pdf)
+  })
 }

@@ -35,7 +35,8 @@ export function adaptTenant(db) {
     contactEmail:  db.contact_email,
     contactPhone:  db.contact_phone,
     address:       db.address,
-    // Subscripción del tenant a la plataforma (ver migración 0005).
+    defaultLocale: db.default_locale ?? 'es',
+    // Subscripción del tenant a la plataforma (ver migración 0005_tenant_subscription).
     subscription: {
       period:                 db.subscription_period ?? null,
       status:                 db.subscription_status ?? 'inactive',

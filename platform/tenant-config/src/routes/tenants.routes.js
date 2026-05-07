@@ -31,6 +31,10 @@ const updateTenantBody = z.object({
   volumeMonthCents: z.number().int().min(0).optional(),
   txMonth:          z.number().int().min(0).optional(),
   balanceCents:     z.number().int().optional(),
+  // Default locale used by platform-scheduler reminder jobs to localize
+  // notifications when neither the booking/reservation nor the user carries
+  // an explicit locale.
+  defaultLocale:    z.string().min(2).max(8).optional(),
   // Configuración comercial de la subscripción tenant↔plataforma.
   subscriptionPeriod:            z.enum(['monthly', 'annual']).nullable().optional(),
   subscriptionStatus:            z.enum(['inactive', 'trial', 'active', 'past_due', 'cancelled']).optional(),
@@ -71,6 +75,14 @@ export async function tenantsRoutes(fastify) {
   fastify.get('/v1/tenants', async (req) => {
     const appId = req.query.appId ?? null
     return tenantsService.listTenants(appId)
+  })
+
+  // Public subdomain → tenant lookup. Used by tenant-console-portal to pre-
+  // populate the login form with the right app context (so the user knows
+  // they are signing into Acme, not the staff console). Returns minimal
+  // fields — no PII.
+  fastify.get('/v1/tenants/by-subdomain/:subdomain', { config: { public: true } }, async (req) => {
+    return tenantsService.getTenantBySubdomain(req.params.subdomain)
   })
 
   fastify.get('/v1/tenants/:id', async (req) => {

@@ -33,15 +33,28 @@ const BOOL_KEYS = new Set([
   'ups_enabled', 'fedex_enabled', 'dhl_enabled', 'easypost_enabled',
 ])
 
+const tags = ['shipping · admin']
+
 export async function adminRoutes(fastify) {
   fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
-  fastify.get('/config', async () => {
+  fastify.get('/config', {
+    schema: {
+      tags,
+      summary: 'List shipping-carrier credentials (UPS/FedEx/DHL/EasyPost)',
+    },
+  }, async () => {
     const client = await pool.connect()
     try { return { data: await repo.listForAdmin(client) } } finally { client.release() }
   })
 
-  fastify.patch('/config', async (req) => {
+  fastify.patch('/config', {
+    schema: {
+      tags,
+      summary: 'Upsert shipping-carrier credentials',
+      body: patchBody,
+    },
+  }, async (req) => {
     const body = patchBody.parse(req.body ?? {})
     const client = await pool.connect()
     try {

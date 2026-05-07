@@ -433,6 +433,45 @@ services:
       - ./apps/aikikan/aikikan-portal/src:/app/apps/aikikan/aikikan-portal/src:ro
       - ./apps/aikikan/aikikan-portal/public:/app/apps/aikikan/aikikan-portal/public:ro
 
+  # ── Aikikan backend monolith (port 3030) ──────────────────────
+  # First app to follow the pattern in ADR 013: one container, one schema
+  # `app_aikikan`, one role `svc_app_aikikan`. Domain code (members,
+  # events, dues, …) lives in folders under src/, NOT in separate schemas.
+  aikikan-server:
+    build:
+      context: .
+      dockerfile: apps/aikikan/aikikan-server/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '3030:3030'
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      PORT: '3030'
+      DATABASE_URL: postgresql://svc_app_aikikan:app_aikikan_secret@postgres:5432/splitpay
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      EXPECTED_APP_ID: aikikan
+      # Pagos — aikikan delega en `splitpay` (módulo de platform-core).
+      # Stripe credentials viven en splitpay; aikikan solo necesita la URL
+      # interna del platform-core para crear sesiones por loopback HTTP.
+      # Para activar pagos:
+      #   1. Configurar Stripe en voragine-console / splitpay/admin/config.
+      #   2. Crear Products + Prices en Stripe y guardar los Price IDs en
+      #      app_aikikan.fee_products via PATCH /v1/aikikan/fees/products/:code/stripe-price.
+      #   3. Configurar el webhook endpoint en Stripe apuntando al endpoint
+      #      público de splitpay (/v1/splitpay/webhooks/stripe).
+      SPLITPAY_BASE_URL:  http://platform-core:3000
+      AIKIKAN_PUBLIC_URL: ${AIKIKAN_PUBLIC_URL:-http://aikikan.apphub.local:8080}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    volumes:
+      - ./apps/aikikan/aikikan-server/src:/app/apps/aikikan/aikikan-server/src:ro
+      - ./apps/aikikan/aikikan-server/migrations:/app/apps/aikikan/aikikan-server/migrations:ro
+
   # ── Voragine Console (frontend 5177) ──────────────────────────
   voragine-console-portal:
     build:
@@ -451,6 +490,26 @@ services:
       - ./apps/voragine-console/voragine-console-portal/src:/app/apps/voragine-console/voragine-console-portal/src:ro
       - ./apps/voragine-console/voragine-console-portal/vite.config.js:/app/apps/voragine-console/voragine-console-portal/vite.config.js:ro
       - ./apps/voragine-console/voragine-console-portal/index.html:/app/apps/voragine-console/voragine-console-portal/index.html:ro
+
+  # ── Tenant Console (frontend 5178) ────────────────────────────
+  # Modular per-tenant admin app. Same image pattern as voragine-console; the
+  # frontend reads the request's Host header (forwarded by NGINX) to pick the
+  # tenant context and only mounts the manifests listed in
+  # platform_tenants.apps.enabled_modules.
+  tenant-console-portal:
+    build:
+      context: .
+      dockerfile: apps/tenant-console/tenant-console-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - '5178:5178'
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./apps/tenant-console/tenant-console-portal/src:/app/apps/tenant-console/tenant-console-portal/src:ro
+      - ./apps/tenant-console/tenant-console-portal/vite.config.js:/app/apps/tenant-console/tenant-console-portal/vite.config.js:ro
+      - ./apps/tenant-console/tenant-console-portal/index.html:/app/apps/tenant-console/tenant-console-portal/index.html:ro
 
   # ── Gateway ────────────────────────────────────────────────────
   # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
@@ -485,7 +544,9 @@ services:
       yoga-studio:             { condition: service_started }
       splitpay-portal:         { condition: service_started }
       aikikan-portal:          { condition: service_started }
+      aikikan-server:          { condition: service_started }
       voragine-console-portal: { condition: service_started }
+      tenant-console-portal:   { condition: service_started }
 
 volumes:
   postgres_data:

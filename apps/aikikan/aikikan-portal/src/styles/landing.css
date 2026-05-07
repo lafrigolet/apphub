@@ -6,7 +6,8 @@
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; font-size: 18px; }
-body { background: var(--black); color: var(--white); font-family: 'Cormorant Garamond', Georgia, serif; cursor: none; overflow-x: hidden; }
+body { background: var(--black); color: var(--white); font-family: 'Cormorant Garamond', Georgia, serif; overflow-x: hidden; }
+.landing, .landing * { cursor: none; }
 
 /* GRAIN */
 body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9000; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.035; mix-blend-mode: overlay; }
@@ -20,7 +21,7 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .mono { font-family: 'Space Mono', monospace; }
 
 /* NAV */
-nav { position: fixed; top: 0; left: 0; width: 100%; z-index: 500; padding: 1.2rem 2.5rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(244,67,54,.1); background: rgba(244,239,230,.92); backdrop-filter: blur(16px); }
+.landing > nav { position: fixed; top: 0; left: 0; width: 100%; z-index: 500; padding: 1.2rem 2.5rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(244,67,54,.1); background: rgba(244,239,230,.92); backdrop-filter: blur(16px); }
 .nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .18em; }
 .nav-logo span { color: var(--accent); }
 .nav-links { display: flex; gap: 1.8rem; list-style: none; }
@@ -102,7 +103,7 @@ nav { position: fixed; top: 0; left: 0; width: 100%; z-index: 500; padding: 1.2r
 .vb-sub { font-size: 1.1rem; font-weight: 300; font-style: italic; color: rgba(9,9,8,.6); max-width: 440px; margin-top: 1.2rem; line-height: 1.65; }
 
 /* SECTION */
-section { padding: 6rem 2.5rem; position: relative; }
+.landing section { padding: 6rem 2.5rem; position: relative; }
 .section-label { font-family: 'Space Mono', monospace; font-size: .72rem; letter-spacing: .22em; color: var(--accent); margin-bottom: 3rem; display: flex; align-items: center; gap: .5rem; }
 .section-label::after { content: ''; flex: 1; height: 1px; background: rgba(244,67,54,.18); max-width: 80px; }
 .section-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem, 7vw, 6rem); line-height: .95; }
@@ -349,11 +350,32 @@ section { padding: 6rem 2.5rem; position: relative; }
 .social-links a { font-family: 'Space Mono', monospace; font-size: .76rem; letter-spacing: .1em; color: rgba(9,9,8,.38); text-decoration: none; display: flex; align-items: center; gap: .5rem; transition: color .2s; }
 .social-links a:hover { color: var(--accent); }
 
-footer { border-top: 1px solid rgba(244,67,54,.12); padding: 1.5rem 2.5rem; display: flex; align-items: center; justify-content: space-between; }
+.landing > footer { border-top: 1px solid rgba(244,67,54,.12); padding: 1.5rem 2.5rem; display: flex; align-items: center; justify-content: space-between; }
 .footer-copy { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .14em; color: rgba(9,9,8,.22); }
 .footer-links { display: flex; gap: 2rem; }
 .footer-links a { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .1em; color: rgba(9,9,8,.22); text-decoration: none; transition: color .2s; }
 .footer-links a:hover { color: var(--accent); }
+.footer-link-btn { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .1em; color: rgba(9,9,8,.22); background: none; border: none; padding: 0; cursor: none; transition: color .2s; }
+.footer-link-btn:hover { color: var(--accent); }
+
+/* ── Legal modal (privacidad / aviso legal / cookies) ─────────────── */
+.legal-modal-overlay     { position: fixed; inset: 0; background: rgba(9,9,8,.55); z-index: 9500; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.legal-modal             { background: #f4efe6; max-width: 720px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; border: 1px solid rgba(188,0,45,.25); }
+.legal-modal-header      { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 2rem; border-bottom: 1px solid rgba(9,9,8,.1); flex-shrink: 0; }
+.legal-modal-header h2   { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: .12em; color: #090908; }
+.legal-modal-close       { background: transparent; border: none; font-size: 1.5rem; line-height: 1; color: rgba(9,9,8,.5); cursor: none; }
+.legal-modal-close:hover { color: var(--accent); }
+.legal-modal-body        { padding: 1.5rem 2rem 2rem; overflow-y: auto; color: #090908; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.65; font-size: 1.02rem; }
+.legal-modal-body h3     { font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: .15em; color: var(--accent); margin: 1.4rem 0 .6rem; }
+.legal-modal-body h3:first-child { margin-top: 0; }
+.legal-modal-body h4     { font-family: 'Space Mono', monospace; font-size: .82rem; letter-spacing: .12em; text-transform: uppercase; color: rgba(9,9,8,.7); margin: 1rem 0 .35rem; }
+.legal-modal-body p      { margin-bottom: .7rem; color: rgba(9,9,8,.85); }
+.legal-modal-body ul     { list-style: none; padding: 0; margin: 0 0 .7rem; }
+.legal-modal-body ul li  { padding-left: 1.1rem; position: relative; margin-bottom: .25rem; color: rgba(9,9,8,.85); }
+.legal-modal-body ul li::before { content: '/'; position: absolute; left: 0; color: var(--accent); font-family: 'Space Mono', monospace; }
+.legal-modal-body strong { color: #090908; }
+.legal-modal-body a      { color: var(--accent); text-decoration: underline; }
+.legal-modal-body .legal-meta { font-family: 'Space Mono', monospace; font-size: .72rem; letter-spacing: .12em; color: rgba(9,9,8,.45); margin-bottom: 1rem; }
 
 .btn-outline { display: inline-flex; align-items: center; gap: .75rem; font-family: 'Space Mono', monospace; font-size: .76rem; letter-spacing: .15em; text-transform: uppercase; color: var(--white); border: 1px solid rgba(244,67,54,.3); padding: .75rem 1.5rem; text-decoration: none; transition: border-color .2s, color .2s; cursor: none; }
 .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
@@ -381,6 +403,44 @@ footer { border-top: 1px solid rgba(244,67,54,.12); padding: 1.5rem 2.5rem; disp
 .nav-actions { display: flex; align-items: center; gap: 1rem; }
 .nav-login { font-family: 'Space Mono', monospace; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; background: none; border: 1px solid rgba(9,9,8,.2); color: rgba(9,9,8,.6); padding: .5rem 1rem; cursor: none; transition: color .2s, border-color .2s; }
 .nav-login:hover { color: var(--accent); border-color: var(--accent); }
+.nav-user        { font-family: 'Space Mono', monospace; font-size: .68rem; letter-spacing: .12em; color: rgba(9,9,8,.55); }
+
+/* AdminShell / MemberHome al final de la landing como sección extra.
+   scroll-margin-top deja visible el Nav fijo (76px) cuando se hace
+   anchor jump a #consola / #area-socio — sin esto el primer pixel del
+   shell queda tapado por el Nav. */
+.aikikan-embed-shell { scroll-margin-top: 76px; }
+
+/* ── Dojo card admin trash ──────────────────────────────────────────── */
+.dojo-trash              { position: absolute; top: .75rem; right: .75rem; background: transparent; border: 1px solid rgba(138,44,44,.4); color: var(--accent); font-size: 1rem; line-height: 1; padding: .15rem .55rem; cursor: none; transition: background .2s, color .2s; }
+.dojo-trash:hover        { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Video card admin trash ──────────────────────────────────────────── */
+.vc-trash                { position: absolute; top: .5rem; right: .5rem; z-index: 4; background: rgba(244,239,230,.92); border: 1px solid rgba(138,44,44,.5); color: var(--accent); font-size: 1rem; line-height: 1; padding: .15rem .55rem; cursor: none; transition: background .2s, color .2s; }
+.vc-trash:hover          { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Events admin controls ────────────────────────────────────────────── */
+.event-trash             { background: transparent; border: 1px solid rgba(138,44,44,.4); color: var(--accent); font-size: 1.1rem; line-height: 1; padding: .15rem .55rem; cursor: none; transition: background .2s, color .2s; }
+.event-trash:hover       { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.event-modal-overlay     { position: fixed; inset: 0; background: rgba(9,9,8,.55); z-index: 9500; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.event-modal             { background: #f4efe6; max-width: 520px; width: 100%; border: 1px solid rgba(188,0,45,.25); }
+.event-modal-header      { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.75rem; border-bottom: 1px solid rgba(9,9,8,.1); }
+.event-modal-header h2   { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: .12em; color: #090908; }
+.event-modal-close       { background: transparent; border: none; font-size: 1.5rem; line-height: 1; color: rgba(9,9,8,.5); cursor: none; }
+.event-modal-close:hover { color: var(--accent); }
+.event-modal-body        { padding: 1.5rem 1.75rem; }
+.event-modal-field       { margin-bottom: 1rem; }
+.event-modal-label       { display: block; font-family: 'Space Mono', monospace; font-size: .68rem; letter-spacing: .15em; text-transform: uppercase; color: rgba(9,9,8,.55); margin-bottom: .35rem; }
+.event-modal-input       { width: 100%; padding: .55rem .75rem; border: 1px solid rgba(9,9,8,.2); background: #fff; color: #090908; font-family: 'Cormorant Garamond', Georgia, serif; font-size: .95rem; }
+.event-modal-input:focus { outline: none; border-color: var(--accent); }
+.event-modal-error       { background: rgba(138,44,44,.08); border: 1px solid rgba(138,44,44,.3); color: var(--accent); padding: .55rem .85rem; font-size: .85rem; margin-bottom: .85rem; }
+.event-modal-actions     { display: flex; justify-content: flex-end; gap: .65rem; margin-top: 1.25rem; }
+.event-modal-btn         { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; background: transparent; border: 1px solid rgba(9,9,8,.2); color: rgba(9,9,8,.7); padding: .5rem 1rem; cursor: none; }
+.event-modal-btn:hover   { color: var(--accent); border-color: var(--accent); }
+.event-modal-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.event-modal-btn.primary:hover { background: #960023; }
+.event-modal-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* LOGIN OVERLAY */
 .login-overlay { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
@@ -510,4 +570,120 @@ footer { border-top: 1px solid rgba(244,67,54,.12); padding: 1.5rem 2.5rem; disp
   #video-banner{height:50vh;}
 }
 @media(max-width:580px){.masters-grid{grid-template-columns:1fr;}.dojo-grid{grid-template-columns:1fr;}}
+
+/* ── Member home (área de socios — bienvenida) ──────────────────────────── */
+/* Nota sobre variables: en este portal `--black` es el paper claro (#f4efe6) y
+   `--white` es la tinta oscura (#090908). En esta sección uso valores
+   hex directos para no depender de esa convención y evitar texto invisible. */
+.member-home { min-height: 100vh; background: #f4efe6; color: #090908; padding: 2rem 4rem; cursor: auto; }
+.member-home * { cursor: auto; }                /* override del body { cursor:none } global */
+.member-home a, .member-home button { cursor: pointer; }
+.member-home-nav { display: flex; align-items: center; justify-content: space-between; padding-bottom: 2rem; border-bottom: 1px solid rgba(9,9,8,.12); }
+.member-home-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .18em; color: #090908; }
+.member-home-logo span { color: var(--accent); }
+.member-home-logout { font-family: 'Space Mono', monospace; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; color: #090908; background: transparent; border: 1px solid rgba(9,9,8,.2); padding: .5rem 1rem; transition: background .2s, color .2s; }
+.member-home-logout:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.member-home-hero { padding: 4rem 0 3rem; max-width: 760px; }
+.member-home-eyebrow { font-family: 'Space Mono', monospace; font-size: .75rem; letter-spacing: .22em; text-transform: uppercase; color: var(--accent); margin-bottom: 1rem; }
+.member-home-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3.5rem, 7vw, 5.5rem); line-height: .95; margin-bottom: 1.5rem; color: #090908; }
+.member-home-name { color: var(--accent); font-style: italic; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; }
+.member-home-lead { font-size: 1.05rem; line-height: 1.7; color: rgba(9,9,8,.7); max-width: 560px; }
+.member-home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+.member-home-card { background: #fff; border: 1px solid rgba(9,9,8,.08); padding: 1.75rem; position: relative; transition: border-color .2s, transform .2s; color: #090908; }
+.member-home-card:hover { border-color: var(--accent); }
+.member-home-card h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: .08em; margin-bottom: .6rem; color: #090908; }
+.member-home-card p { font-size: .92rem; color: rgba(9,9,8,.65); line-height: 1.55; }
+.member-home-soon { display: inline-block; margin-top: 1rem; font-family: 'Space Mono', monospace; font-size: .65rem; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); padding: .25rem .55rem; }
+.member-home-go { display: inline-block; margin-top: 1rem; font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.member-home-card-active { cursor: pointer; }
+.member-home-card-active:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+/* ── MemberProfile ────────────────────────────────────────────────────── */
+.member-profile-loading, .member-profile-error { padding: 2rem 0; color: rgba(9,9,8,.6); }
+.member-profile-error { color: var(--accent); }
+.member-profile-card { background: #fff; border: 1px solid rgba(9,9,8,.08); padding: 2rem 2.25rem; max-width: 720px; color: #090908; }
+.member-profile-dl { display: grid; grid-template-columns: 1fr; gap: 1rem; margin: 0 0 1.5rem; }
+.member-profile-dl > div { display: grid; grid-template-columns: 180px 1fr; gap: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(9,9,8,.06); }
+.member-profile-dl > div:last-child { border-bottom: none; padding-bottom: 0; }
+.member-profile-dl dt { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: rgba(9,9,8,.55); }
+.member-profile-dl dd { margin: 0; font-size: 1rem; }
+.member-profile-dl dd em { color: rgba(9,9,8,.4); font-style: italic; }
+.member-profile-dl dd.mono { font-family: 'Space Mono', monospace; font-size: .9rem; }
+.member-profile-pill { display: inline-block; background: rgba(188,0,45,.08); color: var(--accent); border: 1px solid rgba(188,0,45,.25); font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; padding: .15rem .55rem; }
+.member-profile-actions { display: flex; gap: .75rem; margin-top: 1.5rem; }
+.member-profile-primary { background: var(--accent); color: #fff !important; border-color: var(--accent) !important; }
+.member-profile-primary:hover { background: #960023; border-color: #960023 !important; }
+.member-profile-hint { margin-top: 1.25rem; font-size: .82rem; color: rgba(9,9,8,.5); border-top: 1px solid rgba(9,9,8,.06); padding-top: 1rem; }
+.member-profile-saved { color: #1a7a3b; font-size: .82rem; margin: 0 0 .5rem; }
+.member-profile-form .member-profile-field { margin-bottom: 1rem; }
+.member-profile-label { display: block; font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: rgba(9,9,8,.55); margin-bottom: .4rem; }
+.member-profile-input { width: 100%; padding: .6rem .75rem; border: 1px solid rgba(9,9,8,.2); background: #fff; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: #090908; }
+.member-profile-input:focus { outline: none; border-color: var(--accent); }
+.member-profile-readonly { font-size: .82rem; color: rgba(9,9,8,.5); margin: 0 0 .25rem; }
+.member-profile-section-title { font-family: 'Space Mono', monospace; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); margin-bottom: 1rem; padding-bottom: .75rem; border-bottom: 1px solid rgba(9,9,8,.06); }
+.member-profile-card-spacer { margin-top: 1.5rem; }
+
+/* ── Cuotas ──────────────────────────────────────────────────────────── */
+.fee-grid             { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: .25rem; }
+.fee-card             { position: relative; border: 1px solid rgba(9,9,8,.1); padding: 1.4rem 1.25rem 1.25rem; background: #fff; display: flex; flex-direction: column; gap: .55rem; }
+.fee-card h3          { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: .07em; color: #090908; }
+.fee-card p           { font-size: .88rem; color: rgba(9,9,8,.6); line-height: 1.5; flex: 1; margin: 0; }
+.fee-card .fee-amount { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); margin: .25rem 0 .35rem; }
+.fee-card .fee-amount .fee-period { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: rgba(9,9,8,.55); margin-left: .35rem; font-style: italic; }
+.fee-card-recommended { border-color: var(--accent); border-width: 2px; }
+.fee-badge            { position: absolute; top: -.6rem; right: 1rem; background: var(--accent); color: #fff; font-family: 'Space Mono', monospace; font-size: .62rem; letter-spacing: .15em; text-transform: uppercase; padding: .2rem .6rem; }
+
+.fee-history          { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.fee-history th       { text-align: left; padding: .55rem .6rem; font-family: 'Space Mono', monospace; font-size: .65rem; letter-spacing: .14em; text-transform: uppercase; color: rgba(9,9,8,.5); border-bottom: 1px solid rgba(9,9,8,.1); font-weight: normal; }
+.fee-history td       { padding: .65rem .6rem; border-bottom: 1px solid rgba(9,9,8,.06); }
+.fee-status           { display: inline-block; padding: .12rem .55rem; font-family: 'Space Mono', monospace; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; border: 1px solid rgba(9,9,8,.15); }
+.fee-status-paid      { color: #1a7a3b; border-color: rgba(26,122,59,.4); background: rgba(26,122,59,.06); }
+.fee-status-pending   { color: rgba(9,9,8,.55); border-color: rgba(9,9,8,.2); }
+.fee-status-failed    { color: var(--accent); border-color: rgba(188,0,45,.35); background: rgba(188,0,45,.06); }
+.fee-status-refunded  { color: rgba(9,9,8,.55); border-color: rgba(9,9,8,.2); font-style: italic; }
+
+.fee-toast            { position: fixed; top: 1rem; right: 1rem; z-index: 9700; padding: .85rem 1.1rem; background: #fff; border: 1px solid rgba(9,9,8,.12); font-size: .9rem; box-shadow: 0 6px 20px rgba(9,9,8,.08); cursor: none; max-width: 360px; }
+.fee-toast-success    { border-left: 3px solid #1a7a3b; color: #1a7a3b; }
+.fee-toast-warn       { border-left: 3px solid var(--accent); color: var(--accent); }
+
+/* Defensive: force foreground on every text-bearing element inside the
+   member area. Some form controls (select, option, input[type=date])
+   don't inherit `color` reliably across browsers, and the landing's body
+   uses var(--white)=#090908 which is dark — but if an element somehow
+   resolves to the inverted variable or to the UA default, text turns
+   "invisible" on the paper/white backgrounds. We pin the dark hex here. */
+.member-home, .member-home *,
+.member-profile-card, .member-profile-card * { color: #090908; }
+/* …with explicit overrides for the styled exceptions, so the rule above
+   doesn't flatten our deliberate accents and muted greys. */
+.member-home-eyebrow,
+.member-home-name,
+.member-home-soon,
+.member-home-go,
+.member-profile-section-title,
+.member-profile-pill { color: var(--accent); }
+.member-home-logo span { color: var(--accent); }
+.member-profile-dl dt,
+.member-profile-readonly,
+.member-profile-label,
+.member-home-lead,
+.member-home-card p { color: rgba(9,9,8,.55); }
+.member-profile-dl dd em { color: rgba(9,9,8,.4); }
+.member-profile-saved { color: #1a7a3b; }
+.member-profile-error { color: var(--accent); }
+.member-profile-primary, .member-profile-primary * { color: #fff; }
+.member-home-logout:hover, .member-home-logout:hover * { color: #fff; }
+/* Form controls: explicit native styling + dark text on white. */
+.member-home select,
+.member-home input,
+.member-home textarea,
+.member-home option { color: #090908; background: #fff; }
+
+@media(max-width: 720px){
+  .member-home { padding: 1.5rem; }
+  .member-home-hero { padding: 2.5rem 0 2rem; }
+  .member-profile-dl > div { grid-template-columns: 1fr; gap: .25rem; }
+  .member-profile-card { padding: 1.5rem; }
+}
+
 

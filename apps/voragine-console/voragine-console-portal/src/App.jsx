@@ -15,6 +15,8 @@ import AuditGlobal     from './views/staff/AuditGlobal'
 import AuthProviders               from './views/staff/config/AuthProviders'
 import PaymentsConfig              from './views/staff/config/PaymentsConfig'
 import NotificationsConfig         from './views/staff/config/NotificationsConfig'
+import TwilioConfig                from './views/staff/config/TwilioConfig'
+import PushConfig                  from './views/staff/config/PushConfig'
 import NotificationsTemplates      from './views/staff/config/NotificationsTemplates'
 import NotificationsTemplateEdit   from './views/staff/config/NotificationsTemplateEdit'
 import SplitpayConfig              from './views/staff/config/SplitpayConfig'
@@ -44,6 +46,8 @@ function MainContent() {
     if (view === 'config-auth')                            return <AuthProviders />
     if (view === 'config-payments')                        return <PaymentsConfig />
     if (view === 'config-notifications')                   return <NotificationsConfig />
+    if (view === 'config-twilio')                          return <TwilioConfig />
+    if (view === 'config-push')                            return <PushConfig />
     if (view === 'config-notifications-templates')         return <NotificationsTemplates />
     if (view === 'config-notifications-template-edit')     return <NotificationsTemplateEdit />
     if (view === 'config-splitpay')                        return <SplitpayConfig />
@@ -63,9 +67,48 @@ function MainContent() {
   return <div className="p-10 text-ink3">Vista no encontrada.</div>
 }
 
+// Cutover (tenant-console Fase 4): voragine-console serves only the staff
+// role. A user that signs in with role owner/admin/user belongs in their
+// own tenant-console at <tenant.subdomain>.<host-suffix>; we surface a
+// soft handoff with a one-click redirect rather than a hard window.replace
+// so the user can copy the URL or back-navigate if needed.
+function TenantHandoff({ tenant, onLogout }) {
+  if (!tenant?.subdomain) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-paper">
+        <div className="max-w-md bg-white border border-line rounded-2xl shadow-card p-8">
+          <h1 className="font-display text-[24px] mb-3">Acceso solo staff</h1>
+          <p className="text-[13.5px] text-ink2">Tu cuenta no tiene rol staff y tu tenant no tiene subdominio configurado. Avisa al equipo de plataforma.</p>
+          <button onClick={onLogout} className="mt-5 btn btn-ghost">Cerrar sesión</button>
+        </div>
+      </main>
+    )
+  }
+  const suffix = window.location.hostname.split('.').slice(1).join('.')
+  const port   = window.location.port ? ':' + window.location.port : ''
+  const target = `${window.location.protocol}//${tenant.subdomain}.${suffix}${port}/`
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-paper">
+      <div className="max-w-md bg-white border border-line rounded-2xl shadow-card p-8">
+        <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Tu console</div>
+        <h1 className="font-display text-[24px] mb-3">{tenant.display_name}</h1>
+        <p className="text-[13.5px] text-ink2 mb-5">
+          Voragine console es solo para staff de plataforma. Tu console del tenant está en
+          <a href={target} className="font-mono mx-1 underline">{tenant.subdomain}.{suffix}</a>.
+        </p>
+        <div className="flex items-center gap-3">
+          <a href={target} className="btn btn-primary">Ir a mi console</a>
+          <button onClick={onLogout} className="btn btn-ghost">Cerrar sesión</button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 function Shell() {
-  const { identity, onLogin } = useApp()
+  const { identity, onLogin, role, myTenant, logout } = useApp()
   if (!identity) return <LoginView onSuccess={onLogin} />
+  if (role !== 'staff') return <TenantHandoff tenant={myTenant} onLogout={logout} />
   return (
     <div className="min-h-screen flex flex-col">
       <Topbar />

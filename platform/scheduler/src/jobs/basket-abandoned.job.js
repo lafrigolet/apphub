@@ -15,7 +15,7 @@ export const meta = {
 const IDLE_THRESHOLD_SECONDS = 24 * 60 * 60
 const SUPPRESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 
-export async function run({ redis, publish, logger }) {
+export async function run({ redis, publish, logger, db }) {
   let cursor = '0'
   let total = 0
   do {
@@ -42,10 +42,29 @@ export async function run({ redis, publish, logger }) {
       const alreadyEmitted = await redis.set(markerKey, '1', 'EX', SUPPRESSION_TTL_SECONDS, 'NX')
       if (alreadyEmitted !== 'OK') continue        // we've already emitted recently
 
+      // Hydrate the buyer's email so the notifications consumer can send
+      // without a cross-module HTTP call. The grant on platform_auth.users
+      // for svc_platform_scheduler is added by an existing migration in
+      // this module (the role has BYPASSRLS so a direct lookup works for
+      // any tenant).
+      let buyerEmail = null
+      if (db) {
+        try {
+          const u = await db.query(
+            `SELECT email FROM platform_auth.users WHERE id = $1::uuid LIMIT 1`,
+            [userId],
+          )
+          buyerEmail = u.rows[0]?.email ?? null
+        } catch (err) {
+          logger.warn({ err, userId }, 'basket-abandoned: buyer email lookup failed')
+        }
+      }
+
       await publish({
         type: 'basket.abandoned',
         payload: {
           appId, tenantId, userId,
+          buyerEmail,
           itemCount,
           idleSeconds: idle,
           basketKey:   key,

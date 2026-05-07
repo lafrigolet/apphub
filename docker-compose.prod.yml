@@ -52,6 +52,15 @@ services:
     ports: !reset []
     volumes: !reset []
 
+  # ── Tenant Console portal (prod) ───────────────────────────────
+  # Same flip as voragine-console: dev (vite) → prod (nginx-alpine
+  # serving the built dist/). Healthcheck inherited from the Dockerfile.
+  tenant-console-portal:
+    build:
+      target: production
+    ports: !reset []
+    volumes: !reset []
+
   # ── Yoga Studio backend services (no portal in prod) ───────────
   yoga-studio:
     # Portal is now its own service below. Keep only the 5 backend services
@@ -100,3 +109,4 @@ services:
       splitpay-portal:         { condition: service_started }
       aikikan-portal:          { condition: service_started }
       voragine-console-portal: { condition: service_started }
+      tenant-console-portal:   { condition: service_started }

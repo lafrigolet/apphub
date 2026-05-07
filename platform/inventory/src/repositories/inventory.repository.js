@@ -20,19 +20,50 @@ export async function listByTenant(client, appId, tenantId, { limit = 100, offse
   return rows
 }
 
-export async function upsert(client, { appId, tenantId, sku, qtyOnHand, lowStockThreshold }) {
+export async function upsert(client, { appId, tenantId, sku, qtyOnHand, lowStockThreshold, parentSku, optionValues, displayName }) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.inventory_items
-       (app_id, tenant_id, sku, qty_on_hand, low_stock_threshold)
-     VALUES ($1, $2, $3, $4, COALESCE($5, 0))
+       (app_id, tenant_id, sku, qty_on_hand, low_stock_threshold, parent_sku, option_values, display_name)
+     VALUES ($1, $2, $3, $4, COALESCE($5, 0), $6, COALESCE($7::jsonb, '{}'::jsonb), $8)
      ON CONFLICT (app_id, tenant_id, sku) DO UPDATE
-       SET qty_on_hand        = EXCLUDED.qty_on_hand,
+       SET qty_on_hand         = EXCLUDED.qty_on_hand,
            low_stock_threshold = COALESCE(EXCLUDED.low_stock_threshold, ${SCHEMA}.inventory_items.low_stock_threshold),
+           parent_sku          = COALESCE(EXCLUDED.parent_sku,          ${SCHEMA}.inventory_items.parent_sku),
+           option_values       = COALESCE(EXCLUDED.option_values,       ${SCHEMA}.inventory_items.option_values),
+           display_name        = COALESCE(EXCLUDED.display_name,        ${SCHEMA}.inventory_items.display_name),
            updated_at          = now()
      RETURNING *`,
-    [appId, tenantId, sku, qtyOnHand, lowStockThreshold],
+    [
+      appId, tenantId, sku, qtyOnHand, lowStockThreshold,
+      parentSku ?? null,
+      optionValues != null ? JSON.stringify(optionValues) : null,
+      displayName ?? null,
+    ],
   )
   return rows[0]
+}
+
+// ── Variants ────────────────────────────────────────────────────────────
+
+export async function listVariants(client, appId, tenantId, parentSku) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.inventory_items
+       WHERE app_id=$1 AND tenant_id=$2 AND parent_sku=$3
+       ORDER BY sku`,
+    [appId, tenantId, parentSku],
+  )
+  return rows
+}
+
+export async function findByParentAndOptions(client, appId, tenantId, parentSku, optionValues) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.inventory_items
+       WHERE app_id=$1 AND tenant_id=$2 AND parent_sku=$3
+         AND option_values::text = $4::text
+       LIMIT 1`,
+    [appId, tenantId, parentSku, JSON.stringify(optionValues ?? {})],
+  )
+  return rows[0] ?? null
 }
 
 export async function adjustOnHand(client, appId, tenantId, sku, delta) {

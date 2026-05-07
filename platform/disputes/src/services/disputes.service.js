@@ -60,6 +60,7 @@ export async function uploadEvidence(ctx, disputeId, kind, data) {
 export async function resolve(ctx, id, fields) {
   if (!['staff', 'super_admin'].includes(ctx.role)) throw new ForbiddenError('only staff can resolve disputes')
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const before  = await repo.findById(c, ctx.appId, ctx.tenantId, id)
     const updated = await repo.updateStatus(c, ctx.appId, ctx.tenantId, id, { ...fields, resolvedByUserId: ctx.userId })
     if (!updated) throw new NotFoundError('dispute')
     await publish({
@@ -70,11 +71,61 @@ export async function resolve(ctx, id, fields) {
         resolutionAmountCents: updated.resolution_amount_cents,
       },
     })
+
+    // Auto-refund: when staff resolves in favour of the buyer with a
+    // resolution amount, publish a refund-request event that splitpay
+    // consumes (it owns the Stripe client + Connect transfers).
+    // Idempotent: refund_requested_at is set the first time; only the
+    // first transition into 'resolved_buyer' fires the event.
+    const isFirstBuyerResolution =
+      updated.status === 'resolved_buyer'
+      && before?.status !== 'resolved_buyer'
+      && Number(updated.resolution_amount_cents ?? 0) > 0
+    if (isFirstBuyerResolution) {
+      await repo.markRefundRequested(c, ctx.appId, ctx.tenantId, id)
+      await publish({
+        type: 'dispute.refund.requested',
+        payload: {
+          appId: ctx.appId, tenantId: ctx.tenantId,
+          disputeId: id, orderId: updated.order_id,
+          amountCents: updated.resolution_amount_cents,
+          stripeDisputeId: updated.stripe_dispute_id ?? null,
+          requestedByUserId: ctx.userId,
+        },
+      })
+    }
     return updated
   })
 }
 
+// Submit the internal evidence rows to Stripe (via splitpay, which owns the
+// Stripe client). The dispute must already carry a stripe_dispute_id set
+// when the chargeback webhook landed.
+export async function submitEvidenceToStripe(ctx, id) {
+  if (!['staff', 'super_admin'].includes(ctx.role)) throw new ForbiddenError('only staff can submit evidence')
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const dispute = await repo.findById(c, ctx.appId, ctx.tenantId, id)
+    if (!dispute) throw new NotFoundError('dispute')
+    if (!dispute.stripe_dispute_id) {
+      throw new ForbiddenError('dispute is not linked to a Stripe dispute (no stripe_dispute_id)')
+    }
+    const evidence = await repo.listEvidence(c, ctx.appId, ctx.tenantId, id)
+    await repo.markEvidenceSubmitted(c, ctx.appId, ctx.tenantId, id)
+    await publish({
+      type: 'dispute.evidence.submit',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId,
+        disputeId: id, stripeDisputeId: dispute.stripe_dispute_id,
+        evidence: evidence.map((e) => ({ kind: e.kind, data: e.data })),
+        submittedByUserId: ctx.userId,
+      },
+    })
+    return { ok: true, items: evidence.length }
+  })
+}
+
 // Event consumer: a Stripe chargeback escalates the corresponding internal dispute.
+// We also persist stripe_dispute_id so submitEvidenceToStripe can find it later.
 export async function handleEvent(event) {
   try {
     if (event.type === 'splitpay.chargeback.created' && event.payload?.orderId) {
@@ -83,6 +134,9 @@ export async function handleEvent(event) {
         const dispute = await repo.findByOrderId(c, ctx.appId, ctx.tenantId, event.payload.orderId)
         if (dispute) {
           await repo.updateStatus(c, ctx.appId, ctx.tenantId, dispute.id, { status: 'escalated_chargeback' })
+          if (event.payload.stripeDisputeId) {
+            await repo.setStripeDisputeId(c, ctx.appId, ctx.tenantId, dispute.id, event.payload.stripeDisputeId)
+          }
         }
       })
     }

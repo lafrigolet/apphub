@@ -8,6 +8,7 @@ FROM base AS development
 ENV NODE_ENV=development
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/ ./packages/
 COPY apps/aikikan/aikikan-portal/package.json ./apps/aikikan/aikikan-portal/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @aikikan/aikikan-portal...
@@ -23,6 +24,7 @@ CMD ["pnpm", "dev", "--host"]
 FROM base AS build
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/ ./packages/
 COPY apps/aikikan/aikikan-portal/package.json ./apps/aikikan/aikikan-portal/package.json
 
 RUN pnpm install --frozen-lockfile --filter @aikikan/aikikan-portal...

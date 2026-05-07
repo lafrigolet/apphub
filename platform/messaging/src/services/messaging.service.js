@@ -64,3 +64,41 @@ export async function markRead(ctx, threadId, messageId) {
     if (!ok) throw new NotFoundError('message')
   })
 }
+
+// ── Storage-backed attachments ──────────────────────────────────────────
+
+async function ensureMessageAccess(ctx, threadId, messageId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const thread = await repo.findThreadById(c, ctx.appId, ctx.tenantId, threadId)
+    ensureThreadAccess(thread, ctx)
+    const message = await repo.findMessageById(c, ctx.appId, ctx.tenantId, messageId)
+    if (!message || message.thread_id !== threadId) throw new NotFoundError('message')
+    return { thread, message }
+  })
+}
+
+export async function attachToMessage(ctx, threadId, messageId, body) {
+  await ensureMessageAccess(ctx, threadId, messageId)
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.insertAttachment(c, ctx.appId, ctx.tenantId, messageId, body),
+  )
+}
+
+export async function listMessageAttachments(ctx, threadId, messageId) {
+  await ensureMessageAccess(ctx, threadId, messageId)
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listAttachments(c, ctx.appId, ctx.tenantId, messageId),
+  )
+}
+
+export async function detachFromMessage(ctx, threadId, messageId, attachmentId) {
+  const { message } = await ensureMessageAccess(ctx, threadId, messageId)
+  // Only the original sender (or staff) can remove an attachment.
+  if (message.sender_user_id !== ctx.userId && !['staff', 'super_admin'].includes(ctx.role)) {
+    throw new ForbiddenError('only the message sender can remove its attachments')
+  }
+  const ok = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.deleteAttachment(c, ctx.appId, ctx.tenantId, attachmentId),
+  )
+  if (!ok) throw new NotFoundError('attachment')
+}

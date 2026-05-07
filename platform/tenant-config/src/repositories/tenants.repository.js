@@ -3,6 +3,7 @@ const FULL_COLUMNS = `
   legal_name, cif, country, contact_email, contact_phone, address,
   plan, custom_domain, stripe_status, suspend_reason, archived_at,
   volume_month_cents, tx_month, balance_cents,
+  default_locale,
   subscription_period, subscription_status, subscription_amount_cents,
   subscription_currency, subscription_stripe_price_id,
   subscription_stripe_subscription_id, subscription_stripe_customer_id,
@@ -27,6 +28,23 @@ export async function findById(client, id) {
     [id],
   )
   return rows[0] ?? null
+}
+
+export async function findBySubdomain(client, subdomain) {
+  const { rows } = await client.query(
+    `SELECT ${FULL_COLUMNS} FROM platform_tenants.tenants WHERE subdomain = $1`,
+    [subdomain],
+  )
+  return rows[0] ?? null
+}
+
+// Backfill helper: every non-archived tenant. Used on platform-core boot to
+// re-publish NGINX server blocks idempotently.
+export async function findAllActive(client) {
+  const { rows } = await client.query(
+    `SELECT ${FULL_COLUMNS} FROM platform_tenants.tenants WHERE status <> 'archived'`,
+  )
+  return rows
 }
 
 export async function create(client, { appId, displayName, subdomain }) {
@@ -66,6 +84,7 @@ const ALLOWED_UPDATE_FIELDS = {
   volumeMonthCents:  'volume_month_cents',
   txMonth:           'tx_month',
   balanceCents:      'balance_cents',
+  defaultLocale:     'default_locale',
   // Campos comerciales de la subscripción del tenant a la plataforma.
   // Los campos `subscription_stripe_*_id` los rellena el subscriber de
   // eventos splitpay (no el endpoint PATCH staff).

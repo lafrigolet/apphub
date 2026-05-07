@@ -9,6 +9,7 @@ import * as disputeSla                     from './dispute-sla.job.js'
 import * as basketAbandoned                from './basket-abandoned.job.js'
 import * as storageOrphanPurge              from './storage-orphan-purge.job.js'
 import * as storageRetentionPurge           from './storage-retention-purge.job.js'
+import * as notificationDigest               from './notification-digest.job.js'
 
 import { env } from '../lib/env.js'
 
@@ -27,6 +28,7 @@ export const jobs = [
   { mod: basketAbandoned,             enabled: env.JOB_BASKET_ABANDONED_ENABLED },
   { mod: storageOrphanPurge,          enabled: env.JOB_STORAGE_ORPHAN_PURGE_ENABLED },
   { mod: storageRetentionPurge,       enabled: env.JOB_STORAGE_RETENTION_PURGE_ENABLED },
+  { mod: notificationDigest,           enabled: env.JOB_NOTIFICATION_DIGEST_ENABLED },
 ].map((j) => ({
   meta:    j.mod.meta,
   run:     j.mod.run,

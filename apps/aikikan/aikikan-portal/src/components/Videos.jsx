@@ -1,18 +1,30 @@
-import { useState, useEffect, useRef } from 'react'
-
-const videos = [
-  { vid: 'eV3c0gMxPJI', label: 'Fundador', name: "Morihei Ueshiba — O'Sensei" },
-  { vid: 'rVOhCBdVvNM', label: '8º Dan Shihan', name: 'Nobuyoshi Tamura' },
-  { vid: 'UqbUK93kkUM', label: 'III Doshu', name: 'Moriteru Ueshiba — Kagamibiraki 2026' },
-  { vid: 'qbW5frQI4dU', label: '6º Dan Aikikai', name: 'Malcolm Tiki Shewan — Principios de Aikido' },
-  { vid: 'boQqqh5ssMM', label: '7º Dan Shihan', name: 'Stéphane Benedetti — Seminario' },
-  { vid: '4DEGlGHTXnI', label: 'Mutokukai · Shihan', name: 'Benedetti — Técnica y espíritu' },
-]
-const allCards = [...videos, ...videos]
+import { useEffect, useRef, useState } from 'react'
+import { getIdentity, isAdminRole } from '../lib/auth.js'
+import VideoModal, { deleteVideo } from './VideoModal.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
 
 export default function Videos() {
+  const [videos, setVideos]   = useState([])
   const [playing, setPlaying] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(null)
   const trackRef = useRef(null)
+
+  const identity = getIdentity()
+  const isAdmin  = identity && isAdminRole(identity.role)
+
+  function load() {
+    fetch('/api/aikikan/videos')
+      .then((r) => r.ok ? r.json() : [])
+      .then((arr) => setVideos(Array.isArray(arr) ? arr : []))
+      .catch(() => setVideos([]))
+  }
+  useEffect(load, [])
+
+  // En modo lectura duplicamos para el carrusel ticker; en admin
+  // mostramos cada vídeo una sola vez para que el trash actúe sobre
+  // un único item.
+  const allCards = isAdmin ? videos : [...videos, ...videos]
 
   const play = (idx) => {
     setPlaying(idx)
@@ -30,6 +42,12 @@ export default function Videos() {
     return () => document.removeEventListener('click', onClick)
   }, [])
 
+  async function confirmDelete() {
+    if (!pendingDelete) return
+    try { await deleteVideo(pendingDelete.id); load() }
+    catch (err) { alert(err.message) }
+  }
+
   return (
     <section id="videos">
       <div className="section-label reveal"><span className="slash">/</span> Archivo Visual</div>
@@ -41,9 +59,9 @@ export default function Videos() {
             {allCards.map((v, idx) => {
               const isPlaying = playing === idx
               return (
-                <div key={idx} className={`vc-card${isPlaying ? ' playing' : ''}`} onClick={() => play(idx)}>
+                <div key={`${v.id}-${idx}`} className={`vc-card${isPlaying ? ' playing' : ''}`} onClick={() => play(idx)}>
                   <div className="vc-thumb">
-                    <img src={`https://img.youtube.com/vi/${v.vid}/hqdefault.jpg`} alt={v.name} />
+                    <img src={`https://img.youtube.com/vi/${v.youtube_id}/hqdefault.jpg`} alt={v.name ?? ''} />
                     <div className="vc-thumb-overlay"></div>
                     <div className="vc-play">
                       <div className="vc-play-btn">
@@ -51,15 +69,23 @@ export default function Videos() {
                       </div>
                     </div>
                     <div className="vc-caption">
-                      <p className="vc-caption-label">{v.label}</p>
-                      <p className="vc-caption-name">{v.name}</p>
+                      {v.label && <p className="vc-caption-label">{v.label}</p>}
+                      {v.name  && <p className="vc-caption-name">{v.name}</p>}
                     </div>
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setPendingDelete(v) }}
+                        className="vc-trash"
+                        title="Eliminar vídeo"
+                        aria-label="Eliminar vídeo"
+                      >×</button>
+                    )}
                   </div>
                   <div className="vc-iframe-wrap">
                     {isPlaying && (
                       <iframe
-                        title={v.name}
-                        src={`https://www.youtube.com/embed/${v.vid}?autoplay=1&rel=0&modestbranding=1`}
+                        title={v.name ?? ''}
+                        src={`https://www.youtube.com/embed/${v.youtube_id}?autoplay=1&rel=0&modestbranding=1`}
                         allow="autoplay; encrypted-media; picture-in-picture"
                         allowFullScreen
                       />
@@ -70,7 +96,30 @@ export default function Videos() {
             })}
           </div>
         </div>
+        {isAdmin && (
+          <div style={{ marginTop: '2rem', textAlign: 'center' }} className="reveal">
+            <button onClick={() => setModalOpen(true)} className="btn-outline">
+              <span className="slash">/</span> + Añadir vídeo
+            </button>
+          </div>
+        )}
       </div>
+
+      {modalOpen && (
+        <VideoModal
+          onClose={() => setModalOpen(false)}
+          onCreated={() => { setModalOpen(false); load() }}
+        />
+      )}
+      {pendingDelete && (
+        <ConfirmModal
+          title="Eliminar vídeo"
+          message={`¿Eliminar el vídeo "${pendingDelete.name}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={confirmDelete}
+          onClose={() => setPendingDelete(null)}
+        />
+      )}
     </section>
   )
 }

@@ -28,6 +28,53 @@ export async function insertItems(client, orderId, appId, tenantId, items) {
   }
 }
 
+// ── Order modifications (post-creation audit trail) ─────────────────────
+
+export async function insertModification(client, m) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.order_modifications
+       (app_id, tenant_id, order_id, modification_type, before_value, after_value, reason, actor_user_id, actor_role)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING *`,
+    [
+      m.appId, m.tenantId, m.orderId, m.type,
+      m.before != null ? JSON.stringify(m.before) : null,
+      m.after  != null ? JSON.stringify(m.after)  : null,
+      m.reason ?? null, m.actorUserId ?? null, m.actorRole ?? null,
+    ],
+  )
+  return rows[0]
+}
+
+export async function listModifications(client, appId, tenantId, orderId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.order_modifications
+       WHERE app_id = $1 AND tenant_id = $2 AND order_id = $3
+       ORDER BY created_at DESC`,
+    [appId, tenantId, orderId],
+  )
+  return rows
+}
+
+export async function findShippingAddress(client, appId, tenantId, orderId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.order_addresses
+       WHERE app_id = $1 AND tenant_id = $2 AND order_id = $3 AND kind = 'shipping'
+       LIMIT 1`,
+    [appId, tenantId, orderId],
+  )
+  return rows[0] ?? null
+}
+
+export async function replaceShippingAddress(client, appId, tenantId, orderId, addr) {
+  await client.query(
+    `DELETE FROM ${SCHEMA}.order_addresses
+      WHERE app_id = $1 AND tenant_id = $2 AND order_id = $3 AND kind = 'shipping'`,
+    [appId, tenantId, orderId],
+  )
+  await insertAddress(client, orderId, appId, tenantId, { kind: 'shipping', ...addr })
+}
+
 export async function insertAddress(client, orderId, appId, tenantId, addr) {
   await client.query(
     `INSERT INTO ${SCHEMA}.order_addresses
