@@ -5,11 +5,13 @@ import { pool } from './lib/db.js'
 import { redis } from './lib/redis.js'
 import { runMigrations } from './lib/migrate.js'
 import { startUserRevokedSubscriber } from './events/user-revoked.handler.js'
+import { startSplitpayEventSubscriber } from './events/splitpay.handler.js'
 
 async function start() {
   await runMigrations()
   const app = createApp()
   const subscriber = startUserRevokedSubscriber()
+  const splitpaySub = startSplitpayEventSubscriber()
 
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' })
@@ -24,6 +26,7 @@ async function start() {
     try {
       await app.close()
       await subscriber.quit().catch(() => {})
+      await splitpaySub.quit().catch(() => {})
       await pool.end()
       await redis.quit()
       logger.info('Graceful shutdown complete')

@@ -11,6 +11,7 @@ import { membersRoutes } from './routes/members.routes.js'
 import { eventsRoutes }  from './routes/events.routes.js'
 import { videosRoutes }  from './routes/videos.routes.js'
 import { dojosRoutes }   from './routes/dojos.routes.js'
+import { feesRoutes }    from './routes/fees.routes.js'
 
 export function createApp() {
   const fastify = Fastify({ logger: false, ignoreTrailingSlash: true })
@@ -49,6 +50,7 @@ export function createApp() {
   fastify.register(eventsRoutes)
   fastify.register(videosRoutes)
   fastify.register(dojosRoutes)
+  fastify.register(feesRoutes)
 
   fastify.setNotFoundHandler((req, reply) => {
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } })

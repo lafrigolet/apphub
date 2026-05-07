@@ -9,6 +9,7 @@ import { paymentRoutes } from './routes/payment.routes.js'
 import { connectAccountRoutes } from './routes/connect-account.routes.js'
 import { webhookRoutes } from './routes/webhook.routes.js'
 import { adminRoutes } from './routes/admin.routes.js'
+import { checkoutSessionRoutes } from './routes/checkout-session.routes.js'
 import { reloadStripeFromDb } from './lib/stripe.js'
 
 export { runMigrations } from './lib/migrate.js'
@@ -80,11 +81,12 @@ export async function register({ app, db, redis }) {
       status: 'ok', module: 'splitpay', timestamp: new Date().toISOString(),
     }))
 
-    await splitpay.register(splitRuleRoutes,      { prefix: '/v1/splitpay/split-rules' })
-    await splitpay.register(paymentRoutes,        { prefix: '/v1/splitpay/payments' })
-    await splitpay.register(connectAccountRoutes, { prefix: '/v1/splitpay/connect-accounts' })
-    await splitpay.register(webhookRoutes,        { prefix: '/v1/splitpay/webhooks' })
-    await splitpay.register(adminRoutes,          { prefix: '/v1/splitpay/admin' })
+    await splitpay.register(splitRuleRoutes,        { prefix: '/v1/splitpay/split-rules' })
+    await splitpay.register(paymentRoutes,          { prefix: '/v1/splitpay/payments' })
+    await splitpay.register(connectAccountRoutes,   { prefix: '/v1/splitpay/connect-accounts' })
+    await splitpay.register(checkoutSessionRoutes,  { prefix: '/v1/splitpay/checkout-sessions' })
+    await splitpay.register(webhookRoutes,          { prefix: '/v1/splitpay/webhooks' })
+    await splitpay.register(adminRoutes,            { prefix: '/v1/splitpay/admin' })
   })
 
   // Hydrate Stripe credentials from DB at boot. If neither DB nor env has

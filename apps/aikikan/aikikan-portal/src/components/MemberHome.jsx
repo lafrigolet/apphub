@@ -1,20 +1,46 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import MemberProfile from './MemberProfile.jsx'
+import MemberFees    from './MemberFees.jsx'
 
-// Área de socio. Hoy: bienvenida + grid de cards. "Mi perfil" abre la
-// vista MemberProfile (lectura/edición del propio user). El resto siguen
-// como placeholder hasta que se especifiquen.
-//
-// Importante: este componente solo se renderiza para usuarios autenticados
-// con rol no-admin; los admins se redirigen a la tenant-console antes.
+// Área de socio. Bienvenida + grid de cards. Cada card abre una vista
+// dedicada con sus propios datos. La detección del query string
+// `fees_status` permite mostrar un mensaje breve cuando Stripe redirige
+// de vuelta tras un checkout (?fees_status=success|cancel).
 export default function MemberHome({ identity, onLogout }) {
   const [view, setView] = useState('home')
+  const [feesNotice, setFeesNotice] = useState(null)
+
+  // Cuando Stripe nos devuelve a /area-socio?fees_status=success
+  // aterrizamos directos en la vista de cuotas para que el socio vea
+  // el cambio reflejado.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get('fees_status')
+    if (status === 'success') {
+      setFeesNotice({ kind: 'success', text: 'Pago completado. Gracias por tu cuota.' })
+      setView('fees')
+    } else if (status === 'cancel') {
+      setFeesNotice({ kind: 'warn', text: 'Pago cancelado. Puedes intentarlo de nuevo cuando quieras.' })
+      setView('fees')
+    }
+    if (status) {
+      // Limpiar el query string del URL bar.
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
 
   if (view === 'profile') return <MemberProfile onBack={() => setView('home')} />
+  if (view === 'fees')    return (
+    <>
+      {feesNotice && (
+        <div className={`fee-toast fee-toast-${feesNotice.kind}`} onClick={() => setFeesNotice(null)}>
+          {feesNotice.text}
+        </div>
+      )}
+      <MemberFees onBack={() => { setView('home'); setFeesNotice(null) }} />
+    </>
+  )
 
-  // El nombre del kicker viene del JWT (display_name no llega en el token,
-  // así que usamos la parte local del email como fallback hasta que el user
-  // entre en "Mi perfil"; allí cargamos display_name desde el backend).
   const name = identity?.email?.split('@')[0] ?? 'socio'
 
   return (
@@ -42,10 +68,10 @@ export default function MemberHome({ identity, onLogout }) {
           <p>Datos de socio, email, rol y fechas de alta y último acceso.</p>
           <span className="member-home-go">Abrir →</span>
         </article>
-        <article className="member-home-card">
+        <article className="member-home-card member-home-card-active" onClick={() => setView('fees')}>
           <h2>Cuotas</h2>
-          <p>Histórico de pagos y próxima renovación.</p>
-          <span className="member-home-soon">Próximamente</span>
+          <p>Matrícula, seguro, suscripción anual y histórico de pagos.</p>
+          <span className="member-home-go">Abrir →</span>
         </article>
         <article className="member-home-card">
           <h2>Eventos</h2>
