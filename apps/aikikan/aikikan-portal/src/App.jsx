@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import useScrollReveal from './hooks/useScrollReveal.js'
 import Cursor from './components/Cursor.jsx'
 import Nav from './components/Nav.jsx'
@@ -13,11 +14,11 @@ import Recognition from './components/Recognition.jsx'
 import Contact from './components/Contact.jsx'
 import Footer from './components/Footer.jsx'
 import Login from './components/Login.jsx'
+import AdminConsola from './components/AdminConsola.jsx'
 
-export default function App() {
+function Landing() {
   useScrollReveal()
   const [loginOpen, setLoginOpen] = useState(false)
-
   return (
     <>
       <Cursor />
@@ -33,5 +34,14 @@ export default function App() {
       <Footer />
       {loginOpen && <Login onClose={() => setLoginOpen(false)} />}
     </>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/"        element={<Landing />} />
+      <Route path="/consola" element={<AdminConsola />} />
+    </Routes>
   )
 }

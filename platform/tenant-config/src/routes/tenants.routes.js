@@ -31,6 +31,21 @@ const updateTenantBody = z.object({
   volumeMonthCents: z.number().int().min(0).optional(),
   txMonth:          z.number().int().min(0).optional(),
   balanceCents:     z.number().int().optional(),
+  // Configuración comercial de la subscripción tenant↔plataforma.
+  subscriptionPeriod:            z.enum(['monthly', 'annual']).nullable().optional(),
+  subscriptionStatus:            z.enum(['inactive', 'trial', 'active', 'past_due', 'cancelled']).optional(),
+  subscriptionAmountCents:       z.number().int().min(0).nullable().optional(),
+  subscriptionCurrency:          z.string().length(3).optional(),
+  subscriptionStripePriceId:     z.string().max(256).nullable().optional(),
+  subscriptionBillingEmail:      z.string().email().max(256).nullable().optional(),
+  subscriptionStartedAt:         z.string().datetime().nullable().optional(),
+  subscriptionRenewsAt:          z.string().datetime().nullable().optional(),
+  subscriptionCancelAtPeriodEnd: z.boolean().optional(),
+  subscriptionNotes:             z.string().max(2000).nullable().optional(),
+})
+
+const subscribeBody = z.object({
+  returnUrl: z.string().url(),
 })
 
 function actorFromRequest(req) {
@@ -76,5 +91,24 @@ export async function tenantsRoutes(fastify) {
   fastify.patch('/v1/tenants/:id/status', { preHandler: writeGuard }, async (req) => {
     const body = statusBody.parse(req.body)
     return tenantsService.setTenantStatus(req.params.id, body, actorFromRequest(req))
+  })
+
+  // Vista comercial de la subscripción del tenant. La consume la
+  // tenant-console del owner/admin para mostrar estado actual y decidir
+  // si exponer el botón "Suscribirme".
+  fastify.get('/v1/tenants/:id/subscription', async (req) => {
+    return tenantsService.getTenantSubscription(req.params.id)
+  })
+
+  // Inicia el flujo de Stripe Checkout (mode=subscription, no-split) vía
+  // platform/splitpay. Sólo el owner/admin del propio tenant. Devuelve
+  // la URL para redirigir el navegador.
+  fastify.post('/v1/tenants/:id/subscribe', async (req) => {
+    const body = subscribeBody.parse(req.body ?? {})
+    const auth = req.headers.authorization ?? ''
+    const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null
+    return tenantsService.startSubscriptionCheckout(
+      req.params.id, req.identity, bearer, body,
+    )
   })
 }

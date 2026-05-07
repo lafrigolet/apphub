@@ -1,7 +1,10 @@
 import { stripe, getWebhookSecret } from '../lib/stripe.js'
 import { pool } from '../lib/db.js'
+import { redis } from '../lib/redis.js'
+import { publish } from '@apphub/platform-sdk/redis'
 import { logger } from '../lib/logger.js'
 import * as paymentRepo from '../repositories/payment.repository.js'
+import * as checkoutRepo from '../repositories/checkout-session.repository.js'
 import { createAdditionalTransfers } from './payment.service.js'
 import { syncAccountFromStripe } from './connect-account.service.js'
 
@@ -37,6 +40,23 @@ export async function handleWebhookEvent(event) {
 
     case 'charge.dispute.closed':
       await handleDisputeClosed(event.data.object)
+      break
+
+    case 'checkout.session.completed':
+      await handleCheckoutSessionCompleted(event.data.object)
+      break
+
+    case 'invoice.paid':
+      await handleInvoicePaid(event.data.object)
+      break
+
+    case 'invoice.payment_failed':
+      await handleInvoicePaymentFailed(event.data.object)
+      break
+
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted':
+      await handleSubscriptionStateChange(event.type, event.data.object)
       break
 
     default:
@@ -128,4 +148,159 @@ async function handleDisputeClosed(dispute) {
   } finally {
     client.release()
   }
+}
+
+// Publica un evento splitpay.* en `${appId}.events` para que la app de
+// origen pueda reaccionar (e.g. aikikan-server marca fee_payments paid).
+// El appId viene del metadata que la app inyectó al crear la sesión.
+//
+// Caso especial: cuando metadata.kind === 'platform_subscription' (cobros
+// del tenant a la plataforma, no del cliente final a la app), publicamos
+// también en `platform.events` para que tenant-config pueda actualizar el
+// estado de la subscripción del tenant. Las apps NO necesitan ver estos
+// eventos — son del plano plataforma↔tenant.
+async function emit(appId, type, payload) {
+  const isPlatformSubscription = payload?.metadata?.kind === 'platform_subscription'
+  if (!appId && !isPlatformSubscription) {
+    logger.warn({ type }, 'Skipping event emit — no app_id in checkout metadata')
+    return
+  }
+  try {
+    if (appId) await publish(redis, appId, { type, payload })
+    if (isPlatformSubscription) await publish(redis, 'platform', { type, payload })
+  } catch (err) {
+    logger.error({ err, type, appId }, 'Failed to publish splitpay event')
+  }
+}
+
+async function handleCheckoutSessionCompleted(session) {
+  const client = await pool.connect()
+  try {
+    const updated = await checkoutRepo.markCompleted(client, session.id, {
+      paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+      subscriptionId:  typeof session.subscription   === 'string' ? session.subscription   : session.subscription?.id   ?? null,
+      customerId:      typeof session.customer       === 'string' ? session.customer       : session.customer?.id       ?? null,
+      amount:          session.amount_total ?? null,
+    })
+    if (!updated) {
+      logger.warn({ stripeSessionId: session.id }, 'checkout.session.completed for unknown session — ignoring')
+      return
+    }
+    const meta = updated.metadata ?? {}
+    const appId = meta.app_id || null
+    await emit(appId, 'splitpay.checkout.completed', {
+      sessionId:       updated.id,
+      stripeSessionId: updated.stripe_session_id,
+      mode:            updated.mode,
+      paymentIntentId: updated.stripe_payment_intent_id,
+      subscriptionId:  updated.stripe_subscription_id,
+      customerId:      updated.stripe_customer_id,
+      amount:          updated.amount,
+      currency:        updated.currency,
+      tenantId:        updated.tenant_id,
+      subTenantId:     updated.sub_tenant_id,
+      metadata:        meta,
+    })
+    logger.info({ sessionId: session.id, mode: updated.mode }, 'Checkout session completed — event emitted')
+  } finally {
+    client.release()
+  }
+}
+
+async function handleInvoicePaid(invoice) {
+  // Renovaciones recurrentes — Stripe genera invoice.paid en cada periodo.
+  // Resolvemos el appId leyendo la sesión de checkout original si existe;
+  // si no, intentamos el subscription metadata (que copiamos al crear).
+  const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id
+  if (!subscriptionId) {
+    logger.debug({ invoiceId: invoice.id }, 'invoice.paid without subscription — ignoring')
+    return
+  }
+  let appId  = invoice.metadata?.app_id || invoice.subscription_details?.metadata?.app_id || null
+  let tenantId, subTenantId
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT * FROM splitpay_core.checkout_sessions WHERE stripe_subscription_id = $1 LIMIT 1`,
+      [subscriptionId],
+    )
+    if (rows[0]) {
+      const sess = rows[0]
+      const meta = sess.metadata ?? {}
+      appId       = appId || meta.app_id || null
+      tenantId    = sess.tenant_id
+      subTenantId = sess.sub_tenant_id
+    }
+  } finally {
+    client.release()
+  }
+  await emit(appId, 'splitpay.invoice.paid', {
+    invoiceId:       invoice.id,
+    subscriptionId,
+    customerId:      typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id ?? null,
+    amount:          invoice.amount_paid,
+    currency:        invoice.currency,
+    periodStart:     invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
+    periodEnd:       invoice.period_end   ? new Date(invoice.period_end   * 1000).toISOString() : null,
+    tenantId,
+    subTenantId,
+  })
+  logger.info({ invoiceId: invoice.id, subscriptionId }, 'Invoice paid — event emitted')
+}
+
+async function handleInvoicePaymentFailed(invoice) {
+  const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id
+  if (!subscriptionId) return
+  let appId  = invoice.metadata?.app_id || invoice.subscription_details?.metadata?.app_id || null
+  let tenantId
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT app_id, tenant_id, metadata FROM splitpay_core.checkout_sessions
+        WHERE stripe_subscription_id = $1 LIMIT 1`,
+      [subscriptionId],
+    )
+    if (rows[0]) {
+      appId    = appId || rows[0].metadata?.app_id || null
+      tenantId = rows[0].tenant_id
+    }
+  } finally {
+    client.release()
+  }
+  await emit(appId, 'splitpay.invoice.payment_failed', {
+    invoiceId: invoice.id,
+    subscriptionId,
+    amount:    invoice.amount_due,
+    currency:  invoice.currency,
+    tenantId,
+  })
+}
+
+async function handleSubscriptionStateChange(eventType, sub) {
+  let appId = sub.metadata?.app_id || null
+  let tenantId
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT app_id, tenant_id, metadata FROM splitpay_core.checkout_sessions
+        WHERE stripe_subscription_id = $1 LIMIT 1`,
+      [sub.id],
+    )
+    if (rows[0]) {
+      appId    = appId || rows[0].metadata?.app_id || null
+      tenantId = rows[0].tenant_id
+    }
+  } finally {
+    client.release()
+  }
+  const type = eventType === 'customer.subscription.deleted'
+    ? 'splitpay.subscription.deleted'
+    : 'splitpay.subscription.updated'
+  await emit(appId, type, {
+    subscriptionId:    sub.id,
+    status:            sub.status,
+    currentPeriodEnd:  sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+    tenantId,
+  })
 }

@@ -35,6 +35,21 @@ export function adaptTenant(db) {
     contactEmail:  db.contact_email,
     contactPhone:  db.contact_phone,
     address:       db.address,
+    // Subscripción del tenant a la plataforma (ver migración 0005).
+    subscription: {
+      period:                 db.subscription_period ?? null,
+      status:                 db.subscription_status ?? 'inactive',
+      amountCents:            db.subscription_amount_cents ?? null,
+      currency:               db.subscription_currency ?? 'eur',
+      stripePriceId:          db.subscription_stripe_price_id ?? null,
+      stripeSubscriptionId:   db.subscription_stripe_subscription_id ?? null,
+      stripeCustomerId:       db.subscription_stripe_customer_id ?? null,
+      billingEmail:           db.subscription_billing_email ?? null,
+      startedAt:              db.subscription_started_at ?? null,
+      renewsAt:               db.subscription_renews_at ?? null,
+      cancelAtPeriodEnd:      !!db.subscription_cancel_at_period_end,
+      notes:                  db.subscription_notes ?? '',
+    },
   }
 }
 

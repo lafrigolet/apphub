@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import * as auth from '../lib/auth.js'
 
@@ -28,6 +29,14 @@ function LoginForm({ onClose }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
+  const navigate = useNavigate()
+
+  function postLogin(data) {
+    onClose()
+    if (data?.role === 'owner' || data?.role === 'admin') {
+      navigate('/consola')
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -35,8 +44,8 @@ function LoginForm({ onClose }) {
     setLoading(true)
     try {
       if (mode === 'login') {
-        await auth.login({ email, password })
-        onClose()
+        const data = await auth.login({ email, password })
+        postLogin(data)
       } else {
         await auth.register({ email, password })
         setSuccess('Cuenta creada. Ahora puedes iniciar sesión.')
@@ -53,8 +62,8 @@ function LoginForm({ onClose }) {
     setError(null)
     setLoading(true)
     try {
-      await auth.loginGoogle(accessToken)
-      onClose()
+      const data = await auth.loginGoogle(accessToken)
+      postLogin(data)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -68,7 +77,7 @@ function LoginForm({ onClose }) {
       if (response.authResponse?.accessToken) {
         setLoading(true)
         auth.loginFacebook(response.authResponse.accessToken)
-          .then(() => onClose())
+          .then(postLogin)
           .catch((err) => setError(err.message))
           .finally(() => setLoading(false))
       } else {

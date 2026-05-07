@@ -3,6 +3,11 @@ const FULL_COLUMNS = `
   legal_name, cif, country, contact_email, contact_phone, address,
   plan, custom_domain, stripe_status, suspend_reason, archived_at,
   volume_month_cents, tx_month, balance_cents,
+  subscription_period, subscription_status, subscription_amount_cents,
+  subscription_currency, subscription_stripe_price_id,
+  subscription_stripe_subscription_id, subscription_stripe_customer_id,
+  subscription_billing_email, subscription_started_at, subscription_renews_at,
+  subscription_cancel_at_period_end, subscription_notes,
   created_at
 `
 
@@ -61,6 +66,19 @@ const ALLOWED_UPDATE_FIELDS = {
   volumeMonthCents:  'volume_month_cents',
   txMonth:           'tx_month',
   balanceCents:      'balance_cents',
+  // Campos comerciales de la subscripción del tenant a la plataforma.
+  // Los campos `subscription_stripe_*_id` los rellena el subscriber de
+  // eventos splitpay (no el endpoint PATCH staff).
+  subscriptionPeriod:           'subscription_period',
+  subscriptionStatus:           'subscription_status',
+  subscriptionAmountCents:      'subscription_amount_cents',
+  subscriptionCurrency:         'subscription_currency',
+  subscriptionStripePriceId:    'subscription_stripe_price_id',
+  subscriptionBillingEmail:     'subscription_billing_email',
+  subscriptionStartedAt:        'subscription_started_at',
+  subscriptionRenewsAt:         'subscription_renews_at',
+  subscriptionCancelAtPeriodEnd:'subscription_cancel_at_period_end',
+  subscriptionNotes:            'subscription_notes',
 }
 
 export async function update(client, id, fields) {

@@ -9,14 +9,15 @@ import { StatusBadge, StripeBadge, PlanBadge, RoleBadge, TwoFABadge, Avatar, DlR
 import { SuspendModal, ReactivateModal, ArchiveModal, RestoreModal, ExportModal } from './modals/TenantActionModals'
 import { SplitpayConfigTabs } from './SplitpayPanels'
 import EmailDomainsManager from '../../components/EmailDomainsManager'
+import SubscriptionPanel from './SubscriptionPanel'
 
 const TABS = [
-  { k: 'identity', label: 'Identificación' },
-  { k: 'state',    label: 'Estado y dominios' },
-  { k: 'stripe',   label: 'Stripe Connect' },
-  { k: 'admins',   label: 'Administradores' },
-  { k: 'plan',     label: 'Plan y uso' },
-  { k: 'audit',    label: 'Audit log' },
+  { k: 'identity',     label: 'Identificación' },
+  { k: 'state',        label: 'Estado y dominios' },
+  { k: 'stripe',       label: 'Stripe Connect' },
+  { k: 'admins',       label: 'Administradores' },
+  { k: 'subscription', label: 'Subscripción' },
+  { k: 'audit',        label: 'Audit log' },
 ]
 
 function TabIdentity({ t }) {
@@ -239,14 +240,19 @@ function TabAdmins({ t, admins }) {
   )
 }
 
-function TabPlan({ t }) {
+function TabSubscription({ t, onRefresh, onToast }) {
   const limit = t.plan === 'STARTER' ? 50000 : t.plan === 'PRO' ? 250000 : 2000000
   const pct   = Math.min(100, Math.round((t.volMonth / limit) * 100))
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 bg-white border border-line rounded-xl shadow-card p-5">
+    <div className="space-y-6">
+      <SubscriptionPanel tenant={t} onSaved={onRefresh} onToast={onToast} />
+
+      <div className="bg-white border border-line rounded-xl shadow-card p-5">
         <div className="flex items-center justify-between mb-5">
-          <div className="font-display text-[20px]">Plan actual</div>
+          <div>
+            <div className="font-display text-[20px]">Uso del plan</div>
+            <div className="text-xs text-ink3 mt-0.5">Volumen procesado por la app del tenant (Stripe Connect, no el cobro de la plataforma)</div>
+          </div>
           <PlanBadge plan={t.plan} />
         </div>
         <div className="space-y-5">
@@ -334,14 +340,16 @@ export default function TenantDetail() {
 
   const color = tenantColor(t.id)
 
+  const { toast } = useApp()
+
   function tabContent() {
     switch (tenantTab) {
-      case 'identity': return <TabIdentity t={t} />
-      case 'state':    return <TabState t={t} />
-      case 'stripe':   return <TabStripe t={t} app={app} />
-      case 'admins':   return <TabAdmins t={t} admins={admins} />
-      case 'plan':     return <TabPlan t={t} />
-      case 'audit':    return <TabAudit t={t} log={audit} />
+      case 'identity':     return <TabIdentity t={t} />
+      case 'state':        return <TabState t={t} />
+      case 'stripe':       return <TabStripe t={t} app={app} />
+      case 'admins':       return <TabAdmins t={t} admins={admins} />
+      case 'subscription': return <TabSubscription t={t} onRefresh={refresh} onToast={toast} />
+      case 'audit':        return <TabAudit t={t} log={audit} />
     }
   }
 
