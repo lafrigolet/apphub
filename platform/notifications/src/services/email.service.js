@@ -95,6 +95,42 @@ export async function sendPasswordResetEmail(to, resetUrl, locale = 'es') {
   await send({ to, ...tmpl })
 }
 
+// Enviado tras POST /v1/tenants/bootstrap. Incluye el magic-link que el
+// owner abrirá en su portal (subdomain.apphub.com/activate?token=...).
+export async function sendTenantBootstrapEmail(to, { ownerDisplayName, magicLinkUrl, expiresAt, appDisplayName, tenantDisplayName, locale = 'es' }) {
+  const namePrefix = ownerDisplayName ? ' ' + ownerDisplayName : ''
+  const expiresStr = expiresAt ? new Date(expiresAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' }) : ''
+  const appLabel    = appDisplayName    ?? (locale === 'en' ? 'the platform' : 'la plataforma')
+  const tenantLabel = tenantDisplayName ?? appLabel
+  const tmpl = await compose('tenant.bootstrap_started', {
+    namePrefix, magicLinkUrl, expiresStr, appLabel, tenantLabel,
+  }, locale === 'en' ? {
+    subject: `Welcome to ${appLabel} — activate your account`,
+    text: `Hi${namePrefix},\n\nYour account for ${tenantLabel} on ${appLabel} is ready. Click the link below to set a password and start using it (valid until ${expiresStr}):\n\n${magicLinkUrl}\n\nIf you didn't expect this email, you can ignore it.`,
+    html: `<p>Hi${namePrefix},</p><p>Your account for <strong>${tenantLabel}</strong> on <strong>${appLabel}</strong> is ready. Click the link below to set a password and start using it (valid until ${expiresStr}):</p><p><a href="${magicLinkUrl}">${magicLinkUrl}</a></p><p>If you didn't expect this email, you can ignore it.</p>`,
+  } : {
+    subject: `Bienvenido a ${appLabel} — activa tu cuenta`,
+    text: `Hola${namePrefix},\n\nTu cuenta de ${tenantLabel} en ${appLabel} ya está lista. Pulsa el enlace para fijar tu contraseña y empezar a usarla (válido hasta ${expiresStr}):\n\n${magicLinkUrl}\n\nSi no esperabas este email, puedes ignorarlo.`,
+    html: `<p>Hola${namePrefix},</p><p>Tu cuenta de <strong>${tenantLabel}</strong> en <strong>${appLabel}</strong> ya está lista. Pulsa el enlace para fijar tu contraseña y empezar a usarla (válido hasta ${expiresStr}):</p><p><a href="${magicLinkUrl}">${magicLinkUrl}</a></p><p>Si no esperabas este email, puedes ignorarlo.</p>`,
+  })
+  await send({ to, ...tmpl })
+}
+
+// Enviado tras consumir el magic-link. Email corto de bienvenida + tip
+// para el siguiente paso del onboarding (Fase B).
+export async function sendTenantActivatedEmail(to, { locale = 'es' } = {}) {
+  const tmpl = await compose('tenant.activated', {}, locale === 'en' ? {
+    subject: 'Your account is active — set up your workspace',
+    text: 'Welcome! Your account is now active. Open the dashboard to finish configuring your workspace and invite your team.',
+    html: '<p>Welcome!</p><p>Your account is now active. Open the dashboard to finish configuring your workspace and invite your team.</p>',
+  } : {
+    subject: 'Tu cuenta está activa — termina la configuración',
+    text: '¡Bienvenido! Tu cuenta está activa. Entra al panel para terminar de configurar tu espacio e invitar a tu equipo.',
+    html: '<p>¡Bienvenido!</p><p>Tu cuenta está activa. Entra al panel para terminar de configurar tu espacio e invitar a tu equipo.</p>',
+  })
+  await send({ to, ...tmpl })
+}
+
 export async function sendBookingReminderEmail(to, { name, startsAt, window, locale = 'es' }) {
   const when = new Date(startsAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' })
   const lead = locale === 'en' ? leadEn(window) : leadEs(window)

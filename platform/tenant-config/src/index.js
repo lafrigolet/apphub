@@ -3,6 +3,7 @@ import { configureRedis } from './lib/redis.js'
 import { appsRoutes } from './routes/apps.routes.js'
 import { tenantsRoutes } from './routes/tenants.routes.js'
 import { auditRoutes } from './routes/audit.routes.js'
+import { bootstrapRoutes } from './routes/bootstrap.routes.js'
 import { backfillTenantNginxConfigs } from './services/tenants.service.js'
 import { startSplitpaySubscriptionSubscriber } from './events/splitpay-subscription.handler.js'
 
@@ -21,6 +22,7 @@ export async function register({ app, db, redis, logger }) {
   await app.register(appsRoutes)
   await app.register(tenantsRoutes)
   await app.register(auditRoutes)
+  await app.register(bootstrapRoutes)
 
   // Backfill NGINX subdomain → tenant-console map for every active tenant.
   // Runs after route registration; if Redis is down we log and continue —

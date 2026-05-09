@@ -9,6 +9,7 @@ const FULL_COLUMNS = `
   subscription_stripe_subscription_id, subscription_stripe_customer_id,
   subscription_billing_email, subscription_started_at, subscription_renews_at,
   subscription_cancel_at_period_end, subscription_notes,
+  bootstrap_started_at, bootstrap_completed_at,
   created_at
 `
 
@@ -98,6 +99,20 @@ const ALLOWED_UPDATE_FIELDS = {
   subscriptionRenewsAt:         'subscription_renews_at',
   subscriptionCancelAtPeriodEnd:'subscription_cancel_at_period_end',
   subscriptionNotes:            'subscription_notes',
+}
+
+// Write-once: una vez `bootstrap_completed_at` está puesto, no vuelve a NULL
+// aunque la subscripción caiga a past_due u otros pasos vuelvan a "pending".
+// El doc §B.3 explica que la regresión la maneja un banner separado.
+export async function markBootstrapCompleted(client, id) {
+  const { rows } = await client.query(
+    `UPDATE platform_tenants.tenants
+     SET bootstrap_completed_at = COALESCE(bootstrap_completed_at, now())
+     WHERE id = $1
+     RETURNING ${FULL_COLUMNS}`,
+    [id],
+  )
+  return rows[0] ?? null
 }
 
 export async function update(client, id, fields) {

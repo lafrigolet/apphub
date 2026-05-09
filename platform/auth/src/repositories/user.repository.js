@@ -3,6 +3,7 @@ const SCHEMA = 'platform_auth'
 const PUBLIC_COLUMNS = `
   id, app_id, tenant_id, sub_tenant_id, email, role,
   display_name, last_login_at, revoked_at, failed_login_attempts, locked_until,
+  pending_activation, owner_activated_at,
   created_at, updated_at
 `
 
@@ -22,15 +23,31 @@ export async function findById(client, appId, tenantId, id) {
   return rows[0] ?? null
 }
 
-export async function createUser(client, { id, appId, tenantId, subTenantId, email, passwordHash, role, displayName }) {
+export async function createUser(client, { id, appId, tenantId, subTenantId, email, passwordHash, role, displayName, pendingActivation = false }) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.users
-       (id, app_id, tenant_id, sub_tenant_id, email, password_hash, role, display_name)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id, app_id, tenant_id, sub_tenant_id, email, role, display_name, created_at`,
-    [id, appId, tenantId, subTenantId ?? null, email, passwordHash, role, displayName ?? null],
+       (id, app_id, tenant_id, sub_tenant_id, email, password_hash, role, display_name, pending_activation)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, app_id, tenant_id, sub_tenant_id, email, role, display_name, pending_activation, created_at`,
+    [id, appId, tenantId, subTenantId ?? null, email, passwordHash ?? null, role, displayName ?? null, pendingActivation],
   )
   return rows[0]
+}
+
+// Marca al owner como activado tras consumir el magic-link: setea password,
+// limpia pending_activation, registra owner_activated_at.
+export async function markActivated(client, id, passwordHash) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.users
+     SET password_hash      = $2,
+         pending_activation = FALSE,
+         owner_activated_at = COALESCE(owner_activated_at, now()),
+         updated_at         = now()
+     WHERE id = $1
+     RETURNING id, app_id, tenant_id, sub_tenant_id, email, role, display_name, owner_activated_at`,
+    [id, passwordHash],
+  )
+  return rows[0] ?? null
 }
 
 export async function incrementFailedAttempts(client, id) {

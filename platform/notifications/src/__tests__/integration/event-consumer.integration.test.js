@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import Redis from 'ioredis'
 
-const CHANNEL = 'platform:events'
+const CHANNEL = 'platform.events'
 
 let publisher     // standalone Redis client used to publish test events
 

@@ -48,9 +48,9 @@ export function startEventConsumer() {
   const sub = new Redis(env.REDIS_URL)
 
   sub.ready = new Promise((resolve, reject) => {
-    sub.subscribe('platform:events', (err) => {
-      if (err) { logger.error({ err }, 'Failed to subscribe to platform:events'); reject(err) }
-      else { logger.info('platform-notifications subscribed to platform:events'); resolve() }
+    sub.subscribe('platform.events', (err) => {
+      if (err) { logger.error({ err }, 'Failed to subscribe to platform.events'); reject(err) }
+      else { logger.info('platform-notifications subscribed to platform.events'); resolve() }
     })
   })
 
@@ -80,6 +80,30 @@ export function startEventConsumer() {
         if (email && token) {
           const resetUrl = `${process.env.APP_BASE_URL ?? 'http://aikikan.apphub.local:8080'}/reset-password?token=${token}`
           await gated(userId, event.type, 'email', () => sendPasswordResetEmail(email, resetUrl, locale))
+        }
+      }
+
+      // ── Tenant bootstrap (Fase A) ───────────────────────────────────
+      // Producido por platform-tenant-config tras crear app+tenant+owner.
+      // El payload incluye el magic-link ya compuesto (con el subdomain del
+      // tenant) — notifications sólo se encarga de mandar el email.
+      if (event.type === 'tenant.bootstrap_started') {
+        const { ownerEmail, ownerDisplayName, magicLinkUrl, expiresAt, appDisplayName, tenantDisplayName } = event.payload ?? {}
+        if (ownerEmail && magicLinkUrl) {
+          const { sendTenantBootstrapEmail } = await import('./email.service.js')
+          // No rate-limit: el email lo dispara staff manualmente y no hay userId aún.
+          await sendTenantBootstrapEmail(ownerEmail, {
+            ownerDisplayName, magicLinkUrl, expiresAt, appDisplayName, tenantDisplayName, locale,
+          })
+        }
+      }
+
+      // El owner consumió el magic-link y fijó password — bienvenida.
+      if (event.type === 'tenant.activated') {
+        const { ownerEmail } = event.payload ?? {}
+        if (ownerEmail) {
+          const { sendTenantActivatedEmail } = await import('./email.service.js')
+          await sendTenantActivatedEmail(ownerEmail, { locale })
         }
       }
 

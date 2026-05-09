@@ -35,6 +35,24 @@ const resetBody = z.object({
   newPassword: z.string().min(8),
 })
 
+const activateBody = z.object({
+  token:    z.string().min(16),
+  password: z.string().min(8),
+})
+
+const internalCreateOwnerBody = z.object({
+  appId:       z.string().min(1),
+  tenantId:    z.string().uuid(),
+  email:       z.string().email(),
+  displayName: z.string().min(1).max(128),
+  ttlDays:     z.number().int().min(1).max(30).optional(),
+})
+
+const internalReissueBody = z.object({
+  userId:  z.string().uuid(),
+  ttlDays: z.number().int().min(1).max(30).optional(),
+})
+
 export async function authRoutes(fastify) {
   fastify.post('/register', { schema: { body: registerBody }, config: { public: true } }, async (req, reply) => {
     const user = await authService.register(req.body)
@@ -60,6 +78,14 @@ export async function authRoutes(fastify) {
     await authService.resetPassword(req.body)
     return reply.send({ data: { message: 'Password reset successfully' } })
   })
+
+  // Magic-link landing — el owner llega aquí desde el email de bootstrap.
+  // Consume el token, fija contraseña y devuelve un par (access, refresh)
+  // listos para usar como cualquier login normal.
+  fastify.post('/activate', { schema: { body: activateBody }, config: { public: true } }, async (req, reply) => {
+    const result = await authService.activate(req.body)
+    return reply.send({ data: result })
+  })
 }
 
 export async function internalRoutes(fastify) {
@@ -73,5 +99,36 @@ export async function internalRoutes(fastify) {
     } catch {
       return reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'Invalid token' } })
     }
+  })
+
+  // Internal: invoca tenant-config tras crear app+tenant. Crea el usuario
+  // owner con password_hash NULL y un activation_token, devuelve el plano
+  // del token. Caller responsibility: enviar el email con el magic-link.
+  fastify.post('/auth/owners', { schema: { body: internalCreateOwnerBody }, config: { public: true } }, async (req, reply) => {
+    const result = await authService.createOwnerWithActivation(req.body)
+    return reply.status(201).send({ data: result })
+  })
+
+  // Internal: reemite un activation_token tras invalidar los activos.
+  fastify.post('/auth/owners/reissue', { schema: { body: internalReissueBody }, config: { public: true } }, async (req, reply) => {
+    const result = await authService.reissueActivationForOwner(req.body)
+    return reply.send({ data: result })
+  })
+
+  // Internal: estado del owner (passwordSet, activated). Lo consume el
+  // GET /v1/tenants/:id/bootstrap derivado.
+  fastify.get('/auth/owners/state', { config: { public: true } }, async (req) => {
+    const tenantId = req.query?.tenantId
+    if (!tenantId) return { data: null }
+    const owner = await authService.getOwnerState({ tenantId })
+    return { data: owner }
+  })
+
+  // Internal: cuenta admins en un tenant — paso "admins" del checklist.
+  fastify.get('/auth/admins/count', { config: { public: true } }, async (req) => {
+    const tenantId = req.query?.tenantId
+    if (!tenantId) return { data: 0 }
+    const count = await authService.countAdmins({ tenantId })
+    return { data: count }
   })
 }
