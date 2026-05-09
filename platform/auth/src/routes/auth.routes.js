@@ -124,6 +124,15 @@ export async function internalRoutes(fastify) {
     return { data: owner }
   })
 
+  // Internal: hard-delete del owner pendiente (parte del revoke de bootstrap).
+  // Falla con 409 si el owner ya activó. Idempotente: si no hay owner devuelve 0.
+  fastify.delete('/auth/owners', { config: { public: true } }, async (req) => {
+    const tenantId = req.query?.tenantId
+    if (!tenantId) return { data: { deleted: 0 } }
+    const result = await authService.deletePendingOwner({ tenantId })
+    return { data: result }
+  })
+
   // Internal: cuenta admins en un tenant — paso "admins" del checklist.
   fastify.get('/auth/admins/count', { config: { public: true } }, async (req) => {
     const tenantId = req.query?.tenantId

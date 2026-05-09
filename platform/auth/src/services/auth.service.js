@@ -288,6 +288,30 @@ export async function getOwnerState({ tenantId }) {
   })
 }
 
+// Borra al owner pendiente de un tenant (hard-delete) junto con sus
+// activation_tokens. Sólo permitido si el owner aún no ha activado: la
+// validación la hace el caller, pero la repetimos aquí defensa en
+// profundidad. Devuelve cuántos usuarios fueron borrados.
+export async function deletePendingOwner({ tenantId }) {
+  return withStaffBypassTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, owner_activated_at FROM platform_auth.users
+       WHERE tenant_id = $1 AND role = 'owner' AND revoked_at IS NULL`,
+      [tenantId],
+    )
+    let deleted = 0
+    for (const owner of rows) {
+      if (owner.owner_activated_at) {
+        throw new AppError('ALREADY_ACTIVATED', 'No se puede revocar: el owner ya activó', 409)
+      }
+      // ON DELETE CASCADE en activation_tokens → se borran al borrar el user.
+      const r = await client.query(`DELETE FROM platform_auth.users WHERE id = $1`, [owner.id])
+      deleted += r.rowCount
+    }
+    return { deleted }
+  })
+}
+
 // Cuenta de admins (excluyendo al owner) — paso "admins" del checklist.
 export async function countAdmins({ tenantId }) {
   return withStaffBypassTransaction(async (client) => {

@@ -23,11 +23,14 @@ function magicLinkUrl(subdomain, token) {
 }
 
 async function callInternal(path, body, method = 'POST') {
-  const res = await fetch(`${INTERNAL_BASE}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: body == null ? undefined : JSON.stringify(body),
-  })
+  // Sólo enviamos Content-Type cuando hay body — Fastify rechaza
+  // peticiones con application/json y body vacío (FST_ERR_CTP_EMPTY_JSON_BODY).
+  const init = { method }
+  if (body != null) {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body    = JSON.stringify(body)
+  }
+  const res = await fetch(`${INTERNAL_BASE}${path}`, init)
   const json = await res.json().catch(() => ({}))
   if (!res.ok) {
     const code    = json?.error?.code    ?? 'INTERNAL_CALL_FAILED'
@@ -234,6 +237,59 @@ export async function resendActivation(tenantId, actor) {
   }).catch((e) => logger.warn({ err: e }, 'resend publish failed'))
 
   return { magicLinkUrl: link, expiresAt: reissue.expiresAt }
+}
+
+// Lista de tenants en onboarding (pending bootstrap completion). Lo consume
+// la vista voragine-console > Tenants en onboarding.
+export async function listPendingTenants() {
+  return withTransaction(pool, async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, app_id, display_name, subdomain, contact_email, default_locale,
+              bootstrap_started_at, bootstrap_completed_at, created_at
+       FROM platform_tenants.tenants
+       WHERE bootstrap_completed_at IS NULL AND bootstrap_started_at IS NOT NULL
+       ORDER BY bootstrap_started_at DESC`,
+    )
+    return rows
+  })
+}
+
+// Revoca un tenant que aún no ha activado: borra el owner + sus activation_tokens
+// (en auth) y la fila en platform_tenants.tenants. La fila de `apps` no se toca
+// — pueden quedar otros tenants colgando de ella. Doc §A.6.
+export async function revokeBootstrap(tenantId, actor) {
+  const tenant = await withTransaction(pool, (client) => tenantsRepo.findById(client, tenantId))
+  if (!tenant) throw new NotFoundError('Tenant')
+  if (tenant.bootstrap_completed_at) {
+    throw new AppError('ALREADY_BOOTSTRAPPED', 'No se puede revocar un tenant ya activado', 409)
+  }
+
+  // Comprobamos que el owner siga pending — si activó, paramos aquí.
+  const owner = await callInternal(`/internal/auth/owners/state?tenantId=${tenantId}`, null, 'GET')
+  if (owner && !owner.pending_activation) {
+    throw new AppError('ALREADY_ACTIVATED', 'El owner ya activó — usa archivar en su lugar', 409)
+  }
+
+  // Step 1 — borra el owner+tokens via auth /internal.
+  await callInternal(`/internal/auth/owners?tenantId=${tenantId}`, null, 'DELETE')
+
+  // Step 2 — audit + delete del tenant. audit_log.tenant_id no tiene FK,
+  // así que las filas previas siguen referenciando el id revocado para
+  // trazabilidad histórica.
+  await withTransaction(pool, async (client) => {
+    await auditRepo.insert(client, {
+      actorUserId: actor?.userId ?? null,
+      actorRole:   actor?.role   ?? null,
+      appId:       tenant.app_id,
+      tenantId:    tenant.id,
+      action:      'TENANT_BOOTSTRAP_REVOKED',
+      detail:      `Bootstrap revoked for "${tenant.display_name}"`,
+      ip:          actor?.ip ?? null,
+    })
+    await client.query('DELETE FROM platform_tenants.tenants WHERE id = $1', [tenant.id])
+  })
+
+  return { tenantId: tenant.id }
 }
 
 // ── Fase B — derived bootstrap status ─────────────────────────────────────

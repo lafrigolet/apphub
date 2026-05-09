@@ -7,6 +7,7 @@ import { fmtDate, fmtMoney, tenantColor, initials } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { StatusBadge, StripeBadge, PlanBadge, EmptyState } from '../../lib/ui'
 import CreateTenantModal from './modals/CreateTenantModal'
+import BootstrapTenantModal from './modals/BootstrapTenantModal'
 
 function FilterChip({ label, filterKey, options, filters, setFilters }) {
   const [open, setOpen] = useState(false)
@@ -96,12 +97,20 @@ export default function StaffTenants() {
             {filtered.length} de {tenants.length} tenants · gestiona el ciclo de vida completo desde el alta hasta el archivado.
           </p>
         </div>
-        <button
-          onClick={() => openModal(<CreateTenantModal />, { size: 'lg' })}
-          className="btn btn-primary shrink-0"
-        >
-          {icons.plus}<span>Nuevo tenant</span>
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={() => openModal(<CreateTenantModal />, { size: 'lg' })}
+            className="btn btn-ghost"
+          >
+            {icons.plus}<span>Nuevo tenant</span>
+          </button>
+          <button
+            onClick={() => openModal(<BootstrapTenantModal />, { size: 'xl' })}
+            className="btn btn-primary"
+          >
+            {icons.plus}<span>Bootstrap nuevo tenant</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border border-line rounded-xl p-4 mb-4 shadow-card">

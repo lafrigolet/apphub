@@ -8,6 +8,7 @@ import LoginView from './views/auth/LoginView'
 import StaffDashboard  from './views/staff/Dashboard'
 import StaffApps       from './views/staff/Apps'
 import StaffTenants    from './views/staff/Tenants'
+import StaffOnboarding from './views/staff/Onboarding'
 import TenantDetail    from './views/staff/TenantDetail'
 import StaffList       from './views/staff/StaffList'
 import AuditGlobal     from './views/staff/AuditGlobal'
@@ -41,6 +42,7 @@ function MainContent() {
     if (view === 'apps')                                   return <StaffApps />
     if (view === 'tenants' && selectedTenant)              return <TenantDetail />
     if (view === 'tenants')                                return <StaffTenants />
+    if (view === 'onboarding')                             return <StaffOnboarding />
     if (view === 'staff')                                  return <StaffList />
     if (view === 'audit')                                  return <AuditGlobal />
     if (view === 'config-auth')                            return <AuthProviders />

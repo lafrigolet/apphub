@@ -57,6 +57,12 @@ export async function bootstrapRoutes(fastify) {
     return reply.status(201).send({ data: result })
   })
 
+  // Lista de tenants en onboarding (bootstrap_completed_at IS NULL).
+  // Solo staff/super_admin: la usa la vista "Tenants en onboarding".
+  fastify.get('/v1/tenants/onboarding', { preHandler: staffOnly }, async () => {
+    return { data: await bootstrapService.listPendingTenants() }
+  })
+
   // Fase B — derived status, lo consume el panel "Configura tu cuenta"
   // del owner. Cualquier usuario autenticado de ese tenant puede leerlo;
   // staff puede leer el de cualquier tenant.
@@ -70,5 +76,12 @@ export async function bootstrapRoutes(fastify) {
   fastify.post('/v1/tenants/:id/resend-activation', { preHandler: staffOnly }, async (req) => {
     const result = await bootstrapService.resendActivation(req.params.id, actorFromRequest(req))
     return { data: result }
+  })
+
+  // Revocar tenant pendiente (Fase A) — borra tenant + owner + tokens.
+  // Falla con 409 si bootstrap ya está completo o el owner ya activó.
+  fastify.delete('/v1/tenants/:id/bootstrap', { preHandler: staffOnly }, async (req, reply) => {
+    const result = await bootstrapService.revokeBootstrap(req.params.id, actorFromRequest(req))
+    return reply.status(200).send({ data: result })
   })
 }

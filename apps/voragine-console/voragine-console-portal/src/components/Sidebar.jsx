@@ -17,8 +17,9 @@ export default function Sidebar() {
   const staffItems = [
     { k: 'dashboard', label: 'Dashboard', icon: icons.dashboard },
     { k: 'apps',      label: 'Apps',      icon: icons.apps },
-    { k: 'tenants',   label: 'Tenants',   icon: icons.tenants },
-    { k: 'staff',     label: 'Staff',     icon: icons.staff },
+    { k: 'tenants',    label: 'Tenants',    icon: icons.tenants },
+    { k: 'onboarding', label: 'Onboarding', icon: icons.tenants },
+    { k: 'staff',      label: 'Staff',      icon: icons.staff },
     { k: 'audit',     label: 'Audit log', icon: icons.audit },
     { _section: 'Configuración' },
     { k: 'config-auth',                      label: 'OAuth Providers', icon: icons.settings },
