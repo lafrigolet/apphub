@@ -21,7 +21,7 @@ server {
 
   # Platform APIs (auth, tenants, payments, splitpay, …)
   include /etc/nginx/snippets/platform-routes.conf;
-
+{{server_route_block}}
   # App frontend — proxies to the upstream block defined for this portal in
   # /etc/nginx/conf.d/upstream.conf. NGINX returns 502 until the container is up.
   location / {
@@ -38,8 +38,30 @@ server {
 }
 `
 
-function upstreamAlias(subdomain) {
+// Bloque opcional /api/<appId>/ → <upstream>_server. Sólo lo añadimos
+// cuando la app trae un servidor backend (ADR 013). El upstream se
+// declara estáticamente en infra/nginx/conf.d/upstream.conf — si no
+// existe, NGINX da 502 y el operador sabe que falta wirearlo.
+const SERVER_ROUTE_TEMPLATE = `
+  # App-specific backend (ADR 013 — one container per app, schema app_{{app_id}}).
+  # Ej.: GET /api/{{app_id}}/dojos → /v1/{{app_id}}/dojos.
+  location /api/{{app_id}}/ {
+    limit_req zone=api burst=20 nodelay;
+    proxy_pass http://{{server_upstream_alias}}/v1/{{app_id}}/;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+  }
+`
+
+function portalUpstreamAlias(subdomain) {
   return `${String(subdomain).replace(/-/g, '_')}_portal`
+}
+
+function serverUpstreamAlias(appId) {
+  return `${String(appId).replace(/-/g, '_')}_server`
 }
 
 function render(template, vars) {
@@ -53,13 +75,23 @@ function render(template, vars) {
  * rendered conf to Redis (HSET) and emits a PUBLISH for hot-aware sidecars.
  * Polling sidecars notice on the next tick regardless.
  */
-export async function writeAppNginxConfig({ appId, subdomain }) {
+export async function writeAppNginxConfig({ appId, subdomain, hasServer = true }) {
+  // hasServer=true por defecto: la mayoría de apps que llegan aquí (las
+  // de bootstrap) sí tienen su propio backend. Si una app no lo tiene,
+  // el caller pasa `hasServer:false` y omitimos el bloque /api/<appId>/.
+  const serverRouteBlock = hasServer
+    ? render(SERVER_ROUTE_TEMPLATE, {
+        app_id:                appId,
+        server_upstream_alias: serverUpstreamAlias(appId),
+      })
+    : ''
   const conf = render(APP_TEMPLATE, {
-    app_id:         appId,
+    app_id:             appId,
     subdomain,
-    upstream_alias: upstreamAlias(subdomain),
-    conf_key:       CONF_KEY,
-    timestamp:      new Date().toISOString(),
+    upstream_alias:     portalUpstreamAlias(subdomain),
+    server_route_block: serverRouteBlock,
+    conf_key:           CONF_KEY,
+    timestamp:          new Date().toISOString(),
   })
   await redis.hset(CONF_KEY, subdomain, conf)
   await redis.publish(RELOAD_CHANNEL, subdomain).catch(() => {})
