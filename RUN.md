@@ -158,7 +158,7 @@ The script is idempotent and registers both the super_admin and the
 http://voragine-console.apphub.local:8080 and start creating apps from the
 **Apps** sidebar — new subdomains route automatically.
 
-Full reference: [`docs/bootstrap.md`](docs/bootstrap.md) (env vars,
+Full reference: [`docs/runbooks/platform-bootstrap.md`](docs/runbooks/platform-bootstrap.md) (env vars,
 troubleshooting, wipe-and-restart workflow, design rationale). See also
 [ADR 003](docs/adr/003-dynamic-nginx-routing.md) for what happens after
 bootstrap when an app is created.

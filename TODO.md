@@ -738,8 +738,9 @@ profundo se itera después.
 Flujo de alta de un tenant nuevo en dos fases — Fase A atómica (staff
 provisiona desde voragine-console y manda magic-link) + Fase B asíncrona
 (owner activa, fija contraseña y completa el checklist de onboarding).
-Diseño completo en `docs/tenant-bootstrap.md`. Implementado en 5 commits
-sobre `feature/tenant-bootstrap`:
+Diseño completo en `docs/design/tenant-bootstrap.md`; runbook operativo
+en `docs/runbooks/tenant-onboarding.md`. Implementado en 5 commits sobre
+`feature/tenant-bootstrap`:
 
 ### Backend (commit `0e6fb6e`) ✅
 - [x] Migraciones — `platform_auth.activation_tokens` (sha256 del token plano,

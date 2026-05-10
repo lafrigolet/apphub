@@ -218,7 +218,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   login, and registers the `platform` app in the registry. Idempotent.
   Required after a fresh `docker compose up` (or any DB wipe) so staff can
   log in to voragine-console.
-  - Full reference: [`docs/bootstrap.md`](docs/bootstrap.md) (env vars,
+  - Full reference: [`docs/runbooks/platform-bootstrap.md`](docs/runbooks/platform-bootstrap.md) (env vars,
     troubleshooting, wipe-and-restart workflow, design rationale)
   - Quick pointer in [`RUN.md`](RUN.md) § Option A → First-time bootstrap
 - **Dynamic NGINX routing via Redis sidecar** — per-subdomain `server {}` blocks now live in

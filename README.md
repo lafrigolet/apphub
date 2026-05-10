@@ -73,5 +73,7 @@ NGINX routes `/api/<module>/*` from any subdomain to the right monolith.
 - [RUN.md](./RUN.md) — How to run the platform
 - [COMMANDS.md](./COMMANDS.md) — Quick reference for compose / pnpm / psql / redis
 - [CHANGELOG.md](./CHANGELOG.md) — Notable changes
-- [docs/adr/](./docs/adr/) — Architecture decision records
-- [docs/bootstrap.md](./docs/bootstrap.md) — First-boot bootstrap script reference
+- [docs/](./docs/README.md) — Index of architecture, design specs and runbooks
+- [docs/adr/](./docs/adr/README.md) — Architecture decision records
+- [docs/runbooks/platform-bootstrap.md](./docs/runbooks/platform-bootstrap.md) — First-boot bootstrap script reference
+- [docs/runbooks/tenant-onboarding.md](./docs/runbooks/tenant-onboarding.md) — Provision a new tenant

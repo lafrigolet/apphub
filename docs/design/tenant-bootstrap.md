@@ -3,8 +3,10 @@
 Cómo se trae un nuevo tenant a la plataforma — del primer click del staff
 en voragine-console hasta el momento en que el owner empieza a operar.
 
-> Distinto de `docs/bootstrap.md`, que crea el primer super_admin de
-> AppHub. Este documento describe el flujo de cliente.
+> Distinto de `docs/runbooks/platform-bootstrap.md`, que crea el primer
+> super_admin de AppHub. Este documento describe el flujo de cliente.
+> El procedimiento operativo paso a paso vive en
+> `docs/runbooks/tenant-onboarding.md`.
 
 ## Resumen ejecutivo
 
