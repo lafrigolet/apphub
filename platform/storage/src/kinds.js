@@ -71,6 +71,14 @@ export const KINDS = {
     maxBytes: 1 * MB,
     retentionDays: null,
   },
+  // Certificados emitidos por aikikan-server: diplomas de grado (KYU/DAN)
+  // o de asistencia a un evento. Los emite admin tras un examen / curso.
+  // Retención larga (10 años) — los grados son acreditaciones permanentes.
+  aikikan_certificate: {
+    mime: ['application/pdf'],
+    maxBytes: 10 * MB,
+    retentionDays: 365 * 10,
+  },
 }
 
 export function getKind(name) {

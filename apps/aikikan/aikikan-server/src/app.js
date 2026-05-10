@@ -7,11 +7,12 @@ import { ZodError } from 'zod'
 import { appGuard } from '@apphub/platform-sdk/app-guard'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { logger } from './lib/logger.js'
-import { membersRoutes } from './routes/members.routes.js'
-import { eventsRoutes }  from './routes/events.routes.js'
-import { videosRoutes }  from './routes/videos.routes.js'
-import { dojosRoutes }   from './routes/dojos.routes.js'
-import { feesRoutes }    from './routes/fees.routes.js'
+import { membersRoutes }      from './routes/members.routes.js'
+import { eventsRoutes }       from './routes/events.routes.js'
+import { videosRoutes }       from './routes/videos.routes.js'
+import { dojosRoutes }        from './routes/dojos.routes.js'
+import { feesRoutes }         from './routes/fees.routes.js'
+import { certificatesRoutes } from './routes/certificates.routes.js'
 
 export function createApp() {
   const fastify = Fastify({ logger: false, ignoreTrailingSlash: true })
@@ -51,6 +52,7 @@ export function createApp() {
   fastify.register(videosRoutes)
   fastify.register(dojosRoutes)
   fastify.register(feesRoutes)
+  fastify.register(certificatesRoutes)
 
   fastify.setNotFoundHandler((req, reply) => {
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } })

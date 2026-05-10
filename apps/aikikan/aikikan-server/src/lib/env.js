@@ -18,6 +18,11 @@ const envSchema = z.object({
   //   AIKIKAN_PUBLIC_URL: https://aikikan.es (para success_url/cancel_url)
   SPLITPAY_BASE_URL:  z.string().url().default('http://platform-core:3000'),
   AIKIKAN_PUBLIC_URL: z.string().url().optional(),
+  // URL interna de platform-core para loopback al módulo storage
+  // (download-url presigned de certificados). En la red docker apunta
+  // al mismo host que SPLITPAY_BASE_URL — env separado por claridad
+  // de intención.
+  PLATFORM_CORE_URL:  z.string().url().default('http://platform-core:3000'),
 })
 
 const parsed = envSchema.safeParse(process.env)

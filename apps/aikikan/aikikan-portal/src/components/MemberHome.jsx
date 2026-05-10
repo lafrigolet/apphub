@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import MemberProfile from './MemberProfile.jsx'
-import MemberFees    from './MemberFees.jsx'
+import MemberProfile      from './MemberProfile.jsx'
+import MemberFees         from './MemberFees.jsx'
+import MemberEvents       from './MemberEvents.jsx'
+import MemberCertificates from './MemberCertificates.jsx'
 
 // Área de socio. Bienvenida + grid de cards. Cada card abre una vista
 // dedicada con sus propios datos. La detección del query string
@@ -29,7 +31,9 @@ export default function MemberHome({ identity, onLogout }) {
     }
   }, [])
 
-  if (view === 'profile') return <MemberProfile onBack={() => setView('home')} />
+  if (view === 'profile')      return <MemberProfile      onBack={() => setView('home')} />
+  if (view === 'events')       return <MemberEvents       onBack={() => setView('home')} />
+  if (view === 'certificates') return <MemberCertificates onBack={() => setView('home')} />
   if (view === 'fees')    return (
     <>
       {feesNotice && (
@@ -73,15 +77,15 @@ export default function MemberHome({ identity, onLogout }) {
           <p>Matrícula, seguro, suscripción anual y histórico de pagos.</p>
           <span className="member-home-go">Abrir →</span>
         </article>
-        <article className="member-home-card">
+        <article className="member-home-card member-home-card-active" onClick={() => setView('events')}>
           <h2>Eventos</h2>
-          <p>Seminarios y cursos en los que estás inscrito.</p>
-          <span className="member-home-soon">Próximamente</span>
+          <p>Seminarios y cursos en los que estás inscrito o puedes apuntarte.</p>
+          <span className="member-home-go">Abrir →</span>
         </article>
-        <article className="member-home-card">
+        <article className="member-home-card member-home-card-active" onClick={() => setView('certificates')}>
           <h2>Certificados</h2>
-          <p>Descarga de certificados de grado y asistencia.</p>
-          <span className="member-home-soon">Próximamente</span>
+          <p>Descarga de diplomas de grado y constancias de asistencia.</p>
+          <span className="member-home-go">Abrir →</span>
         </article>
       </section>
     </main>
