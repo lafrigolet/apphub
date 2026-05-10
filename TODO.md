@@ -4,7 +4,7 @@
 > Lo que falta no es "código que falla" sino **integraciones externas reales,
 > ML/HTTP cross-container, autorización fina, scheduling/cron y observabilidad**.
 
-Última actualización: 2026-04-30.
+Última actualización: 2026-05-10.
 
 ## platform-core (port 3000)
 
@@ -49,12 +49,12 @@
 ### `tenant-config` — ✅ funcional
 - [x] Apps + tenants + sub-tenants
 - [x] NGINX config dinámica via Redis sidecar
+- [x] **Onboarding wizard end-to-end** (Fase A + B; ver bloque "Tenant bootstrap" abajo). DNS automation real sigue pendiente.
 - **Falta**:
-  - [ ] **Onboarding wizard end-to-end** (DNS automation real, no solo aliases locales)
   - [ ] **Per-tenant feature flags** (qué módulos puede usar este tenant)
   - [ ] **Quotas / billing tiers**
   - [ ] **Soft-delete + GDPR data export**
-  - [ ] **DNS verification** para subdomains custom
+  - [ ] **DNS verification** para subdomains custom (la columna `custom_domain` existe pero el bootstrap status la marca done por presencia, sin verificar DNS real)
 
 ### `splitpay` — ✅ funcional
 - [x] Stripe Connect, split rules, refund proporcional, webhooks
@@ -732,6 +732,98 @@ profundo se itera después.
   `tenant-config`.
 - **Sub-tenants** — estructura ya soportada en JWT; la UI de cambiar de
   sub-tenant entra como pieza del shell cuando el primer tenant la pida.
+
+## Tenant bootstrap (provisioning + onboarding)
+
+Flujo de alta de un tenant nuevo en dos fases — Fase A atómica (staff
+provisiona desde voragine-console y manda magic-link) + Fase B asíncrona
+(owner activa, fija contraseña y completa el checklist de onboarding).
+Diseño completo en `docs/tenant-bootstrap.md`. Implementado en 5 commits
+sobre `feature/tenant-bootstrap`:
+
+### Backend (commit `0e6fb6e`) ✅
+- [x] Migraciones — `platform_auth.activation_tokens` (sha256 del token plano,
+  RLS + staff_access bypass), columnas `pending_activation` + `owner_activated_at`
+  en `platform_auth.users`, `password_hash` ahora nullable, columnas
+  `bootstrap_started_at` + `bootstrap_completed_at` en `platform_tenants.tenants`.
+- [x] **`POST /v1/tenants/bootstrap`** (staff-only) — creación atómica de
+  app(si nueva) + tenant + owner pendiente + activation token + audit log.
+  Compensación: si `/internal/auth/owners` falla tras commit, borra el tenant
+  para que staff pueda re-intentar con el mismo subdomain.
+- [x] **`POST /v1/auth/activate`** (público) — consume el token, fija password,
+  emite `accessToken`/`refreshToken`, publica `tenant.activated`. Replay → 410
+  `TOKEN_USED`; expirado → 410 `TOKEN_EXPIRED`.
+- [x] **`GET /v1/tenants/:id/bootstrap`** — status derivado sin tabla auxiliar:
+  identity / password / subscription / splitpay-connect / admins / email-domains /
+  custom-domain / modules / first-data. Auto-marca `bootstrap_completed_at`
+  cuando todos los REQUIRED están done (write-once).
+- [x] **`POST /v1/tenants/:id/resend-activation`** (staff-only) — invalida
+  tokens previos, emite uno nuevo. Falla 409 si el owner ya activó.
+- [x] **`/internal/auth/{owners,owners/reissue,owners/state,admins/count}`** —
+  endpoints internos para que tenant-config evite cruzar schemas (regla #4 de
+  CLAUDE.md). Llamadas vía `fetch` a `PLATFORM_CORE_URL`.
+- [x] Login bloqueado con 401 `PENDING_ACTIVATION` mientras
+  `pending_activation = true`.
+- [x] Notifications: subscribe a `platform.events` (estaba a `platform:events`
+  por bug previo — fixed). Handlers para `tenant.bootstrap_started` →
+  email magic-link, `tenant.activated` → email bienvenida. 4 plantillas seed
+  (es + en) en `migrations/0013_tenant_bootstrap_templates.sql`.
+
+### UI staff — voragine-console (commit `5b11fb1`) ✅
+- [x] **BootstrapTenantModal** — wizard de 5 secciones plegables (App
+  existente/nueva, Identidad, Owner, Subscripción, Flags). Tras submit muestra
+  el magic-link en pantalla por si el email no llega.
+- [x] **Onboarding view** — lista de tenants pendientes con días desde
+  `bootstrap_started_at` + acciones Reenviar/Revocar.
+- [x] Sidebar gana entrada "Onboarding"; `Tenants.jsx` gana botón "Bootstrap
+  nuevo tenant" junto al legacy "Nuevo tenant".
+- [x] Modal.jsx soporta `size:'xl'` (max-w-3xl) para que el wizard quepa.
+- [x] **`DELETE /v1/tenants/:id/bootstrap`** — revocar tenant pendiente. Borra
+  owner+tokens via auth /internal y la fila en tenants. Falla 409 si el
+  owner ya activó. Limpia también el server block de NGINX en Redis (commit
+  `c55153b`).
+
+### UI owner — tenant-console-ui + aikikan-portal (commit `b8df027`) ✅
+- [x] **`packages/tenant-console-ui/src/modules/bootstrap/`** — meta-módulo con
+  manifest + `BootstrapPanel` que pinta el checklist (9 pasos). Cada step
+  `pending` expone su CTA hacia el view del módulo correspondiente.
+- [x] **`ManifestLoader.js`** — `bootstrap` se carga siempre, ignorando
+  `apps.enabled_modules` (meta-módulo always-included).
+- [x] **`DashboardGrid.jsx`** — sustituye el grid de cards por `BootstrapPanel`
+  cuando `tenant.bootstrap_completed_at IS NULL`. Cuando se completa, vuelve
+  el grid normal.
+- [x] **`shell/ActivateView.jsx`** — vista del magic-link en tenant-console-ui;
+  el shell la pinta cuando `pathname === '/activate'` antes incluso del login.
+  POST a `/api/auth/activate`, guarda token bajo `TOKEN_KEY` del host, hard
+  reload a `/`.
+- [x] **`apps/aikikan/aikikan-portal/src/components/ActivateView.jsx`** — versión
+  análoga con la estética del landing aikikan (Bebas Neue, --accent). Sirve
+  como plantilla para portales de otras apps.
+
+### Pendiente
+
+- [ ] **OAuth en `/activate`** — el doc §A.4 menciona "Continuar con Google"
+  como alternativa a fijar contraseña; sólo password está implementado.
+- [ ] **Verificación DNS de custom-domain** — el step `custom-domain` se marca
+  done por presencia de la columna, no verifica DNS real (CNAME / A record).
+- [ ] **Steps `first-data` y `email-domains` siempre `pending`** — falta
+  cablear los eventos que los marcarían done (e.g. `order.created` →
+  first-data done; `email_domain.verified` → email-domains done).
+- [ ] **Recordatorios automáticos** (doc §B.5) — "Activa tu cuenta a 24h/72h
+  sin activación". `tenant.bootstrap_started` se publica pero no hay job en
+  `platform-scheduler` que reemita el recordatorio.
+- [ ] **Cambio de email del owner pre-activate desde la UI** — backend lo
+  permite vía PATCH del user, pero el wizard no expone la edición.
+- [ ] **Bootstrap de apps nuevas (sin upstream container)** — el conf NGINX
+  se publica apuntando a `<subdomain>_portal` que aún no existe; nginx falla
+  al recargar pero sigue sirviendo el config previo. Workaround: el operador
+  arranca el contenedor del portal antes de bootstrap, o el comando
+  "Implementa `<app>`" del CLAUDE.md lo crea. Mejor solución: detectar la
+  ausencia del upstream y publicar un placeholder "Tenant en aprovisionamiento"
+  hasta que llegue el container, o no publicar el conf hasta que el upstream
+  esté listo.
+- [ ] **Test E2E** del flujo completo (bootstrap → email → activate → panel)
+  — todos los smokes han sido manuales con curl.
 
 ## Top 10 prioridades por impacto
 
