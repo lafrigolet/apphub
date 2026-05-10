@@ -54,6 +54,18 @@ export async function login({ email, password }) {
   return getIdentity()
 }
 
+// Magic-link de bootstrap. El owner llega desde el email con
+// /activate?token=...; aquí consume el token, fija contraseña y guarda
+// la sesión bajo el TOKEN_KEY del host. El backend devuelve par
+// access/refresh listo para usar.
+export async function activate({ token, password }) {
+  const res = await api.post('/api/auth/activate', { token, password })
+  const accessToken = res?.data?.accessToken ?? res?.accessToken
+  if (!accessToken) throw new Error('Respuesta de activate sin token')
+  localStorage.setItem(TOKEN_KEY, accessToken)
+  return getIdentity()
+}
+
 export function logout() {
   localStorage.removeItem(TOKEN_KEY)
 }

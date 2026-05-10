@@ -1,5 +1,6 @@
 import { AppProvider, useApp } from './lib/context'
 import LoginView from './LoginView'
+import ActivateView from './ActivateView'
 import Topbar from './Topbar'
 import Sidebar from './Sidebar'
 import DashboardGrid from './DashboardGrid'
@@ -76,6 +77,13 @@ function HostMismatchBanner() {
 
 function Shell({ embedded = false }) {
   const { identity, onLogin } = useApp()
+  // Magic-link landing — la URL es /activate?token=... y el shell debe
+  // mostrar el formulario de activación antes que el login. Detectamos
+  // la pathname directamente para no introducir react-router en el
+  // paquete (que puede chocar con el router del host).
+  if (typeof window !== 'undefined' && window.location.pathname === '/activate') {
+    return <ActivateView />
+  }
   if (!identity) return <LoginView onSuccess={onLogin} />
   return (
     <div className="min-h-screen flex flex-col">

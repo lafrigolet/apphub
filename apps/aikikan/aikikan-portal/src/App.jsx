@@ -16,6 +16,7 @@ import Footer from './components/Footer.jsx'
 import Login from './components/Login.jsx'
 import MemberHome from './components/MemberHome.jsx'
 import AdminShell from './components/AdminShell.jsx'
+import ActivateView from './components/ActivateView.jsx'
 import { getIdentity, clearSession, isAdminRole } from './lib/auth.js'
 
 // Landing pública: la home / con todo el contenido de marketing.
@@ -93,6 +94,7 @@ export default function App() {
 
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/activate" element={<ActivateView onLoggedIn={handleLoggedIn} />} />
         <Route
           path="/consola"
           element={

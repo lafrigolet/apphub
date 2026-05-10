@@ -9,8 +9,14 @@
 
 const manifestModules = import.meta.glob('../modules/*/manifest.jsx')
 
+// Meta-módulos que siempre se cargan, independientemente de
+// `apps.enabled_modules`. El de `bootstrap` es transversal: el shell
+// lo presenta como dashboard primario mientras el tenant tenga
+// `bootstrap_completed_at IS NULL`. Ver doc §B.1.
+const ALWAYS_INCLUDED = new Set(['bootstrap'])
+
 export async function loadManifests(enabledModules) {
-  const wanted = new Set(enabledModules ?? [])
+  const wanted = new Set([...(enabledModules ?? []), ...ALWAYS_INCLUDED])
   const out = []
   for (const [path, loader] of Object.entries(manifestModules)) {
     // path is like '../modules/notifications/manifest.jsx'

@@ -123,3 +123,13 @@ export async function loginFacebook(accessToken) {
 export async function forgotPassword(email) {
   return post('/forgot-password', { appId: APP_ID, tenantId: TENANT_ID, email })
 }
+
+// Magic-link de bootstrap: el owner aterriza desde el email con
+// ?token=... y fija su contraseña. El backend devuelve par
+// access/refresh listos para usar. saveSession lo guarda igual que
+// el login normal.
+export async function activate({ token, password }) {
+  const data = await post('/activate', { token, password })
+  saveSession(data)
+  return data
+}

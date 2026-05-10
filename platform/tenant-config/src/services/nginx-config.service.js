@@ -75,10 +75,13 @@ function render(template, vars) {
  * rendered conf to Redis (HSET) and emits a PUBLISH for hot-aware sidecars.
  * Polling sidecars notice on the next tick regardless.
  */
-export async function writeAppNginxConfig({ appId, subdomain, hasServer = true }) {
-  // hasServer=true por defecto: la mayoría de apps que llegan aquí (las
-  // de bootstrap) sí tienen su propio backend. Si una app no lo tiene,
-  // el caller pasa `hasServer:false` y omitimos el bloque /api/<appId>/.
+export async function writeAppNginxConfig({ appId, subdomain, hasServer = false }) {
+  // hasServer=false por defecto: el wizard de bootstrap crea apps que
+  // suelen empezar sólo con portal. Cuando la app gana un backend
+  // propio (vía "Implementa <app>"), el caller invoca este helper con
+  // hasServer:true y se añade la ruta /api/<appId>/ al server block.
+  // Si declaramos la ruta sin que exista el upstream, nginx falla a
+  // recargar — por eso opt-in explícito.
   const serverRouteBlock = hasServer
     ? render(SERVER_ROUTE_TEMPLATE, {
         app_id:                appId,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from './lib/context'
 import { CATEGORIES, categoryLabel } from './lib/categories'
 import { api } from './lib/api'
+import BootstrapPanel from '../modules/bootstrap/views/BootstrapPanel'
 
 // Dashboard composition layer.
 //
@@ -39,6 +40,13 @@ function CardShell({ label, status, metric, error, onClick, primaryActionLabel }
 export default function DashboardGrid() {
   const { manifests, navigate, tenant } = useApp()
   const [cardStates, setCardStates] = useState({})
+
+  // Doc §B.1: mientras el tenant no haya cerrado la Fase B, el panel
+  // "Configura tu cuenta" se renderiza como dashboard primario en lugar
+  // de los cards habituales. El propio panel maneja minimizar/refrescar.
+  if (tenant && !tenant.bootstrap_completed_at) {
+    return <BootstrapPanel />
+  }
 
   // Collect cards from every manifest, then resolve their summaries.
   const cards = manifests.flatMap((m) => (m.dashboardCards ?? []).map((c) => ({ ...c, moduleId: m.id })))
