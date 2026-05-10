@@ -6,7 +6,7 @@ import * as appsRepo from '../repositories/apps.repository.js'
 import * as tenantsRepo from '../repositories/tenants.repository.js'
 import * as auditRepo from '../repositories/audit.repository.js'
 import { AppError, ConflictError, NotFoundError } from '@apphub/platform-sdk/errors'
-import { writeAppNginxConfig, writeTenantNginxConfig } from './nginx-config.service.js'
+import { writeAppNginxConfig, writeTenantNginxConfig, deleteTenantNginxConfig, deleteAppNginxConfig } from './nginx-config.service.js'
 import { logger } from '../lib/logger.js'
 
 const INTERNAL_BASE = env.PLATFORM_CORE_URL
@@ -288,6 +288,12 @@ export async function revokeBootstrap(tenantId, actor) {
     })
     await client.query('DELETE FROM platform_tenants.tenants WHERE id = $1', [tenant.id])
   })
+
+  // Limpiamos el server block en Redis para que el sidecar de nginx lo
+  // borre del disco. Sino la siguiente vez que nginx arranque puede fallar
+  // si el upstream también ha desaparecido. Best-effort.
+  try { await deleteTenantNginxConfig({ subdomain: tenant.subdomain }) }
+  catch (e) { logger.warn({ err: e, tenantId: tenant.id }, 'deleteTenantNginxConfig failed (non-fatal)') }
 
   return { tenantId: tenant.id }
 }
