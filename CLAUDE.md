@@ -4,8 +4,8 @@ This file provides context for AI assistants (Claude, Copilot, etc.) working in 
 
 ## Project overview
 
-AppHub is a multi-app meta-platform. Each hosted app (yoga-studio, split-pay, …) gets its
-own subdomain (`yoga.apphub.com`, `splitpay.apphub.com`) and its own set of app-specific
+AppHub is a multi-app meta-platform. Each hosted app (aikikan, split-pay, …) gets its
+own subdomain (`aikikan.apphub.com`, `splitpay.apphub.com`) and its own set of app-specific
 microservices. All apps share a set of cross-cutting platform capabilities (auth, payments,
 notifications, catalog, basket, tenant-config, subscriptions).
 
@@ -56,7 +56,6 @@ apphub/
 │   └── subscriptions/         # Subscriptions module (planned, slot reserved)
 ├── apps/                      # App bundles (frontends + app-specific services)
 │   ├── portal/                # AppHub admin UI — port 5173
-│   ├── yoga-studio/           # Yoga Studio app — ports 3011–3017, 5174
 │   ├── split-pay/             # Split Pay frontend (splitpay-portal) — port 5175
 │   ├── aikikan/               # Aikikan Aikido portal — port 5176
 │   └── __app-template__/      # Blueprint for new apps (never deployed)
@@ -89,23 +88,23 @@ Every JWT issued by `platform/auth` carries:
 ```json
 {
   "sub": "user-uuid",
-  "app_id": "yoga-studio",
+  "app_id": "aikikan",
   "tenant_id": "tenant-uuid",
   "sub_tenant_id": "sub-tenant-uuid-or-null",
-  "role": "alumno",
+  "role": "user",
   "email": "user@example.com"
 }
 ```
 
-- `app_id` — which app this user belongs to (`yoga-studio`, `split-pay`, …)
-- `tenant_id` — which deployment of that app (e.g. one yoga franchise group)
-- `sub_tenant_id` — sub-unit within the tenant (e.g. a franchise branch), nullable
+- `app_id` — which app this user belongs to (`aikikan`, `split-pay`, …)
+- `tenant_id` — which deployment of that app (e.g. one aikikan federation chapter)
+- `sub_tenant_id` — sub-unit within the tenant (e.g. a dojo branch), nullable
 
 ## Critical rules for AI assistants
 
 1. **Never remove `tenant_id` scoping** from any database query. Every SELECT, INSERT,
    UPDATE, DELETE must be scoped to the current tenant.
-2. **Always include `app_id` scoping** alongside `tenant_id`. A yoga token must never
+2. **Always include `app_id` scoping** alongside `tenant_id`. An aikikan token must never
    read split-pay data even when `tenant_id` matches.
 3. **Always use idempotency keys** for Stripe API calls. Keys are stored in Redis with a 24h TTL.
 4. **Never cross schema boundaries** — a module may only query its own PostgreSQL schema.
@@ -147,9 +146,9 @@ Every JWT issued by `platform/auth` carries:
     `svc_app_<app>`. Granular schema separation is reserved for `platform_*`. Tenant
     isolation in `app_<app>` is by row (`(app_id, tenant_id, sub_tenant_id)` + RLS),
     same as in `platform_*`. The app monolith MUST NOT cross-schema-read `platform_*`;
-    it talks to platform via HTTP module APIs or Redis events. Legacy apps keeping the
-    multi-schema layout (yoga-studio's `yoga_*` schemas) are documented as such; new
-    apps default to `app_<app>`.
+    it talks to platform via HTTP module APIs or Redis events. New apps default to
+    `app_<app>`. (Una iteración previa probó un layout multi-schema en yoga-studio;
+    la app se retiró antes del cutover y `app_<app>` es ya la única forma soportada.)
 
 ## Adding new functionality — decision tree
 
@@ -188,7 +187,7 @@ like:
 >
 > **(b) Inside the requesting app** — `apps/<app>/<app>-server/` (or its
 > portal). Lives in `app_<app>` schema. Right when the feature is
-> genuinely specific to that app's domain (yoga grade exams, restaurant
+> genuinely specific to that app's domain (aikikan grade exams, restaurant
 > menu modifiers tied to a specific brand, …).
 >
 > A third path (c) is to **introduce it as app-local first and extract to
@@ -306,9 +305,7 @@ separate container.
 - API routes: `/v1/resource-name` (kebab, versioned)
 - Platform schemas: `platform_<modulo>` (prefix `platform_`); role `svc_platform_<modulo>`
 - App schemas: `app_<app>` (single schema per app, prefix `app_`); role `svc_app_<app>`.
-  See ADR 013. Legacy apps may keep their pre-ADR layout (yoga-studio uses `yoga_users`,
-  `yoga_classes`, `yoga_bookings`, `yoga_bonuses`, `yoga_reporting`); new apps must use
-  `app_<app>`.
+  See ADR 013.
 
 ## Commands
 

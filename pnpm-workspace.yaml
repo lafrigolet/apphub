@@ -1,6 +1,5 @@
 packages:
   - 'apps/*'                    # portal
-  - 'apps/yoga-studio/*'        # yoga-portal + all yoga microservices
   - 'apps/split-pay/*'          # splitpay-portal
   - 'apps/aikikan/*'            # aikikan-portal
   - 'apps/voragine-console/*'  # voragine-console-portal

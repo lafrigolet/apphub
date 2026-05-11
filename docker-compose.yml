@@ -348,53 +348,6 @@ services:
       - ./apps/portal/src:/app/apps/portal/src:ro
       - ./apps/portal/index.html:/app/apps/portal/index.html:ro
 
-  # ── Yoga Studio — all services + portal in one PM2-managed container ─
-  yoga-studio:
-    build:
-      context: .
-      dockerfile: apps/yoga-studio/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '3011:3011'
-      - '3012:3012'
-      - '3013:3013'
-      - '3014:3014'
-      - '3017:3017'
-      - '5174:5174'
-    environment:
-      NODE_ENV: development
-      YOGA_USERS_PORT: 3011
-      YOGA_CLASSES_PORT: 3012
-      YOGA_BOOKINGS_PORT: 3013
-      YOGA_BONUSES_PORT: 3014
-      YOGA_REPORTING_PORT: 3017
-      DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      YOGA_JWT_SECRET: ${YOGA_JWT_SECRET}
-      YOGA_TENANT_ID: ${YOGA_TENANT_ID}
-      YOGA_BONUSES_INTERNAL_URL: http://localhost:3014
-      YOGA_CLASSES_INTERNAL_URL: http://localhost:3012
-      YOGA_CRON_DATABASE_URL: postgresql://svc_yoga_cron:yoga_cron_secret@postgres:5432/splitpay
-      VITE_API_BASE_URL: http://yoga.apphub.local:8080
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    volumes:
-      - ./apps/yoga-studio/yoga-users/src:/app/apps/yoga-studio/yoga-users/src:ro
-      - ./apps/yoga-studio/yoga-users/migrations:/app/apps/yoga-studio/yoga-users/migrations:ro
-      - ./apps/yoga-studio/yoga-classes/src:/app/apps/yoga-studio/yoga-classes/src:ro
-      - ./apps/yoga-studio/yoga-classes/migrations:/app/apps/yoga-studio/yoga-classes/migrations:ro
-      - ./apps/yoga-studio/yoga-bookings/src:/app/apps/yoga-studio/yoga-bookings/src:ro
-      - ./apps/yoga-studio/yoga-bookings/migrations:/app/apps/yoga-studio/yoga-bookings/migrations:ro
-      - ./apps/yoga-studio/yoga-bonuses/src:/app/apps/yoga-studio/yoga-bonuses/src:ro
-      - ./apps/yoga-studio/yoga-bonuses/migrations:/app/apps/yoga-studio/yoga-bonuses/migrations:ro
-      - ./apps/yoga-studio/yoga-reporting/src:/app/apps/yoga-studio/yoga-reporting/src:ro
-      - ./apps/yoga-studio/yoga-reporting/migrations:/app/apps/yoga-studio/yoga-reporting/migrations:ro
-      - ./apps/yoga-studio/yoga-portal/src:/app/apps/yoga-studio/yoga-portal/src:ro
-      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
   # ── Split Pay frontend ─────────────────────────────────────────
   splitpay-portal:
     build:
@@ -541,7 +494,6 @@ services:
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
       portal:                  { condition: service_started }
-      yoga-studio:             { condition: service_started }
       splitpay-portal:         { condition: service_started }
       aikikan-portal:          { condition: service_started }
       aikikan-server:          { condition: service_started }

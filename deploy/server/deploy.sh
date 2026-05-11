@@ -50,9 +50,9 @@ echo
 # imagen nueva. Los demás (incluidos depends_on) ya están corriendo y
 # no se tocan. --no-deps evita que --force-recreate accidentalmente
 # reinicie postgres si alguien declaró el depends_on con condition.
-# --remove-orphans NO se usa: hay servicios opcionales (yoga-studio,
-# splitpay-portal) que pueden estar en el compose pero no levantados
-# en este host concreto.
+# --remove-orphans NO se usa: hay servicios opcionales (splitpay-portal,
+# nuevos apps en preparación) que pueden estar en el compose pero no
+# levantados en este host concreto.
 echo "── recreating containers ──"
 $COMPOSE up -d --no-deps "${SERVICES[@]}"
 echo

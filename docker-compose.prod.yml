@@ -12,9 +12,6 @@
 #   - Vite-dev port mappings (5173–5177) are dropped from host. The frontal
 #     gateway (nginx:8080) is the only public ingress; portals are reachable
 #     internally on :80 over the docker network.
-#   - yoga-portal is split out of the yoga-studio multi-service container
-#     into its own nginx-alpine service. yoga-studio's command switches to
-#     ecosystem.prod.config.cjs (which only runs the 5 backend services).
 #   - The frontal gateway loads upstream.prod.conf instead of upstream.conf.
 # ─────────────────────────────────────────────────────────────────
 
@@ -98,38 +95,6 @@ services:
   aikikan-server:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-server:${IMAGE_TAG:-latest}
 
-  # ── Yoga Studio backend services (no portal in prod) ───────────
-  yoga-studio:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-yoga-studio:${IMAGE_TAG:-latest}
-    # Portal is now its own service below. Keep only the 5 backend services
-    # alive in this PM2 container.
-    command: ['pm2-runtime', 'apps/yoga-studio/ecosystem.prod.config.cjs']
-    # !override drops the dev-only 5174 port mapping (vite-dev) and keeps
-    # only the backend service ports. Plain list would merge with dev.
-    ports: !override
-      - '3011:3011'
-      - '3012:3012'
-      - '3013:3013'
-      - '3014:3014'
-      - '3017:3017'
-    volumes: !reset []
-
-  # ── Yoga Studio portal (prod, standalone nginx-alpine) ─────────
-  yoga-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-yoga-portal:${IMAGE_TAG:-latest}
-    build:
-      context: .
-      dockerfile: apps/yoga-studio/yoga-portal/Dockerfile
-      target: production
-    restart: unless-stopped
-    healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost/_health || exit 1']
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    depends_on:
-      - yoga-studio
-
   # ── Frontal gateway: swap to prod upstream definitions ─────────
   nginx:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-nginx:${IMAGE_TAG:-latest}
@@ -144,8 +109,6 @@ services:
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
       portal:                  { condition: service_started }
-      yoga-studio:             { condition: service_started }
-      yoga-portal:             { condition: service_started }
       splitpay-portal:         { condition: service_started }
       aikikan-portal:          { condition: service_started }
       voragine-console-portal: { condition: service_started }

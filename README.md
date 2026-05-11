@@ -1,6 +1,6 @@
 # AppHub
 
-Multi-app meta-platform. Each hosted app (yoga-studio, split-pay, aikikan, …) gets its own
+Multi-app meta-platform. Each hosted app (aikikan, split-pay, …) gets its own
 subdomain and its own app-specific microservices. All apps share a set of cross-cutting
 platform capabilities (auth, payments, notifications, catalog, basket, tenant-config,
 orders, inventory, reviews, messaging, shipping, disputes, menu, reservations,
