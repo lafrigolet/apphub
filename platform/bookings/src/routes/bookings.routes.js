@@ -2,8 +2,12 @@ import { z } from 'zod'
 import * as service from '../services/bookings.service.js'
 
 const bookingBody = z.object({
-  serviceId:        z.string().uuid(),
-  resourceIds:      z.array(z.string().uuid()).min(1),
+  // Cuando se inscribe a un evento, sessionId es suficiente: la ventana
+  // y el servicio se derivan de la session. resourceIds + startsAt +
+  // endsAt + serviceId pasan a ser opcionales (los rellena el service).
+  sessionId:        z.string().uuid().optional(),
+  serviceId:        z.string().uuid().optional(),
+  resourceIds:      z.array(z.string().uuid()).optional(),
   // Optional id returned by POST /v1/availability/holds. When present, the
   // hold is atomically consumed inside the booking transaction; if it has
   // expired or doesn't match the booking window the request fails 409.
@@ -12,8 +16,8 @@ const bookingBody = z.object({
   clientName:       z.string().max(256).optional(),
   clientEmail:      z.string().email().optional(),
   clientPhone:      z.string().max(32).optional(),
-  startsAt:         z.string().datetime(),
-  endsAt:           z.string().datetime(),
+  startsAt:         z.string().datetime().optional(),
+  endsAt:           z.string().datetime().optional(),
   notes:            z.string().max(2048).optional(),
   internalNotes:    z.string().max(2048).optional(),
   recurrenceId:     z.string().uuid().optional(),
@@ -27,7 +31,10 @@ const bookingBody = z.object({
   // (reminders, status changes). When null, the scheduler falls back to the
   // tenant's default_locale and finally to 'es'.
   locale:           z.string().min(2).max(8).optional(),
-})
+}).refine(
+  (b) => b.sessionId || (b.serviceId && b.resourceIds?.length && b.startsAt && b.endsAt),
+  { message: 'either sessionId or (serviceId + resourceIds + startsAt + endsAt) required' },
+)
 
 const statusBody = z.object({
   status: z.enum(['confirmed','reminded','checked_in','in_progress','completed','cancelled','no_show']),
@@ -83,6 +90,9 @@ export async function bookingsRoutes(fastify) {
       from: req.query?.from, to: req.query?.to,
       clientUserId: req.query?.clientUserId,
       resourceId:   req.query?.resourceId,
+      // Filtra inscripciones de un evento concreto (consumido por la
+      // vista "Ver inscritos" en la consola admin).
+      sessionId:    req.query?.sessionId,
       status:       req.query?.status,
       limit:        req.query?.limit ? Number(req.query.limit) : undefined,
     }),

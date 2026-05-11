@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import * as service from '../services/services.service.js'
+import * as sessions from '../services/service-sessions.service.js'
 
 const serviceBody = z.object({
   code:                 z.string().min(1).max(64),
@@ -19,6 +20,37 @@ const serviceBody = z.object({
   minAge:               z.number().int().min(0).optional(),
   metadata:             z.record(z.any()).optional(),
   isActive:             z.boolean().optional(),
+  // 'appointment' (default) = recurrente vía availability + slots.
+  // 'event' = sólo se reserva contra service_sessions (sin slot grid).
+  kind:                 z.enum(['appointment', 'event']).optional(),
+  // Si TRUE, las sesiones de este servicio aparecen en el listado
+  // público /v1/services/sessions/upcoming (consumido por landings).
+  publicCatalog:        z.boolean().optional(),
+})
+
+const sessionBody = z.object({
+  startsAt:               z.string().datetime(),
+  endsAt:                 z.string().datetime(),
+  capacity:               z.number().int().positive().optional(),
+  resourceId:             z.string().uuid().optional(),
+  priceCents:             z.number().int().min(0).optional(),
+  currency:               z.string().length(3).optional(),
+  location:               z.string().max(256).optional(),
+  description:            z.string().max(2048).optional(),
+  registrationClosesAt:   z.string().datetime().optional(),
+  metadata:               z.record(z.any()).optional(),
+})
+
+const sessionUpdateBody = sessionBody.partial().extend({
+  status: z.enum(['scheduled', 'cancelled', 'completed']).optional(),
+})
+
+const sessionIdParams = z.object({ sessionId: z.string().uuid() })
+const publicUpcomingQuery = z.object({
+  appId:    z.string().min(1),
+  tenantId: z.string().uuid(),
+  kind:     z.enum(['appointment', 'event']).optional(),
+  limit:    z.coerce.number().int().min(1).max(500).optional(),
 })
 
 const updateBody = serviceBody.partial().omit({ code: true })
@@ -159,4 +191,65 @@ export async function servicesRoutes(fastify) {
     const { at } = quoteQuery.parse(req.query ?? {})
     return service.quotePrice(ctxFromRequest(req), req.params.id, at)
   })
+
+  // ── Service sessions (instancias fechadas; pieza para "eventos") ─────
+  const sessionTags = ['services · sessions']
+
+  // Público: landings consumen este endpoint sin JWT para pintar la
+  // agenda de eventos. Requiere appId+tenantId por query string; RLS
+  // hace cumplir el aislamiento. Sólo lista sessions de servicios con
+  // public_catalog=TRUE.
+  fastify.get('/v1/services/sessions/upcoming', {
+    schema: {
+      tags: sessionTags,
+      summary: 'Public listing of upcoming sessions for a given (appId, tenantId)',
+    },
+    config: { public: true },
+  }, async (req) => {
+    const { appId, tenantId, kind, limit } = publicUpcomingQuery.parse(req.query ?? {})
+    return { data: await sessions.listPublicUpcoming({ appId, tenantId }, { kind, limit }) }
+  })
+
+  fastify.post('/v1/services/:id/sessions', {
+    schema: {
+      tags: sessionTags,
+      summary: 'Schedule a new session for a service',
+      params: idParams, body: sessionBody,
+    },
+  }, async (req, reply) => {
+    const body = sessionBody.parse(req.body)
+    return reply.status(201).send(await sessions.createSession(ctxFromRequest(req), req.params.id, body))
+  })
+
+  fastify.get('/v1/services/:id/sessions', {
+    schema: {
+      tags: sessionTags,
+      summary: 'List sessions of a service (admin / tenant member)',
+      params: idParams,
+    },
+  }, async (req) => ({
+    data: await sessions.listSessionsByService(ctxFromRequest(req), req.params.id, {
+      fromDate: req.query?.fromDate,
+      includeCancelled: req.query?.includeCancelled === 'true',
+    }),
+  }))
+
+  fastify.get('/v1/services/sessions/:sessionId', {
+    schema: { tags: sessionTags, summary: 'Get a single session', params: sessionIdParams },
+  }, async (req) => sessions.getSession(ctxFromRequest(req), req.params.sessionId))
+
+  fastify.patch('/v1/services/sessions/:sessionId', {
+    schema: {
+      tags: sessionTags,
+      summary: 'Update a session',
+      params: sessionIdParams, body: sessionUpdateBody,
+    },
+  }, async (req) => {
+    const body = sessionUpdateBody.parse(req.body)
+    return sessions.updateSession(ctxFromRequest(req), req.params.sessionId, body)
+  })
+
+  fastify.delete('/v1/services/sessions/:sessionId', {
+    schema: { tags: sessionTags, summary: 'Cancel a session', params: sessionIdParams },
+  }, async (req) => sessions.cancelSession(ctxFromRequest(req), req.params.sessionId))
 }

@@ -45,6 +45,85 @@ export async function insertBookingAtomic(client, appId, tenantId, b) {
   return rows[0] ?? null
 }
 
+// Insert para bookings ligadas a una `service_session` (eventos). NO
+// usa el overlap-guard por recurso (sin él porque varios asistentes
+// comparten el mismo recurso); en su lugar el caller debe haber
+// validado la capacidad. La capacidad se chequea dentro de la misma
+// transacción mediante `countBookingsForSession` justo antes de insertar.
+// La verificación + insert + cuenta corre con FOR UPDATE / SERIALIZABLE
+// implícito vía la propia tx — postgres serializa correctamente
+// concurrent inserts si el chequeo se hace dentro de la tx (read +
+// write en un round-trip evita el race).
+export async function insertBookingForSession(client, appId, tenantId, b) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.bookings
+       (app_id, tenant_id, sub_tenant_id, service_id, client_user_id, client_name, client_email, client_phone,
+        starts_at, ends_at, status, notes, internal_notes,
+        recurrence_id, parent_booking_id, package_id, price_cents, currency, source, metadata, locale,
+        session_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'requested'),$12,$13,$14,$15,$16,$17,$18,COALESCE($19,'portal'),COALESCE($20,'{}'::jsonb),$21,$22)
+     RETURNING *`,
+    [
+      appId, tenantId, b.subTenantId ?? null, b.serviceId, b.clientUserId,
+      b.clientName ?? null, b.clientEmail ?? null, b.clientPhone ?? null,
+      b.startsAt, b.endsAt, b.status ?? 'requested',
+      b.notes ?? null, b.internalNotes ?? null,
+      b.recurrenceId ?? null, b.parentBookingId ?? null, b.packageId ?? null,
+      b.priceCents ?? null, b.currency ?? null, b.source ?? 'portal', b.metadata ?? {},
+      b.locale ?? null,
+      b.sessionId,
+    ],
+  )
+  return rows[0] ?? null
+}
+
+// Cuenta inscripciones vivas (no canceladas/no-show/rescheduled) de una
+// sesión concreta. La cuenta se hace dentro de la tx de createBooking
+// para que el chequeo de capacidad sea consistente con el insert que
+// viene después en la misma transacción.
+export async function countBookingsForSession(client, appId, tenantId, sessionId) {
+  const { rows } = await client.query(
+    `SELECT COUNT(*)::int AS count FROM ${SCHEMA}.bookings
+     WHERE app_id = $1 AND tenant_id = $2 AND session_id = $3
+       AND status NOT IN ('cancelled','no_show','rescheduled')`,
+    [appId, tenantId, sessionId],
+  )
+  return rows[0]?.count ?? 0
+}
+
+// Lee una session desde platform_services (cross-schema GRANT en la
+// migration 0006). Devuelve null si no existe o no es visible bajo RLS.
+export async function loadServiceSession(client, appId, tenantId, sessionId) {
+  try {
+    const { rows } = await client.query(
+      `SELECT id, app_id, tenant_id, service_id,
+              starts_at, ends_at, capacity, resource_id, status, registration_closes_at
+       FROM platform_services.service_sessions
+       WHERE app_id = $1 AND tenant_id = $2 AND id = $3 LIMIT 1`,
+      [appId, tenantId, sessionId],
+    )
+    return rows[0] ?? null
+  } catch {
+    return null   // GRANT missing / transient — caller maps to NotFoundError
+  }
+}
+
+// Idem para el service: necesitamos `capacity` (fallback cuando la session
+// no lo override) y `kind` (validación: sólo kind='event' acepta sessionId).
+export async function loadServiceFor(client, appId, tenantId, serviceId) {
+  try {
+    const { rows } = await client.query(
+      `SELECT id, kind, capacity, price_cents, currency
+       FROM platform_services.services
+       WHERE app_id = $1 AND tenant_id = $2 AND id = $3 LIMIT 1`,
+      [appId, tenantId, serviceId],
+    )
+    return rows[0] ?? null
+  } catch {
+    return null
+  }
+}
+
 // Legacy unguarded insert — kept for callers that don't deal in resource
 // windows (recurrence expander, waitlist conversions, internal admin).
 // New code should prefer insertBookingAtomic.
@@ -108,12 +187,13 @@ export async function findById(client, appId, tenantId, id) {
   return rows[0] ?? null
 }
 
-export async function listBookings(client, appId, tenantId, { from, to, clientUserId, resourceId, status, limit = 200 } = {}) {
+export async function listBookings(client, appId, tenantId, { from, to, clientUserId, resourceId, sessionId, status, limit = 200 } = {}) {
   const filters = ['b.app_id = $1', 'b.tenant_id = $2']
   const params  = [appId, tenantId]
   if (from)         { filters.push(`b.starts_at >= $${params.length + 1}`); params.push(from) }
   if (to)           { filters.push(`b.starts_at <  $${params.length + 1}`); params.push(to) }
   if (clientUserId) { filters.push(`b.client_user_id = $${params.length + 1}`); params.push(clientUserId) }
+  if (sessionId)    { filters.push(`b.session_id = $${params.length + 1}`); params.push(sessionId) }
   if (status)       { filters.push(`b.status = $${params.length + 1}`); params.push(status) }
   let join = ''
   if (resourceId)   {

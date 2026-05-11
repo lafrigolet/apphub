@@ -6,11 +6,13 @@ export async function insert(client, appId, tenantId, s) {
        (app_id, tenant_id, sub_tenant_id, code, name, description, category, modality,
         duration_minutes, buffer_before_minutes, buffer_after_minutes,
         price_cents, currency, cancellation_policy,
-        requires_intake_form, intake_form_id, capacity, min_age, metadata, is_active)
+        requires_intake_form, intake_form_id, capacity, min_age, metadata, is_active,
+        kind, public_catalog)
      VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8,'in_person'),
              $9,COALESCE($10,0),COALESCE($11,0),
              COALESCE($12,0),COALESCE($13,'EUR'),COALESCE($14,'{}'::jsonb),
-             COALESCE($15,FALSE),$16,COALESCE($17,1),$18,COALESCE($19,'{}'::jsonb),COALESCE($20,TRUE))
+             COALESCE($15,FALSE),$16,COALESCE($17,1),$18,COALESCE($19,'{}'::jsonb),COALESCE($20,TRUE),
+             COALESCE($21,'appointment'),COALESCE($22,FALSE))
      RETURNING *`,
     [
       appId, tenantId, s.subTenantId ?? null, s.code, s.name, s.description ?? null, s.category ?? null,
@@ -19,6 +21,7 @@ export async function insert(client, appId, tenantId, s) {
       s.priceCents ?? 0, s.currency ?? 'EUR', s.cancellationPolicy ?? {},
       s.requiresIntakeForm ?? false, s.intakeFormId ?? null,
       s.capacity ?? 1, s.minAge ?? null, s.metadata ?? {}, s.isActive ?? true,
+      s.kind ?? 'appointment', s.publicCatalog ?? false,
     ],
   )
   return rows[0]
@@ -52,6 +55,7 @@ export async function update(client, appId, tenantId, id, patch) {
     priceCents: 'price_cents', currency: 'currency', cancellationPolicy: 'cancellation_policy',
     requiresIntakeForm: 'requires_intake_form', intakeFormId: 'intake_form_id',
     capacity: 'capacity', minAge: 'min_age', metadata: 'metadata', isActive: 'is_active',
+    kind: 'kind', publicCatalog: 'public_catalog',
   }
   const sets = []
   const params = [appId, tenantId, id]

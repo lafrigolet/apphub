@@ -25,6 +25,16 @@ async function loadFull(client, ctx, id) {
 }
 
 export async function createBooking(ctx, body) {
+  // Dos modos:
+  //   (a) Booking clásico (cita/clase recurrente) — requiere resourceIds.
+  //       Anti-double-booking via insertBookingAtomic (guard de recurso).
+  //   (b) Booking de session (evento) — sessionId presente. La ventana,
+  //       service_id, capacity y resource opcional vienen de la session;
+  //       resourceIds opcional (los asistentes comparten resource).
+  //       Anti-overbooking via count vs session.capacity dentro de tx.
+  if (body.sessionId) {
+    return createBookingForSession(ctx, body)
+  }
   if (!body.resourceIds?.length) throw new ValidationError('at least one resourceId required')
   if (new Date(body.endsAt) <= new Date(body.startsAt)) throw new ValidationError('endsAt must be after startsAt')
 
@@ -71,6 +81,75 @@ export async function createBooking(ctx, body) {
         serviceId: b.service_id, clientUserId: b.client_user_id,
         startsAt: b.starts_at, endsAt: b.ends_at,
         resourceIds: body.resourceIds,
+      },
+    })
+    return loadFull(c, ctx, b.id)
+  })
+}
+
+// Inscripción a un evento (service kind='event'). Diferencias con el
+// flujo clásico:
+//   - La ventana viene de la session (no la pasa el caller).
+//   - Capacidad: count(active bookings) >= session.capacity → 409.
+//   - resourceIds opcional: si la session tiene `resource_id`, lo
+//     adjuntamos para que la booking siga apareciendo en queries por
+//     recurso; si no, no adjuntamos nada.
+//   - El cierre de inscripciones se respeta (registration_closes_at).
+async function createBookingForSession(ctx, body) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const session = await repo.loadServiceSession(c, ctx.appId, ctx.tenantId, body.sessionId)
+    if (!session) throw new NotFoundError('session')
+    if (session.status !== 'scheduled') {
+      throw new ConflictError(`session is ${session.status}, not accepting bookings`)
+    }
+    const now = new Date()
+    if (session.registration_closes_at && new Date(session.registration_closes_at) <= now) {
+      throw new ConflictError('registration window closed for this session')
+    }
+    if (new Date(session.starts_at) <= now) {
+      throw new ConflictError('session already started')
+    }
+
+    const svc = await repo.loadServiceFor(c, ctx.appId, ctx.tenantId, session.service_id)
+    if (!svc) throw new NotFoundError('service')
+    if (svc.kind !== 'event') {
+      throw new ValidationError('sessionId only valid for services with kind=event')
+    }
+
+    const capacity = session.capacity ?? svc.capacity ?? 1
+    const taken    = await repo.countBookingsForSession(c, ctx.appId, ctx.tenantId, session.id)
+    if (taken >= capacity) throw new ConflictError('session full')
+
+    const resourceIds = body.resourceIds?.length
+      ? body.resourceIds
+      : (session.resource_id ? [session.resource_id] : [])
+
+    const b = await repo.insertBookingForSession(c, ctx.appId, ctx.tenantId, {
+      ...body,
+      subTenantId:  ctx.subTenantId,
+      clientUserId: body.clientUserId ?? ctx.userId,
+      serviceId:    session.service_id,
+      sessionId:    session.id,
+      startsAt:     session.starts_at,
+      endsAt:       session.ends_at,
+      priceCents:   body.priceCents ?? svc.price_cents,
+      currency:     body.currency   ?? svc.currency,
+      status:       body.status     ?? 'confirmed',   // los eventos suelen quedar confirmados al inscribirse
+    })
+    if (!b) throw new ConflictError('failed to insert booking for session')
+
+    for (const rid of resourceIds) {
+      await repo.attachResource(c, ctx.appId, ctx.tenantId, b.id, rid)
+    }
+    await repo.recordEvent(c, ctx.appId, ctx.tenantId, b.id, null, b.status, ctx.userId, 'session registration')
+    await publish({
+      type: `booking.${b.status}`,
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId, bookingId: b.id,
+        serviceId: b.service_id, sessionId: b.session_id,
+        clientUserId: b.client_user_id,
+        startsAt: b.starts_at, endsAt: b.ends_at,
+        resourceIds,
       },
     })
     return loadFull(c, ctx, b.id)
