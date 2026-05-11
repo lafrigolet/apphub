@@ -8,11 +8,16 @@ import { appGuard } from '@apphub/platform-sdk/app-guard'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { logger } from './lib/logger.js'
 import { membersRoutes }      from './routes/members.routes.js'
-import { eventsRoutes }       from './routes/events.routes.js'
 import { videosRoutes }       from './routes/videos.routes.js'
 import { dojosRoutes }        from './routes/dojos.routes.js'
 import { feesRoutes }         from './routes/fees.routes.js'
 import { certificatesRoutes } from './routes/certificates.routes.js'
+// events + event-registrations: deprecated tras cutover Fase 2. La
+// agenda se sirve desde platform-appointments (services + sessions)
+// y las inscripciones desde platform/bookings (sessionId). Los routes
+// dejan de registrarse; cualquier cliente legacy recibe 404 y debe
+// migrar al nuevo endpoint. Las tablas siguen vivas (migration 0009
+// marca COMMENT DEPRECATED) hasta confirmar que no quedan callers.
 
 export function createApp() {
   const fastify = Fastify({ logger: false, ignoreTrailingSlash: true })
@@ -48,7 +53,6 @@ export function createApp() {
   }))
 
   fastify.register(membersRoutes)
-  fastify.register(eventsRoutes)
   fastify.register(videosRoutes)
   fastify.register(dojosRoutes)
   fastify.register(feesRoutes)

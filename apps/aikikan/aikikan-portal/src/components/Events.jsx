@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
-import { getIdentity, isAdminRole } from '../lib/auth.js'
-import EventModal, { deleteEvent } from './EventModal.jsx'
-import ConfirmModal from './ConfirmModal.jsx'
 
+// Landing pública — lista los próximos eventos. Consume el endpoint
+// público de platform-appointments:
+//   GET /api/services/sessions/upcoming?appId=…&tenantId=…&kind=event
+//
+// El tenant lo resolvemos por subdomain antes de pedir las sesiones —
+// patrón portable a tenant-console multi-tenant. La gestión de eventos
+// (crear/borrar) vivía aquí pero pasó a la consola admin de
+// tenant-console-ui (módulo `events`); este componente queda como
+// vista pública de sólo lectura.
+const APP_ID = 'aikikan'
 const MONTHS_ES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 
 function formatDate(iso) {
@@ -10,31 +17,46 @@ function formatDate(iso) {
   return { month: MONTHS_ES[d.getMonth()], year: String(d.getFullYear()) }
 }
 
+async function resolveTenantId(subdomain) {
+  const res = await fetch(`/api/tenants/tenants/by-subdomain/${encodeURIComponent(subdomain)}`)
+  if (!res.ok) throw new Error(`No se pudo resolver tenant ${subdomain}`)
+  const j = await res.json()
+  return j.tenantId ?? j.data?.tenantId
+}
+
 export default function Events() {
-  const [events, setEvents]     = useState([])
+  const [sessions, setSessions] = useState([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState(null)   // evento a confirmar borrado
 
-  const identity = getIdentity()
-  const isAdmin  = identity && isAdminRole(identity.role)
-
-  function load() {
+  useEffect(() => {
+    let cancelled = false
     setLoading(true); setError(null)
-    fetch('/api/aikikan/events')
-      .then((r) => r.ok ? r.json() : Promise.reject(r))
-      .then((arr) => setEvents(Array.isArray(arr) ? arr : []))
-      .catch((err) => setError(err.message ?? 'Error'))
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
-
-  async function confirmDelete() {
-    if (!pendingDelete) return
-    try { await deleteEvent(pendingDelete.id); load() }
-    catch (err) { alert(err.message) }
-  }
+    ;(async () => {
+      try {
+        const tenantId = await resolveTenantId(APP_ID)
+        const url = `/api/services/sessions/upcoming?appId=${APP_ID}&tenantId=${encodeURIComponent(tenantId)}&kind=event`
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
+        if (cancelled) return
+        const rows = json?.data ?? []
+        // Adaptamos la shape de session a la que pinta la UI legacy
+        // (name + location + date) para no tocar el JSX más abajo.
+        setSessions(rows.map((s) => ({
+          id:       s.id,
+          name:     s.session_description || s.service_name,
+          location: s.location,
+          starts_at: s.starts_at,
+        })))
+      } catch (err) {
+        if (!cancelled) setError(err.message ?? 'Error')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <section id="eventos">
@@ -46,8 +68,8 @@ export default function Events() {
 
       {!loading && !error && (
         <div className="events-list">
-          {events.map((e) => {
-            const { month, year } = formatDate(e.date)
+          {sessions.map((e) => {
+            const { month, year } = formatDate(e.starts_at)
             return (
               <div key={e.id} className="event-row reveal">
                 <div className="event-date">{month}<small>{year}</small></div>
@@ -55,48 +77,17 @@ export default function Events() {
                   <p className="event-name">{e.name}</p>
                   <p className="event-loc">{e.location}</p>
                 </div>
-                {isAdmin ? (
-                  <button
-                    onClick={() => setPendingDelete(e)}
-                    className="event-trash"
-                    title="Eliminar evento"
-                    aria-label="Eliminar evento"
-                  >×</button>
-                ) : (
-                  <span className="event-arrow">→</span>
-                )}
+                <span className="event-arrow">→</span>
               </div>
             )
           })}
-          {events.length === 0 && <p className="dojos-empty">/ Sin eventos en agenda.</p>}
+          {sessions.length === 0 && <p className="dojos-empty">/ Sin eventos en agenda.</p>}
         </div>
       )}
 
       <div style={{ marginTop: '2.5rem' }} className="reveal">
-        {isAdmin ? (
-          <button onClick={() => setModalOpen(true)} className="btn-outline">
-            <span className="slash">/</span> + Añadir evento
-          </button>
-        ) : (
-          <a href="https://www.aikikan.es/events" className="btn-outline"><span className="slash">/</span> Ver todos los eventos</a>
-        )}
+        <a href="https://www.aikikan.es/events" className="btn-outline"><span className="slash">/</span> Ver todos los eventos</a>
       </div>
-
-      {modalOpen && (
-        <EventModal
-          onClose={() => setModalOpen(false)}
-          onCreated={() => { setModalOpen(false); load() }}
-        />
-      )}
-      {pendingDelete && (
-        <ConfirmModal
-          title="Eliminar evento"
-          message={`¿Eliminar el evento "${pendingDelete.name}"? Esta acción no se puede deshacer.`}
-          confirmLabel="Eliminar"
-          onConfirm={confirmDelete}
-          onClose={() => setPendingDelete(null)}
-        />
-      )}
     </section>
   )
 }
