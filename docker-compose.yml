@@ -470,7 +470,11 @@ services:
   # change. See infra/nginx/sidecar.sh for the polling/reconciliation logic.
   nginx:
     build:
-      context: ./infra/nginx
+      # Context = repo root para que coincida con el workflow de CI/CD
+      # (que usa `context: .` uniforme para todos los servicios). El
+      # Dockerfile referencia sus assets con `infra/nginx/<file>`.
+      context: .
+      dockerfile: infra/nginx/Dockerfile
     restart: unless-stopped
     ports:
       - '8080:80'
