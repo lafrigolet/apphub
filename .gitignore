@@ -34,6 +34,12 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
-# Emacs
+# Emacs — autosave, lockfiles, backup y ficheros temporales de ediff.
+# `#*ediff-merge*#xxxx#` se genera durante una sesión de ediff (en
+# disco aparece como `#%2Aediff-merge%2A#xxxx#` por URL-encoding). En
+# el commit f5a6be96 se coló uno con claves Stripe reales adentro —
+# de ahí la regla.
 *~
+.#*
+\#*\#
 

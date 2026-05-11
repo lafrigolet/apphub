@@ -1,0 +1,203 @@
+{
+  "_doc": [
+    "Source-of-truth de servicios que se construyen como imagen Docker y se",
+    "publican a GHCR. Lo consumen:",
+    "  - .github/workflows/deploy.yml (matrix dinámica de build).",
+    "  - deploy/generate-matrix.sh   (genera la lista 'a desplegar' a partir",
+    "    de git diff vs el último commit desplegado).",
+    "  - deploy/server/deploy.sh     (pull + up -d en Hetzner, sólo los",
+    "    servicios que cambian).",
+    "",
+    "Reglas:",
+    "  - 'paths' debe incluir el directorio propio del servicio + cualquier",
+    "    package compartido que use en runtime + pnpm-lock.yaml (cambios al",
+    "    lockfile recompilan TODO porque las versiones de los deps cambian).",
+    "  - 'restart_policy: rolling' significa que se reinicia con un breve",
+    "    downtime aceptable (~5s). Para servicios stateful o críticos usar",
+    "    'manual' (el deploy notifica pero no toca el container)."
+  ],
+
+  "services": [
+    {
+      "name": "platform-core",
+      "dockerfile": "platform/core/Dockerfile",
+      "paths": [
+        "platform/core/**",
+        "platform/auth/**",
+        "platform/notifications/**",
+        "platform/payments/**",
+        "platform/tenant-config/**",
+        "platform/splitpay/**",
+        "platform/storage/**",
+        "packages/platform-sdk/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "platform-marketplace",
+      "dockerfile": "platform/marketplace/Dockerfile",
+      "paths": [
+        "platform/marketplace/**",
+        "platform/orders/**",
+        "platform/inventory/**",
+        "platform/reviews/**",
+        "platform/messaging/**",
+        "platform/shipping/**",
+        "platform/disputes/**",
+        "platform/catalog/**",
+        "platform/basket/**",
+        "packages/platform-sdk/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "platform-restaurant",
+      "dockerfile": "platform/restaurant/Dockerfile",
+      "paths": [
+        "platform/restaurant/**",
+        "platform/menu/**",
+        "platform/reservations/**",
+        "platform/floor-plan/**",
+        "platform/kds/**",
+        "platform/pos/**",
+        "platform/delivery-dispatch/**",
+        "packages/platform-sdk/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "platform-appointments",
+      "dockerfile": "platform/appointments/Dockerfile",
+      "paths": [
+        "platform/appointments/**",
+        "platform/services/**",
+        "platform/resources/**",
+        "platform/bookings/**",
+        "platform/availability/**",
+        "platform/intake-forms/**",
+        "platform/telehealth/**",
+        "platform/packages/**",
+        "platform/practitioner-payouts/**",
+        "packages/platform-sdk/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "platform-scheduler",
+      "dockerfile": "platform/scheduler/Dockerfile",
+      "paths": [
+        "platform/scheduler/**",
+        "packages/platform-sdk/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "portal",
+      "dockerfile": "apps/portal/Dockerfile",
+      "paths": [
+        "apps/portal/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "voragine-console-portal",
+      "dockerfile": "apps/voragine-console/voragine-console-portal/Dockerfile",
+      "paths": [
+        "apps/voragine-console/voragine-console-portal/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "tenant-console-portal",
+      "dockerfile": "apps/tenant-console/tenant-console-portal/Dockerfile",
+      "paths": [
+        "apps/tenant-console/tenant-console-portal/**",
+        "packages/tenant-console-ui/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "splitpay-portal",
+      "dockerfile": "apps/split-pay/splitpay-portal/Dockerfile",
+      "paths": [
+        "apps/split-pay/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "yoga-studio",
+      "dockerfile": "apps/yoga-studio/Dockerfile",
+      "paths": [
+        "apps/yoga-studio/**",
+        "packages/platform-sdk/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "aikikan-portal",
+      "dockerfile": "apps/aikikan/aikikan-portal/Dockerfile",
+      "paths": [
+        "apps/aikikan/aikikan-portal/**",
+        "packages/tenant-console-ui/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "aikikan-server",
+      "dockerfile": "apps/aikikan/aikikan-server/Dockerfile",
+      "paths": [
+        "apps/aikikan/aikikan-server/**",
+        "packages/platform-sdk/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
+      "name": "nginx",
+      "dockerfile": "infra/nginx/Dockerfile",
+      "paths": [
+        "infra/nginx/**"
+      ],
+      "restart_policy": "rolling"
+    }
+  ],
+
+  "infrastructure_notes": [
+    "postgres / redis / minio NO se rebuildean — son imágenes upstream con tag",
+    "fijado en docker-compose.yml. Si necesitas bumpear postgres a una versión",
+    "nueva, hazlo manualmente en producción y documenta el upgrade.",
+    "",
+    "infra/postgres/init/*.sql se ejecuta SÓLO la primera vez que postgres",
+    "arranca con un volumen virgen. En prod nunca se re-ejecuta: cambios al",
+    "schema van vía migrations de cada módulo, no por estos scripts."
+  ]
+}

@@ -18,9 +18,21 @@
 #   - The frontal gateway loads upstream.prod.conf instead of upstream.conf.
 # ─────────────────────────────────────────────────────────────────
 
+# Tagged image registry (consumido por `docker compose pull`). El
+# workflow .github/workflows/deploy.yml setea IMAGE_TAG=<git-sha>;
+# IMAGE_REGISTRY tiene que coincidir con el owner de GitHub donde se
+# publican las imágenes. El operador lo fija en /opt/apphub/.env
+# en producción.
+#
+# Cuando IMAGE_TAG no está setea (e.g. dev local que usa `--build`),
+# Compose resuelve la imagen como `<prefix>:latest` y la regla `build:`
+# sigue activa — así un `docker compose build` local mantiene su
+# semántica habitual.
+
 services:
   # ── AppHub admin portal (prod) ─────────────────────────────────
   portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-portal:${IMAGE_TAG:-latest}
     build:
       target: production
     ports: !reset []
@@ -28,6 +40,7 @@ services:
 
   # ── Split Pay portal (prod) ────────────────────────────────────
   splitpay-portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-splitpay-portal:${IMAGE_TAG:-latest}
     build:
       target: production
       args:
@@ -40,6 +53,7 @@ services:
 
   # ── Aikikan portal (prod) ──────────────────────────────────────
   aikikan-portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-portal:${IMAGE_TAG:-latest}
     build:
       target: production
     ports: !reset []
@@ -47,6 +61,7 @@ services:
 
   # ── Voragine Console portal (prod) ─────────────────────────────
   voragine-console-portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-voragine-console-portal:${IMAGE_TAG:-latest}
     build:
       target: production
     ports: !reset []
@@ -56,13 +71,36 @@ services:
   # Same flip as voragine-console: dev (vite) → prod (nginx-alpine
   # serving the built dist/). Healthcheck inherited from the Dockerfile.
   tenant-console-portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-tenant-console-portal:${IMAGE_TAG:-latest}
     build:
       target: production
     ports: !reset []
     volumes: !reset []
 
+  # ── Backend monoliths + scheduler + aikikan-server ────────────
+  # Estos no cambian de target entre dev/prod (siguen como Node), pero
+  # en prod consumen la imagen publicada en lugar de buildear in-place.
+  platform-core:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-core:${IMAGE_TAG:-latest}
+
+  platform-marketplace:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-marketplace:${IMAGE_TAG:-latest}
+
+  platform-restaurant:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-restaurant:${IMAGE_TAG:-latest}
+
+  platform-appointments:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-appointments:${IMAGE_TAG:-latest}
+
+  platform-scheduler:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-scheduler:${IMAGE_TAG:-latest}
+
+  aikikan-server:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-server:${IMAGE_TAG:-latest}
+
   # ── Yoga Studio backend services (no portal in prod) ───────────
   yoga-studio:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-yoga-studio:${IMAGE_TAG:-latest}
     # Portal is now its own service below. Keep only the 5 backend services
     # alive in this PM2 container.
     command: ['pm2-runtime', 'apps/yoga-studio/ecosystem.prod.config.cjs']
@@ -78,6 +116,7 @@ services:
 
   # ── Yoga Studio portal (prod, standalone nginx-alpine) ─────────
   yoga-portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-yoga-portal:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/yoga-studio/yoga-portal/Dockerfile
@@ -93,6 +132,7 @@ services:
 
   # ── Frontal gateway: swap to prod upstream definitions ─────────
   nginx:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-nginx:${IMAGE_TAG:-latest}
     volumes: !override
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/conf.d/upstream.prod.conf:/etc/nginx/conf.d/upstream.conf:ro

@@ -1,0 +1,173 @@
+# Deploy a Hetzner — selectivo por servicio.
+#
+# Flujo:
+#   1) detect-changes calcula qué servicios necesitan rebuild comparando
+#      `github.event.before` con HEAD (deploy/generate-matrix.sh).
+#      Si nada cambió en paths cubiertos, sale en seguida (no-op).
+#   2) build-and-push corre una matriz dinámica: una entrada por servicio
+#      que requiere rebuild. Cada job construye con buildx, cachea en
+#      GitHub Actions cache, y publica a ghcr.io/<owner>/apphub-<svc>
+#      con tags `latest` y `<git-sha>`.
+#   3) deploy abre SSH al host de Hetzner, sincroniza el árbol de
+#      configuración (docker-compose.yml, docker-compose.prod.yml,
+#      infra/, deploy/) al commit recién publicado, exporta IMAGE_TAG
+#      y corre deploy/server/deploy.sh con la lista de servicios.
+#
+# Triggers:
+#   - push a main → auto-deploy.
+#   - workflow_dispatch (con input opcional `services` para forzar
+#     el set, útil si la heurística de paths se queda corta).
+
+name: deploy-production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Comma-separated services to force redeploy (empty = auto-detect)'
+        required: false
+        default: ''
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # los deploys NO se cancelan entre sí — uno empieza cuando el anterior acaba.
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/apphub
+
+jobs:
+  detect-changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+      services: ${{ steps.gen.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # necesitamos historia para git diff vs `before`
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - id: gen
+        name: Generate matrix from services.json + git diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x deploy/generate-matrix.sh
+
+          # Si se invoca via workflow_dispatch con `services`, sobreescribimos.
+          if [[ -n "${{ inputs.services }}" ]]; then
+            INCLUDE=$(
+              echo "${{ inputs.services }}" | tr ',' '\n' | while read -r name; do
+                name=$(echo "$name" | xargs)
+                [[ -z "$name" ]] && continue
+                df=$(jq -r --arg n "$name" '.services[] | select(.name == $n) | .dockerfile' deploy/services.json)
+                [[ -z "$df" ]] && { echo "Unknown service: $name" >&2; exit 1; }
+                jq -nc --arg n "$name" --arg d "$df" '{name: $n, dockerfile: $d}'
+              done | jq -sc '.'
+            )
+            MATRIX=$(jq -nc --argjson include "$INCLUDE" '{ include: $include }')
+          else
+            BASE="${{ github.event.before }}"
+            # En push inicial `before` es 000…000; el script lo trata como "full rebuild".
+            MATRIX=$(BASE_REF="$BASE" deploy/generate-matrix.sh)
+          fi
+          echo "matrix=$MATRIX"        >> "$GITHUB_OUTPUT"
+          # Lista plana de nombres, separada por espacios — la usa el job deploy.
+          SERVICES=$(echo "$MATRIX" | jq -r '.include[].name' | paste -sd ' ' -)
+          echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+          echo "─── Matrix ───" >&2
+          echo "$MATRIX" | jq . >&2
+          echo "─── Services ($SERVICES) ───" >&2
+
+  build-and-push:
+    name: Build ${{ matrix.name }}
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.matrix != '' && fromJSON(needs.detect-changes.outputs.matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push ${{ matrix.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          # Para portales (Vite static build) usamos target=production.
+          # Los servicios Node node-watch ignoran este target — Dockerfile.
+          target: ${{ contains(matrix.name, 'portal') || matrix.name == 'yoga-studio' ? 'production' : '' }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:latest
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:${{ github.sha }}
+          # Cache layered en GitHub Actions cache — gratis y persistente.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to:   type=gha,scope=${{ matrix.name }},mode=max
+          # Build args inyectables para los portales (cargan VITE_*).
+          build-args: |
+            VITE_API_BASE_URL=
+
+  deploy:
+    name: Deploy to Hetzner
+    needs: [detect-changes, build-and-push]
+    if: ${{ needs.detect-changes.outputs.services != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key:      ${{ secrets.HETZNER_SSH_KEY }}
+          port:     ${{ secrets.HETZNER_PORT || 22 }}
+          # Variables pasadas al script remoto:
+          envs: GITHUB_SHA,SERVICES,GITHUB_REPOSITORY,GITHUB_ACTOR,GHCR_TOKEN
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            cd /opt/apphub
+
+            # Sincroniza configuración (docker-compose, infra, deploy/) al
+            # commit publicado. NO toca código de servicios — eso lo trae
+            # `docker compose pull` desde el registry.
+            git fetch --depth=1 origin "$GITHUB_SHA"
+            git checkout -- .
+            git checkout "$GITHUB_SHA" -- \
+              docker-compose.yml docker-compose.prod.yml infra/ deploy/
+
+            # IMAGE_TAG lo lee docker-compose.prod.yml para resolver la
+            # imagen exacta de cada servicio. Si no se setea, cae al
+            # `latest` por defecto (también publicado por la matriz).
+            export IMAGE_TAG="$GITHUB_SHA"
+
+            # docker login a GHCR con el token leído del entorno.
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+            ./deploy/server/deploy.sh $SERVICES
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          SERVICES:   ${{ needs.detect-changes.outputs.services }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

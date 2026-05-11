@@ -69,16 +69,35 @@ jobs:
           JWT_SECRET: ci_test_secret_at_least_32_chars_long
 
   docker:
-    name: Docker build check
+    name: Docker build sanity (changed services only)
     runs-on: ubuntu-latest
     needs: test
 
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
-      - name: Build split-payments image
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Detect changed services
+        id: changed
+        shell: bash
         run: |
-          docker build \
-            --target production \
-            -t splitpay/split-payments:ci \
-            services/split-payments/
+          set -euo pipefail
+          chmod +x deploy/generate-matrix.sh
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          MATRIX=$(BASE_REF="$BASE" deploy/generate-matrix.sh)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+      - name: Build (no push) changed images
+        uses: docker/build-push-action@v5
+        if: ${{ fromJSON(steps.changed.outputs.matrix).include[0] != null }}
+        with:
+          context: .
+          push: false
+          # Sanidad: solo construimos la primera entrada de la matriz —
+          # CI ya valida lint+test+tipos, el build de PR es para detectar
+          # roturas de Dockerfile. El deploy.yml es quien hace la matriz
+          # completa con push.
+          file: ${{ fromJSON(steps.changed.outputs.matrix).include[0].dockerfile }}
