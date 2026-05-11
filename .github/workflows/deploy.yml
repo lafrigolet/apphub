@@ -114,8 +114,10 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           # Para portales (Vite static build) usamos target=production.
-          # Los servicios Node node-watch ignoran este target — Dockerfile.
-          target: ${{ contains(matrix.name, 'portal') || matrix.name == 'yoga-studio' ? 'production' : '' }}
+          # Los servicios Node ignoran este target en sus Dockerfile.
+          # GitHub Actions expression NO soporta ternario `cond ? a : b`;
+          # se usa el patrón `cond && a || b` (equivalente cuando `a` es truthy).
+          target: ${{ (contains(matrix.name, 'portal') || matrix.name == 'yoga-studio') && 'production' || '' }}
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:latest
