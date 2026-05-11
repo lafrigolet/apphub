@@ -118,10 +118,16 @@ Every JWT issued by `platform/auth` carries:
 8. **Use `appGuard` from `@apphub/platform-sdk`** — never write a custom JWT guard. Set
    `EXPECTED_APP_ID` in the service env; the guard returns `403 APP_MISMATCH` on mismatch.
 9. **Write JavaScript, not TypeScript** — all services and frontends use `.js` / `.jsx`.
-10. **Check `platform/` before adding any new horizontal capability** — auth, payments,
-    notifications, catalog, basket, tenant-config and subscriptions are (or will be) modules
-    of `platform-core`. If a new app needs one of these capabilities, wire it to the existing
-    module instead of creating a duplicate. See the platform module registry below.
+10. **Check the platform registry before building anything new — and ASK where it should
+    live.** Before scaffolding *any* new microservice, module, table, or significant
+    feature, follow the decision tree in
+    [§ "Adding new functionality"](#adding-new-functionality--decision-tree). The short
+    version: (a) if the platform already implements it, reuse / extend the existing
+    module; (b) if not, **stop and ask the user**: "should this be a new platform module
+    (reusable by every app) or live inside the requesting portal/app-server (specific to
+    this app)?" Never silently default to one option. Reuse is the cheapest, extraction
+    second cheapest only if a reusable abstraction is obvious; "build it locally for
+    this app" is correct when the feature is genuinely app-specific.
 11. **Each module / service connects with its own dedicated DB role** — never use the shared
     superuser at runtime. Inside `platform-core` this means one Pool per module, each with
     `postgresql://svc_platform_<module>:...` (set via per-module env vars on the `platform-core`
@@ -144,6 +150,81 @@ Every JWT issued by `platform/auth` carries:
     it talks to platform via HTTP module APIs or Redis events. Legacy apps keeping the
     multi-schema layout (yoga-studio's `yoga_*` schemas) are documented as such; new
     apps default to `app_<app>`.
+
+## Adding new functionality — decision tree
+
+When the user asks for a new feature (a new microservice, a new admin page,
+a new table, a flow that touches several modules), follow this **before
+writing any code**:
+
+### Step 1 — Inventory check
+
+Read the platform module registry below (§ Platform module registry). For
+each capability the feature needs, classify:
+
+| Status | Action |
+|---|---|
+| ✅ implemented module exists and covers it | **REUSE**: call it via its public HTTP API or subscribe to its events. |
+| 🔧 module exists but is a skeleton / missing pieces | **EXTEND** the existing module (add routes, columns, events). |
+| ❌ nothing in `platform/` covers it | go to Step 2. |
+
+If the feature blends with something close (e.g. "events with registration"
+≈ `services` + `sessions` + `bookings`), prefer **EXTEND** over a new module.
+Document the modeling fit honestly — don't shoehorn a square peg.
+
+### Step 2 — Stop and ask the user
+
+When nothing in the registry fits, **the assistant must pause and ask the
+user explicitly which side of the line the work belongs on**. Use a prompt
+like:
+
+> "This functionality (`<feature name>`) isn't covered by any current
+> platform module. Where do you want it to live?
+>
+> **(a) New platform module** — `platform/<name>/`, reusable by every app.
+> Cost: a new schema, role, migrations, registry update, ADR if the
+> decision is non-obvious. Right when the feature is generic (orders,
+> notifications, calendar slots, …) and ≥1 other app could use it.
+>
+> **(b) Inside the requesting app** — `apps/<app>/<app>-server/` (or its
+> portal). Lives in `app_<app>` schema. Right when the feature is
+> genuinely specific to that app's domain (yoga grade exams, restaurant
+> menu modifiers tied to a specific brand, …).
+>
+> A third path (c) is to **introduce it as app-local first and extract to
+> platform later** when a second app needs it. Pragmatic when there's
+> uncertainty about reusability; the migration cost is real but bounded."
+
+Wait for the answer. Don't pre-implement either side while the question is
+open. If the user is ambivalent, recommend (c) — local first, extract
+later — and capture the trigger that would justify extraction (e.g. "extract
+when a second app requests events with registrations").
+
+### Step 3 — Document the choice
+
+Whichever path is picked:
+
+- If **platform module**: register it in the platform module registry
+  table below + add an ADR if the decision is non-obvious (different
+  domain, novel pattern, deferred from a more obvious option). Update
+  `ARCHITECTURE.md`.
+- If **app-local**: add a one-line note to the app's TODO so the
+  extraction trigger isn't forgotten. If the feature later moves to
+  platform, the source-of-truth migration goes through a cutover
+  migration (template: `apps/aikikan/aikikan-server/migrations/0009_cutover_to_platform_sessions.sql`).
+
+### Anti-patterns to refuse
+
+- **Silently defaulting to one side without asking.** Even if reuse seems
+  obvious, the user must know that decision is being made.
+- **Duplicating a capability** that already exists in platform (e.g.
+  building a private `events` table when `services + service_sessions`
+  fits, or a private payment table when `splitpay` covers it).
+- **Pre-extracting** to platform "just in case", before a second consumer
+  exists. Reusable abstractions ossify when no one else uses them yet.
+- **Hiding app-local code in `platform/`** because it's "easier to
+  organize there". Locating code wrong is a much higher long-term cost
+  than picking the longer initial path.
 
 ## Modular monolith architecture
 
