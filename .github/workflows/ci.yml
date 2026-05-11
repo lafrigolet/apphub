@@ -1,8 +1,15 @@
 name: CI
 
+# CI = gate de pre-merge. Corre en PRs hacia main y en pushes a rama
+# de integración `develop` (para validar trabajo en curso).
+#
+# Push a main NO dispara este workflow — esa rama la gestiona
+# .github/workflows/deploy.yml, que ya construye los servicios
+# afectados. La separación evita que un mismo push lance dos runs
+# que hacen trabajo solapado.
 on:
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
     branches: [main]
 
