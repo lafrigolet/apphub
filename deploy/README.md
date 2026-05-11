@@ -65,16 +65,18 @@ sudo nano /home/deploy/.ssh/authorized_keys
 sudo chown -R deploy:deploy /home/deploy/.ssh
 sudo chmod 600 /home/deploy/.ssh/authorized_keys
 
-# 3. Clona el repo en /opt/apphub (el workflow asume esta ruta).
-sudo mkdir -p /opt/apphub
-sudo chown deploy:deploy /opt/apphub
-sudo -u deploy git clone https://github.com/<owner>/apphub.git /opt/apphub
-cd /opt/apphub
-sudo -u deploy git checkout main
+# 3. Clona el repo en ~/apphub del usuario deploy (el workflow asume
+#    /home/deploy/apphub como ruta). Como el directorio vive bajo el
+#    home del usuario, no hace falta sudo a partir de aquí.
+sudo -u deploy bash -c '
+  cd ~
+  git clone https://github.com/<owner>/apphub.git apphub
+  cd apphub
+  git checkout main
+'
 
-# 4. Crea /opt/apphub/.env con los secretos de producción.
-sudo -u deploy cp .env.example .env
-sudo -u deploy nano .env
+# 4. Crea /home/deploy/apphub/.env con los secretos de producción.
+sudo -u deploy nano /home/deploy/apphub/.env
 #    - PLATFORM_JWT_SECRET=…
 #    - SVC_PLATFORM_*_DB_PASSWORD=…
 #    - PLATFORM_CONFIG_ENCRYPTION_KEY=…
@@ -92,7 +94,7 @@ sudo -u deploy bash -c "echo '$GH_PAT' | docker login ghcr.io -u <tu-usuario> --
 # 6. Primer arranque: el workflow se encargará después, pero la primera
 #    vez conviene levantar la infra manualmente para verificar:
 sudo -u deploy bash -c '
-  cd /opt/apphub
+  cd /home/deploy/apphub
   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d postgres redis minio nginx
 '
 ```
@@ -121,7 +123,7 @@ Una vez los secrets están puestos:
 
 ```bash
 ssh deploy@<host>
-cd /opt/apphub
+cd /home/deploy/apphub
 
 # Encuentra el SHA previo (logs de Actions o git log).
 PREV=<sha-anterior>
@@ -176,7 +178,7 @@ de un build-arg.
 
 **Healthcheck timeout en el deploy** → el container arranca pero no
 responde a su endpoint `/health`. Casi siempre es una env var faltante
-en `/opt/apphub/.env` (la imagen es nueva, requiere una nueva variable
+en `/home/deploy/apphub/.env` (la imagen es nueva, requiere una nueva variable
 que no añadiste). `docker compose logs --tail 200 <svc>` lo dice.
 
 **Diff vacío pero el deploy debería correr** → comprueba que el

@@ -151,7 +151,7 @@ jobs:
           script: |
             set -euo pipefail
 
-            cd /opt/apphub
+            cd /home/deploy/apphub
 
             # Sincroniza configuración (docker-compose, infra, deploy/) al
             # commit publicado. NO toca código de servicios — eso lo trae

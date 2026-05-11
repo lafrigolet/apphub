@@ -4,9 +4,9 @@
 # imágenes a GHCR.
 #
 # Pre-requisitos en el host:
-#   - /opt/apphub es un clone del repo (con `git fetch` ya hecho por
+#   - /home/deploy/apphub es un clone del repo (con `git fetch` ya hecho por
 #     el workflow para sincronizar docker-compose.yml + infra/ + deploy/).
-#   - .env vive en /opt/apphub/.env (NO se versiona; lo gestiona el operador).
+#   - .env vive en /home/deploy/apphub/.env (NO se versiona; lo gestiona el operador).
 #   - $IMAGE_TAG está exportado (commit SHA o tag a desplegar).
 #   - `docker login ghcr.io …` se ejecutó antes (lo hace el workflow).
 #
