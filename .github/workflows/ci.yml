@@ -94,7 +94,7 @@ jobs:
         uses: docker/build-push-action@v5
         if: ${{ fromJSON(steps.changed.outputs.matrix).include[0] != null }}
         with:
-          context: .
+          context: ${{ fromJSON(steps.changed.outputs.matrix).include[0].context }}
           push: false
           # Sanidad: solo construimos la primera entrada de la matriz —
           # CI ya valida lint+test+tipos, el build de PR es para detectar

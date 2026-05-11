@@ -111,7 +111,10 @@ jobs:
       - name: Build & push ${{ matrix.name }}
         uses: docker/build-push-action@v5
         with:
-          context: .
+          # context por defecto '.' (raíz del repo, donde está pnpm-workspace
+          # y todo el monorepo). Servicios con build-context propio (e.g.
+          # nginx en infra/nginx/) lo declaran en deploy/services.json.
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           # Para portales (Vite static build) usamos target=production.
           # Los servicios Node ignoran este target en sus Dockerfile.

@@ -34,7 +34,7 @@ fi
 # Si no hay BASE_REF resoluble → full rebuild como red de seguridad.
 if [[ -z "$BASE_REF" ]] || ! git rev-parse --verify "$BASE_REF" >/dev/null 2>&1; then
   echo "BASE_REF empty or unresolvable; emitting full matrix" >&2
-  jq -c '{ include: [.services[] | {name, dockerfile}] }' "$SERVICES_JSON"
+  jq -c '{ include: [.services[] | {name, dockerfile, context: (.context // ".")}] }' "$SERVICES_JSON"
   exit 0
 fi
 
@@ -49,7 +49,7 @@ fi
 # Cambios al propio deploy/ → rebuild completo (mejor pasarse).
 if echo "$CHANGED_FILES" | grep -qE '^deploy/services\.json$|^deploy/generate-matrix\.sh$'; then
   echo "deploy/services.json or generate-matrix.sh changed; emitting full matrix" >&2
-  jq -c '{ include: [.services[] | {name, dockerfile}] }' "$SERVICES_JSON"
+  jq -c '{ include: [.services[] | {name, dockerfile, context: (.context // ".")}] }' "$SERVICES_JSON"
   exit 0
 fi
 
@@ -69,8 +69,11 @@ glob_to_regex() {
 # Para cada servicio: ¿algún path coincide con algún CHANGED_FILE?
 INCLUDE=$(
   jq -c '.services[]' "$SERVICES_JSON" | while read -r svc; do
-    name=$(echo "$svc" | jq -r '.name')
+    name=$(echo "$svc"       | jq -r '.name')
     dockerfile=$(echo "$svc" | jq -r '.dockerfile')
+    # context default = '.' (raíz del repo). nginx y otros futuros que
+    # bindeen su propio subdirectorio lo declaran explícitamente.
+    context=$(echo "$svc"    | jq -r '.context // "."')
     matched="false"
     while read -r pattern; do
       [[ -z "$pattern" ]] && continue
@@ -81,8 +84,8 @@ INCLUDE=$(
       fi
     done < <(echo "$svc" | jq -r '.paths[]')
     if [[ "$matched" == "true" ]]; then
-      jq -nc --arg name "$name" --arg df "$dockerfile" \
-        '{name: $name, dockerfile: $df}'
+      jq -nc --arg name "$name" --arg df "$dockerfile" --arg ctx "$context" \
+        '{name: $name, dockerfile: $df, context: $ctx}'
     fi
   done | jq -sc '.'
 )

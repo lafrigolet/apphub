@@ -1,6 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // sdk-js se consume desde frontends (Vite portals, browser) y desde
+    // Node servers (loopback HTTP). Añadir DOM al lib desbloquea
+    // `fetch` / `URLSearchParams` / `RequestInit` en ambos entornos
+    // — desde Node ≥ 18 esas APIs también están como globals, así que
+    // es seguro tipar contra DOM y ejecutar tanto en navegador como
+    // en Node. `tsconfig.base.json` declara lib=["ES2022"]; aquí lo
+    // sobreescribimos completo (TS no hace merge de arrays).
+    "lib": ["ES2022", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src"
   },

@@ -170,11 +170,12 @@
     },
     {
       "name": "nginx",
-      "dockerfile": "infra/nginx/Dockerfile",
+      "dockerfile": "Dockerfile",
       "paths": [
         "infra/nginx/**"
       ],
-      "restart_policy": "rolling"
+      "restart_policy": "rolling",
+      "context": "./infra/nginx"
     }
   ],
   "infrastructure_notes": [
