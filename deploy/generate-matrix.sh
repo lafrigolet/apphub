@@ -55,14 +55,21 @@ fi
 
 # Helper: convierte un glob estilo gitignore (foo/**, bar/file.x) en una
 # regex anclada a inicio de línea. ** = cualquier cosa; * = no-slash.
+#
+# Bug previo: hacer `** → .*` y luego `* → [^/]*` reemplazaba el `*` que
+# ya forma parte del `.*`, transformándolo en `.[^/]*` y rompiendo el
+# match para paths con subdirectorios. Solución: usar un sentinel para
+# marcar el `**` antes de tocar el `*` single.
 glob_to_regex() {
   local g="$1"
-  # Escape regex specials except * and /
+  # 1. Escape regex specials except *, /, %.
   g=$(printf '%s' "$g" | sed -E 's/[.+(){}|^$\[\]]/\\&/g')
-  # Replace **  →  .*
-  g=$(printf '%s' "$g" | sed 's|\*\*|.*|g')
-  # Replace remaining single *  →  [^/]*
+  # 2. Marca `**` con un sentinel improbable.
+  g=$(printf '%s' "$g" | sed 's|\*\*|%%DOUBLESTAR%%|g')
+  # 3. `*` (single) → `[^/]*` — sin tocar el sentinel.
   g=$(printf '%s' "$g" | sed 's|\*|[^/]*|g')
+  # 4. Restaura el sentinel como `.*`.
+  g=$(printf '%s' "$g" | sed 's|%%DOUBLESTAR%%|.*|g')
   printf '^%s$' "$g"
 }
 
