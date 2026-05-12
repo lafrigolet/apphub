@@ -47,8 +47,14 @@ if [[ -z "$CHANGED_FILES" ]]; then
 fi
 
 # Cambios al propio deploy/ → rebuild completo (mejor pasarse).
-if echo "$CHANGED_FILES" | grep -qE '^deploy/services\.json$|^deploy/generate-matrix\.sh$'; then
-  echo "deploy/services.json or generate-matrix.sh changed; emitting full matrix" >&2
+# Cambios a docker-compose*.yml → también full matrix: el contenido de la
+# imagen no cambia (cache-hit en build) pero TODOS los containers tienen
+# que recrearse para recoger la nueva config (env, volumes, mounts, etc).
+# Sin esto, una edición a compose se pushea a main pero ninguna service
+# se redeploya — la config nueva queda dormida hasta que un commit
+# posterior toque algún path de un servicio.
+if echo "$CHANGED_FILES" | grep -qE '^deploy/services\.json$|^deploy/generate-matrix\.sh$|^docker-compose(\.[a-z]+)?\.yml$'; then
+  echo "deploy/services.json, generate-matrix.sh or docker-compose*.yml changed; emitting full matrix" >&2
   jq -c '{ include: [.services[] | {name, dockerfile, context: (.context // ".")}] }' "$SERVICES_JSON"
   exit 0
 fi
