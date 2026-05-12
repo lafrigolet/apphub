@@ -77,23 +77,33 @@ services:
   # ── Backend monoliths + scheduler + aikikan-server ────────────
   # Estos no cambian de target entre dev/prod (siguen como Node), pero
   # en prod consumen la imagen publicada en lugar de buildear in-place.
+  # volumes: !reset [] descarta los bind mounts de dev (./platform/*/src
+  # y ./platform/*/migrations) que en prod TAPARÍAN el código bakeado en
+  # la imagen con el árbol viejo del host (el deploy sólo sincroniza
+  # docker-compose*.yml, infra/ y deploy/ — NO platform/).
   platform-core:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-core:${IMAGE_TAG:-latest}
+    volumes: !reset []
 
   platform-marketplace:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-marketplace:${IMAGE_TAG:-latest}
+    volumes: !reset []
 
   platform-restaurant:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-restaurant:${IMAGE_TAG:-latest}
+    volumes: !reset []
 
   platform-appointments:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-appointments:${IMAGE_TAG:-latest}
+    volumes: !reset []
 
   platform-scheduler:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-scheduler:${IMAGE_TAG:-latest}
+    volumes: !reset []
 
   aikikan-server:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-server:${IMAGE_TAG:-latest}
+    volumes: !reset []
 
   # ── Frontal gateway: swap to prod upstream definitions ─────────
   nginx:
