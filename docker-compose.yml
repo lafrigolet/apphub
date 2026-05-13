@@ -3,6 +3,7 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    networks: [data]
     environment:
       POSTGRES_USER: splitpay
       POSTGRES_PASSWORD: splitpay
@@ -21,6 +22,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    networks: [data]
     ports:
       - '6379:6379'
     volumes:
@@ -39,6 +41,7 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ':9001'
     restart: unless-stopped
+    networks: [data]
     ports:
       - '9000:9000'    # S3 API
       - '9001:9001'    # web console (admin)
@@ -56,6 +59,7 @@ services:
   # One-shot: creates the apphub bucket on first boot. Safe to re-run.
   minio-init:
     image: minio/mc:latest
+    networks: [data]
     depends_on:
       minio: { condition: service_healthy }
     environment:
@@ -79,6 +83,7 @@ services:
       dockerfile: platform/core/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [app, data]
     ports:
       - '3000:3000'
     environment:
@@ -158,6 +163,7 @@ services:
       dockerfile: platform/marketplace/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [app, data]
     ports:
       - '3100:3100'
     environment:
@@ -208,6 +214,7 @@ services:
       dockerfile: platform/restaurant/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [app, data]
     ports:
       - '3200:3200'
     environment:
@@ -254,6 +261,7 @@ services:
       dockerfile: platform/appointments/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [app, data]
     ports:
       - '3300:3300'
     environment:
@@ -305,6 +313,7 @@ services:
       dockerfile: platform/scheduler/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [data]
     # No public port mapping — the admin endpoints are reached via the
     # internal docker network from voragine-console. Exposing 3400 is OK in
     # dev for curl checks but not strictly needed.
@@ -339,6 +348,7 @@ services:
       dockerfile: ./apps/portal/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [edge]
     ports:
       - '5173:5173'
     environment:
@@ -355,6 +365,7 @@ services:
       dockerfile: ./apps/split-pay/splitpay-portal/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [edge]
     ports:
       - '5175:5175'
     environment:
@@ -373,6 +384,7 @@ services:
       dockerfile: apps/aikikan/aikikan-portal/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [edge]
     ports:
       - '5176:5176'
     environment:
@@ -396,6 +408,7 @@ services:
       dockerfile: apps/aikikan/aikikan-server/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [app, data]
     ports:
       - '3030:3030'
     environment:
@@ -432,6 +445,7 @@ services:
       dockerfile: apps/voragine-console/voragine-console-portal/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [edge]
     ports:
       - '5177:5177'
     environment:
@@ -455,6 +469,7 @@ services:
       dockerfile: apps/tenant-console/tenant-console-portal/Dockerfile
       target: development
     restart: unless-stopped
+    networks: [edge]
     ports:
       - '5178:5178'
     environment:
@@ -476,6 +491,7 @@ services:
       context: .
       dockerfile: infra/nginx/Dockerfile
     restart: unless-stopped
+    networks: [edge, app, data]
     ports:
       - '8080:80'
     environment:
@@ -508,3 +524,41 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+
+# ─────────────────────────────────────────────────────────────────
+# DMZ lógica: tres redes Docker que segmentan el tráfico por tier.
+# Cada container se enrola sólo en las redes que necesita; los que
+# no lo hacen no pueden hablarse, ni siquiera por DNS interno.
+#
+#   edge  — Internet (vía nginx) ↔ frontal nginx + portales static.
+#           NO contiene postgres/redis/minio.
+#   app   — nginx ↔ Fastify monoliths ↔ entre monoliths (HTTP).
+#           Permite egreso a Internet para Stripe / SendGrid / etc.
+#   data  — Fastify monoliths + scheduler ↔ postgres / redis / minio.
+#           `internal: true` bloquea egreso a Internet — defense
+#           in depth: si comprometen postgres/redis/minio o un
+#           backend que sólo está en data, no puede exfiltrar.
+#
+# Quién está en cada red:
+#                          edge  app  data
+#   nginx                    ✓    ✓    ✓   (sidecar lee redis configs)
+#   portal/*-portal          ✓
+#   platform-core/-mkt/      ─    ✓    ✓
+#     -restaurant/-appoint
+#   aikikan-server           ─    ✓    ✓
+#   platform-scheduler       ─    ─    ✓   (no HTTP ingress)
+#   postgres/redis/minio     ─    ─    ✓
+#
+# Nota: los monoliths backend están en app+data y por tanto SÍ tienen
+# salida a Internet (vía app, que no es internal). El aislamiento
+# `internal: true` solo aplica a containers que ÚNICAMENTE están en
+# data — i.e. postgres, redis, minio, scheduler.
+# ─────────────────────────────────────────────────────────────────
+networks:
+  edge:
+    driver: bridge
+  app:
+    driver: bridge
+  data:
+    driver: bridge
+    internal: true
