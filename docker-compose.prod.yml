@@ -74,6 +74,21 @@ services:
     ports: !reset []
     volumes: !reset []
 
+  # ── Infra: NO publicar puertos al host en prod ────────────────
+  # En dev el compose base publica 5432/6379/9000/9001 al host para
+  # comodidad del desarrollador (psql, redis-cli, consola MinIO en
+  # localhost). En prod sería una superficie pública innecesaria —
+  # las DB sólo deben ser accesibles vía la red docker `data`.
+  # !reset [] descarta el listado heredado.
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  minio:
+    ports: !reset []
+
   # ── Backend monoliths + scheduler + aikikan-server ────────────
   # Estos no cambian de target entre dev/prod (siguen como Node), pero
   # en prod consumen la imagen publicada en lugar de buildear in-place.
