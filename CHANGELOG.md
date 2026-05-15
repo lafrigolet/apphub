@@ -6,6 +6,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- **Public production domain switched to `hulkstein.com`** (was placeholder
+  `apphub.com`). Nginx seed configs in `infra/nginx/seed/*.conf` now match
+  `<sub>.hulkstein.com` for prod and keep `<sub>.apphub.local` for dev. New
+  env var `PLATFORM_PUBLIC_DOMAIN` (set on `platform-core` in
+  `docker-compose.prod.yml`) drives the host suffix used by
+  `platform/tenant-config/src/services/nginx-config.service.js` when it
+  renders dynamic per-app / per-tenant blocks into Redis. Default remains
+  `apphub.com` so dev stacks are untouched.
+- **Cloudflare proxy support in nginx** — new
+  `infra/nginx/snippets/cloudflare-real-ip.conf` declares Cloudflare's
+  IPv4/IPv6 ranges as trusted via `set_real_ip_from` and points
+  `real_ip_header CF-Connecting-IP`, so `$remote_addr` (and therefore the
+  `limit_req` zone keyed by it, plus audit logs) reflect the real visitor
+  IP instead of a CF datacenter. Included in the http block of
+  `infra/nginx/nginx.conf`; in dev the ranges simply never match.
+- **Runbook**: `docs/runbooks/cloudflare-dns.md` documents the Cloudflare
+  DNS records (apex + wildcard, both proxied), SSL/TLS mode (Full →
+  Full strict upgrade path with Origin Cert), origin firewall lockdown,
+  and verification steps.
+
 ### Removed
 - **YogaStudio app retired** — deleted `apps/yoga-studio/` (portal + 5 empty
   service shells: `yoga-users`, `yoga-classes`, `yoga-bookings`, `yoga-bonuses`,

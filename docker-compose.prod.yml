@@ -99,6 +99,11 @@ services:
   platform-core:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-core:${IMAGE_TAG:-latest}
     volumes: !reset []
+    environment:
+      # Public hostname suffix used when rendering nginx server blocks for new
+      # apps / tenants (e.g. `aikikan.hulkstein.com`). Defaults to apphub.com
+      # in dev; overridden here for the production domain.
+      PLATFORM_PUBLIC_DOMAIN: hulkstein.com
 
   platform-marketplace:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-marketplace:${IMAGE_TAG:-latest}

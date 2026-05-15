@@ -8,6 +8,12 @@ import { logger } from '../lib/logger.js'
 const CONF_KEY       = process.env.NGINX_CONF_KEY       ?? 'nginx:configs'
 const RELOAD_CHANNEL = process.env.NGINX_RELOAD_CHANNEL ?? 'nginx:reload'
 
+// Public hostname suffix used in `server_name` for production traffic.
+// In dev we always serve `<subdomain>.apphub.local` (via /etc/hosts); in
+// prod the operator sets PLATFORM_PUBLIC_DOMAIN=hulkstein.com so every
+// rendered block also matches `<subdomain>.hulkstein.com`.
+const PUBLIC_DOMAIN  = process.env.PLATFORM_PUBLIC_DOMAIN ?? 'apphub.com'
+
 // The upstream alias (with concrete port) is defined statically in
 // infra/nginx/conf.d/upstream.conf for every portal — convention:
 // <subdomain_with_underscores>_portal. We just reference it here, so the
@@ -17,7 +23,7 @@ const APP_TEMPLATE = `# Auto-generated for app {{app_id}} (subdomain: {{subdomai
 # Source of truth: Redis hash field {{conf_key}}/{{subdomain}}.
 server {
   listen 80;
-  server_name {{subdomain}}.apphub.local {{subdomain}}.apphub.com;
+  server_name {{subdomain}}.apphub.local {{subdomain}}.{{public_domain}};
 
   # Platform APIs (auth, tenants, payments, splitpay, …)
   include /etc/nginx/snippets/platform-routes.conf;
@@ -94,6 +100,7 @@ export async function writeAppNginxConfig({ appId, subdomain, hasServer = false 
     upstream_alias:     portalUpstreamAlias(subdomain),
     server_route_block: serverRouteBlock,
     conf_key:           CONF_KEY,
+    public_domain:      PUBLIC_DOMAIN,
     timestamp:          new Date().toISOString(),
   })
   await redis.hset(CONF_KEY, subdomain, conf)
@@ -119,7 +126,7 @@ const TENANT_TEMPLATE = `# Auto-generated for tenant {{tenant_id}} (subdomain: {
 # Source of truth: Redis hash field {{conf_key}}/tenant--{{subdomain}}.
 server {
   listen 80;
-  server_name {{subdomain}}.apphub.local {{subdomain}}.apphub.com;
+  server_name {{subdomain}}.apphub.local {{subdomain}}.{{public_domain}};
 
   # Same platform APIs every other portal exposes.
   include /etc/nginx/snippets/platform-routes.conf;
@@ -159,10 +166,11 @@ export async function writeTenantNginxConfig({ tenantId, subdomain }) {
     return
   }
   const conf = render(TENANT_TEMPLATE, {
-    tenant_id: tenantId,
+    tenant_id:     tenantId,
     subdomain,
-    conf_key:  CONF_KEY,
-    timestamp: new Date().toISOString(),
+    conf_key:      CONF_KEY,
+    public_domain: PUBLIC_DOMAIN,
+    timestamp:     new Date().toISOString(),
   })
   await redis.hset(CONF_KEY, tenantConfKey(subdomain), conf)
   await redis.publish(RELOAD_CHANNEL, subdomain).catch(() => {})
