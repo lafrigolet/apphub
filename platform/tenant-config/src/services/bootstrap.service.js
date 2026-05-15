@@ -13,7 +13,7 @@ const INTERNAL_BASE = env.PLATFORM_CORE_URL
 
 // Construye el magic-link público a partir del subdomain del tenant. En dev
 // se servirá vía nginx local; en prod via el dominio público. El portal de
-// app (aikikan/yoga/…) acepta /activate?token=... y POSTea a /v1/auth/activate.
+// app (aikikan/split-pay/…) acepta /activate?token=... y POSTea a /v1/auth/activate.
 function magicLinkUrl(subdomain, token) {
   // Heurística: si PLATFORM_CORE_URL contiene ".apphub.local" estamos en
   // dev/CI; sino asumimos prod (https://). Override explícito si es preciso.

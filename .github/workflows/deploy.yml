@@ -120,7 +120,7 @@ jobs:
           # Los servicios Node ignoran este target en sus Dockerfile.
           # GitHub Actions expression NO soporta ternario `cond ? a : b`;
           # se usa el patrón `cond && a || b` (equivalente cuando `a` es truthy).
-          target: ${{ (contains(matrix.name, 'portal') || matrix.name == 'yoga-studio') && 'production' || '' }}
+          target: ${{ contains(matrix.name, 'portal') && 'production' || '' }}
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:latest

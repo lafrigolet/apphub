@@ -142,7 +142,7 @@ server {
 // Tenant subdomains share the global Redis hash with app subdomains; we
 // namespace keys with a `tenant--` prefix so app + tenant subdomain spaces
 // can't collide. (App subdomains are top-level subdomains of the platform
-// itself: yoga, splitpay, …; tenant subdomains are per-customer.)
+// itself: aikikan, splitpay, …; tenant subdomains are per-customer.)
 function tenantConfKey(subdomain) {
   return `tenant--${subdomain}`
 }

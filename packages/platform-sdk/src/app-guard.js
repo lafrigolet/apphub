@@ -5,7 +5,7 @@ import { UnauthorizedError, AppMismatchError } from './errors.js'
  * Fastify plugin that validates JWT app_id against EXPECTED_APP_ID env var.
  *
  * Platform services set EXPECTED_APP_ID=platform.
- * App-specific services set EXPECTED_APP_ID=yoga-studio, split-pay, etc.
+ * App-specific services set EXPECTED_APP_ID=aikikan, split-pay, etc.
  *
  * Sets req.identity = { userId, appId, tenantId, subTenantId, role, email }
  */

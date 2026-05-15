@@ -44,8 +44,8 @@ docker compose exec platform-core node --version
 ```
 
 **Services**: `postgres`, `redis`, `platform-core`, `platform-marketplace`,
-`platform-restaurant`, `portal`, `yoga-studio`, `splitpay-portal`,
-`aikikan-portal`, `voragine-console-portal`, `nginx`.
+`platform-restaurant`, `platform-appointments`, `platform-scheduler`, `portal`,
+`splitpay-portal`, `aikikan-portal`, `voragine-console-portal`, `nginx`.
 
 ---
 
@@ -92,7 +92,7 @@ pnpm lint
   `@apphub/platform-kds`, `@apphub/platform-pos`,
   `@apphub/platform-delivery-dispatch`
 - Shared SDK: `@apphub/platform-sdk`
-- App services: `@yoga-studio/yoga-bookings`, …
+- App servers: `@aikikan/aikikan-server`, …
 
 ---
 
@@ -172,7 +172,7 @@ docker compose exec redis redis-cli HSET nginx:configs autoroute "$(cat new.conf
 # Unrouted: drop a subdomain. Sidecar removes the rendered file and reloads.
 docker compose exec redis redis-cli HDEL nginx:configs autoroute
 
-# Force re-seed from the baked-in seeds (yoga, splitpay, …) — useful in dev
+# Force re-seed from the baked-in seeds (aikikan, splitpay, …) — useful in dev
 docker compose exec redis redis-cli DEL nginx:configs
 docker compose restart nginx     # next sidecar init re-seeds from /etc/nginx/seed/
 
@@ -260,7 +260,7 @@ transaction — matching what `setTenantContext()` does in code:
 
 ```sql
 BEGIN;
-SELECT set_config('app.app_id',        'yoga-studio',                            true);
+SELECT set_config('app.app_id',        'aikikan',                                true);
 SELECT set_config('app.tenant_id',     '00000000-0000-0000-0000-000000000099',   true);
 SELECT set_config('app.sub_tenant_id', '',                                       true);
 -- now queries respect RLS
@@ -301,10 +301,11 @@ cat backup.sql | docker compose exec -T postgres psql -U splitpay splitpay
 | platform-core               | 3000      |
 | platform-marketplace        | 3100      |
 | platform-restaurant         | 3200      |
+| platform-appointments       | 3300      |
+| platform-scheduler          | 3400      |
 | PostgreSQL                  | 5432      |
 | Redis                       | 6379      |
 | portal (AppHub admin)       | 5173      |
-| yoga-studio portal          | 5174      |
 | splitpay portal             | 5175      |
 | aikikan portal              | 5176      |
 | voragine-console portal     | 5177      |
@@ -314,5 +315,5 @@ cat backup.sql | docker compose exec -T postgres psql -U splitpay splitpay
 - `platform-marketplace` (3100) → `orders`, `inventory`, `reviews`, `messaging`, `shipping`, `disputes`, `catalog`, `basket`
 - `platform-restaurant` (3200) → `menu`, `reservations`, `floor-plan`, `kds`, `pos`, `delivery-dispatch`
 
-All app subdomains go through NGINX: `http://yoga.apphub.local:8080`,
+All app subdomains go through NGINX: `http://aikikan.apphub.local:8080`,
 `http://splitpay.apphub.local:8080`, etc. (requires `/etc/hosts` entries).

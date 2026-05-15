@@ -54,7 +54,7 @@ Register `appGuard` in every Fastify app. Set `EXPECTED_APP_ID` in the environme
 EXPECTED_APP_ID=platform
 
 // app-specific services
-EXPECTED_APP_ID=yoga-studio   // or split-pay, etc.
+EXPECTED_APP_ID=aikikan       // or split-pay, etc.
 ```
 
 ## API design

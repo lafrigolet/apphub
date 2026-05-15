@@ -51,7 +51,3 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA notifications
 ALTER DEFAULT PRIVILEGES IN SCHEMA tenants
   GRANT USAGE, SELECT ON SEQUENCES TO svc_tenants;
 
--- ── YogaStudio schemas/roles: removed when the app was retired. ─
--- DBs ya existentes que arrancaron este script en su día pueden
--- conservar las filas yoga_* huérfanas; son inofensivas (sin tablas
--- adentro) pero pueden purgarse con DROP SCHEMA … CASCADE si se quiere.

@@ -6,6 +6,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Removed
+- **YogaStudio app retired** — deleted `apps/yoga-studio/` (portal + 5 empty
+  service shells: `yoga-users`, `yoga-classes`, `yoga-bookings`, `yoga-bonuses`,
+  `yoga-reporting`). All functionality lives in platform modules now
+  (`platform/auth`, `platform/services`, `platform/bookings`, `platform/packages`,
+  `platform/availability`, …). Cleaned up references in `.env`, `.env.example`,
+  `.github/workflows/deploy.yml`, `infra/postgres/init/00_init.sql`,
+  `packages/platform-sdk/src/app-guard.js`, `platform/tenant-config/src/services/{nginx-config,bootstrap}.service.js`,
+  and the live docs (CLAUDE.md, ARCHITECTURE.md, DEVELOPMENT.md, RUN.md, COMMANDS.md,
+  CONVENTIONS.md, TODO.md, docs/runbooks/platform-bootstrap.md). ADRs and applied
+  migrations preserve the historical record.
+
+### Removed (secrets)
+- Stripe / OAuth / SendGrid / S3 secrets removed from `.env` and `.env.example` —
+  they live encrypted at rest in `platform_*/config|settings|oauth_providers`
+  tables and are configured via `/v1/<module>/admin` endpoints (super_admin/staff).
+  Only bootstrap secrets (DATABASE_URL, JWT, encryption master key, MinIO root,
+  per-module DB role passwords) remain in env.
+
 ### Added
 - **Module-level runtime config UI in voragine-console** — staff can now
   bootstrap every platform-core module from the admin portal without touching

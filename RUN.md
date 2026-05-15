@@ -47,8 +47,8 @@ cp .env.example .env
 
 # 3. Add local DNS aliases (required for subdomain routing)
 echo "127.0.0.1  apphub.local"           | sudo tee -a /etc/hosts
-echo "127.0.0.1  yoga.apphub.local"      | sudo tee -a /etc/hosts
 echo "127.0.0.1  splitpay.apphub.local"  | sudo tee -a /etc/hosts
+echo "127.0.0.1  aikikan.apphub.local"   | sudo tee -a /etc/hosts
 ```
 
 Now edit `.env` with your values. Continue to the next section.
@@ -121,7 +121,7 @@ For local webhooks, use the Stripe CLI:
 stripe login
 
 # Keep this running in a separate terminal
-stripe listen --forward-to yoga.apphub.local:8080/api/payments/webhooks/stripe
+stripe listen --forward-to aikikan.apphub.local:8080/api/payments/webhooks/stripe
 # Copy the printed whsec_… and set it as PLATFORM_STRIPE_WEBHOOK_SECRET
 ```
 
@@ -140,7 +140,7 @@ docker compose up -d
 docker compose logs -f platform-core
 docker compose logs -f platform-marketplace
 docker compose logs -f platform-restaurant
-docker compose logs -f yoga-studio
+docker compose logs -f platform-appointments
 ```
 
 ### First-time bootstrap (after a fresh DB or wipe)
@@ -169,15 +169,15 @@ bootstrap when an app is created.
 # Terminal 1 — infrastructure only
 docker compose up -d postgres redis nginx
 
-# Terminal 2 — run a specific service with watch mode
-pnpm --filter @yoga-studio/yoga-classes dev
+# Terminal 2 — run a specific monolith with watch mode
+pnpm --filter @apphub/platform-core dev
 ```
 
 ### Option C — Tests only (no service needed)
 
 ```bash
 docker compose up -d postgres redis
-pnpm --filter "@yoga-studio/*" test
+pnpm test
 ```
 
 ---
@@ -190,31 +190,31 @@ pnpm --filter "@yoga-studio/*" test
 curl http://apphub.local:8080/health
 # → {"status":"ok"}
 
-curl http://yoga.apphub.local:8080/api/auth/health
+curl http://aikikan.apphub.local:8080/api/auth/health
 # → {"status":"ok","service":"platform-auth"}
 ```
 
-### Register a yoga user
+### Register an aikikan user
 
 ```bash
-curl -X POST http://yoga.apphub.local:8080/api/auth/register \
+curl -X POST http://aikikan.apphub.local:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "app_id": "yoga-studio",
-    "email": "test@yoga.es",
+    "app_id": "aikikan",
+    "email": "test@aikikan.es",
     "password": "Secur3P@ss!",
     "name": "Test User"
   }'
-# Response includes a JWT with app_id: "yoga-studio"
+# Response includes a JWT with app_id: "aikikan"
 ```
 
 ### Verify cross-app token rejection
 
-Use the yoga JWT obtained above against a split-pay endpoint:
+Use the aikikan JWT obtained above against a split-pay endpoint:
 
 ```bash
 curl http://splitpay.apphub.local:8080/api/app/merchants \
-  -H "Authorization: Bearer <yoga-jwt>"
+  -H "Authorization: Bearer <aikikan-jwt>"
 # → 403 APP_MISMATCH
 ```
 
@@ -226,17 +226,17 @@ Tests mock all external dependencies (DB, Redis, Stripe). No running services ne
 beyond PostgreSQL and Redis.
 
 ```bash
-# All yoga-studio service tests
-pnpm --filter "@yoga-studio/*" test
-
 # All split-pay tests
 pnpm --filter "@split-pay/*" test
 
-# Specific service
-pnpm --filter @yoga-studio/yoga-classes test
+# All aikikan tests
+pnpm --filter "@aikikan/*" test
+
+# Specific module
+pnpm --filter @apphub/platform-auth test
 
 # Watch mode
-pnpm --filter @yoga-studio/yoga-classes test -- --watch
+pnpm --filter @apphub/platform-auth test -- --watch
 
 # Full monorepo
 pnpm test
@@ -259,13 +259,13 @@ docker compose down
 docker compose down -v
 
 # View logs
-docker compose logs -f yoga-classes
+docker compose logs -f platform-core
 
 # Restart one service
-docker compose restart yoga-classes
+docker compose restart platform-core
 
 # Rebuild after Dockerfile change
-docker compose up -d --build yoga-classes
+docker compose up -d --build platform-core
 ```
 
 ### Database
@@ -275,11 +275,11 @@ docker compose up -d --build yoga-classes
 docker compose exec postgres psql -U apphub -d apphub
 
 # List tables in a schema
-docker compose exec postgres psql -U apphub -d apphub -c "\dt yoga_classes.*"
+docker compose exec postgres psql -U apphub -d apphub -c "\dt platform_auth.*"
 
 # View applied migrations
 docker compose exec postgres psql -U apphub -d apphub \
-  -c "SELECT * FROM yoga_classes.migrations ORDER BY applied_at;"
+  -c "SELECT * FROM platform_auth.migrations ORDER BY applied_at;"
 ```
 
 ### Monorepo

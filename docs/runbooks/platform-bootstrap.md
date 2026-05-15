@@ -38,8 +38,8 @@ In a single non-interactive flow:
 
 After this, `platform_auth.users` has at least one row with `role='super_admin'`
 and `platform_tenants.apps` contains the `platform` app (subdomain
-`voragine-console`). The two seed apps from the migration (`yoga-studio` and
-`split-pay`) are unaffected.
+`voragine-console`). The seed app from the migration (`split-pay`) is
+unaffected.
 
 ## How to run
 
@@ -145,8 +145,8 @@ would never be read.
 
 The staff console references `app_id='platform'` everywhere (in JWT validation,
 in audit logs, etc.). Having a corresponding registry row makes the platform
-self-consistent: `GET /v1/apps` lists `platform` alongside `yoga-studio` and
-`split-pay`, with `subdomain='voragine-console'`. It's "the staff console as
+self-consistent: `GET /v1/apps` lists `platform` alongside the other apps
+(e.g. `split-pay`, `aikikan`), with `subdomain='voragine-console'`. It's "the staff console as
 an app like any other" — a property we care about for cleanliness.
 
 ### Idempotent by design, not accident
@@ -224,7 +224,7 @@ docker compose down -v
 docker compose up -d postgres redis
 
 # 3. Bring up platform-core (re-runs migrations on a virgin DB,
-#    re-seeds yoga-studio and split-pay apps from migration 0001)
+#    re-seeds split-pay and aikikan apps from migrations)
 docker compose up -d platform-core
 
 # 4. Bootstrap: create the super_admin

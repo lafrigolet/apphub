@@ -147,8 +147,7 @@ Every JWT issued by `platform/auth` carries:
     isolation in `app_<app>` is by row (`(app_id, tenant_id, sub_tenant_id)` + RLS),
     same as in `platform_*`. The app monolith MUST NOT cross-schema-read `platform_*`;
     it talks to platform via HTTP module APIs or Redis events. New apps default to
-    `app_<app>`. (Una iteración previa probó un layout multi-schema en yoga-studio;
-    la app se retiró antes del cutover y `app_<app>` es ya la única forma soportada.)
+    `app_<app>`.
 
 ## Adding new functionality — decision tree
 

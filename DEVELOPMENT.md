@@ -25,7 +25,6 @@ cp .env.example .env
 
 # 4. Add local DNS aliases to /etc/hosts
 echo "127.0.0.1  apphub.local" | sudo tee -a /etc/hosts
-echo "127.0.0.1  yoga.apphub.local" | sudo tee -a /etc/hosts
 echo "127.0.0.1  splitpay.apphub.local" | sudo tee -a /etc/hosts
 echo "127.0.0.1  aikikan.apphub.local" | sudo tee -a /etc/hosts
 
@@ -33,7 +32,7 @@ echo "127.0.0.1  aikikan.apphub.local" | sudo tee -a /etc/hosts
 docker compose up -d
 
 # 6. Verify
-curl http://yoga.apphub.local:8080/api/auth/health
+curl http://aikikan.apphub.local:8080/api/auth/health
 ```
 
 ## /etc/hosts setup
@@ -43,7 +42,6 @@ server blocks will not match and all requests land on the default server (404).
 
 ```
 127.0.0.1  apphub.local
-127.0.0.1  yoga.apphub.local
 127.0.0.1  splitpay.apphub.local
 127.0.0.1  aikikan.apphub.local
 ```
@@ -86,21 +84,21 @@ AIKIKAN_TENANT_ID=
 
 ```bash
 stripe login
-stripe listen --forward-to yoga.apphub.local:8080/api/payments/webhooks/stripe
+stripe listen --forward-to aikikan.apphub.local:8080/api/payments/webhooks/stripe
 # Copy the webhook signing secret and set it as PLATFORM_STRIPE_WEBHOOK_SECRET
 ```
 
 ## Running tests
 
 ```bash
-# All yoga-studio services
-pnpm --filter "@yoga-studio/*" test
-
 # All split-pay services
 pnpm --filter "@split-pay/*" test
 
-# Specific service
-pnpm --filter @yoga-studio/yoga-classes test
+# All aikikan services
+pnpm --filter "@aikikan/*" test
+
+# Specific module
+pnpm --filter @apphub/platform-auth test
 
 # Entire monorepo
 pnpm test
@@ -116,16 +114,10 @@ docker compose up -d
 docker compose logs -f platform-core
 docker compose logs -f platform-marketplace
 docker compose logs -f platform-restaurant
-docker compose logs -f yoga-studio        # all yoga services + portal together
-
-# Tail PM2 process logs inside the yoga-studio container
-docker compose exec yoga-studio pm2 logs
-
-# Check PM2 process status
-docker compose exec yoga-studio pm2 status
+docker compose logs -f platform-appointments
 
 # Rebuild a service after Dockerfile changes
-docker compose up -d --build yoga-studio
+docker compose up -d --build platform-core
 
 # Stop everything
 docker compose down
@@ -141,13 +133,10 @@ docker compose down -v
 docker compose exec postgres psql -U splitpay -d splitpay
 
 # Inspect a schema
-docker compose exec postgres psql -U splitpay -d splitpay -c "\dt yoga_classes.*"
 docker compose exec postgres psql -U splitpay -d splitpay -c "\dt platform_auth.*"
 docker compose exec postgres psql -U splitpay -d splitpay -c "\dt platform_orders.*"
 docker compose exec postgres psql -U splitpay -d splitpay -c "\dt platform_menu.*"
-
-# Run migrations for a specific service (dev only — auto-runs on startup)
-docker compose exec yoga-studio sh -c "cd apps/yoga-studio/yoga-classes && node src/lib/migrate.js"
+docker compose exec postgres psql -U splitpay -d splitpay -c "\dt app_aikikan.*"
 ```
 
 ## Ports
@@ -157,13 +146,9 @@ docker compose exec yoga-studio sh -c "cd apps/yoga-studio/yoga-classes && node 
 | platform-core | auth, payments, notifications, tenant-config, splitpay | 3000 |
 | platform-marketplace | orders, inventory, reviews, messaging, shipping, disputes, catalog, basket | 3100 |
 | platform-restaurant | menu, reservations, floor-plan, kds, pos, delivery-dispatch | 3200 |
-| yoga-studio | yoga-users | 3011 |
-| yoga-studio | yoga-classes | 3012 |
-| yoga-studio | yoga-bookings | 3013 |
-| yoga-studio | yoga-bonuses | 3014 |
-| yoga-studio | yoga-reporting | 3017 |
+| platform-appointments | services, resources, bookings, availability, intake-forms, telehealth, packages, practitioner-payouts | 3300 |
+| platform-scheduler | cron runner | 3400 |
 | portal | AppHub admin | 5173 |
-| yoga-studio | yoga-portal | 5174 |
 | splitpay-portal | splitpay-portal | 5175 |
 | aikikan-portal | aikikan-portal | 5176 |
 | voragine-console-portal | voragine-console-portal | 5177 |

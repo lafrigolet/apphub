@@ -620,8 +620,7 @@ filtra al usuario.
 ### Fase 0 — Fundaciones (commit `90e1189`) ✅
 - [x] Migración `platform/tenant-config/migrations/0006_app_enabled_modules.sql`
   — añade `enabled_modules TEXT[] NOT NULL DEFAULT '{}'` a `platform_tenants.apps`
-  y semilla los sets actuales (`yoga-studio`, `aikikan`, `split-pay`,
-  `voragine-console`).
+  y semilla los sets actuales (`aikikan`, `split-pay`, `voragine-console`).
 - [x] Endpoint `GET /v1/apps/:appId` y `GET /v1/apps` devuelven `enabled_modules`
   en el payload. Nuevo `PUT /v1/apps/:appId/enabled-modules { modules: string[] }`
   para que staff edite el set sin tocar SQL.

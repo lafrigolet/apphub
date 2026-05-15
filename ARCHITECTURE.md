@@ -3,7 +3,7 @@
 ## Overview
 
 AppHub is a multi-app meta-platform built as a monorepo of microservices. Multiple
-independent apps (yoga-studio, split-pay, …) share a set of cross-cutting platform
+independent apps (aikikan, split-pay, …) share a set of cross-cutting platform
 services. Each app gets its own subdomain and its own app-specific microservices.
 
 ## Platform layers
@@ -15,17 +15,17 @@ services. Each app gets its own subdomain and its own app-specific microservices
                                        │
                   ┌────────────────────▼────────────────────────┐
                   │       NGINX  (conf.d/ subdomain routing)     │
-                  │  apphub.local  yoga.apphub.local  splitpay…  │
+                  │  apphub.local  aikikan.apphub.local  splitpay…│
                   └──────┬─────────────┬────────────────┬───────┘
                          │             │                │
               ┌──────────▼──┐  ┌───────▼────┐  ┌───────▼──────┐
-              │  AppHub      │  │ Yoga Studio │  │ Split Pay    │
-              │  portal:5173 │  │ portal:5174 │  │ portal:5175  │
+              │  AppHub      │  │   Aikikan   │  │ Split Pay    │
+              │  portal:5173 │  │ portal:5176 │  │ portal:5175  │
               └─────────────┘  └───────┬─────┘  └──────┬───────┘
                                        │ /api/app/*     │ /api/app/*
                               ┌────────▼──────┐ ┌───────▼──────┐
-                              │ yoga-* svcs   │ │   splitpay   │
-                              │ 3011–3017     │ │ 3020         │
+                              │ aikikan-server│ │   splitpay   │
+                              │ 3030          │ │ 3020         │
                               └───────────────┘ └──────────────┘
                                        │                │
               /api/auth, /api/payments, /api/orders, /api/menu, …
@@ -48,7 +48,6 @@ services. Each app gets its own subdomain and its own app-specific microservices
 | Subdomain | Local alias | App |
 |---|---|---|
 | `apphub.com` | `apphub.local` | AppHub admin portal |
-| `yoga.apphub.com` | `yoga.apphub.local` | Yoga Studio |
 | `splitpay.apphub.com` | `splitpay.apphub.local` | Split Pay |
 | `aikikan.apphub.com` | `aikikan.apphub.local` | Aikikan (Aikido association) |
 
@@ -99,7 +98,7 @@ and operational details (bootstrap, debugging, tunables, migration to Kubernetes
 ```
 platform/auth  issues JWTs with:
   sub           →  user UUID
-  app_id        →  which app   (yoga-studio | split-pay | …)
+  app_id        →  which app   (aikikan | split-pay | …)
   tenant_id     →  which deployment of that app
   sub_tenant_id →  sub-unit within the tenant (nullable)
   role          →  user role within that app
@@ -114,7 +113,7 @@ the token's `app_id` does not match. Platform services set `EXPECTED_APP_ID=plat
 
 ```
 Platform (AppHub)
-  └── App (yoga-studio, split-pay, …)       app_id
+  └── App (aikikan, split-pay, …)           app_id
         └── Tenant (a deployment)            tenant_id uuid
               └── Sub-tenant (optional)      sub_tenant_id uuid (nullable)
                     └── End users
@@ -160,8 +159,8 @@ PostgreSQL instance
 ├── platform_delivery_dispatch    (platform/delivery-dispatch) role: svc_platform_delivery_dispatch
 │
 │ ── App-specific schemas ──
-├── yoga_users / yoga_classes / yoga_bookings / yoga_bonuses / yoga_reporting
-└── … (one per app service)
+├── app_aikikan                    (apps/aikikan/aikikan-server)  role: svc_app_aikikan
+└── … (one per app)
 ```
 
 Cross-schema queries are never allowed. Roles and grants are defined in
@@ -193,7 +192,6 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
 | `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
 | `platform-scheduler` | Single-runner cron for all 4 monoliths (9 jobs: hold purge, reminders, recurrence expander, expiry warnings, payout close, SLA breach, abandoned cart) | 3400 |
-| `yoga-studio` | All 5 yoga services + yoga-portal via PM2 | 3011–3014, 3017, 5174 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
 | `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |
@@ -213,25 +211,20 @@ for the rationale, [ADR 005](docs/adr/005-platform-restaurant-monolith.md) for t
 restaurant split, and [ADR 006](docs/adr/006-platform-appointments-monolith.md) for the
 appointments split.
 
-All yoga services and their portal share one container managed by PM2. Internal
-service-to-service calls within yoga-studio use `http://localhost:<port>`.
-
 ## Port allocation
 
 | Range | Owner |
 |---|---|
 | 3000–3005 | Platform services |
 | 3006–3009 | Reserved for future platform services |
-| 3011–3017 | Yoga Studio app services (inside `yoga-studio` container) |
 | 3020–3029 | Split Pay app services |
-| 3030–3099 | Future app services |
+| 3030–3099 | App monolith servers (one per app — aikikan, …) |
 | 3100 | platform-marketplace |
 | 3200 | platform-restaurant |
 | 3300 | platform-appointments |
 | 3400 | platform-scheduler |
 | 3400+ | Future domain monoliths |
 | 5173 | AppHub admin portal |
-| 5174 | Yoga Studio portal (inside `yoga-studio` container) |
 | 5175 | Split Pay portal |
 | 5176 | Aikikan portal |
 | 5177+ | Future app portals |
