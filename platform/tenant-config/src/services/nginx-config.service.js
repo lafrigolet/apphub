@@ -23,6 +23,7 @@ const APP_TEMPLATE = `# Auto-generated for app {{app_id}} (subdomain: {{subdomai
 # Source of truth: Redis hash field {{conf_key}}/{{subdomain}}.
 server {
   listen 80;
+  include /etc/nginx/snippets/tls-listen.conf;
   server_name {{subdomain}}.apphub.local {{subdomain}}.{{public_domain}};
 
   # Platform APIs (auth, tenants, payments, splitpay, …)
@@ -126,6 +127,7 @@ const TENANT_TEMPLATE = `# Auto-generated for tenant {{tenant_id}} (subdomain: {
 # Source of truth: Redis hash field {{conf_key}}/tenant--{{subdomain}}.
 server {
   listen 80;
+  include /etc/nginx/snippets/tls-listen.conf;
   server_name {{subdomain}}.apphub.local {{subdomain}}.{{public_domain}};
 
   # Same platform APIs every other portal exposes.

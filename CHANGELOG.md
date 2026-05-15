@@ -7,6 +7,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Changed
+- **TLS at the origin via Cloudflare Origin Certificate** — every per-app
+  nginx server block (seeds and dynamic templates rendered into Redis by
+  `platform/tenant-config`) now `include`s
+  `/etc/nginx/snippets/tls-listen.conf`. In dev that file is empty
+  (HTTP-only). In prod, `docker-compose.prod.yml` overlays
+  `tls-listen.prod.conf` on top of it, activating
+  `listen 443 ssl http2;` plus the cert at
+  `/etc/cloudflare/origin/{cert,key}.pem`. Required to run Cloudflare in
+  `Full (Strict)` SSL mode (the only secure option now that CF removed
+  `Flexible` for new sites). The prod compose also adds `443:443` to the
+  nginx ports and mounts `/etc/cloudflare/origin:ro`. Full setup is in
+  `docs/runbooks/cloudflare-dns.md` (cert generation in CF UI → upload
+  to host → deploy → flip SSL mode → verify).
 - **Public production domain switched to `hulkstein.com`** (was placeholder
   `apphub.com`). Nginx seed configs in `infra/nginx/seed/*.conf` now match
   `<sub>.hulkstein.com` for prod and keep `<sub>.apphub.local` for dev. New
