@@ -54,7 +54,7 @@ function Toasts() {
 
 // Banner shown when the user logged in but their JWT's tenant_id differs
 // from the tenant bound to the current subdomain. This catches the
-// "logged in at acme.apphub.local but the JWT is for bastardo" case
+// "logged in at acme.hulkstein.local but the JWT is for bastardo" case
 // without forcing a hard redirect — the user keeps a one-click escape.
 function HostMismatchBanner() {
   const { hostTenant, tenant, onLogout } = useApp()

@@ -145,8 +145,8 @@ async function main() {
   }
 
   console.log('\n✓ Aikikan seed complete.\n')
-  console.log(`  App:        ${APP_ID}        (subdomain: ${APP_SUBDOMAIN}.apphub.local)`)
-  console.log(`  Tenant:     ${TENANT_NAME}   (subdomain: ${TENANT_SUB}.apphub.local)`)
+  console.log(`  App:        ${APP_ID}        (subdomain: ${APP_SUBDOMAIN}.hulkstein.local)`)
+  console.log(`  Tenant:     ${TENANT_NAME}   (subdomain: ${TENANT_SUB}.hulkstein.local)`)
   console.log(`  Modules:    ${ENABLED_MODULES.length} habilitados`)
   console.log('')
   console.log('  Login (password "password123" para los dos):')

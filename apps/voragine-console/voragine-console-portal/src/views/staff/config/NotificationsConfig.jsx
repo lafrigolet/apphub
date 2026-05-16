@@ -77,7 +77,7 @@ export default function NotificationsConfig() {
 
         <div>
           <label className="block text-[12px] uppercase tracking-[0.14em] text-ink3 mb-1">Sender email</label>
-          <input type="email" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} placeholder="noreply@apphub.com" className="input w-full font-mono text-[13px]" />
+          <input type="email" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} placeholder="noreply@hulkstein.com" className="input w-full font-mono text-[13px]" />
         </div>
 
         <div>

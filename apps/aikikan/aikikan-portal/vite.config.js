@@ -7,7 +7,7 @@ export default defineConfig({
     host: true,
     port: 5176,
     strictPort: true,
-    allowedHosts: ['aikikan.apphub.local'],
+    allowedHosts: ['aikikan.hulkstein.local'],
     watch: { usePolling: true },
     proxy: {
       '/api': {

@@ -1,7 +1,7 @@
 // Inline mount of @apphub/tenant-console-ui for the admin flow.
 //
 // In the previous design the admin login redirected to
-// tenant-console.apphub.local with a token in the URL fragment. Now we
+// tenant-console.hulkstein.local with a token in the URL fragment. Now we
 // keep the admin inside aikikan-portal: same SPA, same subdomain, the
 // shell is just rendered as another React tree.
 //

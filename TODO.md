@@ -605,7 +605,7 @@ cuando se reactive — no es trabajo en cola.
 
 ## tenant-console (frontend per-tenant, modular)
 
-Consola de administración que cada tenant accede en su `<tenant>.apphub.com` (o
+Consola de administración que cada tenant accede en su `<tenant>.hulkstein.com` (o
 custom domain). voragine-console se queda **únicamente con `staff/*`** — el rol
 `owner`/`admin` deja de servirse desde allí cuando esta nueva app esté
 operativa. Se monta dinámicamente: cada `platform/<modulo>` aporta un
@@ -625,7 +625,7 @@ filtra al usuario.
   en el payload. Nuevo `PUT /v1/apps/:appId/enabled-modules { modules: string[] }`
   para que staff edite el set sin tocar SQL.
 - [x] Bootstrap del app `apps/tenant-console/tenant-console-portal/` (puerto 5178)
-  con `package.json` / `vite.config.js` (allowedHosts incluye `.apphub.local`
+  con `package.json` / `vite.config.js` (allowedHosts incluye `.hulkstein.local`
   wildcard para per-tenant subdomains) / `Dockerfile` (dev + nginx-alpine prod).
 - [x] Upstream NGINX (`infra/nginx/conf.d/upstream.conf` + `upstream.prod.conf`)
   y seed `infra/nginx/seed/tenant-console.conf`. Server block per-tenant ya se
@@ -723,7 +723,7 @@ profundo se itera después.
 - [x] Documentación: ADR-012 (`docs/adr/012-tenant-console-multi-host-routing.md`).
 
 ### Decisiones diferidas (cuando hagan falta)
-- **Custom domains de tenants** — hoy `subdomain.apphub.com`; cuando un tenant
+- **Custom domains de tenants** — hoy `subdomain.hulkstein.com`; cuando un tenant
   quiera `admin.bastardo.com`, ya está la columna `tenants.custom_domain`.
 - **Per-tenant feature flags** (subset de `enabled_modules` desactivable per
   tenant) — `enabled_modules` cubre el caso "qué módulos tiene el app"; el

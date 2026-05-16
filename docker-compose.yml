@@ -123,7 +123,7 @@ services:
       FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
       # Notifications module
       SENDGRID_API_KEY:    ${SENDGRID_API_KEY:-dev_no_sendgrid}
-      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@apphub.local}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hulkstein.local}
       # Payments module — Stripe
       PLATFORM_STRIPE_SECRET_KEY:     ${PLATFORM_STRIPE_SECRET_KEY:-sk_test_placeholder}
       PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
@@ -354,7 +354,7 @@ services:
       - '5173:5173'
     environment:
       NODE_ENV: development
-      VITE_API_BASE_URL: http://apphub.local:8080
+      VITE_API_BASE_URL: http://hulkstein.local:8080
     volumes:
       - ./apps/portal/src:/app/apps/portal/src:ro
       - ./apps/portal/index.html:/app/apps/portal/index.html:ro
@@ -372,7 +372,7 @@ services:
     environment:
       NODE_ENV: development
       VITE_APP_ID: split-pay
-      VITE_API_BASE_URL: http://splitpay.apphub.local:8080
+      VITE_API_BASE_URL: http://splitpay.hulkstein.local:8080
     volumes:
       - ./apps/split-pay/splitpay-portal/src:/app/src:ro
     depends_on:
@@ -390,7 +390,7 @@ services:
       - '5176:5176'
     environment:
       NODE_ENV: development
-      VITE_API_BASE_URL: http://aikikan.apphub.local:8080
+      VITE_API_BASE_URL: http://aikikan.hulkstein.local:8080
       VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       VITE_FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
       VITE_AIKIKAN_APP_ID: aikikan
@@ -431,7 +431,7 @@ services:
       #   3. Configurar el webhook endpoint en Stripe apuntando al endpoint
       #      público de splitpay (/v1/splitpay/webhooks/stripe).
       SPLITPAY_BASE_URL:  http://platform-core:3000
-      AIKIKAN_PUBLIC_URL: ${AIKIKAN_PUBLIC_URL:-http://aikikan.apphub.local:8080}
+      AIKIKAN_PUBLIC_URL: ${AIKIKAN_PUBLIC_URL:-http://aikikan.hulkstein.local:8080}
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -453,7 +453,7 @@ services:
       NODE_ENV: development
       # No VITE_API_BASE_URL — api.js falls back to relative paths so /api/*
       # is handled by Vite's dev proxy (→ nginx:80) when accessing 5177 directly,
-      # and by NGINX itself when accessing via voragine-console.apphub.local:8080.
+      # and by NGINX itself when accessing via voragine-console.hulkstein.local:8080.
     volumes:
       - ./apps/voragine-console/voragine-console-portal/src:/app/apps/voragine-console/voragine-console-portal/src:ro
       - ./apps/voragine-console/voragine-console-portal/vite.config.js:/app/apps/voragine-console/voragine-console-portal/vite.config.js:ro

@@ -46,9 +46,9 @@ pnpm install
 cp .env.example .env
 
 # 3. Add local DNS aliases (required for subdomain routing)
-echo "127.0.0.1  apphub.local"           | sudo tee -a /etc/hosts
-echo "127.0.0.1  splitpay.apphub.local"  | sudo tee -a /etc/hosts
-echo "127.0.0.1  aikikan.apphub.local"   | sudo tee -a /etc/hosts
+echo "127.0.0.1  hulkstein.local"           | sudo tee -a /etc/hosts
+echo "127.0.0.1  splitpay.hulkstein.local"  | sudo tee -a /etc/hosts
+echo "127.0.0.1  aikikan.hulkstein.local"   | sudo tee -a /etc/hosts
 ```
 
 Now edit `.env` with your values. Continue to the next section.
@@ -121,7 +121,7 @@ For local webhooks, use the Stripe CLI:
 stripe login
 
 # Keep this running in a separate terminal
-stripe listen --forward-to aikikan.apphub.local:8080/api/payments/webhooks/stripe
+stripe listen --forward-to aikikan.hulkstein.local:8080/api/payments/webhooks/stripe
 # Copy the printed whsec_… and set it as PLATFORM_STRIPE_WEBHOOK_SECRET
 ```
 
@@ -155,7 +155,7 @@ BOOTSTRAP_ADMIN_EMAIL=… BOOTSTRAP_ADMIN_PASSWORD=… ./scripts/bootstrap.sh   
 
 The script is idempotent and registers both the super_admin and the
 `platform` app in the registry. After it succeeds, log in at
-http://voragine-console.apphub.local:8080 and start creating apps from the
+http://voragine-console.hulkstein.local:8080 and start creating apps from the
 **Apps** sidebar — new subdomains route automatically.
 
 Full reference: [`docs/runbooks/platform-bootstrap.md`](docs/runbooks/platform-bootstrap.md) (env vars,
@@ -187,17 +187,17 @@ pnpm test
 ### Health check (no auth required)
 
 ```bash
-curl http://apphub.local:8080/health
+curl http://hulkstein.local:8080/health
 # → {"status":"ok"}
 
-curl http://aikikan.apphub.local:8080/api/auth/health
+curl http://aikikan.hulkstein.local:8080/api/auth/health
 # → {"status":"ok","service":"platform-auth"}
 ```
 
 ### Register an aikikan user
 
 ```bash
-curl -X POST http://aikikan.apphub.local:8080/api/auth/register \
+curl -X POST http://aikikan.hulkstein.local:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "app_id": "aikikan",
@@ -213,7 +213,7 @@ curl -X POST http://aikikan.apphub.local:8080/api/auth/register \
 Use the aikikan JWT obtained above against a split-pay endpoint:
 
 ```bash
-curl http://splitpay.apphub.local:8080/api/app/merchants \
+curl http://splitpay.hulkstein.local:8080/api/app/merchants \
   -H "Authorization: Bearer <aikikan-jwt>"
 # → 403 APP_MISMATCH
 ```

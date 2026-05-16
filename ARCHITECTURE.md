@@ -15,7 +15,7 @@ services. Each app gets its own subdomain and its own app-specific microservices
                                        │
                   ┌────────────────────▼────────────────────────┐
                   │       NGINX  (conf.d/ subdomain routing)     │
-                  │  apphub.local  aikikan.apphub.local  splitpay…│
+                  │  hulkstein.local  aikikan.hulkstein.local  splitpay…│
                   └──────┬─────────────┬────────────────┬───────┘
                          │             │                │
               ┌──────────▼──┐  ┌───────▼────┐  ┌───────▼──────┐
@@ -47,9 +47,9 @@ services. Each app gets its own subdomain and its own app-specific microservices
 
 | Subdomain | Local alias | App |
 |---|---|---|
-| `apphub.com` | `apphub.local` | AppHub admin portal |
-| `splitpay.apphub.com` | `splitpay.apphub.local` | Split Pay |
-| `aikikan.apphub.com` | `aikikan.apphub.local` | Aikikan (Aikido association) |
+| `hulkstein.com` | `hulkstein.local` | AppHub admin portal |
+| `splitpay.hulkstein.com` | `splitpay.hulkstein.local` | Split Pay |
+| `aikikan.hulkstein.com` | `aikikan.hulkstein.local` | Aikikan (Aikido association) |
 
 ### Route namespace convention
 

@@ -315,5 +315,5 @@ cat backup.sql | docker compose exec -T postgres psql -U splitpay splitpay
 - `platform-marketplace` (3100) → `orders`, `inventory`, `reviews`, `messaging`, `shipping`, `disputes`, `catalog`, `basket`
 - `platform-restaurant` (3200) → `menu`, `reservations`, `floor-plan`, `kds`, `pos`, `delivery-dispatch`
 
-All app subdomains go through NGINX: `http://aikikan.apphub.local:8080`,
-`http://splitpay.apphub.local:8080`, etc. (requires `/etc/hosts` entries).
+All app subdomains go through NGINX: `http://aikikan.hulkstein.local:8080`,
+`http://splitpay.hulkstein.local:8080`, etc. (requires `/etc/hosts` entries).

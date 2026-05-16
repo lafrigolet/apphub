@@ -47,7 +47,7 @@ unaffected.
 
 ```bash
 ./scripts/bootstrap.sh
-# Super-admin email: staff@apphub.local
+# Super-admin email: staff@hulkstein.local
 # Super-admin password: ********
 # Confirm password: ********
 ```
@@ -55,7 +55,7 @@ unaffected.
 ### Non-interactive (CI/automation)
 
 ```bash
-BOOTSTRAP_ADMIN_EMAIL="staff@apphub.local" \
+BOOTSTRAP_ADMIN_EMAIL="staff@hulkstein.local" \
 BOOTSTRAP_ADMIN_PASSWORD="StrongPass123!" \
   ./scripts/bootstrap.sh
 ```
@@ -69,7 +69,7 @@ PLATFORM_CORE_URL="http://platform-core:3000" \
 PLATFORM_APP_ID="platform" \
 PLATFORM_TENANT_ID="00000000-0000-0000-0000-000000000001" \
 WAIT_TIMEOUT=120 \
-BOOTSTRAP_ADMIN_EMAIL="ci@apphub.local" \
+BOOTSTRAP_ADMIN_EMAIL="ci@hulkstein.local" \
 BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -base64 24)Aa1!" \
   ./scripts/bootstrap.sh
 ```
@@ -94,10 +94,10 @@ On success the script ends with:
 🎉 Platform bootstrapped successfully.
 
 Log in to voragine-console:
-  via gateway:  http://voragine-console.apphub.local:8080
+  via gateway:  http://voragine-console.hulkstein.local:8080
   via Vite dev: http://localhost:5177
 
-  email:    staff@apphub.local
+  email:    staff@hulkstein.local
   password: (the password you just set)
 ```
 
@@ -106,7 +106,7 @@ Log in to voragine-console:
 Re-running the script with the same credentials produces:
 
 ```
-! user staff@apphub.local already exists — leaving as-is
+! user staff@hulkstein.local already exists — leaving as-is
 ✓ login successful
 ✓ 'platform' app already registered
 ```
@@ -119,7 +119,7 @@ the existing password or wipe the user manually:
 
 ```bash
 docker compose exec postgres psql -U splitpay -d splitpay \
-  -c "DELETE FROM platform_auth.users WHERE email='staff@apphub.local';"
+  -c "DELETE FROM platform_auth.users WHERE email='staff@hulkstein.local';"
 ./scripts/bootstrap.sh   # now it can re-create with the new password
 ```
 

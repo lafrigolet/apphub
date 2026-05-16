@@ -26,7 +26,7 @@ function detectSubdomain() {
   if (typeof window === 'undefined') return null
   const host = window.location.hostname
   // Strip the platform suffix and inspect what's left. The platform suffix
-  // is the trailing two labels (apphub.local / apphub.com / …); anything
+  // is the trailing two labels (hulkstein.local / hulkstein.com / …); anything
   // before it is the tenant subdomain.
   const parts = host.split('.')
   if (parts.length < 3) return null               // no subdomain
@@ -94,7 +94,7 @@ export function AppProvider({ children, detectHostTenant = true }) {
         if (cancelled) return
         setApp(appRow)
         setTenant(tenantRow)
-        // Surface "you logged in from acme.apphub.local but your JWT is
+        // Surface "you logged in from acme.hulkstein.local but your JWT is
         // for bastardo" as a soft warning so the user can re-route.
         if (hostTenant?.tenantId && tenantRow?.id && hostTenant.tenantId !== tenantRow.id) {
           setHostMismatch(true)

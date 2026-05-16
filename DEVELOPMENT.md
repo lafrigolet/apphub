@@ -24,15 +24,15 @@ cp .env.example .env
 # Edit .env — minimum required: PLATFORM_JWT_SECRET, PLATFORM_STRIPE_SECRET_KEY
 
 # 4. Add local DNS aliases to /etc/hosts
-echo "127.0.0.1  apphub.local" | sudo tee -a /etc/hosts
-echo "127.0.0.1  splitpay.apphub.local" | sudo tee -a /etc/hosts
-echo "127.0.0.1  aikikan.apphub.local" | sudo tee -a /etc/hosts
+echo "127.0.0.1  hulkstein.local" | sudo tee -a /etc/hosts
+echo "127.0.0.1  splitpay.hulkstein.local" | sudo tee -a /etc/hosts
+echo "127.0.0.1  aikikan.hulkstein.local" | sudo tee -a /etc/hosts
 
 # 5. Start the full stack
 docker compose up -d
 
 # 6. Verify
-curl http://aikikan.apphub.local:8080/api/auth/health
+curl http://aikikan.hulkstein.local:8080/api/auth/health
 ```
 
 ## /etc/hosts setup
@@ -41,9 +41,9 @@ NGINX routes requests by `Host` header. Without the DNS aliases, the subdomain
 server blocks will not match and all requests land on the default server (404).
 
 ```
-127.0.0.1  apphub.local
-127.0.0.1  splitpay.apphub.local
-127.0.0.1  aikikan.apphub.local
+127.0.0.1  hulkstein.local
+127.0.0.1  splitpay.hulkstein.local
+127.0.0.1  aikikan.hulkstein.local
 ```
 
 Add more lines for each new app as you add them.
@@ -84,7 +84,7 @@ AIKIKAN_TENANT_ID=
 
 ```bash
 stripe login
-stripe listen --forward-to aikikan.apphub.local:8080/api/payments/webhooks/stripe
+stripe listen --forward-to aikikan.hulkstein.local:8080/api/payments/webhooks/stripe
 # Copy the webhook signing secret and set it as PLATFORM_STRIPE_WEBHOOK_SECRET
 ```
 

@@ -237,7 +237,7 @@ export default function BootstrapTenantModal({ onCreated }) {
                 <input className="input" placeholder="Aikikan"
                   value={appNew.displayName} onChange={(e) => setNewApp('displayName', e.target.value)} required />
               </Field>
-              <Field label="Subdomain" required hint="usado para X.apphub.com">
+              <Field label="Subdomain" required hint="usado para X.hulkstein.com">
                 <input className="input font-mono" placeholder="aikikan"
                   value={appNew.subdomain}
                   onChange={(e) => setAppNew(a => ({ ...a, subdomain: e.target.value, _subdomainTouched: true }))}
@@ -258,7 +258,7 @@ export default function BootstrapTenantModal({ onCreated }) {
               <input className="input" placeholder="Acme Corp"
                 value={tenant.displayName} onChange={(e) => setTenantDisplay(e.target.value)} required />
             </Field>
-            <Field label="Subdomain" required hint={`URL del tenant: ${tenant.subdomain || '<subdomain>'}.apphub.com`}>
+            <Field label="Subdomain" required hint={`URL del tenant: ${tenant.subdomain || '<subdomain>'}.hulkstein.com`}>
               <input className="input font-mono" placeholder="acme"
                 value={tenant.subdomain}
                 onChange={(e) => { setTenantSubdomainTouched(true); setTenant(t => ({ ...t, subdomain: e.target.value })) }}

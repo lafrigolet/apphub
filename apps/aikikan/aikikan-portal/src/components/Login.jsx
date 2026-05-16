@@ -34,7 +34,7 @@ function LoginForm({ onClose, onLoggedIn }) {
   // qué montar según el rol:
   //   admin → <AdminShell> (consola embebida, paquete @apphub/tenant-console-ui)
   //   socio → <MemberHome>
-  // No hay hard-redirect: el admin se queda en aikikan.apphub.local.
+  // No hay hard-redirect: el admin se queda en aikikan.hulkstein.local.
   function dispatchByRole(data) {
     onLoggedIn?.(data)
     onClose()

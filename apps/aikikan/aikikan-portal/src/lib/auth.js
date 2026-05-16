@@ -83,8 +83,8 @@ export function isAdminRole(role) {
 }
 
 // Builds the URL of the per-tenant console for the current host. The
-// suffix preserves whatever environment we're in (apphub.local:8080 in
-// dev, apphub.com en prod) so this works sin tocar configuración.
+// suffix preserves whatever environment we're in (hulkstein.local:8080 in
+// dev, hulkstein.com en prod) so this works sin tocar configuración.
 // El access token viaja en el fragmento (#token=…); los fragments NO se
 // envían al server, así que el JWT no aparece en logs de NGINX ni en
 // referers. El tenant-console lo lee on-mount y lo guarda en su propio

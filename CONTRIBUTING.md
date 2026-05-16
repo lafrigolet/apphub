@@ -31,14 +31,14 @@
    ```nginx
    server {
      listen 80;
-     server_name myapp.apphub.local myapp.apphub.com;
+     server_name myapp.hulkstein.local myapp.hulkstein.com;
      include /etc/nginx/snippets/platform-routes.conf;
      location /api/app/ { proxy_pass http://my_service/v1/; … }
      location /         { proxy_pass http://my_portal; … }
    }
    ```
 8. Add upstream blocks to `infra/nginx/conf.d/upstream.conf`
-9. Add `/etc/hosts` entry: `127.0.0.1 myapp.apphub.local`
+9. Add `/etc/hosts` entry: `127.0.0.1 myapp.hulkstein.local`
 
 ## Adding a new app-specific microservice
 

@@ -165,7 +165,7 @@ export default function CreateAppModal({ onCreated }) {
                   required
                   pattern="[a-z0-9][a-z0-9\-]*"
                 />
-                <span className="text-ink3 text-[12.5px] whitespace-nowrap">.apphub.com</span>
+                <span className="text-ink3 text-[12.5px] whitespace-nowrap">.hulkstein.com</span>
               </div>
             </div>
           </div>

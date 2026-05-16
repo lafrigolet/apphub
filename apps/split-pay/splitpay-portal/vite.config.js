@@ -9,6 +9,6 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_ID': JSON.stringify(process.env.VITE_APP_ID ?? 'split-pay'),
-    'import.meta.env.VITE_API_BASE_URL': JSON.stringify(process.env.VITE_API_BASE_URL ?? 'http://splitpay.apphub.local:8080'),
+    'import.meta.env.VITE_API_BASE_URL': JSON.stringify(process.env.VITE_API_BASE_URL ?? 'http://splitpay.hulkstein.local:8080'),
   },
 })

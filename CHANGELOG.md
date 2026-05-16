@@ -43,13 +43,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   `docs/runbooks/cloudflare-dns.md` (cert generation in CF UI → upload
   to host → deploy → flip SSL mode → verify).
 - **Public production domain switched to `hulkstein.com`** (was placeholder
-  `apphub.com`). Nginx seed configs in `infra/nginx/seed/*.conf` now match
-  `<sub>.hulkstein.com` for prod and keep `<sub>.apphub.local` for dev. New
+  `hulkstein.com`). Nginx seed configs in `infra/nginx/seed/*.conf` now match
+  `<sub>.hulkstein.com` for prod and keep `<sub>.hulkstein.local` for dev. New
   env var `PLATFORM_PUBLIC_DOMAIN` (set on `platform-core` in
   `docker-compose.prod.yml`) drives the host suffix used by
   `platform/tenant-config/src/services/nginx-config.service.js` when it
   renders dynamic per-app / per-tenant blocks into Redis. Default remains
-  `apphub.com` so dev stacks are untouched.
+  `hulkstein.com` so dev stacks are untouched.
 - **Cloudflare proxy support in nginx** — new
   `infra/nginx/snippets/cloudflare-real-ip.conf` declares Cloudflare's
   IPv4/IPv6 ranges as trusted via `set_real_ip_from` and points
@@ -369,7 +369,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   - `apps/split-pay/splitpay-core/` — Stripe Connect service (port 3020, was services/split-payments port 3001)
   - `apps/__app-template__/` — blueprint for bootstrapping new apps (`__app__` placeholder)
   - PostgreSQL init: `01_platform_schemas.sql`, `02_splitpay_core_schema.sql`
-  - Subdomain aliases for local dev: `apphub.local`, `yoga.apphub.local`, `splitpay.apphub.local`
+  - Subdomain aliases for local dev: `hulkstein.local`, `yoga.hulkstein.local`, `splitpay.hulkstein.local`
 
 ### Changed
 - `pnpm-workspace.yaml` — added `platform/*`, `apps/split-pay/*`, `apps/__app-template__/*`

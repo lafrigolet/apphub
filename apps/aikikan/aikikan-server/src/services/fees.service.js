@@ -80,7 +80,7 @@ export async function createCheckout(identity, bearerToken, { codes, returnPath 
       const totalCents = products.reduce((s, p) => s + p.amount_cents, 0)
       const currency   = products[0].currency
 
-      const baseUrl = env.AIKIKAN_PUBLIC_URL ?? 'http://aikikan.apphub.local:8080'
+      const baseUrl = env.AIKIKAN_PUBLIC_URL ?? 'http://aikikan.hulkstein.local:8080'
       const payload = {
         mode,
         currency,

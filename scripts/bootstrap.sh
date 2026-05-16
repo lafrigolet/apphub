@@ -18,7 +18,7 @@
 set -euo pipefail
 
 PLATFORM_CORE_URL="${PLATFORM_CORE_URL:-http://localhost:3000}"
-# Convention: the staff console runs at voragine-console.apphub.local and
+# Convention: the staff console runs at voragine-console.hulkstein.local and
 # its JWT app_id matches the subdomain. Both bootstrap.sh and the dev seed
 # (apps/voragine-console/voragine-console-portal/scripts/seed.js) use this
 # id, so they no longer collide on the unique subdomain constraint.
@@ -181,7 +181,7 @@ cat <<EOF
 🎉 Platform bootstrapped successfully.
 
 Log in to voragine-console:
-  via gateway:  http://voragine-console.apphub.local:8080
+  via gateway:  http://voragine-console.hulkstein.local:8080
   via Vite dev: http://localhost:5177
 
   email:    $ADMIN_EMAIL
@@ -191,5 +191,5 @@ Next steps:
   1. Open voragine-console and click the "Apps" tab in the staff sidebar.
   2. Click "Nueva app" — provisions the app, first tenant, admin user, and
      the NGINX server block via Redis (see docs/adr/003-dynamic-nginx-routing.md).
-  3. The new <subdomain>.apphub.local routes /api/* automatically within ~2s.
+  3. The new <subdomain>.hulkstein.local routes /api/* automatically within ~2s.
 EOF

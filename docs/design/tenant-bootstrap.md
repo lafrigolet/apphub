@@ -73,7 +73,7 @@ post-commit (NGINX + email):
 9. Notifications module consume el evento y manda el email "Bienvenido a
    `<App>`" al owner con el link:
    ```
-   https://<subdomain>.apphub.com/activate?token=<token-plano>
+   https://<subdomain>.hulkstein.com/activate?token=<token-plano>
    ```
 
 Si cualquier paso 1–6 falla → ROLLBACK + 4xx/5xx al staff con detalle.
@@ -82,7 +82,7 @@ re-disparar desde la vista detalle del tenant ("Reenviar magic-link").
 
 ### A.4 Magic-link landing
 
-URL: `https://<subdomain>.apphub.com/activate?token=...`
+URL: `https://<subdomain>.hulkstein.com/activate?token=...`
 
 El portal de la app (no la landing pública) acepta esa ruta y la
 delega al backend:

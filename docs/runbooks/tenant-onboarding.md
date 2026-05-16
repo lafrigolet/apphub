@@ -31,7 +31,7 @@ self-paced by the owner and persists progress between sessions.
 
 ### A.1 Open the wizard
 
-In voragine-console (`https://voragine-console.apphub.com`), as
+In voragine-console (`https://voragine-console.hulkstein.com`), as
 `super_admin` or `staff`:
 
 - **Sidebar → Tenants** → button **"Bootstrap nuevo tenant"** (top right), or
@@ -64,7 +64,7 @@ was emailed to the owner, but if email delivery fails, this is the only
 client-facing copy.
 
 The link looks like
-`https://<tenant.subdomain>.apphub.com/activate?token=<plaintext>` and is
+`https://<tenant.subdomain>.hulkstein.com/activate?token=<plaintext>` and is
 valid for 7 days, single-use.
 
 ### A.4 If you need to re-emit or revoke
@@ -88,7 +88,7 @@ Each action is audit-logged in `platform_tenants.audit_log`.
 ### B.1 Receive the email
 
 The owner receives "Bienvenido a `<App>` — activa tu cuenta" with a CTA
-linking to `https://<tenant.subdomain>.apphub.com/activate?token=…`.
+linking to `https://<tenant.subdomain>.hulkstein.com/activate?token=…`.
 
 ### B.2 Activate
 

@@ -69,7 +69,7 @@ export default function StaffApps() {
           </h1>
           <p className="text-ink3 mt-3 max-w-xl">
             {filtered.length} de {apps.length} apps · cada app define un <code className="font-mono text-ink">app_id</code> y el
-            subdominio bajo el que sirve su portal (p. ej. <span className="font-mono">yoga.apphub.com</span>).
+            subdominio bajo el que sirve su portal (p. ej. <span className="font-mono">yoga.hulkstein.com</span>).
           </p>
         </div>
         <button

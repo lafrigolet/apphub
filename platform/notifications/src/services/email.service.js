@@ -96,7 +96,7 @@ export async function sendPasswordResetEmail(to, resetUrl, locale = 'es') {
 }
 
 // Enviado tras POST /v1/tenants/bootstrap. Incluye el magic-link que el
-// owner abrirá en su portal (subdomain.apphub.com/activate?token=...).
+// owner abrirá en su portal (subdomain.hulkstein.com/activate?token=...).
 export async function sendTenantBootstrapEmail(to, { ownerDisplayName, magicLinkUrl, expiresAt, appDisplayName, tenantDisplayName, locale = 'es' }) {
   const namePrefix = ownerDisplayName ? ' ' + ownerDisplayName : ''
   const expiresStr = expiresAt ? new Date(expiresAt).toLocaleString(intlLocale(locale), { timeZone: 'Europe/Madrid' }) : ''

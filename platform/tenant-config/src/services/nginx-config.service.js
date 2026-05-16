@@ -9,10 +9,10 @@ const CONF_KEY       = process.env.NGINX_CONF_KEY       ?? 'nginx:configs'
 const RELOAD_CHANNEL = process.env.NGINX_RELOAD_CHANNEL ?? 'nginx:reload'
 
 // Public hostname suffix used in `server_name` for production traffic.
-// In dev we always serve `<subdomain>.apphub.local` (via /etc/hosts); in
+// In dev we always serve `<subdomain>.hulkstein.local` (via /etc/hosts); in
 // prod the operator sets PLATFORM_PUBLIC_DOMAIN=hulkstein.com so every
 // rendered block also matches `<subdomain>.hulkstein.com`.
-const PUBLIC_DOMAIN  = process.env.PLATFORM_PUBLIC_DOMAIN ?? 'apphub.com'
+const PUBLIC_DOMAIN  = process.env.PLATFORM_PUBLIC_DOMAIN ?? 'hulkstein.com'
 
 // The upstream alias (with concrete port) is defined statically in
 // infra/nginx/conf.d/upstream.conf for every portal — convention:
@@ -24,7 +24,7 @@ const APP_TEMPLATE = `# Auto-generated for app {{app_id}} (subdomain: {{subdomai
 server {
   listen 80;
   include /etc/nginx/snippets/tls-listen.conf;
-  server_name {{subdomain}}.apphub.local {{subdomain}}.{{public_domain}};
+  server_name {{subdomain}}.hulkstein.local {{subdomain}}.{{public_domain}};
 
   # Platform APIs (auth, tenants, payments, splitpay, …)
   include /etc/nginx/snippets/platform-routes.conf;
@@ -128,7 +128,7 @@ const TENANT_TEMPLATE = `# Auto-generated for tenant {{tenant_id}} (subdomain: {
 server {
   listen 80;
   include /etc/nginx/snippets/tls-listen.conf;
-  server_name {{subdomain}}.apphub.local {{subdomain}}.{{public_domain}};
+  server_name {{subdomain}}.hulkstein.local {{subdomain}}.{{public_domain}};
 
   # Same platform APIs every other portal exposes.
   include /etc/nginx/snippets/platform-routes.conf;

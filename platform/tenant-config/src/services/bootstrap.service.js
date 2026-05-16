@@ -15,11 +15,11 @@ const INTERNAL_BASE = env.PLATFORM_CORE_URL
 // se servirá vía nginx local; en prod via el dominio público. El portal de
 // app (aikikan/split-pay/…) acepta /activate?token=... y POSTea a /v1/auth/activate.
 function magicLinkUrl(subdomain, token) {
-  // Heurística: si PLATFORM_CORE_URL contiene ".apphub.local" estamos en
+  // Heurística: si PLATFORM_CORE_URL contiene ".hulkstein.local" estamos en
   // dev/CI; sino asumimos prod (https://). Override explícito si es preciso.
-  const isLocal = INTERNAL_BASE.includes('apphub.local') || INTERNAL_BASE.includes('localhost')
-  if (isLocal) return `http://${subdomain}.apphub.local:8080/activate?token=${encodeURIComponent(token)}`
-  return `https://${subdomain}.apphub.com/activate?token=${encodeURIComponent(token)}`
+  const isLocal = INTERNAL_BASE.includes('hulkstein.local') || INTERNAL_BASE.includes('localhost')
+  if (isLocal) return `http://${subdomain}.hulkstein.local:8080/activate?token=${encodeURIComponent(token)}`
+  return `https://${subdomain}.hulkstein.com/activate?token=${encodeURIComponent(token)}`
 }
 
 async function callInternal(path, body, method = 'POST') {

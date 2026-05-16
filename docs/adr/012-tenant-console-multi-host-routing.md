@@ -24,7 +24,7 @@ Two earlier design choices set the constraints:
 1. **One Redis hash field per tenant subdomain.** When a tenant is created
    (`tenants.service.createTenant`), platform-core writes
    `nginx:configs[tenant--<subdomain>] = <rendered server block>`. The block
-   listens on `<subdomain>.apphub.local` + `<subdomain>.apphub.com` and
+   listens on `<subdomain>.hulkstein.local` + `<subdomain>.hulkstein.com` and
    proxies `/` to the static `tenant_console_portal` upstream. We namespace
    the Redis hash field with `tenant--` so app subdomains (top-level
    subdomains of the platform itself: yoga, splitpay, …) and tenant
@@ -63,11 +63,11 @@ Two earlier design choices set the constraints:
   `tenant_console_portal` upstream — no per-tenant frontend container.
   Scaling tenants is just DB rows + Redis hash entries.
 - **JWT carries the tenant.** Same JWT works at both
-  `tenant-console.apphub.local` (the generic entry) and any
-  `<subdomain>.apphub.local`. The mismatch banner addresses the rare case
+  `tenant-console.hulkstein.local` (the generic entry) and any
+  `<subdomain>.hulkstein.local`. The mismatch banner addresses the rare case
   where a user logs in on the wrong host.
 - **Subdomains are routing only.** Knowing the subdomain ≠ being
-  authenticated as that tenant. A user at `acme.apphub.local` whose JWT
+  authenticated as that tenant. A user at `acme.hulkstein.local` whose JWT
   is for `bastardo` will see Acme's login screen but, after login, will
   load Bastardo's manifests (with the warning banner). The JWT is the
   authoritative tenant binding; subdomains are just signposts.

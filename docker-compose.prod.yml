@@ -101,7 +101,7 @@ services:
     volumes: !reset []
     environment:
       # Public hostname suffix used when rendering nginx server blocks for new
-      # apps / tenants (e.g. `aikikan.hulkstein.com`). Defaults to apphub.com
+      # apps / tenants (e.g. `aikikan.hulkstein.com`). Defaults to hulkstein.com
       # in dev; overridden here for the production domain.
       PLATFORM_PUBLIC_DOMAIN: hulkstein.com
 

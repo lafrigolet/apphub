@@ -78,7 +78,7 @@ export function startEventConsumer() {
       if (event.type === 'auth.password_reset_requested') {
         const { email, token, userId } = event.payload ?? {}
         if (email && token) {
-          const resetUrl = `${process.env.APP_BASE_URL ?? 'http://aikikan.apphub.local:8080'}/reset-password?token=${token}`
+          const resetUrl = `${process.env.APP_BASE_URL ?? 'http://aikikan.hulkstein.local:8080'}/reset-password?token=${token}`
           await gated(userId, event.type, 'email', () => sendPasswordResetEmail(email, resetUrl, locale))
         }
       }

@@ -8,7 +8,7 @@ const envSchema = z.object({
   EXPECTED_APP_ID:      z.string().default('platform'),
   LOG_LEVEL:            z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   SENDGRID_API_KEY:     z.string().default('dev_no_sendgrid'),
-  SENDGRID_FROM_EMAIL:  z.string().email().default('noreply@apphub.local'),
+  SENDGRID_FROM_EMAIL:  z.string().email().default('noreply@hulkstein.local'),
 })
 const parsed = envSchema.safeParse(process.env)
 if (!parsed.success) { console.error(parsed.error.flatten().fieldErrors); process.exit(1) }

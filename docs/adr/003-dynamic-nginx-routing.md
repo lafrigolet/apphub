@@ -65,7 +65,7 @@ change.
 
 ```
 HKEY  nginx:configs                     → hash, one field per subdomain
-HGET  nginx:configs autoroute           → "server { listen 80; server_name autoroute.apphub.local …"
+HGET  nginx:configs autoroute           → "server { listen 80; server_name autoroute.hulkstein.local …"
 
 PUBSUB nginx:reload                     → channel, payload = subdomain (advisory; sidecar polls anyway)
 ```

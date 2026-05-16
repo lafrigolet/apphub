@@ -5,7 +5,7 @@ This file provides context for AI assistants (Claude, Copilot, etc.) working in 
 ## Project overview
 
 AppHub is a multi-app meta-platform. Each hosted app (aikikan, split-pay, …) gets its
-own subdomain (`aikikan.apphub.com`, `splitpay.apphub.com`) and its own set of app-specific
+own subdomain (`aikikan.hulkstein.com`, `splitpay.hulkstein.com`) and its own set of app-specific
 microservices. All apps share a set of cross-cutting platform capabilities (auth, payments,
 notifications, catalog, basket, tenant-config, subscriptions).
 
@@ -319,7 +319,7 @@ When the user says **"Bootstrap app `<name>`"**, create a minimal portal for tha
 2. **Create portal files** under `apps/<name>/<name>-portal/`:
    - `package.json` — name `@<name>/<name>-portal`; deps: react 18, react-dom, react-router-dom;
      devDeps: vite, @vitejs/plugin-react, tailwindcss, autoprefixer, postcss
-   - `vite.config.js` — port from step 1, `allowedHosts: ['<name>.apphub.local']`,
+   - `vite.config.js` — port from step 1, `allowedHosts: ['<name>.hulkstein.local']`,
      proxy `/api` → `http://nginx:80`, `server.host: true`
    - `index.html` — minimal HTML shell with `<div id="root">` and `src/main.jsx` module script
    - `src/main.jsx` — React 18 `createRoot` entry
@@ -336,7 +336,7 @@ When the user says **"Bootstrap app `<name>`"**, create a minimal portal for tha
    ```
 
 4. **Add NGINX server block** `infra/nginx/conf.d/<name>.conf`:
-   - `server_name <name>.apphub.local <name>.apphub.com`
+   - `server_name <name>.hulkstein.local <name>.hulkstein.com`
    - `include /etc/nginx/snippets/platform-routes.conf`
    - `location /` → proxy to `<name>_portal` with WebSocket upgrade headers
 
@@ -347,13 +347,13 @@ When the user says **"Bootstrap app `<name>`"**, create a minimal portal for tha
 
 7. **Add to `docker-compose.yml`**:
    - New service `<name>-portal`: `context: .`, correct Dockerfile path, port mapping,
-     `VITE_API_BASE_URL: http://<name>.apphub.local:8080`, no `depends_on` needed beyond nginx
+     `VITE_API_BASE_URL: http://<name>.hulkstein.local:8080`, no `depends_on` needed beyond nginx
    - Add `<name>-portal` to nginx `depends_on`
 
 7. **Verify** by telling the user to:
-   - Add `127.0.0.1 <name>.apphub.local` to Windows `C:\Windows\System32\drivers\etc\hosts`
+   - Add `127.0.0.1 <name>.hulkstein.local` to Windows `C:\Windows\System32\drivers\etc\hosts`
    - Run `docker compose up -d --build <name>-portal nginx`
-   - Open `http://<name>.apphub.local:8080`
+   - Open `http://<name>.hulkstein.local:8080`
 
 ---
 
@@ -632,7 +632,7 @@ docker compose up -d --build platform-core <app-svc1> <app-svc2> ...
 docker compose logs platform-core | grep -i "migrat"
 
 # Health checks
-curl http://<name>.apphub.local:8080/api/<svc>/health
+curl http://<name>.hulkstein.local:8080/api/<svc>/health
 
 # Confirm no mock imports remain
 grep -r "from '../../data/mock'" apps/<name>/<name>-portal/src/views/
@@ -649,7 +649,7 @@ grep -r "from '../../data/mock'" apps/<name>/<name>-portal/src/views/
 5. Add services to `docker-compose.yml`
 6. Add NGINX server block `infra/nginx/conf.d/my-app.conf` with
    `include /etc/nginx/snippets/platform-routes.conf`
-7. Add `/etc/hosts` entry: `127.0.0.1 myapp.apphub.local`
+7. Add `/etc/hosts` entry: `127.0.0.1 myapp.hulkstein.local`
 
 ## Platform module registry
 
