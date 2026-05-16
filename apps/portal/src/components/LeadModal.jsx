@@ -23,7 +23,9 @@ const INDUSTRY_OPTIONS = [
 ]
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
-const ENDPOINT = `${API_BASE}/api/leads/v1`
+// nginx maps /api/leads/ → http://platform_core/v1/leads/, so the
+// client just hits /api/leads/ — the v1 versioning is internal.
+const ENDPOINT = `${API_BASE}/api/leads/`
 
 export default function LeadModal({ open, source, onClose }) {
   const [phase, setPhase]   = useState('form')

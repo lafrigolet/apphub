@@ -13,6 +13,11 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
+    // Vite 5 rejects unknown Host headers by default. The landing is
+    // served at the apex — apphub.local in dev, hulkstein.com in prod.
+    // Dev traffic comes through nginx with the public Host preserved,
+    // so we whitelist both.
+    allowedHosts: ['apphub.local', 'hulkstein.com', 'www.hulkstein.com'],
     watch: {
       usePolling: true,
     },
