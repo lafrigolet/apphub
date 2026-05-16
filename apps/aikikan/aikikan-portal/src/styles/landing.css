@@ -714,6 +714,13 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 
   /* ── Videos: ticker animado, una card por pantalla ──────────────── */
   .carousel-outer::before, .carousel-outer::after { display: none; }
+  /* Romper el padding 1.25rem del <section> para que el carrusel ocupe
+     los 100vw reales (sin esa salida, el track-wrap con overflow:hidden
+     clipaba las cards a 100vw - 2.5rem). */
+  .carousel-outer {
+    margin-left: -1.25rem;
+    margin-right: -1.25rem;
+  }
   .carousel-track-wrap { overflow: hidden; }
   .carousel-track {
     /* Ticker más lento que en desktop (38s) — con cards full-screen la
