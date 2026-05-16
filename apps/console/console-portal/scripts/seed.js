@@ -2,7 +2,7 @@
 /**
  * Development seed for voragine-console.
  *
- *   pnpm --filter @voragine-console/voragine-console-portal seed
+ *   pnpm --filter @console/console-portal seed
  *
  * Safe to run multiple times — all inserts are idempotent.
  * Refuses to run when NODE_ENV=production.
@@ -94,7 +94,7 @@ async function main() {
     // 1. App entry
     await client.query(
       `INSERT INTO platform_tenants.apps (app_id, display_name, subdomain, jwt_audience)
-       VALUES ($1, 'Voragine Console', $1, $1)
+       VALUES ($1, 'Hulkstein Console', $1, $1)
        ON CONFLICT (app_id) DO NOTHING`,
       [APP_ID],
     )

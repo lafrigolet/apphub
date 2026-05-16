@@ -1,7 +1,7 @@
 {
-  "name": "@voragine-console/voragine-console-portal",
+  "name": "@console/console-portal",
   "version": "0.1.0",
-  "description": "Voragine Console frontend — React 18 + Vite + Tailwind",
+  "description": "Hulkstein Console (staff admin) — React 18 + Vite + Tailwind",
   "private": true,
   "type": "module",
   "scripts": {

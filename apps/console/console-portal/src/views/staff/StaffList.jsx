@@ -71,7 +71,7 @@ export default function StaffList() {
             <span className="italic font-normal">Staff</span> interno
           </h1>
           <p className="text-ink3 mt-3 max-w-xl">
-            Personas de Voragine con acceso al back-office. 2FA obligatorio. Solo Super Admin puede gestionar altas y bajas.
+            Personas de Hulkstein con acceso al back-office. 2FA obligatorio. Solo Super Admin puede gestionar altas y bajas.
           </p>
         </div>
         <button onClick={() => openModal(<InviteStaffModal />)} className="btn btn-primary shrink-0">

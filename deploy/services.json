@@ -112,10 +112,10 @@
       "restart_policy": "rolling"
     },
     {
-      "name": "voragine-console-portal",
-      "dockerfile": "apps/voragine-console/voragine-console-portal/Dockerfile",
+      "name": "console-portal",
+      "dockerfile": "apps/console/console-portal/Dockerfile",
       "paths": [
-        "apps/voragine-console/voragine-console-portal/**",
+        "apps/console/console-portal/**",
         "packages/sdk-js/**",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml"

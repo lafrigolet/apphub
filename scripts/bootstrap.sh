@@ -20,7 +20,7 @@ set -euo pipefail
 PLATFORM_CORE_URL="${PLATFORM_CORE_URL:-http://localhost:3000}"
 # Convention: the staff console runs at voragine-console.hulkstein.local and
 # its JWT app_id matches the subdomain. Both bootstrap.sh and the dev seed
-# (apps/voragine-console/voragine-console-portal/scripts/seed.js) use this
+# (apps/console/console-portal/scripts/seed.js) use this
 # id, so they no longer collide on the unique subdomain constraint.
 PLATFORM_APP_ID="${PLATFORM_APP_ID:-voragine-console}"
 PLATFORM_TENANT_ID="${PLATFORM_TENANT_ID:-00000000-0000-0000-0000-000000000001}"

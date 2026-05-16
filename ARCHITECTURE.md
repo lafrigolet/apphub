@@ -195,7 +195,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
 | `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |
-| `voragine-console-portal` | Voragine staff console (Vite dev) | 5177 |
+| `console-portal` | Voragine staff console (Vite dev) | 5177 |
 | `postgres` | PostgreSQL 16 | 5432 |
 | `redis` | Redis 7 | 6379 |
 | `minio` | S3-compatible object store (MinIO) | 9000 (API), 9001 (console) |

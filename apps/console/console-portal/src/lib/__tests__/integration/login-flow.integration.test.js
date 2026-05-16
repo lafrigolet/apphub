@@ -3,7 +3,7 @@
  *
  * Requires the stack running locally:
  *   docker compose up -d
- *   pnpm --filter @voragine-console/voragine-console-portal seed
+ *   pnpm --filter @console/console-portal seed
  *
  * Tests hit platform-auth / platform-tenant-config directly on their
  * host-exposed ports (3000 / 3005). The browser request passes through
@@ -46,7 +46,7 @@ beforeAll(async () => {
   } catch (err) {
     throw new Error(
       `Integration tests require the stack running and seeded.\n` +
-      `Start: docker compose up -d && pnpm --filter @voragine-console/voragine-console-portal seed\n` +
+      `Start: docker compose up -d && pnpm --filter @console/console-portal seed\n` +
       `Original: ${err.message}`,
     )
   }

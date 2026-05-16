@@ -38,7 +38,7 @@ export default function LoginView({ onSuccess }) {
         {/* Brand mark above the card. */}
         <div className="mb-8 flex items-center justify-center gap-2 text-slate-900">
           <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full bg-indigo-600" />
-          <span className="text-base font-semibold tracking-tight">Voragine Console</span>
+          <span className="text-base font-semibold tracking-tight">Hulkstein Console</span>
         </div>
 
         <form

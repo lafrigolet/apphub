@@ -40,7 +40,7 @@ export default function Topbar() {
             <span className="font-display italic text-paper text-[15px] -translate-y-[1px]">v</span>
           </div>
           <div className="leading-tight">
-            <div className="font-display text-[17px] tracking-tight">Voragine</div>
+            <div className="font-display text-[17px] tracking-tight">Hulkstein</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-ink3 -mt-0.5">Admin Console</div>
           </div>
         </div>

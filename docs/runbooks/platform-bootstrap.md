@@ -205,7 +205,7 @@ Two possibilities:
 
 - **The portal is calling the wrong API base URL**. Open the browser devtools
   Network tab, repro login, and check the request URL. If it goes to a host
-  that doesn't resolve, see `apps/voragine-console/voragine-console-portal/vite.config.js`
+  that doesn't resolve, see `apps/console/console-portal/vite.config.js`
   proxy configuration.
 - **JWT secret mismatch**. If `PLATFORM_JWT_SECRET` changed between when the
   user was created and now, login still works but `appGuard` will reject the

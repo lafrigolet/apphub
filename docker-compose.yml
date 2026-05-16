@@ -439,11 +439,11 @@ services:
       - ./apps/aikikan/aikikan-server/src:/app/apps/aikikan/aikikan-server/src:ro
       - ./apps/aikikan/aikikan-server/migrations:/app/apps/aikikan/aikikan-server/migrations:ro
 
-  # ── Voragine Console (frontend 5177) ──────────────────────────
-  voragine-console-portal:
+  # ── Hulkstein Console (staff admin, frontend 5177) ────────────
+  console-portal:
     build:
       context: .
-      dockerfile: apps/voragine-console/voragine-console-portal/Dockerfile
+      dockerfile: apps/console/console-portal/Dockerfile
       target: development
     restart: unless-stopped
     networks: [edge]
@@ -455,9 +455,9 @@ services:
       # is handled by Vite's dev proxy (→ nginx:80) when accessing 5177 directly,
       # and by NGINX itself when accessing via voragine-console.hulkstein.local:8080.
     volumes:
-      - ./apps/voragine-console/voragine-console-portal/src:/app/apps/voragine-console/voragine-console-portal/src:ro
-      - ./apps/voragine-console/voragine-console-portal/vite.config.js:/app/apps/voragine-console/voragine-console-portal/vite.config.js:ro
-      - ./apps/voragine-console/voragine-console-portal/index.html:/app/apps/voragine-console/voragine-console-portal/index.html:ro
+      - ./apps/console/console-portal/src:/app/apps/console/console-portal/src:ro
+      - ./apps/console/console-portal/vite.config.js:/app/apps/console/console-portal/vite.config.js:ro
+      - ./apps/console/console-portal/index.html:/app/apps/console/console-portal/index.html:ro
 
   # ── Tenant Console (frontend 5178) ────────────────────────────
   # Modular per-tenant admin app. Same image pattern as voragine-console; the
@@ -518,7 +518,7 @@ services:
       splitpay-portal:         { condition: service_started }
       aikikan-portal:          { condition: service_started }
       aikikan-server:          { condition: service_started }
-      voragine-console-portal: { condition: service_started }
+      console-portal: { condition: service_started }
       tenant-console-portal:   { condition: service_started }
 
 volumes:

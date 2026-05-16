@@ -779,4 +779,4 @@ When you add a new module that needs runtime-configurable secrets:
 4. Register it in `src/index.js` under `/v1/<module>/admin`.
 5. Refactor the module's runtime to read from the new repo with env fallback.
 6. Add a section to voragine-console's sidebar + view under
-   `apps/voragine-console/voragine-console-portal/src/views/staff/config/`.
+   `apps/console/console-portal/src/views/staff/config/`.

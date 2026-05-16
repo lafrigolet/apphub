@@ -50,7 +50,7 @@ Two earlier design choices set the constraints:
    correct subdomain. We deliberately do NOT hard-redirect — the
    one-click escape preserves the URL bar and the user's mental model.
 
-5. **Cutover from voragine-console.** voragine-console-portal is
+5. **Cutover from voragine-console.** console-portal is
    staff-only as of this ADR. When a JWT with `role !== 'staff'` lands
    there, the shell renders a `TenantHandoff` view that surfaces the
    tenant's subdomain and a CTA. Users keep a "Cerrar sesión" escape
@@ -93,5 +93,5 @@ Two earlier design choices set the constraints:
 - `infra/nginx/sidecar.sh` — Redis polling + nginx reload.
 - `apps/tenant-console/tenant-console-portal/src/shell/lib/context.jsx` —
   host detection + mismatch detection.
-- `apps/voragine-console/voragine-console-portal/src/App.jsx` — handoff
+- `apps/console/console-portal/src/App.jsx` — handoff
   view for non-staff JWTs.

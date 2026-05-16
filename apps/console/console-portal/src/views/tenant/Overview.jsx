@@ -36,7 +36,7 @@ export default function TenantOverview() {
         <div>
           <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Mi tenant</div>
           <h1 className="font-display text-[44px] leading-none tracking-tight">{name}</h1>
-          <p className="text-ink3 mt-3 max-w-xl">Resumen de la actividad y configuración de tu tenant en Voragine.</p>
+          <p className="text-ink3 mt-3 max-w-xl">Resumen de la actividad y configuración de tu tenant en Hulkstein.</p>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={status} />

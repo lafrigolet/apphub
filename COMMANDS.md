@@ -45,7 +45,7 @@ docker compose exec platform-core node --version
 
 **Services**: `postgres`, `redis`, `platform-core`, `platform-marketplace`,
 `platform-restaurant`, `platform-appointments`, `platform-scheduler`, `portal`,
-`splitpay-portal`, `aikikan-portal`, `voragine-console-portal`, `nginx`.
+`splitpay-portal`, `aikikan-portal`, `console-portal`, `nginx`.
 
 ---
 

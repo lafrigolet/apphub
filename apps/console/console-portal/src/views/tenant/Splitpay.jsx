@@ -28,7 +28,7 @@ export default function TenantSplitpay() {
         <div className="bg-paper2 border border-line rounded-xl p-6">
           <div className="font-medium mb-1">Split Pay no está habilitado para esta app</div>
           <div className="text-[13px] text-ink3">
-            Contacta con el equipo de plataforma (Voragine staff) para activar la funcionalidad de Stripe Connect en{' '}
+            Contacta con el equipo de plataforma (Hulkstein staff) para activar la funcionalidad de Stripe Connect en{' '}
             <span className="font-mono">{myTenant.app_id}</span>.
           </div>
         </div>

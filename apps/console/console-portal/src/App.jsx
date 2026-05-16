@@ -95,7 +95,7 @@ function TenantHandoff({ tenant, onLogout }) {
         <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Tu console</div>
         <h1 className="font-display text-[24px] mb-3">{tenant.display_name}</h1>
         <p className="text-[13.5px] text-ink2 mb-5">
-          Voragine console es solo para staff de plataforma. Tu console del tenant está en
+          Hulkstein Console es solo para staff de plataforma. Tu console del tenant está en
           <a href={target} className="font-mono mx-1 underline">{tenant.subdomain}.{suffix}</a>.
         </p>
         <div className="flex items-center gap-3">

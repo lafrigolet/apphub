@@ -151,7 +151,7 @@ docker compose exec postgres psql -U splitpay -d splitpay -c "\dt app_aikikan.*"
 | portal | AppHub admin | 5173 |
 | splitpay-portal | splitpay-portal | 5175 |
 | aikikan-portal | aikikan-portal | 5176 |
-| voragine-console-portal | voragine-console-portal | 5177 |
+| console-portal | console-portal | 5177 |
 | postgres | PostgreSQL | 5432 |
 | redis | Redis | 6379 |
 | nginx | NGINX gateway | 8080 |

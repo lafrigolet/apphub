@@ -31,7 +31,7 @@ export default function TenantAudit() {
             <span className="italic font-normal">Audit log</span>
           </h1>
           <p className="text-ink3 mt-3 max-w-xl">
-            Historial inmutable de acciones realizadas en tu tenant por cualquier admin o miembro del staff de Voragine.
+            Historial inmutable de acciones realizadas en tu tenant por cualquier admin o miembro del staff de Hulkstein.
           </p>
         </div>
         {role === 'owner' && (

@@ -9,13 +9,13 @@ ENV NODE_ENV=development
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/ ./packages/
-COPY apps/voragine-console/voragine-console-portal/package.json ./apps/voragine-console/voragine-console-portal/
+COPY apps/console/console-portal/package.json ./apps/console/console-portal/
 
-RUN pnpm install --no-frozen-lockfile --filter @voragine-console/voragine-console-portal
+RUN pnpm install --no-frozen-lockfile --filter @console/console-portal
 
-COPY apps/voragine-console/voragine-console-portal/ ./apps/voragine-console/voragine-console-portal/
+COPY apps/console/console-portal/ ./apps/console/console-portal/
 
-WORKDIR /app/apps/voragine-console/voragine-console-portal
+WORKDIR /app/apps/console/console-portal
 EXPOSE 5177
 CMD ["pnpm", "dev"]
 
@@ -25,17 +25,17 @@ FROM base AS build
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/ ./packages/
-COPY apps/voragine-console/voragine-console-portal/package.json ./apps/voragine-console/voragine-console-portal/
+COPY apps/console/console-portal/package.json ./apps/console/console-portal/
 
-RUN pnpm install --frozen-lockfile --filter @voragine-console/voragine-console-portal
+RUN pnpm install --frozen-lockfile --filter @console/console-portal
 
-COPY apps/voragine-console/voragine-console-portal/ ./apps/voragine-console/voragine-console-portal/
+COPY apps/console/console-portal/ ./apps/console/console-portal/
 
-RUN pnpm --filter @voragine-console/voragine-console-portal build
+RUN pnpm --filter @console/console-portal build
 
 # ── Production ────────────────────────────────────────────────
 FROM nginx:alpine AS production
-COPY --from=build /app/apps/voragine-console/voragine-console-portal/dist /usr/share/nginx/html
+COPY --from=build /app/apps/console/console-portal/dist /usr/share/nginx/html
 COPY infra/nginx/spa.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
