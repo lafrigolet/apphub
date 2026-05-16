@@ -25,7 +25,7 @@ export async function reloadStripeFromDb() {
       appInfo: { name: 'SplitPay Platform', version: '0.1.0' },
     })
   } else {
-    logger.warn('Stripe secret key not configured — set splitpay_core.config.stripe_secret_key via voragine-console')
+    logger.warn('Stripe secret key not configured — set splitpay_core.config.stripe_secret_key via console')
   }
 }
 

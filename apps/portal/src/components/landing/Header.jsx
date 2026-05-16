@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 
 const LOGIN_URL =
-  import.meta.env.VITE_LOGIN_URL ?? 'https://voragine-console.hulkstein.com/'
+  import.meta.env.VITE_LOGIN_URL ?? 'https://console.hulkstein.com/'
 
 export default function Header({ onOpenDemo }) {
   const [scrolled, setScrolled] = useState(false)

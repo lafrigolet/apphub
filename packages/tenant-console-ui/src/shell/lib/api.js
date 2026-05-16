@@ -1,5 +1,5 @@
 // Thin fetch wrapper used by every shell + module view.
-// Same shape as voragine-console's lib/api.js (raises 'apphub:unauthorized'
+// Same shape as console's lib/api.js (raises 'apphub:unauthorized'
 // on 401 so the shell can drop to the login screen).
 //
 // Reads the JWT via the auth module so the host portal's tokenKey choice

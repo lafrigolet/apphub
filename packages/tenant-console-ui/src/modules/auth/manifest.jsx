@@ -1,5 +1,5 @@
 // Administrators of the tenant — list owners + admins, change roles, revoke.
-// Mirrors views/tenant/Admins.jsx from voragine-console.
+// Mirrors views/tenant/Admins.jsx from console.
 import Admins from './views/Admins'
 import { icons } from '../../shell/lib/icons'
 

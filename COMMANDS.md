@@ -180,7 +180,7 @@ docker compose restart nginx     # next sidecar init re-seeds from /etc/nginx/se
 docker compose logs -f nginx | grep sidecar
 ```
 
-Normal flow: staff hits `POST /api/apps/` from voragine-console → `platform-core` writes the
+Normal flow: staff hits `POST /api/apps/` from console → `platform-core` writes the
 rendered conf to `nginx:configs` → every NGINX replica reloads within `POLL_INTERVAL` (default
 2s). No host-side ops, no `docker compose restart`.
 
@@ -308,7 +308,7 @@ cat backup.sql | docker compose exec -T postgres psql -U splitpay splitpay
 | portal (AppHub admin)       | 5173      |
 | splitpay portal             | 5175      |
 | aikikan portal              | 5176      |
-| voragine-console portal     | 5177      |
+| console portal     | 5177      |
 
 **Modules per monolith** (each on its own schema + DB role, not its own port):
 - `platform-core` (3000) → `auth`, `notifications`, `payments`, `tenant-config`, `splitpay`

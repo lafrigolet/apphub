@@ -5,7 +5,7 @@ import { pool } from '../lib/db.js'
 import * as configRepo from '../repositories/config.repository.js'
 import { renderTemplate } from './template-renderer.js'
 
-// Resolve runtime config: prefer DB rows (set by staff via voragine-console),
+// Resolve runtime config: prefer DB rows (set by staff via console),
 // fall back to env vars for back-compat. Cached for 30s to avoid hammering
 // Postgres on every email.
 const CACHE_TTL_MS = 30_000

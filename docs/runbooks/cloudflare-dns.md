@@ -48,7 +48,7 @@ Browser ── HTTPS ──▶ Cloudflare edge ── HTTPS ──▶ Hetzner :4
 | A    | `*`  | `178.104.131.141`  | 🟠 Proxied   | Auto |
 
 The wildcard covers every app subdomain (`aikikan.hulkstein.com`,
-`splitpay.hulkstein.com`, `voragine-console.hulkstein.com`, …) and every
+`splitpay.hulkstein.com`, `console.hulkstein.com`, …) and every
 tenant subdomain rendered by `platform/tenant-config` at runtime.
 
 Verification (purely DNS):

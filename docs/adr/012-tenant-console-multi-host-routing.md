@@ -50,7 +50,7 @@ Two earlier design choices set the constraints:
    correct subdomain. We deliberately do NOT hard-redirect — the
    one-click escape preserves the URL bar and the user's mental model.
 
-5. **Cutover from voragine-console.** console-portal is
+5. **Cutover from console.** console-portal is
    staff-only as of this ADR. When a JWT with `role !== 'staff'` lands
    there, the shell renders a `TenantHandoff` view that surfaces the
    tenant's subdomain and a CTA. Users keep a "Cerrar sesión" escape
@@ -82,7 +82,7 @@ Two earlier design choices set the constraints:
   - **Wildcard server_name regex.** Conflicts with app subdomains
     (`yoga.*`, `splitpay.*`, …); explicit registration per tenant keeps
     "is this subdomain mine?" decidable from Redis.
-  - **Hard redirect from voragine-console.** Breaks deep links and
+  - **Hard redirect from console.** Breaks deep links and
     clipboard ergonomics for the rare case where staff legitimately
     needs to inspect a tenant URL.
 

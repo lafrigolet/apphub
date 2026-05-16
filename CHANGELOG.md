@@ -23,7 +23,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   modal (`LeadModal.jsx`) POSTs to `/api/leads/v1`. Tailwind palette
   swapped to indigo/slate defaults; font swapped from DM Sans to
   Inter. "Iniciar sesión" link points to
-  `voragine-console.hulkstein.com` for staff/admin entry — overridable
+  `console.hulkstein.com` for staff/admin entry — overridable
   via `VITE_LOGIN_URL`. Legacy `features/`, `components/layout/`,
   `components/shared/` stay on disk as dead code (unreferenced by
   routes; tree-shaken at build).
@@ -82,7 +82,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   per-module DB role passwords) remain in env.
 
 ### Added
-- **Module-level runtime config UI in voragine-console** — staff can now
+- **Module-level runtime config UI in console** — staff can now
   bootstrap every platform-core module from the admin portal without touching
   `.env` or redeploying. New sidebar group "Configuración" with sections for:
   - **OAuth Providers** (Google, Facebook): client_id + AES-GCM-encrypted
@@ -292,14 +292,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   Creates the first super_admin user (`POST /v1/auth/register`), verifies
   login, and registers the `platform` app in the registry. Idempotent.
   Required after a fresh `docker compose up` (or any DB wipe) so staff can
-  log in to voragine-console.
+  log in to console.
   - Full reference: [`docs/runbooks/platform-bootstrap.md`](docs/runbooks/platform-bootstrap.md) (env vars,
     troubleshooting, wipe-and-restart workflow, design rationale)
   - Quick pointer in [`RUN.md`](RUN.md) § Option A → First-time bootstrap
 - **Dynamic NGINX routing via Redis sidecar** — per-subdomain `server {}` blocks now live in
   the Redis hash `nginx:configs` instead of static files in `infra/nginx/conf.d/`. A sidecar
   inside the NGINX container polls Redis every 2s and reloads NGINX on change. Registering an
-  app from voragine-console (`POST /v1/apps`) propagates routing to every NGINX replica
+  app from console (`POST /v1/apps`) propagates routing to every NGINX replica
   without manual reload, host-side ops, or filesystem coordination. Cluster-friendly.
   See [ADR 003](docs/adr/003-dynamic-nginx-routing.md).
   - `infra/nginx/Dockerfile` — custom image: `nginx:alpine` + `redis-cli` + `tini`

@@ -89,7 +89,7 @@ async function send({ to, body }) {
 }
 
 // Public: smoke-test endpoint helper. Sends a simple body to a number, used
-// from voragine-console > Configuración > Twilio > "Probar".
+// from console > Configuración > Twilio > "Probar".
 export async function sendTestSms(to, body) {
   return send({ to, body: body ?? 'Test from AppHub notifications.' })
 }

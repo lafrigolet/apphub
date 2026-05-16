@@ -1,5 +1,5 @@
 // Identity-of-the-tenant module: Overview / Settings / Danger zone.
-// Replicates the three voragine-console tenant views without modifying
+// Replicates the three console tenant views without modifying
 // console-portal (Fase 2). View keys are namespaced `tenants-*` so
 // they don't collide with future modules.
 import Overview from './views/Overview'

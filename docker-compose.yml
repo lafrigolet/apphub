@@ -316,7 +316,7 @@ services:
     restart: unless-stopped
     networks: [data]
     # No public port mapping — the admin endpoints are reached via the
-    # internal docker network from voragine-console. Exposing 3400 is OK in
+    # internal docker network from console. Exposing 3400 is OK in
     # dev for curl checks but not strictly needed.
     ports:
       - '3400:3400'
@@ -425,7 +425,7 @@ services:
       # Stripe credentials viven en splitpay; aikikan solo necesita la URL
       # interna del platform-core para crear sesiones por loopback HTTP.
       # Para activar pagos:
-      #   1. Configurar Stripe en voragine-console / splitpay/admin/config.
+      #   1. Configurar Stripe en console / splitpay/admin/config.
       #   2. Crear Products + Prices en Stripe y guardar los Price IDs en
       #      app_aikikan.fee_products via PATCH /v1/aikikan/fees/products/:code/stripe-price.
       #   3. Configurar el webhook endpoint en Stripe apuntando al endpoint
@@ -453,14 +453,14 @@ services:
       NODE_ENV: development
       # No VITE_API_BASE_URL — api.js falls back to relative paths so /api/*
       # is handled by Vite's dev proxy (→ nginx:80) when accessing 5177 directly,
-      # and by NGINX itself when accessing via voragine-console.hulkstein.local:8080.
+      # and by NGINX itself when accessing via console.hulkstein.local:8080.
     volumes:
       - ./apps/console/console-portal/src:/app/apps/console/console-portal/src:ro
       - ./apps/console/console-portal/vite.config.js:/app/apps/console/console-portal/vite.config.js:ro
       - ./apps/console/console-portal/index.html:/app/apps/console/console-portal/index.html:ro
 
   # ── Tenant Console (frontend 5178) ────────────────────────────
-  # Modular per-tenant admin app. Same image pattern as voragine-console; the
+  # Modular per-tenant admin app. Same image pattern as console; the
   # frontend reads the request's Host header (forwarded by NGINX) to pick the
   # tenant context and only mounts the manifests listed in
   # platform_tenants.apps.enabled_modules.

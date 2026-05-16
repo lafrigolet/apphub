@@ -1,7 +1,7 @@
 # Tenant onboarding
 
 How to bring a new tenant onto the platform — from the staff click in
-voragine-console to the moment the owner is operating their workspace.
+console to the moment the owner is operating their workspace.
 
 > Distinct from [`platform-bootstrap.md`](platform-bootstrap.md), which
 > creates the **first super_admin** on a fresh database. This runbook
@@ -19,7 +19,7 @@ The flow is split deliberately so staff and owner work asynchronously:
 
 | Phase | Actor | Where | Duration |
 |---|---|---|---|
-| **A — Provisioning** | staff (`super_admin` / `staff`) | voragine-console | seconds (atomic) |
+| **A — Provisioning** | staff (`super_admin` / `staff`) | console | seconds (atomic) |
 | **B — Onboarding** | owner | their tenant subdomain | minutes to days |
 
 Phase A leaves the tenant *operational but pending activation*. Phase B is
@@ -31,7 +31,7 @@ self-paced by the owner and persists progress between sessions.
 
 ### A.1 Open the wizard
 
-In voragine-console (`https://voragine-console.hulkstein.com`), as
+In console (`https://console.hulkstein.com`), as
 `super_admin` or `staff`:
 
 - **Sidebar → Tenants** → button **"Bootstrap nuevo tenant"** (top right), or

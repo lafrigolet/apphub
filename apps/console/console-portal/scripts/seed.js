@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Development seed for voragine-console.
+ * Development seed for console.
  *
  *   pnpm --filter @console/console-portal seed
  *
@@ -22,7 +22,7 @@ const DB_URL =
   process.env.MIGRATION_DATABASE_URL ??
   'postgresql://splitpay:splitpay@localhost:5432/splitpay'
 
-const APP_ID           = 'voragine-console'
+const APP_ID           = 'console'
 const PLATFORM_APP     = 'platform'
 const PLATFORM_TENANT  = '00000000-0000-0000-0000-0000000000f0'
 const PASSWORD_PLAIN   = 'password123'

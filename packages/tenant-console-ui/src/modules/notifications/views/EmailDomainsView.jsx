@@ -1,5 +1,5 @@
 // View shell for the email-domains feature. The actual logic lives in
-// EmailDomainsManager (shared with voragine-console). The tenant console
+// EmailDomainsManager (shared with console). The tenant console
 // always operates on the user's own tenant — no `scopeQuery` impersonation
 // path here.
 import EmailDomainsManager from '../../../components/EmailDomainsManager'

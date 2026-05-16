@@ -1,7 +1,7 @@
 # Platform bootstrap
 
 After a fresh `docker compose up` (or any time the database is wiped), the
-auth tables are empty and **nobody can log in to voragine-console** — the
+auth tables are empty and **nobody can log in to console** — the
 staff console where apps, tenants and admins are managed. This document
 explains the bootstrap script that creates the first super_admin and brings
 the platform to a usable state.
@@ -10,7 +10,7 @@ the platform to a usable state.
 
 Run `./scripts/bootstrap.sh` after **any** of these:
 
-- First clone of the repo, before opening voragine-console for the first time
+- First clone of the repo, before opening console for the first time
 - `docker compose down -v` (wipes the postgres volume)
 - Manual `TRUNCATE TABLE platform_auth.users` or any equivalent reset
 - Migrating to a new postgres instance with empty data
@@ -38,7 +38,7 @@ In a single non-interactive flow:
 
 After this, `platform_auth.users` has at least one row with `role='super_admin'`
 and `platform_tenants.apps` contains the `platform` app (subdomain
-`voragine-console`). The seed app from the migration (`split-pay`) is
+`console`). The seed app from the migration (`split-pay`) is
 unaffected.
 
 ## How to run
@@ -93,8 +93,8 @@ On success the script ends with:
 ```
 🎉 Platform bootstrapped successfully.
 
-Log in to voragine-console:
-  via gateway:  http://voragine-console.hulkstein.local:8080
+Log in to console:
+  via gateway:  http://console.hulkstein.local:8080
   via Vite dev: http://localhost:5177
 
   email:    staff@hulkstein.local
@@ -136,7 +136,7 @@ the first user exists — but that hardening is out of scope for now.
 ### `tenantId` is a real UUID, but no tenant row is created
 
 JWTs require a `tenant_id` claim by structure (`appGuard` rejects tokens
-missing it). For staff users, voragine-console never queries the tenant —
+missing it). For staff users, console never queries the tenant —
 `AppContext.jsx` short-circuits with `if (role === 'staff') { setMyTenant(null); return }`.
 So we use a known fixed UUID and skip the cost of inserting a tenant row that
 would never be read.
@@ -146,7 +146,7 @@ would never be read.
 The staff console references `app_id='platform'` everywhere (in JWT validation,
 in audit logs, etc.). Having a corresponding registry row makes the platform
 self-consistent: `GET /v1/apps` lists `platform` alongside the other apps
-(e.g. `split-pay`, `aikikan`), with `subdomain='voragine-console'`. It's "the staff console as
+(e.g. `split-pay`, `aikikan`), with `subdomain='console'`. It's "the staff console as
 an app like any other" — a property we care about for cleanliness.
 
 ### Idempotent by design, not accident
@@ -199,7 +199,7 @@ Wait a few seconds (`platform-core` boots ~3-5s after postgres is healthy)
 and retry. If it persists, `docker compose logs platform-core` will show
 which module failed to register.
 
-### Bootstrap succeeds but voragine-console still rejects login
+### Bootstrap succeeds but console still rejects login
 
 Two possibilities:
 

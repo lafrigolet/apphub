@@ -65,7 +65,7 @@ When we do implement it:
   `platform_calendar_sync` with tables `connections`, `sync_state`,
   `external_events`. Tests, OpenAPI, settings table same pattern as
   `platform/notifications`.
-- **Per-provider config keys** in voragine-console (encrypted): Google client
+- **Per-provider config keys** in console (encrypted): Google client
   id/secret/redirect uri, Microsoft client id/secret/redirect uri.
 - **OAuth flow** lives at `GET /v1/calendar-sync/connect/:provider` (issues
   state, redirects to provider) + `GET /v1/calendar-sync/callback/:provider`
@@ -143,7 +143,7 @@ anything in `resources` or `bookings`. The per-tenant feature flag (in
      in <24h.
    - `calendar-channel-renew` (cron `0 3 * * *`) re-subscribes Google /
      Outlook webhook channels before their TTL.
-9. voragine-console: Google + Outlook config (client id/secret) under
+9. console: Google + Outlook config (client id/secret) under
    Configuración. Per-tenant feature flag.
 10. Practitioner UI: "Connect calendar" button in their settings panel.
 

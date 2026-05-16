@@ -50,7 +50,7 @@ export default function StaffTenants() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // No appId filter: voragine-console is a cross-app staff console — staff
+    // No appId filter: console is a cross-app staff console — staff
     // sees tenants of every app on the platform. Per-app filtering is exposed
     // via the FilterChip below.
     api.get('/api/tenants/tenants')

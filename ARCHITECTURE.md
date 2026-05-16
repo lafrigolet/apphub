@@ -85,7 +85,7 @@ NGINX uses a hybrid configuration:
   subdomain). A sidecar inside the NGINX container polls Redis every 2s, renders each field
   to `/etc/nginx/conf.d/sites/<subdomain>.conf`, and triggers `nginx -s reload` on change.
 
-When staff registers a new app from voragine-console (`POST /v1/apps`), `platform-core` writes
+When staff registers a new app from console (`POST /v1/apps`), `platform-core` writes
 the rendered server block to the Redis hash. Every NGINX replica in the cluster picks it up
 within ~2s without manual reload, host-side ops, or filesystem coordination between nodes.
 

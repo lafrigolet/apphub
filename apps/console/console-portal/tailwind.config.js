@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 //
-// Rebrand 2026-05: voragine-console adopts the Hulkstein landing's palette.
+// Rebrand 2026-05: console adopts the Hulkstein landing's palette.
 // We keep the legacy token names (paper/ink/accent/ok/…) so the 41 existing
 // views compile without per-file edits, but the underlying hex values now
 // map to indigo + slate + emerald/amber/rose/sky.

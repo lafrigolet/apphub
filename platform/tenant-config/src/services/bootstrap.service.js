@@ -240,7 +240,7 @@ export async function resendActivation(tenantId, actor) {
 }
 
 // Lista de tenants en onboarding (pending bootstrap completion). Lo consume
-// la vista voragine-console > Tenants en onboarding.
+// la vista console > Tenants en onboarding.
 export async function listPendingTenants() {
   return withTransaction(pool, async (client) => {
     const { rows } = await client.query(

@@ -2,7 +2,7 @@
 # scripts/bootstrap.sh — first-boot bootstrap of an empty AppHub platform.
 #
 # After a fresh `docker compose up` (or after wiping the database), the
-# auth tables are empty so nobody can log in to voragine-console. This
+# auth tables are empty so nobody can log in to console. This
 # script creates the first super_admin user, optionally registers the
 # "platform" app (used as the JWT app_id for staff), and verifies that
 # login works end-to-end.
@@ -18,11 +18,11 @@
 set -euo pipefail
 
 PLATFORM_CORE_URL="${PLATFORM_CORE_URL:-http://localhost:3000}"
-# Convention: the staff console runs at voragine-console.hulkstein.local and
+# Convention: the staff console runs at console.hulkstein.local and
 # its JWT app_id matches the subdomain. Both bootstrap.sh and the dev seed
 # (apps/console/console-portal/scripts/seed.js) use this
 # id, so they no longer collide on the unique subdomain constraint.
-PLATFORM_APP_ID="${PLATFORM_APP_ID:-voragine-console}"
+PLATFORM_APP_ID="${PLATFORM_APP_ID:-console}"
 PLATFORM_TENANT_ID="${PLATFORM_TENANT_ID:-00000000-0000-0000-0000-000000000001}"
 PLATFORM_TENANT_NAME="${PLATFORM_TENANT_NAME:-Platform Root}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-60}"
@@ -180,15 +180,15 @@ cat <<EOF
 
 🎉 Platform bootstrapped successfully.
 
-Log in to voragine-console:
-  via gateway:  http://voragine-console.hulkstein.local:8080
+Log in to console:
+  via gateway:  http://console.hulkstein.local:8080
   via Vite dev: http://localhost:5177
 
   email:    $ADMIN_EMAIL
   password: (the password you just set)
 
 Next steps:
-  1. Open voragine-console and click the "Apps" tab in the staff sidebar.
+  1. Open console and click the "Apps" tab in the staff sidebar.
   2. Click "Nueva app" — provisions the app, first tenant, admin user, and
      the NGINX server block via Redis (see docs/adr/003-dynamic-nginx-routing.md).
   3. The new <subdomain>.hulkstein.local routes /api/* automatically within ~2s.

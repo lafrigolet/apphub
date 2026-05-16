@@ -9,9 +9,6 @@ export default defineConfig({
     allowedHosts: [
       'console.hulkstein.local',
       'console.hulkstein.com',
-      // Legacy aliases — kept while the rename propagates.
-      'voragine-console.hulkstein.local',
-      'voragine-console.hulkstein.com',
     ],
     proxy: {
       // Forward /api/* through the NGINX gateway. The Host header must match

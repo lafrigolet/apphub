@@ -12,7 +12,7 @@ const envSchema = z.object({
   MIGRATION_DATABASE_URL:            z.string().url().optional(),
   REDIS_URL:                         z.string().url(),
   // Stripe credentials are now optional in env — they can also live in
-  // splitpay_core.config (managed via voragine-console). At least ONE source
+  // splitpay_core.config (managed via console). At least ONE source
   // must provide them at runtime, but env-only deployments still work.
   SPLITPAY_STRIPE_SECRET_KEY:        z.preprocess(emptyToUndefined, z.string().startsWith('sk_').optional()),
   SPLITPAY_STRIPE_WEBHOOK_SECRET:    z.preprocess(emptyToUndefined, z.string().startsWith('whsec_').optional()),

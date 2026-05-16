@@ -39,10 +39,10 @@
   - [x] **SMS** (Twilio) — Phase 0+1 wired (commits d2ba91d, b38af3d)
   - [x] **Push notifications** — FCM HTTP v1 (Android + iOS vía APNs key + Web Push) con OAuth2 token cacheado, dev-stub fallback, registro de devices vía `POST /v1/notifications/devices`, sender wrappers para reminders + booking.confirmed, garbage-collect automático de tokens UNREGISTERED. APNs nativo se reservan keys (team_id/key_id/bundle_id/p8) para integración HTTP/2 directa futura.
   - [ ] **WhatsApp Business API**
-  - [x] **Plantillas editables** desde voragine-console (CRUD por staff)
+  - [x] **Plantillas editables** desde console (CRUD por staff)
   - [x] **i18n** de plantillas (`(key, channel, locale)` UNIQUE + fallback a `'es'` + 8 plantillas seed en `en` + `default_locale` per-tenant + locale per-row en bookings/reservations + cadena de resolución en scheduler)
   - [ ] **Bounce/complaint handling** (webhooks SendGrid → suprimir destinatarios)
-  - [x] **Rate limiting por usuario** — Redis-counter por `(user, event, channel)` con ventanas hora/día configurables desde voragine-console
+  - [x] **Rate limiting por usuario** — Redis-counter por `(user, event, channel)` con ventanas hora/día configurables desde console
   - [x] **Digest mode** — `digest_mode` config (`off`/`daily`); allowlist de eventos no urgentes encolados en Redis (`nd:digest:<userId>`) y vaciados por el job `notification-digest` del scheduler (cron `0 9 * * *`) que publica `notifications.digest.flush`; el consumer compone un email único por usuario y limpia.
   - [x] **Suscripción a más eventos**: `booking.confirmed/reminded/rescheduled/cancelled`, `reservation.created/cancelled`, `package.exhausted`, `payout.paid` — senders email+sms + plantillas seed (es/en) + 8 plantillas adicionales
 
@@ -296,7 +296,7 @@
 | **Backup/restore** automatizado de Postgres | ❌ no — implementar ahora (ver subitems abajo) | alta producción |
 | **Pool RO opcional** (`DATABASE_URL_RO` con fallback) | ❌ no — implementar ahora (subitems abajo) | baja hoy, deja el cluster trivial cuando llegue |
 | **i18n** | parcial (notifications via `(key,channel,locale)` UNIQUE; resto del UI todavía hardcoded) | alta para mercado ES |
-| **Frontend para staff** (voragine-console) | parcial — `staff/*` cubierto, suficiente para roadmap actual | media |
+| **Frontend para staff** (console) | parcial — `staff/*` cubierto, suficiente para roadmap actual | media |
 | **Frontend para tenants** (tenant-console nueva) | ❌ no existe; ver bloque dedicado abajo | alta |
 
 ### Pre-cluster: los dos cambios que sí hacemos ahora
@@ -606,7 +606,7 @@ cuando se reactive — no es trabajo en cola.
 ## tenant-console (frontend per-tenant, modular)
 
 Consola de administración que cada tenant accede en su `<tenant>.hulkstein.com` (o
-custom domain). voragine-console se queda **únicamente con `staff/*`** — el rol
+custom domain). console se queda **únicamente con `staff/*`** — el rol
 `owner`/`admin` deja de servirse desde allí cuando esta nueva app esté
 operativa. Se monta dinámicamente: cada `platform/<modulo>` aporta un
 **manifest** con `dashboardCards` + `sidebar` + `routes`; el shell carga sólo
@@ -620,7 +620,7 @@ filtra al usuario.
 ### Fase 0 — Fundaciones (commit `90e1189`) ✅
 - [x] Migración `platform/tenant-config/migrations/0006_app_enabled_modules.sql`
   — añade `enabled_modules TEXT[] NOT NULL DEFAULT '{}'` a `platform_tenants.apps`
-  y semilla los sets actuales (`aikikan`, `split-pay`, `voragine-console`).
+  y semilla los sets actuales (`aikikan`, `split-pay`, `console`).
 - [x] Endpoint `GET /v1/apps/:appId` y `GET /v1/apps` devuelven `enabled_modules`
   en el payload. Nuevo `PUT /v1/apps/:appId/enabled-modules { modules: string[] }`
   para que staff edite el set sin tocar SQL.
@@ -648,15 +648,15 @@ filtra al usuario.
   con `eager:false`. Un manifest cuyo `id` no está en `enabled_modules` no se
   carga.
 - [x] Primer manifest cableado: `notifications` con `EmailDomainsView`
-  reutilizando el `EmailDomainsManager` (copiado de voragine-console; las
+  reutilizando el `EmailDomainsManager` (copiado de console; las
   imports apuntan a `../shell/lib`).
 - [ ] Carga del idioma per-tenant desde `tenant.default_locale` (la columna
   existe; el shell todavía no usa el valor — pendiente de wiring i18n
   cuando entren más manifests).
 
 ### Fase 2 — Migración del rol tenant existente ✅
-**No tocar voragine-console** — solo replicar las views ahí presentes en la
-nueva app, manteniendo voragine-console intacto hasta que la migración sea
+**No tocar console** — solo replicar las views ahí presentes en la
+nueva app, manteniendo console intacto hasta que la migración sea
 1:1. Las vistas a portar:
 - [x] `views/tenant/Overview.jsx` → manifest `tenants` (Inicio).
 - [x] `views/tenant/Settings.jsx` → manifest `tenants` (Configuración ·
@@ -677,7 +677,7 @@ añade `tenants`, `auth`, `audit`, `notifications` a `enabled_modules` en
 todas las apps tenant-facing, y `splitpay` solo donde `splitpay_enabled = TRUE`.
 
 `EmailDomainsManager.jsx` ya está extraído a `components/`; copiarlo / mover
-al shell de tenant-console como pieza compartida con voragine-console (vía
+al shell de tenant-console como pieza compartida con console (vía
 `packages/`?) — decisión a tomar al portarlo.
 
 ### Fase 3 — Manifests nuevos por módulo (orden por valor/coste) ✅
@@ -717,7 +717,7 @@ profundo se itera después.
   `tenant-console.*` genérico). El shell resuelve subdomain → tenant vía
   `GET /v1/tenants/by-subdomain/:subdomain` (público) y enseña una banner
   si el JWT no coincide con el host.
-- [x] Cutover: voragine-console muestra `TenantHandoff` cuando
+- [x] Cutover: console muestra `TenantHandoff` cuando
   `role !== 'staff'`, con CTA al subdomain del propio tenant. No hace hard
   redirect — preserva back/forward y URL bar.
 - [x] Documentación: ADR-012 (`docs/adr/012-tenant-console-multi-host-routing.md`).
@@ -735,7 +735,7 @@ profundo se itera después.
 ## Tenant bootstrap (provisioning + onboarding)
 
 Flujo de alta de un tenant nuevo en dos fases — Fase A atómica (staff
-provisiona desde voragine-console y manda magic-link) + Fase B asíncrona
+provisiona desde console y manda magic-link) + Fase B asíncrona
 (owner activa, fija contraseña y completa el checklist de onboarding).
 Diseño completo en `docs/design/tenant-bootstrap.md`; runbook operativo
 en `docs/runbooks/tenant-onboarding.md`. Implementado en 5 commits sobre
@@ -769,7 +769,7 @@ en `docs/runbooks/tenant-onboarding.md`. Implementado en 5 commits sobre
   email magic-link, `tenant.activated` → email bienvenida. 4 plantillas seed
   (es + en) en `migrations/0013_tenant_bootstrap_templates.sql`.
 
-### UI staff — voragine-console (commit `5b11fb1`) ✅
+### UI staff — console (commit `5b11fb1`) ✅
 - [x] **BootstrapTenantModal** — wizard de 5 secciones plegables (App
   existente/nueva, Identidad, Owner, Subscripción, Flags). Tras submit muestra
   el magic-link en pantalla por si el email no llega.
@@ -832,7 +832,7 @@ en `docs/runbooks/tenant-onboarding.md`. Implementado en 5 commits sobre
 3. [ ] **`payments` real** — `pos.payBill`, `packages.purchase`, `bookings.deposit` no cobran
 4. [ ] **`telehealth` provider real** — el stub no funciona en producción
 5. [x] **SMS channel en `notifications`** — recordatorios de citas/reservas.
-   Twilio cliente con dev-stub fallback, configuración en voragine-console
+   Twilio cliente con dev-stub fallback, configuración en console
    (Account SID + API Key + Messaging Service SID), `templates UNIQUE(key,channel)`,
    plantillas SMS sembradas para `booking.reminder.due` y `reservation.reminder.due`,
    columnas `phone_*` en `platform_auth.users`, event-consumer enchufa SMS cuando
@@ -848,7 +848,7 @@ en `docs/runbooks/tenant-onboarding.md`. Implementado en 5 commits sobre
    el slot ya está tomado o el hold no coincide. Tests unit (5 nuevos) +
    integration (overlap rechazado, cancelado libera slot).
 10. [x] **Email templates editables + i18n** en `notifications`. Plantillas
-    ya editables desde `voragine-console > Configuración > Plantillas`. i18n:
+    ya editables desde `console > Configuración > Plantillas`. i18n:
     columna `locale` en `templates` con UNIQUE `(key, channel, locale)` y
     fallback a `'es'` cuando el locale pedido no existe. 8 plantillas
     sembradas en `en` (6 email + 2 sms). Senders aceptan `locale` opcional;

@@ -3,10 +3,10 @@ import { api } from './api'
 const TOKEN_KEY = 'apphub.token'
 
 // Hulkstein Console constants — kept exported because a few views/modals
-// use them. NB: the literal 'voragine-console' is the historic app_id baked
+// use them. NB: the literal 'console' is the historic app_id baked
 // into staff JWTs. Renaming it would invalidate every live session, so the
 // rebrand stayed at the URL + UI level only.
-const APP_ID          = 'voragine-console'
+const APP_ID          = 'console'
 const PLATFORM_APP    = 'platform'
 const PLATFORM_TENANT = '00000000-0000-0000-0000-0000000000f0'
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// Admin endpoints — used by voragine-console for "run job now" buttons and
+// Admin endpoints — used by console for "run job now" buttons and
 // to inspect recent runs. Protected by appGuard + requireRole('staff') below.
 export async function adminRoutes(fastify, { jobs, jobRunner, pool }) {
   const byName = new Map(jobs.map((j) => [j.meta.name, j]))

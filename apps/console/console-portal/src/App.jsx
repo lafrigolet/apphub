@@ -69,7 +69,7 @@ function MainContent() {
   return <div className="p-10 text-ink3">Vista no encontrada.</div>
 }
 
-// Cutover (tenant-console Fase 4): voragine-console serves only the staff
+// Cutover (tenant-console Fase 4): console serves only the staff
 // role. A user that signs in with role owner/admin/user belongs in their
 // own tenant-console at <tenant.subdomain>.<host-suffix>; we surface a
 // soft handoff with a one-click redirect rather than a hard window.replace

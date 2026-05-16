@@ -158,7 +158,7 @@ the schema level. The five operational cautions below apply.
 | `aikikan` | **app-monolith** (this ADR) | First app to adopt. `app_aikikan` schema, `svc_app_aikikan` role, `apps/aikikan/aikikan-server` container. |
 | `yoga-studio` | **legacy multi-schema** | 5 schemas (`yoga_users`, `yoga_classes`, `yoga_bookings`, `yoga_bonuses`, `yoga_reporting`) + multiple containers. NOT refactored under this ADR. |
 | `split-pay` (the app surface) | undecided | When/if it grows app-specific UI/domain beyond the platform module, will adopt the new pattern as `app_split_pay`. |
-| `voragine-console` | n/a | Pure UI on top of `platform_*` modules. No app-domain schema needed. |
+| `console` | n/a | Pure UI on top of `platform_*` modules. No app-domain schema needed. |
 | `portal` | n/a | Pure UI. No app-domain schema. |
 | Future apps | **app-monolith** | Default going forward. |
 

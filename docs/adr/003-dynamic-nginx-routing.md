@@ -6,7 +6,7 @@
 
 ## Context
 
-When staff registers a new app from voragine-console (`POST /v1/apps`), the platform needs to
+When staff registers a new app from console (`POST /v1/apps`), the platform needs to
 serve traffic on the new subdomain immediately. The original setup required:
 
 1. Hand-writing `infra/nginx/conf.d/<subdomain>.conf` on the host
@@ -54,7 +54,7 @@ change.
 | Component | Responsibility |
 |---|---|
 | `infra/nginx/Dockerfile` | Custom image: `nginx:alpine` + `redis-cli` + `tini`. Bakes seed configs and the sidecar scripts |
-| `infra/nginx/seed/*.conf` | Static seed configs for the platform's own portals (yoga, splitpay, aikikan, voragine-console, portal). Used to populate Redis on first boot of an empty cluster |
+| `infra/nginx/seed/*.conf` | Static seed configs for the platform's own portals (yoga, splitpay, aikikan, console, portal). Used to populate Redis on first boot of an empty cluster |
 | `infra/nginx/entrypoint.sh` | PID-1 entrypoint: runs `sidecar.sh init` synchronously, then `sidecar.sh watch &`, then `exec nginx -g 'daemon off;'` |
 | `infra/nginx/sidecar.sh` | `init` waits for Redis, seeds the hash if empty, renders to disk. `watch` polls every `POLL_INTERVAL` seconds, hashes `HGETALL`, re-renders + reloads on change |
 | `infra/nginx/nginx.conf` | `include /etc/nginx/conf.d/sites/*.conf` glob — picks up whatever the sidecar wrote |

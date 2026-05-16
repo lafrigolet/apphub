@@ -8,13 +8,13 @@ body { font-family: 'Instrument Sans', system-ui, sans-serif; font-feature-setti
 .font-mono { font-feature-settings: "zero"; }
 
 /* Slide-up fade — used by views as a subtle entrance. Same keyframes as
-   voragine-console so visual rhythm carries across consoles. */
+   console so visual rhythm carries across consoles. */
 @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .fade-up { animation: fade-up 0.18s ease-out both; }
 
 /* EmailDomainsManager + SecretInput rely on these utility class names. Mirror
    them here so the shared components render the same way without their own
-   stylesheet. Equivalents of voragine-console's base.css. */
+   stylesheet. Equivalents of console's base.css. */
 .input    { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #E5DFD2; border-radius: 0.375rem; font-size: 13px; background: #ffffff; }
 .input:focus { outline: none; border-color: #3B3A42; }
 .select   { @apply input; }

@@ -65,7 +65,7 @@ services:
     volumes: !reset []
 
   # ── Tenant Console portal (prod) ───────────────────────────────
-  # Same flip as voragine-console: dev (vite) → prod (nginx-alpine
+  # Same flip as console: dev (vite) → prod (nginx-alpine
   # serving the built dist/). Healthcheck inherited from the Dockerfile.
   tenant-console-portal:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-tenant-console-portal:${IMAGE_TAG:-latest}

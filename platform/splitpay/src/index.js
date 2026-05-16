@@ -31,7 +31,7 @@ export async function register({ app, db, redis }) {
       if (!req.identity) return
 
       // Staff impersonation: super_admin / staff can scope the request to any
-      // tenant via ?appId=&tenantId= query params. Used by voragine-console's
+      // tenant via ?appId=&tenantId= query params. Used by console's
       // TenantDetail to manage splitpay configuration on behalf of a tenant.
       // Regular users can never override their own tenant.
       const STAFF_ROLES = new Set(['staff', 'super_admin'])
@@ -91,7 +91,7 @@ export async function register({ app, db, redis }) {
 
   // Hydrate Stripe credentials from DB at boot. If neither DB nor env has
   // them yet, the lazy fallback in stripe.js logs a warning and the first
-  // request fails gracefully (staff sets the keys via voragine-console
+  // request fails gracefully (staff sets the keys via console
   // and PATCH /v1/splitpay/admin/config reloads the Stripe client).
   app.addHook('onReady', async () => {
     try { await reloadStripeFromDb() } catch (err) { logger.warn({ err }, 'splitpay: deferred Stripe init') }

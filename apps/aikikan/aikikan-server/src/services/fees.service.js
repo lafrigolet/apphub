@@ -70,7 +70,7 @@ export async function createCheckout(identity, bearerToken, { codes, returnPath 
       for (const p of products) {
         if (!p.stripe_price_id) {
           throw new AppError('STRIPE_PRICE_MISSING',
-            `El producto "${p.code}" no tiene stripe_price_id configurado. Crea el Price en Stripe (vía voragine-console / splitpay) y guarda su ID en BD.`,
+            `El producto "${p.code}" no tiene stripe_price_id configurado. Crea el Price en Stripe (vía console / splitpay) y guarda su ID en BD.`,
             503)
         }
       }

@@ -50,7 +50,7 @@ docker compose up -d          # starts postgres, redis, the three monoliths,
 ./scripts/bootstrap.sh        # creates the first super_admin (idempotent)
 ```
 
-Open http://voragine-console.hulkstein.local:8080 (after adding the alias to
+Open http://console.hulkstein.local:8080 (after adding the alias to
 `/etc/hosts`) and start registering apps.
 
 ## Platform monoliths

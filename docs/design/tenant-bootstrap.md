@@ -1,7 +1,7 @@
 # Tenant bootstrap procedure
 
 Cómo se trae un nuevo tenant a la plataforma — del primer click del staff
-en voragine-console hasta el momento en que el owner empieza a operar.
+en console hasta el momento en que el owner empieza a operar.
 
 > Distinto de `docs/runbooks/platform-bootstrap.md`, que crea el primer
 > super_admin de AppHub. Este documento describe el flujo de cliente.
@@ -12,7 +12,7 @@ en voragine-console hasta el momento en que el owner empieza a operar.
 
 Bootstrap en **dos fases independientes**:
 
-- **Fase A — Provisioning** (voragine-console, staff): atómica y corta.
+- **Fase A — Provisioning** (console, staff): atómica y corta.
   Staff crea en una sola operación app (si no existe) + tenant + owner +
   configuración técnica básica + magic-link. Termina con un email al
   owner.
@@ -27,12 +27,12 @@ sesiones.
 
 ---
 
-## Fase A — Provisioning (voragine-console)
+## Fase A — Provisioning (console)
 
 ### A.1 Quién y desde dónde
 
 - Rol: `super_admin` o `staff`.
-- Entrada: voragine-console → "Tenants" → botón **"Bootstrap nuevo
+- Entrada: console → "Tenants" → botón **"Bootstrap nuevo
   tenant"**. (Distinto del flujo "+ Tenant" actual, que sólo crea la
   fila en `platform_tenants.tenants` y no toca usuarios ni notifica.)
 
@@ -113,7 +113,7 @@ fijar contraseña, el handler activate puede aceptar también
 
 ### A.6 Reenvío y revocación
 
-Vista detalle de tenant (voragine-console) gana 2 acciones:
+Vista detalle de tenant (console) gana 2 acciones:
 
 - **Reenviar magic-link**: invalida tokens previos del owner y emite
   uno nuevo. Audit-logged.
@@ -218,7 +218,7 @@ Notifications consume estos eventos para:
 |---|---|
 | Magic-link expirado | Landing muestra mensaje + botón "Pedir nuevo enlace" → reemite token y email. |
 | Token usado dos veces | Segunda llamada → 410 Gone con mensaje claro. |
-| Owner equivoca email | Staff corrige `email` desde voragine-console (audit-logged) y "Reenviar magic-link". |
+| Owner equivoca email | Staff corrige `email` desde console (audit-logged) y "Reenviar magic-link". |
 | Tenant abandonado en Fase A | Staff puede revocar (sólo si `owner_activated_at IS NULL` y no hay datos). |
 | Tenant abandonado en Fase B | Voragine-console muestra dashboard "Tenants en onboarding" con días desde `bootstrap_started_at`. |
 | Subscripción cae a `past_due` durante Fase B | Paso 3 vuelve a `pending`; el panel reaparece sólo si la fase no se había completado todavía. |
@@ -250,8 +250,8 @@ Notifications consume estos eventos para:
 | Columnas `bootstrap_started_at`, `bootstrap_completed_at` en `tenants` | migración | Ya hay `subscription_*`; estas son el siguiente bloque. |
 | `GET /v1/tenants/:id/bootstrap` | endpoint | Status derivado, lo consume la UI. |
 | Plantillas de email | seed `notifications.templates` | welcome, reminder, completed. |
-| Wizard "Bootstrap nuevo tenant" | UI voragine-console | Form único de 5 secciones. |
-| Vista "Tenants en onboarding" | UI voragine-console | Lista con días desde start, acciones reenviar / revocar. |
+| Wizard "Bootstrap nuevo tenant" | UI console | Form único de 5 secciones. |
+| Vista "Tenants en onboarding" | UI console | Lista con días desde start, acciones reenviar / revocar. |
 | Panel "Configura tu cuenta" | módulo tenant-console-ui | `modules/bootstrap/` con manifest + view. |
 | Página `/activate?token=` | UI aikikan-portal (y plantilla) | Aterriza desde el email del owner. |
 
@@ -264,7 +264,7 @@ pueden mergear por separado:
 
 1. **Backend bootstrap atómico** — migraciones + endpoints `bootstrap` y
    `activate` + emails. Sin UI todavía. Probable smoke-test con `curl`.
-2. **UI staff** — wizard en voragine-console + lista "Tenants en
+2. **UI staff** — wizard en console + lista "Tenants en
    onboarding".
 3. **UI owner** — módulo `bootstrap` en tenant-console-ui + página
    `/activate` en aikikan-portal (resto de portales lo heredan al usar

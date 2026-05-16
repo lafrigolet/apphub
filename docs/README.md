@@ -55,7 +55,7 @@ Current runbooks:
 - [`runbooks/platform-bootstrap.md`](runbooks/platform-bootstrap.md) — create
   the first super_admin on a fresh database (one-shot per environment).
 - [`runbooks/tenant-onboarding.md`](runbooks/tenant-onboarding.md) — provision
-  a new tenant from voragine-console and walk the owner through Phase B.
+  a new tenant from console and walk the owner through Phase B.
 
 ## Conventions
 

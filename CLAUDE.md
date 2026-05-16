@@ -762,7 +762,7 @@ prefix (e.g. `SPLITPAY_` for split-pay services).
 ## Module-level runtime config (DB-backed, encrypted)
 
 Each module of `platform-core` exposes an `/v1/<module>/admin/config` (or
-`…/oauth-providers`, etc.) surface that voragine-console uses to bootstrap
+`…/oauth-providers`, etc.) surface that console uses to bootstrap
 the module without redeploys. Secrets (Stripe keys, OAuth client_secret,
 SendGrid API key, S3 access keys) are stored in dedicated `*.config` /
 `*.settings` / `*.oauth_providers` tables, encrypted at rest with AES-256-GCM
@@ -778,5 +778,5 @@ When you add a new module that needs runtime-configurable secrets:
    and GET/PATCH endpoints.
 4. Register it in `src/index.js` under `/v1/<module>/admin`.
 5. Refactor the module's runtime to read from the new repo with env fallback.
-6. Add a section to voragine-console's sidebar + view under
+6. Add a section to console's sidebar + view under
    `apps/console/console-portal/src/views/staff/config/`.

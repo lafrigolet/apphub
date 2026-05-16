@@ -127,7 +127,7 @@ export function AppProvider({ children, detectHostTenant = true }) {
   const openModal  = useCallback((content, opts = {}) => setModal({ content, size: opts.size ?? 'md' }), [])
   const closeModal = useCallback(() => setModal(null), [])
 
-  // Some ported voragine-console views read `myTenant`, `logout` and `role`
+  // Some ported console views read `myTenant`, `logout` and `role`
   // directly off the context. Aliased here so we don't touch the views' code.
   const myTenant = tenant
   const logout   = onLogout

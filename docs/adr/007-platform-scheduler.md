@@ -58,7 +58,7 @@ exports `meta = { name, cron, description }` and `run({ db, redis, publish, logg
 | Réplicas | 1 (sin `deploy.replicas`) | exactly-once sin lock distribuido |
 | Lock distribuido | No (V1); Redis SET NX EX cuando llegue cluster | Simplicidad |
 | HTTP público | No — sin `upstream` ni `location` en NGINX | Solo polea + publica |
-| Endpoint admin | Sí (interno) `/health` + `/v1/scheduler/{jobs,runs}` + manual trigger | Debug + voragine-console |
+| Endpoint admin | Sí (interno) `/health` + `/v1/scheduler/{jobs,runs}` + manual trigger | Debug + console |
 | Librería cron | `node-cron@3` (ya en pnpm-lock por yoga-studio) | Sintaxis crontab estándar |
 | Locks intra-job | Postgres `pg_try_advisory_lock(hashtext('job-name'))` | Evita solapamientos |
 | Idempotencia | Columnas `*_sent_at` y stamp en mismo UPDATE que `RETURNING` | Re-run no duplica eventos |
@@ -94,7 +94,7 @@ Voragine-console puede listar runs y, en futuro, mostrar dashboards.
 - **Producción**: 1 contenedor extra (~80 MB RAM). Sin cambios en
   escalabilidad de `platform-core`/marketplace/restaurant/appointments.
 - **Operaciones**: para reiniciar un job basta con `POST /v1/scheduler/jobs/:name/run`
-  desde voragine-console, o `docker compose restart platform-scheduler` para
+  desde console, o `docker compose restart platform-scheduler` para
   reset total. Si el contenedor cae, los datos no se corrompen — sólo se
   acumulan retrasos en recordatorios.
 - **Coste de añadir un nuevo job**: copy-paste de un archivo en
@@ -104,7 +104,7 @@ Voragine-console puede listar runs y, en futuro, mostrar dashboards.
 ## Alcance NO incluido (V1)
 
 - Cluster con réplicas — añadir Redis distributed lock cuando haga falta.
-- UI en voragine-console para listar `runs` y disparar.
+- UI en console para listar `runs` y disparar.
 - Cron expressions configurables por tenant — todos los jobs son globales.
 - Retries con backoff exponencial — un fallo queda con `status='error'` en
   `runs`; el siguiente tick reintenta en su intervalo.
