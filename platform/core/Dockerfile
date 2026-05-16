@@ -13,6 +13,7 @@ COPY platform/payments/package.json                ./platform/payments/package.j
 COPY platform/tenant-config/package.json           ./platform/tenant-config/package.json
 COPY platform/splitpay/package.json                ./platform/splitpay/package.json
 COPY platform/storage/package.json                 ./platform/storage/package.json
+COPY platform/leads/package.json                   ./platform/leads/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-core...
@@ -30,6 +31,8 @@ COPY platform/splitpay/src            ./platform/splitpay/src
 COPY platform/splitpay/migrations     ./platform/splitpay/migrations
 COPY platform/storage/src             ./platform/storage/src
 COPY platform/storage/migrations      ./platform/storage/migrations
+COPY platform/leads/src               ./platform/leads/src
+COPY platform/leads/migrations        ./platform/leads/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core
@@ -46,6 +49,7 @@ COPY platform/payments/package.json                ./platform/payments/package.j
 COPY platform/tenant-config/package.json           ./platform/tenant-config/package.json
 COPY platform/splitpay/package.json                ./platform/splitpay/package.json
 COPY platform/storage/package.json                 ./platform/storage/package.json
+COPY platform/leads/package.json                   ./platform/leads/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-core...
@@ -63,6 +67,8 @@ COPY platform/splitpay/src            ./platform/splitpay/src
 COPY platform/splitpay/migrations     ./platform/splitpay/migrations
 COPY platform/storage/src             ./platform/storage/src
 COPY platform/storage/migrations      ./platform/storage/migrations
+COPY platform/leads/src               ./platform/leads/src
+COPY platform/leads/migrations        ./platform/leads/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core

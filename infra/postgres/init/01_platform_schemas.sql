@@ -39,6 +39,9 @@ CREATE SCHEMA IF NOT EXISTS platform_scheduler;
 -- platform-core storage module schema
 CREATE SCHEMA IF NOT EXISTS platform_storage;
 
+-- platform-core leads module schema
+CREATE SCHEMA IF NOT EXISTS platform_leads;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -133,6 +136,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_storage') THEN
     CREATE ROLE svc_platform_storage LOGIN PASSWORD 'platform_storage_secret';
   END IF;
+
+  -- platform-core leads module role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_leads') THEN
+    CREATE ROLE svc_platform_leads LOGIN PASSWORD 'platform_leads_secret';
+  END IF;
 END
 $$;
 
@@ -174,6 +182,9 @@ GRANT USAGE ON SCHEMA platform_scheduler            TO svc_platform_scheduler;
 
 -- USAGE grants (platform-core storage module)
 GRANT USAGE ON SCHEMA platform_storage              TO svc_platform_storage;
+
+-- USAGE grants (platform-core leads module)
+GRANT USAGE ON SCHEMA platform_leads                TO svc_platform_leads;
 
 -- DML default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
@@ -240,6 +251,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_scheduler
 -- DML default privs (platform-core storage)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_storage
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_storage;
+
+-- DML default privs (platform-core leads)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_leads
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_leads;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_leads
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_leads;
 
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
