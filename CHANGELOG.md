@@ -6,6 +6,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **`platform/leads` module** — public lead-capture endpoint for the
+  Hulkstein landing's contact form. New schema `platform_leads` + role
+  `svc_platform_leads`. POST `/v1/leads` is public (no auth, nginx rate
+  limit burst=5); GET/PATCH `/v1/leads/admin` is staff-gated via
+  `requireRole('super_admin', 'staff')`. Lead table captures
+  contact_name/email/business_name/phone/industry/message/source plus
+  ip/user_agent (for abuse triage) and a `status` workflow
+  (new → contacted → qualified → closed) for the future CRM UI.
+- **Hulkstein public landing** at `apps/portal/` (the apex
+  `hulkstein.com`). Replaces the legacy Stripe-themed admin clone that
+  was never wired to a real backend. Sections: Header, Hero,
+  Industries (Restaurantes, Gym, Servicios, Tienda), HowItWorks,
+  WhyUs, FinalCta with gradient indigo→violet, Footer. Lead-capture
+  modal (`LeadModal.jsx`) POSTs to `/api/leads/v1`. Tailwind palette
+  swapped to indigo/slate defaults; font swapped from DM Sans to
+  Inter. "Iniciar sesión" link points to
+  `voragine-console.hulkstein.com` for staff/admin entry — overridable
+  via `VITE_LOGIN_URL`. Legacy `features/`, `components/layout/`,
+  `components/shared/` stay on disk as dead code (unreferenced by
+  routes; tree-shaken at build).
+
 ### Changed
 - **TLS at the origin via Cloudflare Origin Certificate** — every per-app
   nginx server block (seeds and dynamic templates rendered into Redis by
