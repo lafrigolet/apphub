@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react'
+import { getAccessToken, getIdentity, isAdminRole } from '../lib/auth.js'
+import EventModal, { deleteEvent } from './EventModal.jsx'
 
 // Landing pública — lista los próximos eventos. Consume el endpoint
 // público de platform-appointments:
 //   GET /api/services/sessions/upcoming?appId=…&tenantId=…&kind=event
 //
 // El tenant lo resolvemos por subdomain antes de pedir las sesiones —
-// patrón portable a tenant-console multi-tenant. La gestión de eventos
-// (crear/borrar) vivía aquí pero pasó a la consola admin de
-// tenant-console-ui (módulo `events`); este componente queda como
-// vista pública de sólo lectura.
+// patrón portable a tenant-console multi-tenant.
+//
+// Cuando el usuario logueado tiene rol admin/owner/staff/super_admin
+// activamos controles inline: botón "+" para crear evento, "pen" para
+// editar y "trash" para borrar (soft-cancel). En modo admin el listado
+// se carga vía `/api/services/:anchorId/sessions` (autenticado) para
+// tener IDs y los campos completos en vez del DTO público recortado.
 const APP_ID = 'aikikan'
+const ANCHOR_CODE = 'eventos'
 const MONTHS_ES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 
 function formatDate(iso) {
@@ -24,39 +30,108 @@ async function resolveTenantId(subdomain) {
   return j.tenantId ?? j.data?.tenantId
 }
 
+function authFetch(url, opts = {}) {
+  const token = getAccessToken()
+  return fetch(url, {
+    ...opts,
+    headers: {
+      ...(opts.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+}
+
+// Encuentra (o crea) el service ancla 'eventos' del tenant. Misma
+// estrategia que la consola admin (tenant-console-ui/events/EventsAdmin).
+async function ensureAnchorService() {
+  const listRes = await authFetch('/api/services/?onlyActive=true')
+  const listJson = await listRes.json().catch(() => ({}))
+  if (!listRes.ok) throw new Error(listJson.error?.message ?? listRes.statusText)
+  const arr = Array.isArray(listJson) ? listJson : listJson?.data ?? []
+  const events = arr.filter((s) => s.kind === 'event')
+  if (events.length > 0) return events[0]
+  const res = await authFetch('/api/services/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code:            ANCHOR_CODE,
+      name:            'Eventos',
+      description:     'Seminarios, exámenes y cursos abiertos.',
+      durationMinutes: 60,
+      capacity:        200,
+      kind:            'event',
+      publicCatalog:   true,
+      priceCents:      0,
+      currency:        'EUR',
+    }),
+  })
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(j.error?.message ?? res.statusText)
+  return j.data ?? j
+}
+
 export default function Events() {
+  const identity = getIdentity()
+  const isAdmin = !!(identity && isAdminRole(identity.role) && identity.appId === APP_ID)
+
   const [sessions, setSessions] = useState([])
+  const [anchor, setAnchor]     = useState(null)
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
+  const [modal, setModal]       = useState(null)   // null | 'new' | session raw (edit)
 
-  useEffect(() => {
-    let cancelled = false
+  function load() {
     setLoading(true); setError(null)
     ;(async () => {
       try {
-        const tenantId = await resolveTenantId(APP_ID)
-        const url = `/api/services/sessions/upcoming?appId=${APP_ID}&tenantId=${encodeURIComponent(tenantId)}&kind=event`
-        const res = await fetch(url)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const json = await res.json()
-        if (cancelled) return
-        const rows = json?.data ?? []
-        // Adaptamos la shape de session a la que pinta la UI legacy
-        // (name + location + date) para no tocar el JSX más abajo.
-        setSessions(rows.map((s) => ({
-          id:       s.id,
-          name:     s.session_description || s.service_name,
-          location: s.location,
-          starts_at: s.starts_at,
-        })))
+        if (isAdmin) {
+          const svc = await ensureAnchorService()
+          setAnchor(svc)
+          const res = await authFetch(`/api/services/${svc.id}/sessions`)
+          const json = await res.json()
+          if (!res.ok) throw new Error(json.error?.message ?? res.statusText)
+          const rows = (json?.data ?? []).filter((s) => s.status === 'scheduled')
+          setSessions(rows.map((s) => ({
+            id:        s.id,
+            name:      s.description || svc.name,
+            location:  s.location,
+            starts_at: s.starts_at,
+            _raw:      s,
+          })))
+        } else {
+          const tenantId = await resolveTenantId(APP_ID)
+          const url = `/api/services/sessions/upcoming?appId=${APP_ID}&tenantId=${encodeURIComponent(tenantId)}&kind=event`
+          const res = await fetch(url)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const json = await res.json()
+          const rows = json?.data ?? []
+          setSessions(rows.map((s) => ({
+            id:        s.id,
+            name:      s.session_description || s.service_name,
+            location:  s.location,
+            starts_at: s.starts_at,
+          })))
+        }
       } catch (err) {
-        if (!cancelled) setError(err.message ?? 'Error')
+        setError(err.message ?? 'Error')
       } finally {
-        if (!cancelled) setLoading(false)
+        setLoading(false)
       }
     })()
-    return () => { cancelled = true }
-  }, [])
+  }
+
+  useEffect(load, [isAdmin])
+
+  async function handleDelete(row) {
+    const label = row._raw?.description || row.name || 'este evento'
+    if (!confirm(`¿Borrar "${label}"? Las inscripciones ya hechas quedarán colgantes.`)) return
+    try {
+      await deleteEvent(row.id)
+      load()
+    } catch (err) {
+      alert(`No se pudo borrar: ${err.message}`)
+    }
+  }
 
   return (
     <section id="eventos">
@@ -77,7 +152,26 @@ export default function Events() {
                   <p className="event-name">{e.name}</p>
                   <p className="event-loc">{e.location}</p>
                 </div>
-                <span className="event-arrow">→</span>
+                {isAdmin ? (
+                  <div className="event-actions">
+                    <button
+                      type="button"
+                      className="event-edit"
+                      title="Editar evento"
+                      aria-label="Editar evento"
+                      onClick={() => setModal(e._raw)}
+                    >✎</button>
+                    <button
+                      type="button"
+                      className="event-trash"
+                      title="Borrar evento"
+                      aria-label="Borrar evento"
+                      onClick={() => handleDelete(e)}
+                    >🗑</button>
+                  </div>
+                ) : (
+                  <span className="event-arrow">→</span>
+                )}
               </div>
             )
           })}
@@ -85,9 +179,24 @@ export default function Events() {
         </div>
       )}
 
+      {isAdmin && anchor && !loading && !error && (
+        <button type="button" className="event-add reveal" onClick={() => setModal('new')}>
+          <span>+</span> Añadir evento
+        </button>
+      )}
+
       <div style={{ marginTop: '2.5rem' }} className="reveal">
         <a href="https://www.aikikan.es/events" className="btn-outline"><span className="slash">/</span> Ver todos los eventos</a>
       </div>
+
+      {modal && anchor && (
+        <EventModal
+          anchorServiceId={anchor.id}
+          existing={modal === 'new' ? null : modal}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load() }}
+        />
+      )}
     </section>
   )
 }
