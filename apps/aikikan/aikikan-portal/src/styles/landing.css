@@ -425,8 +425,6 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .event-edit              { background: transparent; border: 1px solid rgba(9,9,8,.25); color: rgba(9,9,8,.55); font-size: 1rem; line-height: 1; padding: .15rem .55rem; cursor: none; transition: background .2s, color .2s, border-color .2s; }
 .event-edit:hover        { color: var(--accent); border-color: var(--accent); }
 .event-actions           { display: inline-flex; gap: .4rem; align-items: center; }
-.event-add               { font-family: 'Space Mono', monospace; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; background: transparent; border: 1px solid rgba(188,0,45,.4); color: var(--accent); padding: .5rem 1rem; cursor: none; transition: background .2s, color .2s; margin-top: 1.25rem; display: inline-flex; align-items: center; gap: .5rem; }
-.event-add:hover         { background: var(--accent); color: #fff; }
 
 .event-modal-overlay     { position: fixed; inset: 0; background: rgba(9,9,8,.55); z-index: 9500; display: flex; align-items: center; justify-content: center; padding: 2rem; }
 .event-modal             { background: #f4efe6; max-width: 520px; width: 100%; border: 1px solid rgba(188,0,45,.25); }

@@ -209,9 +209,11 @@ export default function Events() {
       )}
 
       {isAdmin && !loading && (
-        <button type="button" className="event-add reveal" onClick={openNew}>
-          <span>+</span> Añadir evento
-        </button>
+        <div style={{ marginTop: '2rem', textAlign: 'center' }} className="reveal">
+          <button type="button" onClick={openNew} className="btn-outline">
+            <span className="slash">/</span> + Añadir evento
+          </button>
+        </div>
       )}
 
       {modal && anchor && (
