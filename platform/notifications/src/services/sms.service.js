@@ -41,7 +41,10 @@ async function loadConfig() {
 export function invalidateSmsConfigCache() { cache.expiresAt = 0 }
 
 function isStubMode(cfg) {
-  return env.NODE_ENV === 'development'
+  // Stub when credentials are missing OR running tests. Don't key off
+  // NODE_ENV='development' — compose base leaves that flag set even in
+  // prod, which would mute real SMS.
+  return env.NODE_ENV === 'test'
     || !cfg.twilioAccountSid
     || !cfg.twilioApiKeySid
     || !cfg.twilioApiKeySecret

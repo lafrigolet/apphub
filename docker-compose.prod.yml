@@ -100,6 +100,11 @@ services:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-core:${IMAGE_TAG:-latest}
     volumes: !reset []
     environment:
+      # NODE_ENV stays 'development' in the base compose because dev mode
+      # uses --watch + bind mounts. In prod, override so anything that
+      # branches on it (logger format, email/sms/push stub gates, etc.)
+      # behaves correctly.
+      NODE_ENV: production
       # Public hostname suffix used when rendering nginx server blocks for new
       # apps / tenants (e.g. `aikikan.hulkstein.com`). Defaults to hulkstein.com
       # in dev; overridden here for the production domain.
@@ -108,22 +113,32 @@ services:
   platform-marketplace:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-marketplace:${IMAGE_TAG:-latest}
     volumes: !reset []
+    environment:
+      NODE_ENV: production
 
   platform-restaurant:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-restaurant:${IMAGE_TAG:-latest}
     volumes: !reset []
+    environment:
+      NODE_ENV: production
 
   platform-appointments:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-appointments:${IMAGE_TAG:-latest}
     volumes: !reset []
+    environment:
+      NODE_ENV: production
 
   platform-scheduler:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-scheduler:${IMAGE_TAG:-latest}
     volumes: !reset []
+    environment:
+      NODE_ENV: production
 
   aikikan-server:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-server:${IMAGE_TAG:-latest}
     volumes: !reset []
+    environment:
+      NODE_ENV: production
 
   # ── Frontal gateway: swap to prod upstream definitions ─────────
   nginx:

@@ -39,10 +39,17 @@ export async function sendRaw(msg) { await send(msg) }
 
 async function send(msg) {
   const cfg = await loadConfig()
-  const isDev = env.NODE_ENV === 'development' || !cfg.sendgridApiKey || cfg.sendgridApiKey === 'dev_no_sendgrid'
+  // Decide if we actually fire SendGrid based on credentials, not on
+  // NODE_ENV — compose base often leaves NODE_ENV='development' even
+  // in prod and that was breaking real emails. Tests isolate via
+  // vi.mock so NODE_ENV='test' stays as a hard skip.
+  const skip =
+    !cfg.sendgridApiKey ||
+    cfg.sendgridApiKey === 'dev_no_sendgrid' ||
+    env.NODE_ENV === 'test'
   const from = cfg.senderName ? { email: cfg.senderEmail, name: cfg.senderName } : cfg.senderEmail
 
-  if (isDev) {
+  if (skip) {
     logger.info({ to: msg.to, subject: msg.subject }, '[dev] Email not sent — logged only')
     return
   }

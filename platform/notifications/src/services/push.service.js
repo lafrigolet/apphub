@@ -56,7 +56,9 @@ export function invalidatePushConfigCache() {
 }
 
 function isStubMode(cfg) {
-  return env.NODE_ENV === 'development' || !cfg.projectId || !cfg.serviceAccount
+  // Stub on missing creds or while running tests. Not on NODE_ENV='development'
+  // — compose base sets it even in prod, see email.service.js note.
+  return env.NODE_ENV === 'test' || !cfg.projectId || !cfg.serviceAccount
 }
 
 // Build + sign the Google OAuth2 JWT bearer assertion.
