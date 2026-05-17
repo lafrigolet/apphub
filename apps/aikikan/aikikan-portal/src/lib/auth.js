@@ -124,6 +124,14 @@ export async function forgotPassword(email) {
   return post('/forgot-password', { appId: APP_ID, tenantId: TENANT_ID, email })
 }
 
+// /reset-password?token=... — landing del magic-link "olvidé mi contraseña".
+// El usuario llega con un token de un solo uso y aquí fija una nueva
+// contraseña. El backend NO devuelve sesión — tras el reset hace falta
+// que el usuario haga login normal con la nueva clave.
+export async function resetPassword({ token, newPassword }) {
+  return post('/reset-password', { token, newPassword })
+}
+
 // Magic-link de bootstrap: el owner aterriza desde el email con
 // ?token=... y fija su contraseña. El backend devuelve par
 // access/refresh listos para usar. saveSession lo guarda igual que
