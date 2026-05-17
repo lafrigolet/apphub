@@ -76,9 +76,20 @@ export function startEventConsumer() {
       }
 
       if (event.type === 'auth.password_reset_requested') {
-        const { email, token, userId } = event.payload ?? {}
+        const { email, token, userId, appId } = event.payload ?? {}
         if (email && token) {
-          const resetUrl = `${process.env.APP_BASE_URL ?? 'http://aikikan.hulkstein.local:8080'}/reset-password?token=${token}`
+          // Cada app tiene su propio subdomain (aikikan.hulkstein.com, splitpay.hulkstein.com, …).
+          // Por convención subdomain === appId (platform_tenants.apps.subdomain coincide con app_id).
+          // En prod resolvemos a https://<appId>.<PLATFORM_PUBLIC_DOMAIN>; en dev caemos a
+          // http://<appId>.hulkstein.local:8080 (mismo nginx local).
+          const subdomain    = event.payload.subdomain ?? appId
+          const publicDomain = process.env.PLATFORM_PUBLIC_DOMAIN
+          const base = subdomain && publicDomain
+            ? `https://${subdomain}.${publicDomain}`
+            : subdomain
+              ? `http://${subdomain}.hulkstein.local:8080`
+              : 'http://hulkstein.local:8080'
+          const resetUrl = `${base}/reset-password?token=${token}`
           await gated(userId, event.type, 'email', () => sendPasswordResetEmail(email, resetUrl, locale))
         }
       }
