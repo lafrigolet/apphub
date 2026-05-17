@@ -31,6 +31,7 @@ function LandingPage() {
       <Masters />
       <Videos />
       <Dojos />
+      <Events />
       <Contact />
       <Footer />
     </div>
