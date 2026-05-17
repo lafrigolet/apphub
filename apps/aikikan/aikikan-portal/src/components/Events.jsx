@@ -208,7 +208,7 @@ export default function Events() {
         </div>
       )}
 
-      {isAdmin && !loading && (
+      {isAdmin && (
         <div style={{ marginTop: '2rem', textAlign: 'center' }} className="reveal">
           <button type="button" onClick={openNew} className="btn-outline">
             <span className="slash">/</span> + Añadir evento
