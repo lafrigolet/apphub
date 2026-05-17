@@ -72,7 +72,9 @@ async function ensureAnchorService() {
 
 export default function Events() {
   const identity = getIdentity()
-  const isAdmin = !!(identity && isAdminRole(identity.role) && identity.appId === APP_ID)
+  // Sigue el patrón de Videos/Dojos: con que el rol sea admin/owner/staff
+  // basta. El JWT del portal aikikan ya garantiza app_id='aikikan'.
+  const isAdmin = !!(identity && isAdminRole(identity.role))
 
   const [sessions, setSessions] = useState([])
   const [anchor, setAnchor]     = useState(null)
@@ -85,19 +87,32 @@ export default function Events() {
     ;(async () => {
       try {
         if (isAdmin) {
-          const svc = await ensureAnchorService()
-          setAnchor(svc)
-          const res = await authFetch(`/api/services/${svc.id}/sessions`)
-          const json = await res.json()
-          if (!res.ok) throw new Error(json.error?.message ?? res.statusText)
-          const rows = (json?.data ?? []).filter((s) => s.status === 'scheduled')
-          setSessions(rows.map((s) => ({
-            id:        s.id,
-            name:      s.description || svc.name,
-            location:  s.location,
-            starts_at: s.starts_at,
-            _raw:      s,
-          })))
+          // El anchor se resuelve "best-effort": si falla NO bloqueamos
+          // el botón "+", que sigue visible para que el admin pueda
+          // reintentar abriendo el modal (la creación lo resolverá de
+          // nuevo bajo demanda).
+          let svc = null
+          try {
+            svc = await ensureAnchorService()
+            setAnchor(svc)
+          } catch (err) {
+            console.warn('[events] ensureAnchorService falló', err)
+          }
+          if (svc) {
+            const res = await authFetch(`/api/services/${svc.id}/sessions`)
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(json.error?.message ?? res.statusText)
+            const rows = (json?.data ?? []).filter((s) => s.status === 'scheduled')
+            setSessions(rows.map((s) => ({
+              id:        s.id,
+              name:      s.description || svc.name,
+              location:  s.location,
+              starts_at: s.starts_at,
+              _raw:      s,
+            })))
+          } else {
+            setSessions([])
+          }
         } else {
           const tenantId = await resolveTenantId(APP_ID)
           const url = `/api/services/sessions/upcoming?appId=${APP_ID}&tenantId=${encodeURIComponent(tenantId)}&kind=event`
@@ -130,6 +145,20 @@ export default function Events() {
       load()
     } catch (err) {
       alert(`No se pudo borrar: ${err.message}`)
+    }
+  }
+
+  // El botón "+" puede dispararse antes de que el anchor esté resuelto
+  // (sobre todo en tenants vírgenes donde la lista está vacía). Si no
+  // tenemos anchor aún, lo creamos al vuelo y abrimos el modal.
+  async function openNew() {
+    if (anchor) { setModal('new'); return }
+    try {
+      const svc = await ensureAnchorService()
+      setAnchor(svc)
+      setModal('new')
+    } catch (err) {
+      alert(`No se pudo preparar el evento: ${err.message}`)
     }
   }
 
@@ -179,15 +208,11 @@ export default function Events() {
         </div>
       )}
 
-      {isAdmin && anchor && !loading && !error && (
-        <button type="button" className="event-add reveal" onClick={() => setModal('new')}>
+      {isAdmin && !loading && (
+        <button type="button" className="event-add reveal" onClick={openNew}>
           <span>+</span> Añadir evento
         </button>
       )}
-
-      <div style={{ marginTop: '2.5rem' }} className="reveal">
-        <a href="https://www.aikikan.es/events" className="btn-outline"><span className="slash">/</span> Ver todos los eventos</a>
-      </div>
 
       {modal && anchor && (
         <EventModal
