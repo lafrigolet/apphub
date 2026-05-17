@@ -68,7 +68,17 @@ async function send(msg) {
 // requested locale has no row.
 async function compose(key, vars, defaults, locale) {
   const fromDb = await renderTemplate(key, vars, 'email', locale)
-  return fromDb ?? defaults
+  if (!fromDb) return defaults
+  // Fallback PER FIELD: si la plantilla en DB tiene algún campo
+  // (subject/text/html) en NULL, sustituimos por el hardcoded default.
+  // Antes hacíamos "fromDb ?? defaults" y un body_html=NULL llegaba a
+  // SendGrid como literal null → 'string expected for html'.
+  return {
+    subject: fromDb.subject ?? defaults.subject,
+    text:    fromDb.text    ?? defaults.text,
+    html:    fromDb.html    ?? defaults.html,
+    locale:  fromDb.locale,
+  }
 }
 
 // Locale-aware lead-time labels used in the hardcoded fallbacks. The DB
