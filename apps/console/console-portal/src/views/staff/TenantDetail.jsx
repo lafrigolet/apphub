@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
 import { api } from '../../lib/api'
 import { adaptTenant, adaptUser, adaptAudit } from '../../lib/adapters'
-import { APP_ID } from '../../lib/auth'
 import { fmtDate, fmtMoney, fmtNumber, relTime, tenantColor, initials } from '../../lib/utils'
 import { icons } from '../../lib/icons'
 import { StatusBadge, StripeBadge, PlanBadge, RoleBadge, TwoFABadge, Avatar, DlRow, MiniMetric } from '../../lib/ui'
@@ -194,8 +193,264 @@ function TabStripe({ t, app }) {
   )
 }
 
-function TabAdmins({ t, admins }) {
-  const { toast } = useApp()
+// Generates a strong random password used as a temporary credential while
+// the invitee completes the set-password flow via the magic-link email.
+// Same pattern as CreateAppModal — never shown in the UI, never logged.
+function randomTempPassword() {
+  const bytes = new Uint8Array(24)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, '').slice(0, 32) + 'A1!'
+}
+
+function InviteAdminModal({ tenant, onDone }) {
+  const { closeModal, toast } = useApp()
+  const [email, setEmail]             = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [role, setRole]               = useState('admin')
+  const [busy, setBusy]               = useState(false)
+  const [error, setError]             = useState(null)
+
+  async function submit(e) {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      // 1. Crear el user con password aleatoria. La password queda como
+      //    bcrypt hash en DB; nadie la sabe — el invitado la fija él
+      //    mismo desde el magic-link.
+      await api.post('/api/auth/register', {
+        appId:    tenant.app_id,
+        tenantId: tenant.id,
+        email:    email.trim(),
+        password: randomTempPassword(),
+        role,
+      })
+      // 2. Disparar forgot-password → genera token + dispatcha email vía
+      //    notifications module (SendGrid).
+      await api.post('/api/auth/forgot-password', {
+        appId:    tenant.app_id,
+        tenantId: tenant.id,
+        email:    email.trim(),
+      })
+      // 3. Si el invitado tiene displayName, opcionalmente actualizarlo.
+      //    No bloquea el flujo — si falla, el user queda con email como nombre.
+      // (El endpoint PATCH /v1/users/me sólo permite que el propio user se
+      //  actualice; aún no hay PATCH /v1/users/:id para staff. Lo dejamos
+      //  para iteración futura; ahora el displayName se cogerá la primera
+      //  vez que el invitado entre.)
+      toast(`Invitación enviada a ${email}`)
+      onDone?.()
+      closeModal()
+    } catch (err) {
+      // Error típico: 409 si el email ya existe en (app_id, tenant_id).
+      setError(err.message ?? 'No se pudo invitar al admin')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="p-6 border-b border-line">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-display text-[22px]">Invitar administrador</div>
+            <div className="text-[13px] text-ink3 mt-1">
+              El invitado recibirá un email para fijar su contraseña.
+            </div>
+          </div>
+          <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
+        </div>
+      </div>
+      <form className="p-6 space-y-4" onSubmit={submit}>
+        <div>
+          <div className="label mb-1.5">Email</div>
+          <input
+            type="email" required value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="input" autoComplete="off" autoFocus
+          />
+        </div>
+        <div>
+          <div className="label mb-1.5">Nombre (opcional)</div>
+          <input
+            type="text" value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className="input"
+            placeholder="Cómo se mostrará en la consola"
+          />
+        </div>
+        <div>
+          <div className="label mb-1.5">Rol</div>
+          <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="admin">admin</option>
+            <option value="owner">owner</option>
+          </select>
+        </div>
+        {error && <div className="bg-dangerbg border border-line rounded-lg p-3 text-[12.5px] text-danger">{error}</div>}
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <button type="button" onClick={closeModal} className="btn btn-ghost">Cancelar</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? 'Enviando…' : 'Enviar invitación'}
+          </button>
+        </div>
+      </form>
+    </>
+  )
+}
+
+function ChangeRoleModal({ user, onDone }) {
+  const { closeModal, toast } = useApp()
+  const [role, setRole]   = useState(String(user.role).toLowerCase())
+  const [busy, setBusy]   = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit(e) {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await api.patch(`/api/users/${user.id}/role`, { role })
+      toast(`Rol de ${user.name} actualizado a ${role}`)
+      onDone?.()
+      closeModal()
+    } catch (err) {
+      setError(err.message ?? 'No se pudo cambiar el rol')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="p-6 border-b border-line">
+        <div className="flex items-center justify-between">
+          <div className="font-display text-[22px]">Cambiar rol de {user.name}</div>
+          <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
+        </div>
+      </div>
+      <form className="p-6 space-y-4" onSubmit={submit}>
+        <div>
+          <div className="label mb-1.5">Rol actual</div>
+          <RoleBadge role={user.role} />
+        </div>
+        <div>
+          <div className="label mb-1.5">Nuevo rol</div>
+          <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="admin">admin</option>
+            <option value="owner">owner</option>
+            <option value="user">user</option>
+          </select>
+        </div>
+        {error && <div className="bg-dangerbg border border-line rounded-lg p-3 text-[12.5px] text-danger">{error}</div>}
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <button type="button" onClick={closeModal} className="btn btn-ghost">Cancelar</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button>
+        </div>
+      </form>
+    </>
+  )
+}
+
+function RevokeAdminModal({ tenant, user, onDone }) {
+  const { closeModal, toast } = useApp()
+  const [busy, setBusy]   = useState(false)
+  const [error, setError] = useState(null)
+
+  async function confirm() {
+    setBusy(true); setError(null)
+    try {
+      await api.delete(`/api/users/${user.id}`)
+      toast(`${user.name} revocado`)
+      onDone?.()
+      closeModal()
+    } catch (err) {
+      setError(err.message ?? 'No se pudo revocar')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="p-6 border-b border-line">
+        <div className="flex items-center justify-between">
+          <div className="font-display text-[22px]">Revocar acceso</div>
+          <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
+        </div>
+      </div>
+      <div className="p-6 space-y-4">
+        <p className="text-[14px]">
+          Vas a revocar a <strong>{user.name}</strong> ({user.email}) de <strong>{tenant.name}</strong>.
+          Pierde acceso inmediatamente. Sus tokens activos quedan invalidados.
+        </p>
+        <p className="text-[13px] text-ink3">
+          La fila queda con <code className="font-mono">revoked_at</code> marcado — no se borra para
+          preservar el audit log. Puedes re-invitar el mismo email después si lo necesitas.
+        </p>
+        {error && <div className="bg-dangerbg border border-line rounded-lg p-3 text-[12.5px] text-danger">{error}</div>}
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <button onClick={closeModal} className="btn btn-ghost">Cancelar</button>
+          <button onClick={confirm} className="btn btn-danger" disabled={busy}>
+            {busy ? 'Revocando…' : 'Revocar acceso'}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function AdminRowMenu({ tenant, user, onChanged }) {
+  const { openModal, toast } = useApp()
+  const [open, setOpen]   = useState(false)
+
+  async function resend() {
+    setOpen(false)
+    try {
+      await api.post('/api/auth/forgot-password', {
+        appId:    tenant.app_id,
+        tenantId: tenant.id,
+        email:    user.email,
+      })
+      toast(`Magic-link reenviado a ${user.email}`)
+    } catch (err) {
+      toast(err.message ?? 'No se pudo reenviar', 'danger')
+    }
+  }
+
+  function changeRole() {
+    setOpen(false)
+    openModal(<ChangeRoleModal user={user} onDone={onChanged} />)
+  }
+
+  function revoke() {
+    setOpen(false)
+    openModal(<RevokeAdminModal tenant={tenant} user={user} onDone={onChanged} />)
+  }
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="text-ink3 hover:text-ink p-1"
+        aria-label="Acciones"
+      >{icons.more}</button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-10 min-w-[200px] bg-white border border-line rounded-lg shadow-pop py-1 text-[13px]">
+          <button onMouseDown={changeRole}
+            className="w-full text-left px-3 py-2 hover:bg-paper2">Cambiar rol</button>
+          <button onMouseDown={resend}
+            className="w-full text-left px-3 py-2 hover:bg-paper2">Reenviar magic-link</button>
+          <div className="border-t border-line my-1" />
+          <button onMouseDown={revoke}
+            className="w-full text-left px-3 py-2 hover:bg-paper2 text-danger">Revocar acceso</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabAdmins({ t, admins, onRefresh }) {
+  const { openModal } = useApp()
   return (
     <div className="space-y-6">
       <div className="bg-white border border-line rounded-xl shadow-card">
@@ -205,10 +460,10 @@ function TabAdmins({ t, admins }) {
             <div className="text-xs text-ink3 mt-0.5">{admins.length} personas con acceso al tenant</div>
           </div>
           <button
-            onClick={() => toast('Invitaciones disponibles próximamente', 'warn')}
-            className="btn btn-ghost btn-sm"
+            onClick={() => openModal(<InviteAdminModal tenant={t} onDone={onRefresh} />)}
+            className="btn btn-primary btn-sm"
           >
-            {icons.info}Invitaciones: próximamente
+            {icons.plus}Invitar admin
           </button>
         </div>
         <table className="t">
@@ -231,7 +486,9 @@ function TabAdmins({ t, admins }) {
                 <td><RoleBadge role={a.role} /></td>
                 <td><TwoFABadge enabled={a.twofa} /></td>
                 <td className="text-[13px] text-ink3">{a.last ? relTime(a.last) : '—'}</td>
-                <td className="text-right"><button className="text-ink3 hover:text-ink p-1">{icons.more}</button></td>
+                <td className="text-right">
+                  <AdminRowMenu tenant={t} user={a} onChanged={onRefresh} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -317,21 +574,37 @@ export default function TenantDetail() {
 
   useEffect(() => {
     if (!selectedTenant) return
+    let cancelled = false
     setLoading(true)
-    Promise.all([
-      api.get(`/api/tenants/tenants/${selectedTenant}`).then(adaptTenant),
-      api.get(`/api/users/?appId=${APP_ID}&tenantId=${selectedTenant}`).then((l) => l.map(adaptUser)),
-      api.get(`/api/audit/?tenantId=${selectedTenant}`).then((l) => l.map((a) => adaptAudit(a))),
-    ])
-      .then(([tenant, adm, a]) => {
-        setTenant(tenant); setAdmins(adm); setAudit(a)
-        // Lazy-load the app of this tenant so TabStripe knows splitpay_enabled
-        if (tenant?.app_id) {
-          api.get(`/api/apps/${tenant.app_id}`).then(setApp).catch(() => setApp(null))
-        }
+    // Cargar el tenant primero — su app_id es necesario para listar users
+    // con el scope correcto (antes usaba APP_ID='console' del propio
+    // staff console, lo que devolvía 0 admins para tenants de cualquier
+    // otra app como aikikan).
+    api.get(`/api/tenants/tenants/${selectedTenant}`)
+      .then(adaptTenant)
+      .then(async (tenant) => {
+        if (cancelled) return
+        setTenant(tenant)
+        const appId = tenant?.app_id
+        const [adm, a, appRow] = await Promise.all([
+          appId
+            ? api.get(`/api/users/?appId=${encodeURIComponent(appId)}&tenantId=${selectedTenant}`)
+                .then((l) => l.map(adaptUser)).catch(() => [])
+            : Promise.resolve([]),
+          api.get(`/api/audit/?tenantId=${selectedTenant}`)
+            .then((l) => l.map((x) => adaptAudit(x))).catch(() => []),
+          appId
+            ? api.get(`/api/apps/${appId}`).catch(() => null)
+            : Promise.resolve(null),
+        ])
+        if (cancelled) return
+        setAdmins(adm)
+        setAudit(a)
+        setApp(appRow)
       })
-      .catch(() => setTenant(null))
-      .finally(() => setLoading(false))
+      .catch(() => { if (!cancelled) setTenant(null) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [selectedTenant, refreshKey])
 
   const refresh = () => setRefreshKey((k) => k + 1)
@@ -348,7 +621,7 @@ export default function TenantDetail() {
       case 'identity':     return <TabIdentity t={t} />
       case 'state':        return <TabState t={t} />
       case 'stripe':       return <TabStripe t={t} app={app} />
-      case 'admins':       return <TabAdmins t={t} admins={admins} />
+      case 'admins':       return <TabAdmins t={t} admins={admins} onRefresh={refresh} />
       case 'subscription': return <TabSubscription t={t} onRefresh={refresh} onToast={toast} />
       case 'audit':        return <TabAudit t={t} log={audit} />
     }
