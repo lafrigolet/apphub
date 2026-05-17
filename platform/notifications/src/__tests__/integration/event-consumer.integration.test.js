@@ -4,8 +4,8 @@
  * Start dependencies:  docker compose up redis -d
  * Run:                 pnpm --filter @apphub/platform-notifications test:integration
  *
- * The email service is spied on but NOT mocked: in test/dev mode (SENDGRID_API_KEY=dev_no_sendgrid)
- * it logs instead of calling SendGrid, so no real emails are sent.
+ * The email service is spied on but NOT mocked: in test/dev mode (RESEND_API_KEY=empty)
+ * it logs instead of calling Resend, so no real emails are sent.
  */
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import Redis from 'ioredis'
@@ -41,7 +41,7 @@ async function publishAndWait(sub, event, condition, timeoutMs = 3000) {
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe('event-consumer with real Redis pub/sub', () => {
-  it('processes user.registered event and logs email (dev mode — no SendGrid)', async () => {
+  it('processes user.registered event and logs email (dev mode — no Resend)', async () => {
     const { logger } = await import('../../lib/logger.js')
     vi.spyOn(logger, 'info')
 

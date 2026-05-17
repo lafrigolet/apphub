@@ -6,6 +6,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- **ESP swap: Resend en lugar de SendGrid** — `platform/notifications` ahora
+  usa la SDK de Resend para envío de email y para la API de Domain
+  Authentication por tenant.
+  - `email.service.js` reescrito con `import { Resend } from 'resend'`.
+  - `sendgrid-domains.service.js` eliminado; `resend-domains.service.js`
+    implementa create/validate/delete contra Resend's Domains API.
+  - DB: clave config renombrada `sendgrid_api_key` → `resend_api_key`;
+    migración 0014 borra la fila stale (la API key vieja era de SendGrid,
+    inservible para Resend).
+  - Env vars: `SENDGRID_API_KEY`/`SENDGRID_FROM_EMAIL` → `RESEND_API_KEY`/
+    `EMAIL_FROM_ADDRESS` (más genérico, futureproof).
+  - UI: Hulkstein Console > Configuración > "Resend" (era "SendGrid"),
+    placeholder API key `re_…`, helper de SPF actualizado a
+    `include:amazonses.com` (Resend usa AWS SES por debajo).
+  - Tests: mocks `vi.mock('@sendgrid/mail')` → `vi.mock('resend')`.
+  - Operador debe pegar la nueva API key de Resend desde la consola
+    tras desplegar.
+
 ### Added
 - **`platform/leads` module** — public lead-capture endpoint for the
   Hulkstein landing's contact form. New schema `platform_leads` + role
@@ -75,7 +94,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   migrations preserve the historical record.
 
 ### Removed (secrets)
-- Stripe / OAuth / SendGrid / S3 secrets removed from `.env` and `.env.example` —
+- Stripe / OAuth / Resend / S3 secrets removed from `.env` and `.env.example` —
   they live encrypted at rest in `platform_*/config|settings|oauth_providers`
   tables and are configured via `/v1/<module>/admin` endpoints (super_admin/staff).
   Only bootstrap secrets (DATABASE_URL, JWT, encryption master key, MinIO root,
@@ -91,12 +110,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     config from DB at each login, falling back to env for back-compat.
   - **Stripe (payments)**: publishable_key, secret_key, webhook_secret —
     encrypted. New table `platform_payments.config`, routes `/v1/payments/admin/config`.
-  - **SendGrid + Email Templates (notifications)**: API key + sender + 6
+  - **Resend + Email Templates (notifications)**: API key + sender + 6
     seeded templates with `{{var}}` interpolation. Tables
     `platform_notifications.config` and `…templates`. Routes
     `/v1/notifications/admin/config`, `…/templates` (CRUD + preview).
     `email.service` reads templates from DB with hardcoded fallback;
-    SendGrid api_key + sender resolved from DB with env fallback (cached 30s).
+    Resend api_key + sender resolved from DB with env fallback (cached 30s).
   - **Stripe Connect (splitpay)**: platform_account_id + secret/publishable
     keys + webhook secret. Table `splitpay_core.config`, routes
     `/v1/splitpay/admin/config`. `lib/stripe.js` hydrates from DB at boot
@@ -316,7 +335,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   - `src/routes/oauth.routes.js` — `POST /v1/auth/oauth/google`, `POST /v1/auth/oauth/facebook`
 
 - **`platform/notifications` — email sending**
-  - `src/services/email.service.js` — SendGrid in production; console log fallback in development
+  - `src/services/email.service.js` — Resend in production; console log fallback in development
   - `src/services/event-consumer.js` — Redis subscriber on `platform:events`; handles `user.registered` (welcome email) and `auth.password_reset_requested` (reset email)
 
 - **`apps/aikikan/aikikan-portal` — login UI wired to real API**

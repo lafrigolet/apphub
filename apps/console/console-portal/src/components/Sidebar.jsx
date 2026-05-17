@@ -24,7 +24,7 @@ export default function Sidebar() {
     { _section: 'Configuración' },
     { k: 'config-auth',                      label: 'OAuth Providers', icon: icons.settings },
     { k: 'config-payments',                  label: 'Stripe',          icon: icons.settings },
-    { k: 'config-notifications',             label: 'SendGrid',        icon: icons.settings },
+    { k: 'config-notifications',             label: 'Resend',          icon: icons.settings },
     { k: 'config-twilio',                    label: 'Twilio (SMS)',    icon: icons.settings },
     { k: 'config-push',                      label: 'Push (FCM)',      icon: icons.settings },
     { k: 'config-notifications-templates',   label: 'Plantillas',      icon: icons.settings },

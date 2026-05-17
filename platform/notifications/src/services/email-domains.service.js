@@ -1,7 +1,7 @@
 import { pool, withTenantTransaction } from '../lib/db.js'
 import * as repo from '../repositories/email-domains.repository.js'
 import * as configRepo from '../repositories/config.repository.js'
-import * as sg from './sendgrid-domains.service.js'
+import * as provider from './resend-domains.service.js'
 import { env } from '../lib/env.js'
 import { logger } from '../lib/logger.js'
 
@@ -11,11 +11,11 @@ class HttpError extends Error {
 
 const DOMAIN_RE = /^(?!-)([a-z0-9-]{1,63}\.)+[a-z]{2,}$/i
 
-async function resolveSendGridApiKey() {
+async function resolveProviderApiKey() {
   const client = await pool.connect()
   try {
-    const fromDb = await configRepo.getValue(client, 'sendgrid_api_key')
-    return fromDb ?? env.SENDGRID_API_KEY ?? null
+    const fromDb = await configRepo.getValue(client, 'resend_api_key')
+    return fromDb ?? env.RESEND_API_KEY ?? null
   } finally { client.release() }
 }
 
@@ -24,15 +24,15 @@ export async function createForTenant(ctx, { domain }) {
   if (!DOMAIN_RE.test(normalized)) {
     throw new HttpError(422, 'INVALID_DOMAIN', 'domain is not a valid hostname')
   }
-  const apiKey = await resolveSendGridApiKey()
+  const apiKey = await resolveProviderApiKey()
 
-  // Provision in SendGrid (or stub) BEFORE the DB insert so we don't store
+  // Provision in Resend (or stub) BEFORE the DB insert so we don't store
   // half-initialised rows if the ESP rejects.
   let provisioned
   try {
-    provisioned = await sg.createBrandedDomain({ apiKey, domain: normalized })
+    provisioned = await provider.createBrandedDomain({ apiKey, domain: normalized })
   } catch (err) {
-    logger.warn({ err, domain: normalized }, 'sendgrid createBrandedDomain failed')
+    logger.warn({ err, domain: normalized }, 'resend createBrandedDomain failed')
     throw new HttpError(502, 'PROVIDER_ERROR', 'failed to provision domain with provider')
   }
 
@@ -41,7 +41,7 @@ export async function createForTenant(ctx, { domain }) {
       appId: ctx.appId,
       tenantId: ctx.tenantId,
       domain: normalized,
-      provider: 'sendgrid',
+      provider: 'resend',
       providerDomainId: provisioned.providerDomainId,
       dnsRecords: provisioned.dnsRecords,
     }),
@@ -63,16 +63,16 @@ export async function getForTenant(ctx, id) {
 }
 
 export async function verifyForTenant(ctx, id) {
-  const apiKey = await resolveSendGridApiKey()
+  const apiKey = await resolveProviderApiKey()
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     const r = await repo.findById(c, id)
     if (!r) throw new HttpError(404, 'NOT_FOUND', 'email domain not found')
 
     let valid, dnsRecords
     try {
-      ({ valid, dnsRecords } = await sg.validateBrandedDomain({ apiKey, providerDomainId: r.provider_domain_id }))
+      ({ valid, dnsRecords } = await provider.validateBrandedDomain({ apiKey, providerDomainId: r.provider_domain_id }))
     } catch (err) {
-      logger.warn({ err, id }, 'sendgrid validate failed')
+      logger.warn({ err, id }, 'resend validate failed')
       return repo.setStatus(c, id, 'failed', null)
     }
     return repo.setStatus(c, id, valid ? 'verified' : 'pending', dnsRecords)
@@ -96,16 +96,16 @@ export async function suspendForTenant(ctx, id, reason) {
 }
 
 export async function deleteForTenant(ctx, id) {
-  const apiKey = await resolveSendGridApiKey()
+  const apiKey = await resolveProviderApiKey()
   await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     const r = await repo.findById(c, id)
     if (!r) throw new HttpError(404, 'NOT_FOUND', 'email domain not found')
     try {
-      await sg.deleteBrandedDomain({ apiKey, providerDomainId: r.provider_domain_id })
+      await provider.deleteBrandedDomain({ apiKey, providerDomainId: r.provider_domain_id })
     } catch (err) {
-      // Log but don't block — leftover SendGrid rows are easier to clean up
+      // Log but don't block — leftover Resend rows are easier to clean up
       // than orphaned DB rows that block re-adding the same domain.
-      logger.warn({ err, id }, 'sendgrid deleteBrandedDomain failed (continuing)')
+      logger.warn({ err, id }, 'resend deleteBrandedDomain failed (continuing)')
     }
     await repo.remove(c, id)
   })

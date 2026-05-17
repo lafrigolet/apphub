@@ -1,5 +1,5 @@
 // AES-256-GCM helper for at-rest encryption of module-level config secrets
-// (Stripe keys, OAuth client_secret, SendGrid API keys, S3 access keys, …).
+// (Stripe keys, OAuth client_secret, Resend API keys, S3 access keys, …).
 //
 // The plaintext is never persisted. We store one BYTEA column per secret as
 // `iv (12) || tag (16) || ciphertext`. The master key lives in the env var

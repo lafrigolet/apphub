@@ -68,7 +68,7 @@ export async function emailDomainsRoutes(fastify) {
   fastify.post('/', {
     schema: {
       tags,
-      summary: 'Create a tenant email-sender domain (provisions in SendGrid)',
+      summary: 'Create a tenant email-sender domain (provisions in Resend)',
       body: createBody,
     },
   }, async (req, reply) => {
@@ -100,7 +100,7 @@ export async function emailDomainsRoutes(fastify) {
   fastify.post('/:id/verify', {
     schema: {
       tags,
-      summary: 'Re-validate the SendGrid CNAMEs and update domain status',
+      summary: 'Re-validate the Resend DNS records and update domain status',
       params: idParams,
     },
   }, async (req, reply) => {
@@ -141,7 +141,7 @@ export async function emailDomainsRoutes(fastify) {
   })
 
   fastify.delete('/:id', {
-    schema: { tags, summary: 'Delete a domain (also removes it from SendGrid)', params: idParams },
+    schema: { tags, summary: 'Delete a domain (also removes it from Resend)', params: idParams },
   }, async (req, reply) => {
     const guarded = requireTenantOwnerOrStaff(req, reply); if (guarded) return guarded
     try {

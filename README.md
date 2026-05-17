@@ -43,7 +43,7 @@ without business-logic changes.
 
 ```bash
 # Prerequisites: Docker, Node 20+, pnpm 9+
-cp .env.example .env          # fill in your Stripe / SendGrid / OAuth keys
+cp .env.example .env          # fill in your Stripe / Resend / OAuth keys
 pnpm install
 docker compose up -d          # starts postgres, redis, the three monoliths,
                               # all app services and frontends, plus NGINX

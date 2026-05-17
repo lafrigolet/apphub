@@ -94,7 +94,7 @@ services:
       PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
       # Master key for AES-256-GCM at-rest encryption of module config
       # secrets stored in platform_*/config tables (auth oauth_client_secret,
-      # Stripe keys, SendGrid api key, S3 access keys, etc.).
+      # Stripe keys, Resend api key, S3 access keys, etc.).
       PLATFORM_CONFIG_ENCRYPTION_KEY: ${PLATFORM_CONFIG_ENCRYPTION_KEY}
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
@@ -122,8 +122,8 @@ services:
       FACEBOOK_APP_ID:     ${FACEBOOK_APP_ID:-}
       FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
       # Notifications module
-      SENDGRID_API_KEY:    ${SENDGRID_API_KEY:-dev_no_sendgrid}
-      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hulkstein.local}
+      RESEND_API_KEY:      ${RESEND_API_KEY:-}
+      EMAIL_FROM_ADDRESS:  ${EMAIL_FROM_ADDRESS:-noreply@hulkstein.local}
       # Payments module — Stripe
       PLATFORM_STRIPE_SECRET_KEY:     ${PLATFORM_STRIPE_SECRET_KEY:-sk_test_placeholder}
       PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
@@ -534,7 +534,7 @@ volumes:
 #   edge  — Internet (vía nginx) ↔ frontal nginx + portales static.
 #           NO contiene postgres/redis/minio.
 #   app   — nginx ↔ Fastify monoliths ↔ entre monoliths (HTTP).
-#           Permite egreso a Internet para Stripe / SendGrid / etc.
+#           Permite egreso a Internet para Stripe / Resend / etc.
 #   data  — Fastify monoliths + scheduler ↔ postgres / redis / minio.
 #           `internal: true` bloquea egreso a Internet — defense
 #           in depth: si comprometen postgres/redis/minio o un

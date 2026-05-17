@@ -131,7 +131,7 @@ anything in `resources` or `bookings`. The per-tenant feature flag (in
 3. Migrations: `connections`, `sync_state`, `external_events` tables (RLS,
    encrypted refresh_token column).
 4. `services/google-client.js` + `services/outlook-client.js` — fetch-based
-   wrappers using the same dev-stub pattern as SendGrid/Twilio/FCM.
+   wrappers using the same dev-stub pattern as Resend/Twilio/FCM.
 5. OAuth routes: `GET /connect/:provider`, `GET /callback/:provider`,
    `POST /disconnect/:connectionId`.
 6. Webhook routes: `POST /webhook/:provider` with provider-specific signature

@@ -1,4 +1,4 @@
-import sgMail from '@sendgrid/mail'
+import { Resend } from 'resend'
 import { env } from '../lib/env.js'
 import { logger } from '../lib/logger.js'
 import { pool } from '../lib/db.js'
@@ -6,23 +6,23 @@ import * as configRepo from '../repositories/config.repository.js'
 import { renderTemplate } from './template-renderer.js'
 
 // Resolve runtime config: prefer DB rows (set by staff via console),
-// fall back to env vars for back-compat. Cached for 30s to avoid hammering
-// Postgres on every email.
+// fall back to env var. Cached for 30s to avoid hammering Postgres on
+// every email.
 const CACHE_TTL_MS = 30_000
-let cache = { sendgridApiKey: null, senderEmail: null, senderName: null, expiresAt: 0 }
+let cache = { resendApiKey: null, senderEmail: null, senderName: null, expiresAt: 0 }
 
 async function loadConfig() {
   if (Date.now() < cache.expiresAt) return cache
   const client = await pool.connect()
   try {
-    const apiKey = await configRepo.getValue(client, 'sendgrid_api_key')
+    const apiKey      = await configRepo.getValue(client, 'resend_api_key')
     const senderEmail = await configRepo.getValue(client, 'sender_email')
     const senderName  = await configRepo.getValue(client, 'sender_name')
     cache = {
-      sendgridApiKey: apiKey ?? env.SENDGRID_API_KEY,
-      senderEmail:    senderEmail ?? env.SENDGRID_FROM_EMAIL,
-      senderName:     senderName ?? null,
-      expiresAt:      Date.now() + CACHE_TTL_MS,
+      resendApiKey: apiKey ?? env.RESEND_API_KEY,
+      senderEmail:  senderEmail ?? env.EMAIL_FROM_ADDRESS,
+      senderName:   senderName ?? null,
+      expiresAt:    Date.now() + CACHE_TTL_MS,
     }
   } finally {
     client.release()
@@ -34,29 +34,39 @@ async function loadConfig() {
 export function invalidateConfigCache() { cache.expiresAt = 0 }
 
 // Public passthrough used by the digest flush job (which composes its own
-// subject/body and just needs the underlying SendGrid send).
+// subject/body and just needs the underlying send).
 export async function sendRaw(msg) { await send(msg) }
 
 async function send(msg) {
   const cfg = await loadConfig()
-  // Decide if we actually fire SendGrid based on credentials, not on
-  // NODE_ENV — compose base often leaves NODE_ENV='development' even
-  // in prod and that was breaking real emails. Tests isolate via
-  // vi.mock so NODE_ENV='test' stays as a hard skip.
-  const skip =
-    !cfg.sendgridApiKey ||
-    cfg.sendgridApiKey === 'dev_no_sendgrid' ||
-    env.NODE_ENV === 'test'
-  const from = cfg.senderName ? { email: cfg.senderEmail, name: cfg.senderName } : cfg.senderEmail
+  // Send if the operator configured a Resend API key. Tests skip via
+  // NODE_ENV='test' (vi.mock already isolates them but the guard is
+  // belt-and-braces). NOT keyed off NODE_ENV='development' because the
+  // compose base sets that even in prod and it would mute real emails.
+  const skip = !cfg.resendApiKey || env.NODE_ENV === 'test'
 
   if (skip) {
     logger.info({ to: msg.to, subject: msg.subject }, '[dev] Email not sent — logged only')
     return
   }
+  // Resend expects `from` as "Name <email@domain>" or just "email@domain".
+  const from = cfg.senderName
+    ? `${cfg.senderName} <${cfg.senderEmail}>`
+    : cfg.senderEmail
   try {
-    sgMail.setApiKey(cfg.sendgridApiKey)
-    await sgMail.send({ ...msg, from })
-    logger.info({ to: msg.to, subject: msg.subject }, 'Email sent')
+    const resend = new Resend(cfg.resendApiKey)
+    const { data, error } = await resend.emails.send({
+      from,
+      to:      msg.to,
+      subject: msg.subject,
+      html:    msg.html,
+      text:    msg.text,
+    })
+    if (error) {
+      logger.error({ err: error, to: msg.to }, 'Failed to send email')
+      return
+    }
+    logger.info({ to: msg.to, subject: msg.subject, messageId: data?.id }, 'Email sent')
   } catch (err) {
     logger.error({ err, to: msg.to }, 'Failed to send email')
   }
@@ -72,7 +82,7 @@ async function compose(key, vars, defaults, locale) {
   // Fallback PER FIELD: si la plantilla en DB tiene algún campo
   // (subject/text/html) en NULL, sustituimos por el hardcoded default.
   // Antes hacíamos "fromDb ?? defaults" y un body_html=NULL llegaba a
-  // SendGrid como literal null → 'string expected for html'.
+  // Resend como literal null → 'string expected for html'.
   return {
     subject: fromDb.subject ?? defaults.subject,
     text:    fromDb.text    ?? defaults.text,

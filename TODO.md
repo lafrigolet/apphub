@@ -33,7 +33,7 @@
   - [ ] **Idempotency keys** persistidos en DB (hoy solo Redis 24h)
 
 ### `notifications` — ✅ funcional, gaps de canales
-- [x] Email vía SendGrid (con fallback log en dev)
+- [x] Email vía Resend (con fallback log en dev)
 - [x] Event consumer para `user.registered`, `auth.password_reset_requested`
 - **Falta**:
   - [x] **SMS** (Twilio) — Phase 0+1 wired (commits d2ba91d, b38af3d)
@@ -41,7 +41,7 @@
   - [ ] **WhatsApp Business API**
   - [x] **Plantillas editables** desde console (CRUD por staff)
   - [x] **i18n** de plantillas (`(key, channel, locale)` UNIQUE + fallback a `'es'` + 8 plantillas seed en `en` + `default_locale` per-tenant + locale per-row en bookings/reservations + cadena de resolución en scheduler)
-  - [ ] **Bounce/complaint handling** (webhooks SendGrid → suprimir destinatarios)
+  - [ ] **Bounce/complaint handling** (webhooks Resend → suprimir destinatarios)
   - [x] **Rate limiting por usuario** — Redis-counter por `(user, event, channel)` con ventanas hora/día configurables desde console
   - [x] **Digest mode** — `digest_mode` config (`off`/`daily`); allowlist de eventos no urgentes encolados en Redis (`nd:digest:<userId>`) y vaciados por el job `notification-digest` del scheduler (cron `0 9 * * *`) que publica `notifications.digest.flush`; el consumer compone un email único por usuario y limpia.
   - [x] **Suscripción a más eventos**: `booking.confirmed/reminded/rescheduled/cancelled`, `reservation.created/cancelled`, `package.exhausted`, `payout.paid` — senders email+sms + plantillas seed (es/en) + 8 plantillas adicionales
@@ -410,7 +410,7 @@ de tenerlos todos cuando suena el teléfono.
   archived_at en tenants pero no purga real. Definir TTL por tipo de
   dato (audit log infinito, sessions 30d, logs 90d, …).
 - [ ] `docs/policies/vendor-list.md` — sub-procesadores (Stripe,
-  Hetzner, SendGrid, Twilio, etc.) con qué dato les llega y BAA/DPA
+  Hetzner, Resend, Twilio, etc.) con qué dato les llega y BAA/DPA
   firmado. GDPR Art. 28 lo exige nominalmente.
 
 **Controles técnicos (palancas con código)**

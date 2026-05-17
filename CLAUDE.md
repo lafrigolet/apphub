@@ -764,7 +764,7 @@ prefix (e.g. `SPLITPAY_` for split-pay services).
 Each module of `platform-core` exposes an `/v1/<module>/admin/config` (or
 `…/oauth-providers`, etc.) surface that console uses to bootstrap
 the module without redeploys. Secrets (Stripe keys, OAuth client_secret,
-SendGrid API key, S3 access keys) are stored in dedicated `*.config` /
+Resend API key, S3 access keys) are stored in dedicated `*.config` /
 `*.settings` / `*.oauth_providers` tables, encrypted at rest with AES-256-GCM
 via `@apphub/platform-sdk/crypto`. The master key is `PLATFORM_CONFIG_ENCRYPTION_KEY`
 (32 bytes hex). Each module's runtime resolves config in this order: DB row →

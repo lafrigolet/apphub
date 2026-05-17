@@ -9,7 +9,7 @@ import { invalidateRateLimitCache } from '../services/rate-limit.service.js'
 import { pool } from '../lib/db.js'
 
 const configBody = z.object({
-  sendgrid_api_key:             z.string().min(1).max(2048).optional().nullable(),
+  resend_api_key:               z.string().min(1).max(2048).optional().nullable(),
   sender_email:                 z.string().email().optional().nullable(),
   sender_name:                  z.string().max(256).optional().nullable(),
   twilio_account_sid:           z.string().min(1).max(64).optional().nullable(),
@@ -58,9 +58,9 @@ const tmplTags = ['notifications · templates']
 export async function adminRoutes(fastify) {
   fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
-  // ── Module config (SendGrid + Twilio credentials, sender identity) ───────
+  // ── Module config (Resend + Twilio credentials, sender identity) ────────
   fastify.get('/config', {
-    schema: { tags: cfgTags, summary: 'List notifications module config (SendGrid + Twilio)' },
+    schema: { tags: cfgTags, summary: 'List notifications module config (Resend + Twilio)' },
   }, async () => {
     const client = await pool.connect()
     try { return { data: await configRepo.listConfig(client) } } finally { client.release() }

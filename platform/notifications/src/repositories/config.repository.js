@@ -1,7 +1,7 @@
 import { encryptSecret, decryptSecret } from '@apphub/platform-sdk/crypto'
 
 const SECRET_KEYS = [
-  'sendgrid_api_key',
+  'resend_api_key',
   'twilio_api_key_secret',
   'fcm_service_account_json',
   'apns_p8_key',

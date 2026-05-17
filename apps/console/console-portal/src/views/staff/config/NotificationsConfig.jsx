@@ -46,7 +46,7 @@ export default function NotificationsConfig() {
         rate_limit_per_user_per_day:  rateDay?.trim()  || null,
         digest_mode:  digestMode || 'off',
       }
-      if (apiKey) body.sendgrid_api_key = apiKey
+      if (apiKey) body.resend_api_key = apiKey
       await api.patch('/api/notifications/admin/config', body)
       toast('Configuración guardada')
       setApiKey('')
@@ -65,15 +65,15 @@ export default function NotificationsConfig() {
       <div className="mb-8">
         <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Configuración / Notifications</div>
         <h1 className="font-display text-[44px] leading-none tracking-tight">
-          <span className="italic font-normal">SendGrid</span>
+          <span className="italic font-normal">Resend</span>
         </h1>
         <p className="text-ink3 mt-3 max-w-2xl">
-          Cuenta de SendGrid usada por el módulo <code className="font-mono text-ink">platform/notifications</code> para enviar emails. La API key se guarda cifrada.
+          Cuenta de Resend usada por el módulo <code className="font-mono text-ink">platform/notifications</code> para enviar emails. La API key se guarda cifrada.
         </p>
       </div>
 
       <div className="card p-6 space-y-5">
-        <SecretInput label="API key (SG.…)" configured={cfgFor('sendgrid_api_key').configured} value={apiKey} onChange={setApiKey} />
+        <SecretInput label="API key (re_…)" configured={cfgFor('resend_api_key').configured} value={apiKey} onChange={setApiKey} />
 
         <div>
           <label className="block text-[12px] uppercase tracking-[0.14em] text-ink3 mb-1">Sender email</label>

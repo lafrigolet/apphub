@@ -81,7 +81,7 @@ sudo -u deploy nano /home/deploy/apphub/.env
 #    - SVC_PLATFORM_*_DB_PASSWORD=…
 #    - PLATFORM_CONFIG_ENCRYPTION_KEY=…
 #    - IMAGE_REGISTRY=ghcr.io/<tu-org>   (opcional — default ghcr.io/lafrigolet)
-#    - cualquier otra credencial (SendGrid, Stripe, etc.)
+#    - cualquier otra credencial (Resend, Stripe, etc.)
 
 # 5. Login a GHCR como el usuario deploy. Para que el pull anónimo
 #    funcione hace falta un PAT con scope `read:packages`. Genera uno

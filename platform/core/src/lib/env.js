@@ -34,9 +34,9 @@ const envSchema = z.object({
   FACEBOOK_APP_ID:           z.string().optional(),
   FACEBOOK_APP_SECRET:       z.string().optional(),
 
-  // Notifications module
-  SENDGRID_API_KEY:          z.string().optional(),
-  SENDGRID_FROM_EMAIL:       z.string().email().optional(),
+  // Notifications module — Resend ESP
+  RESEND_API_KEY:            z.string().optional(),
+  EMAIL_FROM_ADDRESS:        z.string().email().optional(),
 
   // Payments module — Stripe
   PLATFORM_STRIPE_SECRET_KEY:     z.string().optional(),

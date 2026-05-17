@@ -225,7 +225,7 @@ function InviteAdminModal({ tenant, onDone }) {
         role,
       })
       // 2. Disparar forgot-password → genera token + dispatcha email vía
-      //    notifications module (SendGrid).
+      //    notifications module (Resend).
       await api.post('/api/auth/forgot-password', {
         appId:    tenant.app_id,
         tenantId: tenant.id,

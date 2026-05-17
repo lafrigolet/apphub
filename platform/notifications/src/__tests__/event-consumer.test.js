@@ -4,8 +4,8 @@ vi.mock('../lib/env.js', () => ({
   env: {
     NODE_ENV: 'test',
     REDIS_URL: 'redis://localhost:6379',
-    SENDGRID_API_KEY: 'dev_no_sendgrid',
-    SENDGRID_FROM_EMAIL: 'noreply@test.local',
+    RESEND_API_KEY: undefined,
+    EMAIL_FROM_ADDRESS: 'noreply@test.local',
   },
 }))
 
@@ -98,7 +98,7 @@ describe('unknown or malformed events', () => {
   })
 
   it('logs error and does not crash when email sending throws', async () => {
-    sendWelcomeEmail.mockRejectedValue(new Error('SendGrid down'))
+    sendWelcomeEmail.mockRejectedValue(new Error('Resend down'))
     await emit({ type: 'user.registered', payload: { email: 'a@test.com', appId: 'yoga-studio' } })
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error), event: expect.any(Object) }),

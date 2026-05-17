@@ -189,9 +189,8 @@ export default function EmailDomainsManager({ scopeQuery = '', canSuspend = fals
                           </table>
                         </div>
                         <div className="text-[12px] text-ink3 mt-3">
-                          Recuerda añadir también <code className="font-mono">v=spf1 include:sendgrid.net ~all</code> al
-                          registro SPF (TXT) de <code className="font-mono">{d.domain}</code> y, opcionalmente, una
-                          política DMARC.
+                          Resend gestiona SPF, DKIM y (opcional) DMARC vía los registros mostrados arriba.
+                          Si tu dominio ya tenía un SPF previo, ajústalo para incluir <code className="font-mono">include:amazonses.com</code>.
                         </div>
                       </div>
                     )}

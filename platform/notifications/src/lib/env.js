@@ -7,8 +7,8 @@ const envSchema = z.object({
   REDIS_URL:            z.string().url(),
   EXPECTED_APP_ID:      z.string().default('platform'),
   LOG_LEVEL:            z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  SENDGRID_API_KEY:     z.string().default('dev_no_sendgrid'),
-  SENDGRID_FROM_EMAIL:  z.string().email().default('noreply@hulkstein.local'),
+  RESEND_API_KEY:       z.string().optional(),
+  EMAIL_FROM_ADDRESS:   z.string().email().optional(),
 })
 const parsed = envSchema.safeParse(process.env)
 if (!parsed.success) { console.error(parsed.error.flatten().fieldErrors); process.exit(1) }
