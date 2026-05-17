@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import * as service from '../services/dojos.service.js'
+import { tenantFromRequest } from '../lib/tenant-ctx.js'
 
 const createBody = z.object({
   name:     z.string().min(1).max(128),
@@ -13,8 +14,10 @@ const createBody = z.object({
 })
 
 export async function dojosRoutes(fastify) {
-  fastify.get('/v1/aikikan/dojos', { config: { public: true } }, async () => {
-    return service.listDojos()
+  // Público: tenant se resuelve por Bearer token (admin) o ?tenantId=<uuid>
+  // (landing pública).
+  fastify.get('/v1/aikikan/dojos', { config: { public: true } }, async (req) => {
+    return service.listDojos(tenantFromRequest(req))
   })
 
   fastify.post('/v1/aikikan/dojos', async (req, reply) => {

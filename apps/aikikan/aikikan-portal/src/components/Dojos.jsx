@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getIdentity, isAdminRole } from '../lib/auth.js'
+import { resolveTenantId } from '../lib/tenant.js'
 import DojoModal, { deleteDojo } from './DojoModal.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
+
+const APP_ID = 'aikikan'
 
 export default function Dojos() {
   const [dojos, setDojos]       = useState([])
@@ -13,7 +16,10 @@ export default function Dojos() {
   const isAdmin  = identity && isAdminRole(identity.role)
 
   function load() {
-    fetch('/api/aikikan/dojos')
+    resolveTenantId(APP_ID)
+      .then((tenantId) =>
+        fetch(`/api/aikikan/dojos?tenantId=${encodeURIComponent(tenantId)}`),
+      )
       .then((r) => r.ok ? r.json() : [])
       .then((arr) => setDojos(Array.isArray(arr) ? arr : []))
       .catch(() => setDojos([]))

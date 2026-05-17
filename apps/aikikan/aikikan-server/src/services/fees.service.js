@@ -13,9 +13,10 @@ import { env } from '../lib/env.js'
 const ADMIN_ROLES = new Set(['owner', 'admin'])
 
 // ── Listado de productos disponibles (público) ─────────────────────────
-export async function listProducts() {
+export async function listProducts(tenantId) {
+  if (!tenantId) throw new ValidationError('tenantId requerido')
   return withTenantTransaction(
-    pool, 'aikikan', '30000000-0000-0000-0000-000000000001', null,
+    pool, 'aikikan', tenantId, null,
     (client) => repo.listProducts(client),
   )
 }

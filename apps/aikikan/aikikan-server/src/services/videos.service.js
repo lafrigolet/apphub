@@ -1,14 +1,14 @@
-import { ForbiddenError, NotFoundError } from '@apphub/platform-sdk/errors'
+import { ForbiddenError, NotFoundError, ValidationError } from '@apphub/platform-sdk/errors'
 import { pool, withTenantTransaction } from '../lib/db.js'
 import * as repo from '../repositories/videos.repository.js'
 
-const APP_ID            = 'aikikan'
-const DEFAULT_TENANT_ID = '30000000-0000-0000-0000-000000000001'
-const ADMIN_ROLES       = new Set(['owner', 'admin'])
+const APP_ID      = 'aikikan'
+const ADMIN_ROLES = new Set(['owner', 'admin'])
 
-export async function listVideos() {
+export async function listVideos(tenantId) {
+  if (!tenantId) throw new ValidationError('tenantId requerido')
   return withTenantTransaction(
-    pool, APP_ID, DEFAULT_TENANT_ID, null,
+    pool, APP_ID, tenantId, null,
     (client) => repo.findAll(client),
   )
 }

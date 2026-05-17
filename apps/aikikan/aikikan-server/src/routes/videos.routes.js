@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import * as service from '../services/videos.service.js'
+import { tenantFromRequest } from '../lib/tenant-ctx.js'
 
 // Acepta ID corto de YouTube (11 chars) o URL completa; el cliente
 // extrae el id antes de POST. Aquí validamos longitud razonable.
@@ -10,8 +11,10 @@ const createBody = z.object({
 })
 
 export async function videosRoutes(fastify) {
-  fastify.get('/v1/aikikan/videos', { config: { public: true } }, async () => {
-    return service.listVideos()
+  // Público: tenant se resuelve por Bearer token (admin) o ?tenantId=<uuid>
+  // (landing pública).
+  fastify.get('/v1/aikikan/videos', { config: { public: true } }, async (req) => {
+    return service.listVideos(tenantFromRequest(req))
   })
 
   fastify.post('/v1/aikikan/videos', async (req, reply) => {

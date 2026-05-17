@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { getIdentity, isAdminRole } from '../lib/auth.js'
+import { resolveTenantId } from '../lib/tenant.js'
 import VideoModal, { deleteVideo } from './VideoModal.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
+
+const APP_ID = 'aikikan'
 
 export default function Videos() {
   const [videos, setVideos]   = useState([])
@@ -14,7 +17,10 @@ export default function Videos() {
   const isAdmin  = identity && isAdminRole(identity.role)
 
   function load() {
-    fetch('/api/aikikan/videos')
+    resolveTenantId(APP_ID)
+      .then((tenantId) =>
+        fetch(`/api/aikikan/videos?tenantId=${encodeURIComponent(tenantId)}`),
+      )
       .then((r) => r.ok ? r.json() : [])
       .then((arr) => setVideos(Array.isArray(arr) ? arr : []))
       .catch(() => setVideos([]))

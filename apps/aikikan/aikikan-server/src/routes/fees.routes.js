@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import * as service from '../services/fees.service.js'
+import { tenantFromRequest } from '../lib/tenant-ctx.js'
 
 const checkoutBody = z.object({
   codes:      z.array(z.string().min(1)).min(1).max(5),
@@ -11,9 +12,10 @@ const setPriceBody = z.object({
 })
 
 export async function feesRoutes(fastify) {
-  // Public — el catálogo lo ve cualquiera (visitor).
-  fastify.get('/v1/aikikan/fees/products', { config: { public: true } }, async () => {
-    return service.listProducts()
+  // Public — el catálogo lo ve cualquiera (visitor). Tenant se resuelve
+  // por Bearer token o ?tenantId=<uuid>.
+  fastify.get('/v1/aikikan/fees/products', { config: { public: true } }, async (req) => {
+    return service.listProducts(tenantFromRequest(req))
   })
 
   // Estado y historial del usuario autenticado.
