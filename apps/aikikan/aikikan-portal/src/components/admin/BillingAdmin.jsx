@@ -10,8 +10,7 @@
 //   PATCH /api/aikikan/fees/products/:code  { name?, description?, amountCents?, stripePriceId? }
 
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { getIdentity, clearSession } from '../../lib/auth.js'
+import { getIdentity } from '../../lib/auth.js'
 import { api } from '../../lib/api.js'
 
 function kindLabel(kind) {
@@ -34,7 +33,6 @@ function eurosToCents(str) {
 
 export default function BillingAdmin() {
   const identity = getIdentity()
-  const navigate = useNavigate()
   const [products, setProducts] = useState([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
@@ -48,50 +46,34 @@ export default function BillingAdmin() {
   }
   useEffect(load, [])
 
-  function logout() {
-    clearSession()
-    navigate('/', { replace: true })
-  }
-
   if (!identity || !['owner', 'admin'].includes(identity.role)) {
     return <div className="admin-error">Acceso restringido a owner/admin.</div>
   }
 
   return (
-    <div className="admin-consola">
-      <header className="admin-header">
-        <div className="admin-header-logo">AIKI<span>KAN</span> · BILLING</div>
-        <div className="admin-header-right">
-          <Link to="/consola" className="admin-header-logout" style={{ textDecoration: 'none' }}>← Consola</Link>
-          <span className="admin-header-user">{identity.email} · {identity.role}</span>
-          <button className="admin-header-logout" onClick={logout}>Cerrar sesión</button>
+    <div style={{ maxWidth: 920 }}>
+      <div className="admin-section-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 className="admin-section-title">Billing</h1>
+        <p className="admin-section-subtitle">
+          Cuotas que ven los socios en su portal. Edita nombre, descripción,
+          importe o stripe_price_id. El <span style={{ fontFamily: 'monospace' }}>stripe_price_id</span> se
+          obtiene del dashboard de Stripe.
+        </p>
+      </div>
+
+      {loading && <p className="admin-loading">Cargando productos…</p>}
+      {error   && <p className="admin-error">Error: {error}</p>}
+
+      {!loading && !error && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {products.map((p) => (
+            <ProductCard key={p.code} product={p} onSaved={load} />
+          ))}
+          {products.length === 0 && (
+            <p className="admin-empty">Sin productos en el catálogo.</p>
+          )}
         </div>
-      </header>
-
-      <main className="admin-main" style={{ maxWidth: 920 }}>
-        <div className="admin-section-header" style={{ marginBottom: '1.5rem' }}>
-          <h1 className="admin-section-title">Billing</h1>
-          <p className="admin-section-subtitle">
-            Cuotas que ven los socios en su portal. Edita nombre, descripción,
-            importe o stripe_price_id. El <span style={{ fontFamily: 'monospace' }}>stripe_price_id</span> se
-            obtiene del dashboard de Stripe.
-          </p>
-        </div>
-
-        {loading && <p className="admin-loading">Cargando productos…</p>}
-        {error   && <p className="admin-error">Error: {error}</p>}
-
-        {!loading && !error && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {products.map((p) => (
-              <ProductCard key={p.code} product={p} onSaved={load} />
-            ))}
-            {products.length === 0 && (
-              <p className="admin-empty">Sin productos en el catálogo.</p>
-            )}
-          </div>
-        )}
-      </main>
+      )}
     </div>
   )
 }

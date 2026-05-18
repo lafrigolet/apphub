@@ -9,8 +9,7 @@
 // admin abre el accordeón en la pestaña Pagos.
 
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { getIdentity, clearSession } from '../../lib/auth.js'
+import { getIdentity } from '../../lib/auth.js'
 import { api } from '../../lib/api.js'
 import InviteUserModal from './InviteUserModal.jsx'
 
@@ -53,7 +52,6 @@ function fmtMoney(cents, currency = 'eur') {
 
 export default function UsersAdmin() {
   const identity = getIdentity()
-  const navigate = useNavigate()
   const [rows, setRows]       = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
@@ -94,11 +92,6 @@ export default function UsersAdmin() {
     })
   }, [rows, query])
 
-  function logout() {
-    clearSession()
-    navigate('/', { replace: true })
-  }
-
   if (!identity || !['owner', 'admin'].includes(identity.role)) {
     return <div className="admin-error">Acceso restringido a owner/admin.</div>
   }
@@ -108,79 +101,68 @@ export default function UsersAdmin() {
   }
 
   return (
-    <div className="admin-consola">
-      <header className="admin-header">
-        <div className="admin-header-logo">AIKI<span>KAN</span> · USUARIOS</div>
-        <div className="admin-header-right">
-          <Link to="/consola" className="admin-header-logout" style={{ textDecoration: 'none' }}>← Consola</Link>
-          <span className="admin-header-user">{identity.email} · {identity.role}</span>
-          <button className="admin-header-logout" onClick={logout}>Cerrar sesión</button>
+    <>
+      <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+        <div>
+          <h1 className="admin-section-title">Usuarios</h1>
+          <p className="admin-section-subtitle">Socios y admins del tenant aikikan.</p>
         </div>
-      </header>
+        <button className="admin-btn admin-btn-primary" onClick={() => setInviteOpen(true)}>
+          + Invitar usuario
+        </button>
+      </div>
 
-      <main className="admin-main" style={{ maxWidth: 1280 }}>
-        <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
-          <div>
-            <h1 className="admin-section-title">Usuarios</h1>
-            <p className="admin-section-subtitle">Socios y admins del tenant aikikan.</p>
-          </div>
-          <button className="admin-btn admin-btn-primary" onClick={() => setInviteOpen(true)}>
-            + Invitar usuario
-          </button>
+      <div style={{ marginBottom: '1rem' }}>
+        <input
+          type="text"
+          className="users-search"
+          placeholder="Buscar por email, nombre, dojo, grado…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {loading && <p className="admin-loading">Cargando usuarios…</p>}
+      {error   && <p className="admin-error">Error: {error}</p>}
+
+      {!loading && !error && (
+        <div className="users-table-wrap">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th style={{ width: 28 }}></th>
+                <th>Email</th>
+                <th>Nombre</th>
+                <th>Rol</th>
+                <th>Dojo</th>
+                <th>Grado</th>
+                <th>Nº socio</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((u) => {
+                const st = statusBadge(u)
+                const open = expandedId === u.id
+                return (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    open={open}
+                    roleText={roleLabel(u.role)}
+                    status={st}
+                    onToggle={() => toggle(u.id)}
+                    onChanged={load}
+                  />
+                )
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} className="users-empty-row">Sin resultados.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
-
-        <div style={{ marginBottom: '1rem' }}>
-          <input
-            type="text"
-            className="users-search"
-            placeholder="Buscar por email, nombre, dojo, grado…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-
-        {loading && <p className="admin-loading">Cargando usuarios…</p>}
-        {error   && <p className="admin-error">Error: {error}</p>}
-
-        {!loading && !error && (
-          <div className="users-table-wrap">
-            <table className="users-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 28 }}></th>
-                  <th>Email</th>
-                  <th>Nombre</th>
-                  <th>Rol</th>
-                  <th>Dojo</th>
-                  <th>Grado</th>
-                  <th>Nº socio</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((u) => {
-                  const st = statusBadge(u)
-                  const open = expandedId === u.id
-                  return (
-                    <UserRow
-                      key={u.id}
-                      user={u}
-                      open={open}
-                      roleText={roleLabel(u.role)}
-                      status={st}
-                      onToggle={() => toggle(u.id)}
-                      onChanged={load}
-                    />
-                  )
-                })}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={8} className="users-empty-row">Sin resultados.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </main>
+      )}
 
       {inviteOpen && (
         <InviteUserModal
@@ -189,7 +171,7 @@ export default function UsersAdmin() {
           onCreated={() => { setInviteOpen(false); load() }}
         />
       )}
-    </div>
+    </>
   )
 }
 

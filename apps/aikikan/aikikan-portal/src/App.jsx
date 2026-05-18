@@ -16,6 +16,7 @@ import Footer from './components/Footer.jsx'
 import Login from './components/Login.jsx'
 import MemberHome from './components/MemberHome.jsx'
 import AdminShell from './components/AdminShell.jsx'
+import ConsoleLayout from './components/admin/ConsoleLayout.jsx'
 import UsersAdmin from './components/admin/UsersAdmin.jsx'
 import BillingAdmin from './components/admin/BillingAdmin.jsx'
 import ActivateView from './components/ActivateView.jsx'
@@ -112,7 +113,7 @@ export default function App() {
           path="/consola/usuarios"
           element={
             <RequireAdmin identity={identity}>
-              <UsersAdmin />
+              <ConsoleLayout><UsersAdmin /></ConsoleLayout>
             </RequireAdmin>
           }
         />
@@ -120,7 +121,7 @@ export default function App() {
           path="/consola/billing"
           element={
             <RequireAdmin identity={identity}>
-              <BillingAdmin />
+              <ConsoleLayout><BillingAdmin /></ConsoleLayout>
             </RequireAdmin>
           }
         />
