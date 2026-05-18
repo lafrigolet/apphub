@@ -139,6 +139,20 @@ export async function requestMembership({ email, displayName, notes }) {
   })
 }
 
+// Magic-link passwordless (A8) — el user pide un enlace de acceso por
+// email. El backend es silencioso ante emails desconocidos; no podemos
+// distinguir éxito de "cuenta no existe" del lado del cliente.
+export async function requestMagicLink(email) {
+  return post('/request-magic-link', { appId: APP_ID, tenantId: TENANT_ID, email })
+}
+
+// Consume el token del query string del email y guarda la sesión.
+export async function loginWithMagicLink(token) {
+  const data = await post('/login-with-magic-link', { token })
+  saveSession(data)
+  return data
+}
+
 // /reset-password?token=... — landing del magic-link "olvidé mi contraseña".
 // El usuario llega con un token de un solo uso y aquí fija una nueva
 // contraseña. El backend NO devuelve sesión — tras el reset hace falta

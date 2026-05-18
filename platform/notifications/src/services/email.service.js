@@ -122,6 +122,18 @@ export async function sendPasswordResetEmail(to, resetUrl, locale = 'es') {
   await send({ to, ...tmpl })
 }
 
+// ── Magic-link passwordless (A8) ────────────────────────────────────────
+
+export async function sendMagicLinkEmail(to, { displayName, magicLinkUrl, locale = 'es' } = {}) {
+  const namePrefix = displayName ? ' ' + displayName : ''
+  const tmpl = await compose('auth.magic_link_requested', { namePrefix, magicLinkUrl }, {
+    subject: 'Tu enlace de acceso',
+    text: `Hola${namePrefix},\n\nHas solicitado un enlace de acceso sin contraseña. Pulsa aquí para entrar (válido durante 15 minutos):\n\n${magicLinkUrl}\n\nSi no has sido tú, ignora este email — nadie ha entrado en tu cuenta.`,
+    html: `<p>Hola${namePrefix},</p><p>Has solicitado un enlace de acceso sin contraseña. Pulsa aquí para entrar (válido durante 15 minutos):</p><p><a href="${magicLinkUrl}">${magicLinkUrl}</a></p><p>Si no has sido tú, ignora este email — nadie ha entrado en tu cuenta.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
 // ── Self-register + Admin-approval (Ruta 1) ─────────────────────────────
 
 export async function sendSignupRequestedEmail(to, { displayName, locale = 'es' } = {}) {

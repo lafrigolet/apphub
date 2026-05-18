@@ -94,6 +94,23 @@ export function startEventConsumer() {
         }
       }
 
+      // ── Magic-link passwordless (A8) ─────────────────────────────────
+      if (event.type === 'auth.magic_link_requested') {
+        const { email, displayName, token, userId, appId } = event.payload ?? {}
+        if (email && token) {
+          const subdomain    = event.payload.subdomain ?? appId
+          const publicDomain = process.env.PLATFORM_PUBLIC_DOMAIN
+          const base = subdomain && publicDomain
+            ? `https://${subdomain}.${publicDomain}`
+            : subdomain
+              ? `http://${subdomain}.hulkstein.local:8080`
+              : 'http://hulkstein.local:8080'
+          const magicLinkUrl = `${base}/magic-login?token=${token}`
+          const { sendMagicLinkEmail } = await import('./email.service.js')
+          await gated(userId, event.type, 'email', () => sendMagicLinkEmail(email, { displayName, magicLinkUrl, locale }))
+        }
+      }
+
       // ── Self-register + Admin-approval (Ruta 1) ──────────────────────
       if (event.type === 'auth.signup.requested') {
         const { email, displayName, userId } = event.payload ?? {}

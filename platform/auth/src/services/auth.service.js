@@ -8,6 +8,7 @@ import { pool, withTenantTransaction, setTenantContext } from '../lib/db.js'
 import * as userRepo from '../repositories/user.repository.js'
 import * as resetRepo from '../repositories/password-reset.repository.js'
 import * as activationRepo from '../repositories/activation-token.repository.js'
+import * as magicLinkRepo from '../repositories/magic-link.repository.js'
 import { AppError, ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors.js'
 
 const REFRESH_TTL = env.PLATFORM_JWT_REFRESH_DAYS * 24 * 60 * 60
@@ -231,6 +232,131 @@ export async function resetPassword({ token, newPassword }) {
     if (keys.length) await redis.del(...keys)
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
+    throw err
+  } finally {
+    client.release()
+  }
+}
+
+// ── Magic-link passwordless login (A8) ───────────────────────────────────
+//
+// Flujo independiente del password-reset:
+//   1) User pide un magic-link con su email.
+//   2) Si existe la cuenta (y está activa + aprobada + no revocada),
+//      generamos un token plain (32 bytes URL-safe), guardamos su SHA-256
+//      con TTL de 15 minutos, y emitimos `auth.magic_link_requested` para
+//      que platform/notifications mande el email.
+//   3) User abre el link, el portal extrae `?token=...` y llama a
+//      `loginWithMagicLink({ token })`. Si el hash existe y no está
+//      consumido/expirado, devolvemos access+refresh tokens igual que
+//      un login normal.
+//
+// Coexiste con password — el user elige. Silencioso ante emails
+// desconocidos para evitar enumeración de cuentas.
+
+const MAGIC_LINK_TTL_MS = 15 * 60 * 1000
+
+export async function requestMagicLink({ appId, tenantId, email }) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Resolver tenant si no viene (mismo patrón que login con email-only).
+    if (!appId || !tenantId) {
+      const resolved = await resolveUserTenant(client, email)
+      if (!resolved) {
+        await client.query('ROLLBACK')
+        return // silent — no enumeration
+      }
+      appId    = resolved.appId
+      tenantId = resolved.tenantId
+    }
+
+    await setTenantContext(client, appId, tenantId, null)
+    const user = await userRepo.findByEmail(client, appId, tenantId, email)
+    // Silent en cualquier caso bloqueante: no enumeramos cuentas ni
+    // revelamos si la cuenta está pending/locked. El user se da cuenta
+    // de que algo va mal cuando no le llega el email.
+    if (!user || user.revoked_at || user.pending_approval || user.pending_activation) {
+      await client.query('ROLLBACK')
+      return
+    }
+
+    const plainToken = crypto.randomBytes(32).toString('base64url')
+    const tokenHash  = crypto.createHash('sha256').update(plainToken, 'utf8').digest('hex')
+    const expiresAt  = new Date(Date.now() + MAGIC_LINK_TTL_MS)
+    await magicLinkRepo.create(client, {
+      id: uuidv4(),
+      userId:    user.id,
+      appId, tenantId,
+      tokenHash, expiresAt,
+    })
+    await client.query('COMMIT')
+
+    await publish({
+      type: 'auth.magic_link_requested',
+      payload: {
+        userId: user.id, email, token: plainToken, appId, tenantId,
+        displayName: user.display_name ?? null,
+      },
+    })
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw err
+  } finally {
+    client.release()
+  }
+}
+
+export async function loginWithMagicLink({ token }) {
+  if (!token) throw new UnauthorizedError('Invalid magic-link token')
+  const tokenHash = crypto.createHash('sha256').update(token, 'utf8').digest('hex')
+
+  const client = await pool.connect()
+  let committed = false
+  try {
+    await client.query('BEGIN')
+    // Staff bypass para localizar el link sin necesidad de conocer
+    // (app_id, tenant_id) — el token único basta para identificar al user.
+    await client.query(`SELECT set_config('app.app_id',       '__magic_link__',                       true)`)
+    await client.query(`SELECT set_config('app.tenant_id',    '00000000-0000-0000-0000-000000000000', true)`)
+    await client.query(`SELECT set_config('app.staff_access', 'true',                                 true)`)
+
+    const any = await magicLinkRepo.findAnyByHash(client, tokenHash)
+    if (!any) throw new UnauthorizedError('Invalid magic-link token')
+    if (any.consumed_at) throw new AppError('TOKEN_USED', 'Este enlace ya ha sido utilizado', 410)
+    if (new Date(any.expires_at) <= new Date()) {
+      throw new AppError('TOKEN_EXPIRED', 'Este enlace ha caducado — solicita uno nuevo', 410)
+    }
+
+    const user = await userRepo.findAnywhereById(client, any.user_id)
+    if (!user || user.revoked_at) throw new UnauthorizedError('User not found')
+    if (user.pending_approval) {
+      throw new AppError('PENDING_APPROVAL', 'Tu solicitud está pendiente de aprobación', 403)
+    }
+    if (user.pending_activation) {
+      throw new AppError('PENDING_ACTIVATION', 'Cuenta pendiente de activación', 401)
+    }
+
+    await magicLinkRepo.markConsumed(client, any.id)
+    await userRepo.touchLastLogin(client, user.id)
+    await client.query('COMMIT')
+    committed = true
+
+    const fullUser = {
+      id:            user.id,
+      app_id:        user.app_id,
+      tenant_id:     user.tenant_id,
+      sub_tenant_id: user.sub_tenant_id ?? null,
+      email:         user.email,
+      role:          user.role,
+    }
+    const accessToken  = signAccess(fullUser)
+    const refreshToken = uuidv4()
+    await redis.setex(redisKey(fullUser.app_id, fullUser.tenant_id, fullUser.id, refreshToken), REFRESH_TTL, '1')
+    return { accessToken, refreshToken, userId: user.id, role: user.role }
+  } catch (err) {
+    if (!committed) await client.query('ROLLBACK').catch(() => {})
     throw err
   } finally {
     client.release()

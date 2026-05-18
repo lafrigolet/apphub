@@ -61,6 +61,16 @@ const requestMembershipBody = z.object({
   notes:       z.string().max(2048).optional(),
 })
 
+const requestMagicLinkBody = z.object({
+  appId:    z.string().min(1).optional(),
+  tenantId: z.string().uuid().optional(),
+  email:    z.string().email(),
+})
+
+const loginMagicLinkBody = z.object({
+  token: z.string().min(16),
+})
+
 export async function authRoutes(fastify) {
   fastify.post('/register', { schema: { body: registerBody }, config: { public: true } }, async (req, reply) => {
     const user = await authService.register(req.body)
@@ -72,6 +82,21 @@ export async function authRoutes(fastify) {
   fastify.post('/request-membership', { schema: { body: requestMembershipBody }, config: { public: true } }, async (req, reply) => {
     const result = await authService.requestMembership(req.body)
     return reply.status(201).send({ data: result })
+  })
+
+  // Magic-link passwordless (A8) — el user pide acceso sin contraseña.
+  // Silencioso ante emails desconocidos; el email llega vía notifications.
+  fastify.post('/request-magic-link', { schema: { body: requestMagicLinkBody }, config: { public: true } }, async (req, reply) => {
+    await authService.requestMagicLink(req.body)
+    return reply.send({ data: { message: 'Si ese email existe, te hemos enviado un enlace de acceso.' } })
+  })
+
+  // Consume el magic-link y devuelve access + refresh tokens como un
+  // login normal. El front lo llama con el `token` extraído del query
+  // string del email.
+  fastify.post('/login-with-magic-link', { schema: { body: loginMagicLinkBody }, config: { public: true } }, async (req, reply) => {
+    const result = await authService.loginWithMagicLink(req.body)
+    return reply.send({ data: result })
   })
 
   fastify.post('/login', { schema: { body: loginBody }, config: { public: true } }, async (req, reply) => {

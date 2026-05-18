@@ -151,6 +151,22 @@ function LoginForm({ onClose, onLoggedIn }) {
             </button>
           </form>
 
+          <p className="login-magiclink-cta">
+            <a href="#" onClick={async e => {
+              e.preventDefault()
+              if (!email) { setError('Introduce tu email primero.'); return }
+              setError(null); setSuccess(null); setLoading(true)
+              try {
+                await auth.requestMagicLink(email)
+                setSuccess('Si ese email existe, te hemos enviado un enlace de acceso. Revisa tu bandeja (caduca en 15 min).')
+              } catch (err) {
+                setError(err.message)
+              } finally { setLoading(false) }
+            }}>
+              <span className="slash">/</span> Acceder sin contraseña (magic-link)
+            </a>
+          </p>
+
           <p className="login-switch">
             ¿Aún no eres socio?{' '}
             <button onClick={() => { setError(null); setSuccess(null); setRequestOpen(true) }}>

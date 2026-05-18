@@ -21,6 +21,7 @@ import UsersAdmin from './components/admin/UsersAdmin.jsx'
 import BillingAdmin from './components/admin/BillingAdmin.jsx'
 import ActivateView from './components/ActivateView.jsx'
 import ResetPasswordView from './components/ResetPasswordView.jsx'
+import MagicLoginView from './components/MagicLoginView.jsx'
 import { getIdentity, clearSession, isAdminRole } from './lib/auth.js'
 
 // Landing pública: la home / con todo el contenido de marketing.
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/activate" element={<ActivateView onLoggedIn={handleLoggedIn} />} />
         <Route path="/reset-password" element={<ResetPasswordView onLoginOpen={() => setLoginOpen(true)} />} />
+        <Route path="/magic-login" element={<MagicLoginView onLoggedIn={handleLoggedIn} />} />
         <Route
           path="/consola"
           element={
