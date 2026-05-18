@@ -95,6 +95,13 @@ export function startEventConsumer() {
       }
 
       // ── Magic-link passwordless (A8) ─────────────────────────────────
+      if (event.type === 'auth.magic_link_blocked_pending_approval') {
+        const { email, displayName, userId } = event.payload ?? {}
+        if (email) {
+          const { sendMagicLinkPendingApprovalEmail } = await import('./email.service.js')
+          await gated(userId, event.type, 'email', () => sendMagicLinkPendingApprovalEmail(email, { displayName, locale }))
+        }
+      }
       if (event.type === 'auth.magic_link_requested') {
         const { email, displayName, token, userId, appId } = event.payload ?? {}
         if (email && token) {

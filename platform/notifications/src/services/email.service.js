@@ -134,6 +134,19 @@ export async function sendMagicLinkEmail(to, { displayName, magicLinkUrl, locale
   await send({ to, ...tmpl })
 }
 
+// Magic-link request hecha por user en pending_approval — feedback en
+// lugar de silencio. No revela información al exterior: el response HTTP
+// sigue siendo el mismo "si ese email existe…" independientemente.
+export async function sendMagicLinkPendingApprovalEmail(to, { displayName, locale = 'es' } = {}) {
+  const namePrefix = displayName ? ' ' + displayName : ''
+  const tmpl = await compose('auth.magic_link_blocked_pending_approval', { namePrefix }, {
+    subject: 'Tu solicitud sigue pendiente de aprobación',
+    text: `Hola${namePrefix},\n\nHas solicitado un enlace de acceso, pero tu solicitud de alta aún está pendiente de aprobación por un administrador. Cuando se apruebe te avisaremos por email y podrás entrar normalmente.\n\nNo tienes que hacer nada más por ahora.`,
+    html: `<p>Hola${namePrefix},</p><p>Has solicitado un enlace de acceso, pero tu solicitud de alta aún está pendiente de aprobación por un administrador. Cuando se apruebe te avisaremos por email y podrás entrar normalmente.</p><p>No tienes que hacer nada más por ahora.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
 // ── Self-register + Admin-approval (Ruta 1) ─────────────────────────────
 
 export async function sendSignupRequestedEmail(to, { displayName, locale = 'es' } = {}) {

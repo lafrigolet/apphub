@@ -274,11 +274,21 @@ export async function requestMagicLink({ appId, tenantId, email }) {
 
     await setTenantContext(client, appId, tenantId, null)
     const user = await userRepo.findByEmail(client, appId, tenantId, email)
-    // Silent en cualquier caso bloqueante: no enumeramos cuentas ni
-    // revelamos si la cuenta está pending/locked. El user se da cuenta
-    // de que algo va mal cuando no le llega el email.
-    if (!user || user.revoked_at || user.pending_approval || user.pending_activation) {
+    // Si la cuenta no existe → silent (evita enumeration).
+    if (!user || user.revoked_at || user.pending_activation) {
       await client.query('ROLLBACK')
+      return
+    }
+    // Caso pending_approval: SÍ enviamos email, pero uno informativo en
+    // lugar del magic-link. El user recibe feedback de que su solicitud
+    // está aún en la cola del admin. No leak de info al exterior — el
+    // response HTTP es el mismo "si ese email existe…" en todos los casos.
+    if (user.pending_approval) {
+      await client.query('ROLLBACK')
+      await publish({
+        type: 'auth.magic_link_blocked_pending_approval',
+        payload: { userId: user.id, email, displayName: user.display_name ?? null, appId, tenantId },
+      })
       return
     }
 
