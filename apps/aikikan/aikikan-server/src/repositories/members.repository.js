@@ -19,6 +19,17 @@ export async function findByUserId(client, userId) {
   return rows[0] ?? null
 }
 
+export async function findAll(client) {
+  // RLS scope viene del client (withTenantTransaction lo configura). El
+  // ORDER prioriza socios más recientes; los perfiles sin fecha caen al
+  // final para que no "ensucien" la parte alta de la tabla en la consola.
+  const { rows } = await client.query(
+    `SELECT ${COLUMNS} FROM ${TABLE}
+     ORDER BY member_since DESC NULLS LAST, created_at DESC`,
+  )
+  return rows
+}
+
 export async function upsertProfile(client, { userId, appId, tenantId, subTenantId, fields }) {
   // INSERT … ON CONFLICT keeps the contract simple for the route handler:
   // PATCH /me always works, even before there's a row. Caller passes only

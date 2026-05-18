@@ -23,6 +23,13 @@ export async function feesRoutes(fastify) {
     return service.getMyFees(req.identity)
   })
 
+  // Admin: estado y historial de pagos de un socio cualquiera del tenant.
+  // El service aplica el guard de rol; el RLS limita al tenant del caller.
+  fastify.get('/v1/aikikan/fees/by-user/:userId', async (req) => {
+    const userId = z.string().uuid().parse(req.params.userId)
+    return service.getFeesByUserId(req.identity, userId)
+  })
+
   // Crea Stripe Checkout Session vía splitpay y devuelve la URL.
   // El JWT del usuario se reenvía a splitpay para que cumpla appGuard.
   fastify.post('/v1/aikikan/fees/checkout', async (req) => {

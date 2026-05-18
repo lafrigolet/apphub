@@ -22,14 +22,13 @@ export async function listProducts(tenantId) {
 }
 
 // ── Estado del socio + historial de pagos ─────────────────────────────
-export async function getMyFees(identity) {
-  if (!identity?.userId) throw new ForbiddenError()
+async function computeFeesForUser(identity, userId) {
   return withTenantTransaction(
     pool, identity.appId, identity.tenantId, identity.subTenantId ?? null,
     async (client) => {
       const products      = await repo.listProducts(client)
-      const payments      = await repo.listPaymentsForUser(client, identity.userId)
-      const subscription  = await repo.findSubscriptionForUser(client, identity.userId)
+      const payments      = await repo.listPaymentsForUser(client, userId)
+      const subscription  = await repo.findSubscriptionForUser(client, userId)
 
       const oneYearAgo = new Date(); oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
       const status = {}
@@ -47,6 +46,20 @@ export async function getMyFees(identity) {
       return { products, payments, subscription, status }
     },
   )
+}
+
+export async function getMyFees(identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+  return computeFeesForUser(identity, identity.userId)
+}
+
+// Admin/owner consulta los fees de cualquier socio del tenant. El RLS de
+// withTenantTransaction garantiza que sólo se vean rows del tenant del
+// caller; la regla de rol la aplica este guard explícito.
+export async function getFeesByUserId(identity, userId) {
+  if (!identity?.userId) throw new ForbiddenError()
+  if (!ADMIN_ROLES.has(identity.role)) throw new ForbiddenError('Only owner/admin can read other users\' fees')
+  return computeFeesForUser(identity, userId)
 }
 
 // ── Crear sesión de checkout ──────────────────────────────────────────

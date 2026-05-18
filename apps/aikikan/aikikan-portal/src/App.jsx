@@ -16,6 +16,8 @@ import Footer from './components/Footer.jsx'
 import Login from './components/Login.jsx'
 import MemberHome from './components/MemberHome.jsx'
 import AdminShell from './components/AdminShell.jsx'
+import UsersAdmin from './components/admin/UsersAdmin.jsx'
+import UserDetail from './components/admin/UserDetail.jsx'
 import ActivateView from './components/ActivateView.jsx'
 import ResetPasswordView from './components/ResetPasswordView.jsx'
 import { getIdentity, clearSession, isAdminRole } from './lib/auth.js'
@@ -103,6 +105,22 @@ export default function App() {
           element={
             <RequireAdmin identity={identity}>
               <AdminShell onExit={handleLogout} />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/consola/usuarios"
+          element={
+            <RequireAdmin identity={identity}>
+              <UsersAdmin />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/consola/usuarios/:userId"
+          element={
+            <RequireAdmin identity={identity}>
+              <UserDetail />
             </RequireAdmin>
           }
         />

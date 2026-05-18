@@ -1,6 +1,8 @@
+import crypto from 'node:crypto'
 import { pool } from '../lib/db.js'
 import * as userRepo from '../repositories/user.repository.js'
 import { ForbiddenError, NotFoundError } from '../utils/errors.js'
+import { register as authRegister, forgotPassword as authForgotPassword } from './auth.service.js'
 
 const STAFF_ROLES = new Set(['staff', 'super_admin'])
 
@@ -99,6 +101,73 @@ export async function updateMe({ displayName }, identity) {
     if (!updated) throw new NotFoundError('User')
     return updated
   })
+}
+
+// Admin/staff lectura puntual. El scope replica el de `listUsers`: staff
+// ve cualquier user (vía staff_access); resto solo dentro de su (app,tenant).
+export async function getById(id, identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+  return withStaffContext(async (client) => {
+    const user = await userRepo.findAnywhereById(client, id)
+    if (!user) throw new NotFoundError('User')
+    if (!isStaff(identity) && (user.app_id !== identity.appId || user.tenant_id !== identity.tenantId)) {
+      throw new ForbiddenError('Cannot read a user outside your tenant')
+    }
+    return user
+  })
+}
+
+// Admin/staff edita campos seguros de otro user (display_name por ahora;
+// futuras columnas — locale — entran aquí también). El propio user usa
+// `/me`; este endpoint es para overrides desde la consola.
+export async function updateUser(id, body, identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+  return withStaffContext(async (client) => {
+    const target = await userRepo.findAnywhereById(client, id)
+    if (!target) throw new NotFoundError('User')
+    if (!isStaff(identity) && (target.app_id !== identity.appId || target.tenant_id !== identity.tenantId)) {
+      throw new ForbiddenError('Cannot update a user outside your tenant')
+    }
+    const updated = await userRepo.updateProfile(client, id, body)
+    if (!updated) throw new NotFoundError('User')
+    return updated
+  })
+}
+
+// Password aleatoria que sirve sólo de placeholder hasta que el invitado
+// consuma el magic-link y fije la suya propia. Nunca se muestra ni se
+// loguea — sólo existe para que `register()` cree un password_hash válido.
+function randomTempPassword() {
+  return crypto.randomBytes(24).toString('base64url').slice(0, 32) + 'A1!'
+}
+
+// Invitación atómica: register + emit reset event en una sola llamada.
+// Encapsula el flujo de 2 pasos que hoy duplican console y aikikan-portal
+// (ver apps/console/console-portal/src/views/staff/TenantDetail.jsx:206).
+// El password queda como bcrypt random; el invitado fija la suya vía el
+// magic-link que dispara `auth.password_reset_requested`.
+export async function inviteUser({ appId, tenantId, email, role, displayName }, identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+  if (!isStaff(identity) && (appId !== identity.appId || tenantId !== identity.tenantId)) {
+    throw new ForbiddenError('Cannot invite users outside your tenant')
+  }
+  const { id } = await authRegister({
+    appId, tenantId, subTenantId: null,
+    email,
+    password: randomTempPassword(),
+    role: role ?? 'user',
+  })
+  // Si `displayName` viene poblado, lo aplicamos antes del magic-link
+  // (mejor UX en el email de invitación). Usa el helper de profile que
+  // sólo toca display_name — nada peligroso.
+  if (displayName) {
+    await withStaffContext((client) => userRepo.updateProfile(client, id, { displayName }))
+  }
+  // Dispara el evento de reset que platform/notifications consume para
+  // mandar el email con el magic-link. NO devolvemos token ni tokens
+  // de sesión — la activación va por correo.
+  await authForgotPassword({ appId, tenantId, email })
+  return { userId: id }
 }
 
 export async function revokeUser({ id }, identity) {

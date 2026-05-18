@@ -157,3 +157,153 @@
 }
 .admin-notice-success { background: #E5F0E8; color: #2F6F4F; border-color: #2F6F4F33; }
 .admin-notice-warn    { background: #F8EDD3; color: #8A6B0A; border-color: #8A6B0A33; }
+
+/* ── Users admin ──────────────────────────────────────────────────────── */
+
+.users-search {
+  width: 100%;
+  max-width: 480px;
+  padding: .55rem .85rem;
+  border: 1px solid rgba(9, 9, 8, .2);
+  border-radius: 6px;
+  background: #fff;
+  font-size: .95rem;
+}
+.users-search:focus { outline: none; border-color: #C5482E; }
+
+.users-table-wrap {
+  background: #fff;
+  border: 1px solid rgba(9, 9, 8, .1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+.users-table thead {
+  background: rgba(9, 9, 8, .03);
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: rgba(9, 9, 8, .55);
+}
+.users-table th, .users-table td {
+  padding: .7rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(9, 9, 8, .07);
+}
+.users-table tbody tr:last-child td { border-bottom: 0; }
+.users-row { cursor: pointer; transition: background .12s; }
+.users-row:hover { background: rgba(197, 72, 46, .04); }
+.users-row-action {
+  text-align: right;
+  font-size: .82rem;
+  color: rgba(9, 9, 8, .45);
+}
+.users-empty { color: rgba(9, 9, 8, .35); font-style: italic; }
+.users-empty-row { text-align: center; padding: 2rem; color: rgba(9, 9, 8, .55); }
+
+/* ── User detail: tabs + form ─────────────────────────────────────────── */
+
+.user-tabs {
+  display: flex;
+  gap: .25rem;
+  border-bottom: 1px solid rgba(9, 9, 8, .12);
+  margin-bottom: 1.5rem;
+}
+.user-tab {
+  background: transparent;
+  border: 0;
+  padding: .65rem 1.25rem;
+  font-size: .9rem;
+  cursor: pointer;
+  color: rgba(9, 9, 8, .6);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.user-tab:hover { color: #0a0908; }
+.user-tab.active {
+  color: #0a0908;
+  border-bottom-color: #C5482E;
+  font-weight: 600;
+}
+
+.user-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.user-field {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.user-field-label {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: rgba(9, 9, 8, .55);
+}
+.user-field input,
+.user-field select,
+.user-field textarea {
+  padding: .55rem .75rem;
+  border: 1px solid rgba(9, 9, 8, .2);
+  border-radius: 6px;
+  background: #fff;
+  font-size: .95rem;
+  font-family: inherit;
+}
+.user-field input:focus,
+.user-field select:focus,
+.user-field textarea:focus { outline: none; border-color: #C5482E; }
+
+/* ── Invite modal ────────────────────────────────────────────────────── */
+
+.user-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(9, 9, 8, .55);
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+.user-modal {
+  background: #FAF7F2;
+  max-width: 480px;
+  width: 100%;
+  border: 1px solid rgba(9, 9, 8, .15);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.user-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid rgba(9, 9, 8, .1);
+  background: #fff;
+}
+.user-modal-header h2 {
+  font-family: 'PP Editorial New', serif;
+  font-size: 1.25rem;
+  margin: 0;
+}
+.user-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: rgba(9, 9, 8, .5);
+  cursor: pointer;
+}
+.user-modal-close:hover { color: #C5482E; }
+.user-modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

@@ -11,6 +11,8 @@ const updateBody = z.object({
   notes:        z.string().max(1024).optional(),
 })
 
+const userIdParams = z.object({ userId: z.string().uuid() })
+
 export async function membersRoutes(fastify) {
   fastify.get('/v1/aikikan/members/me', async (req) => {
     const row = await service.getMe(req.identity)
@@ -27,5 +29,21 @@ export async function membersRoutes(fastify) {
   fastify.patch('/v1/aikikan/members/me', async (req) => {
     const body = updateBody.parse(req.body ?? {})
     return service.updateMe(req.identity, body)
+  })
+
+  // Admin endpoints — el chequeo de rol está en el service.
+  fastify.get('/v1/aikikan/members', async (req) => {
+    return service.listMembers(req.identity)
+  })
+
+  fastify.get('/v1/aikikan/members/:userId', async (req) => {
+    const { userId } = userIdParams.parse(req.params)
+    return service.getMemberByUserId(req.identity, userId)
+  })
+
+  fastify.patch('/v1/aikikan/members/:userId', async (req) => {
+    const { userId } = userIdParams.parse(req.params)
+    const body = updateBody.parse(req.body ?? {})
+    return service.updateMemberAdmin(req.identity, userId, body)
   })
 }
