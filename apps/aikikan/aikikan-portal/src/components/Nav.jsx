@@ -45,6 +45,7 @@ export default function Nav({ onLoginOpen, identity, onLogout }) {
         <li><Link to="/#about"    onClick={close}>Asociación</Link></li>
         <li><Link to="/#maestros" onClick={close}>Maestros</Link></li>
         <li><Link to="/#videos"   onClick={close}>Vídeos</Link></li>
+        <li><Link to="/#eventos"  onClick={close}>Agenda</Link></li>
         <li><Link to="/#dojos"    onClick={close}>Dojos</Link></li>
         <li><Link to="/#contacto" onClick={close}>Contacto</Link></li>
         {isAdmin  && <li><Link to="/consola"    onClick={close}>Consola</Link></li>}

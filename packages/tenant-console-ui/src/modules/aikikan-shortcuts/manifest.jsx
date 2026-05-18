@@ -18,12 +18,6 @@ export default {
       label:    'Usuarios',
       icon:     icons.admins,
     },
-    {
-      category: 'commercial',
-      href:     '/#eventos',
-      label:    'Agenda',
-      icon:     icons.dashboard,
-    },
   ],
 
   routes: {},
