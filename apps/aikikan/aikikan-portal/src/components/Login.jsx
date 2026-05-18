@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import * as auth from '../lib/auth.js'
+import RequestMembershipModal from './RequestMembershipModal.jsx'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const FACEBOOK_APP_ID  = import.meta.env.VITE_FACEBOOK_APP_ID  || ''
@@ -21,20 +22,18 @@ function GoogleButton({ onSuccess, onError, disabled }) {
 }
 
 function LoginForm({ onClose, onLoggedIn }) {
-  const [mode, setMode] = useState('login')
-  const [email, setEmail] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState(null)
+  const [success, setSuccess]   = useState(null)
+  const [requestOpen, setRequestOpen] = useState(false)
 
   // Después de cualquier flujo de login (password / Google / Facebook)
   // notificamos al padre y cerramos el modal. El padre (App.jsx) decide
   // qué montar según el rol:
   //   admin → <AdminShell> (consola embebida, paquete @apphub/tenant-console-ui)
   //   socio → <MemberHome>
-  // No hay hard-redirect: el admin se queda en aikikan.hulkstein.local.
   function dispatchByRole(data) {
     onLoggedIn?.(data)
     onClose()
@@ -45,14 +44,8 @@ function LoginForm({ onClose, onLoggedIn }) {
     setError(null)
     setLoading(true)
     try {
-      if (mode === 'login') {
-        const data = await auth.login({ email, password })
-        dispatchByRole(data)
-      } else {
-        await auth.register({ email, password })
-        setSuccess('Cuenta creada. Ahora puedes iniciar sesión.')
-        setMode('login')
-      }
+      const data = await auth.login({ email, password })
+      dispatchByRole(data)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -91,87 +84,92 @@ function LoginForm({ onClose, onLoggedIn }) {
   const hasSocial = GOOGLE_CLIENT_ID || FACEBOOK_APP_ID
 
   return (
-    <div className="login-panel">
-      {/* ── Left: branding ── */}
-      <div className="login-left">
-        <div className="login-left-logo">AIKI<span>KAN</span></div>
-        <blockquote className="login-left-quote">
-          "El camino del aikido no termina nunca. Cada práctica es un nuevo comienzo."
-          <cite>/ O'SENSEI</cite>
-        </blockquote>
-        <div className="login-left-deco"></div>
-      </div>
+    <>
+      <div className="login-panel">
+        {/* ── Left: branding ── */}
+        <div className="login-left">
+          <div className="login-left-logo">AIKI<span>KAN</span></div>
+          <blockquote className="login-left-quote">
+            "El camino del aikido no termina nunca. Cada práctica es un nuevo comienzo."
+            <cite>/ O'SENSEI</cite>
+          </blockquote>
+          <div className="login-left-deco"></div>
+        </div>
 
-      {/* ── Right: form ── */}
-      <div className="login-right">
-        <button className="login-close" onClick={onClose}>✕</button>
+        {/* ── Right: form ── */}
+        <div className="login-right">
+          <button className="login-close" onClick={onClose}>✕</button>
 
-        <p className="login-eyebrow"><span className="slash">/</span> Área de socios</p>
-        <h2 className="login-title">{mode === 'login' ? 'ACCEDER' : 'REGISTRO'}</h2>
+          <p className="login-eyebrow"><span className="slash">/</span> Área de socios</p>
+          <h2 className="login-title">ACCEDER</h2>
 
-        {error && <p className="login-error">{error}</p>}
-        {success && <p className="login-success">{success}</p>}
+          {error && <p className="login-error">{error}</p>}
+          {success && <p className="login-success">{success}</p>}
 
-        {/* Social buttons — only rendered when provider env vars are set */}
-        {hasSocial && (
-          <div className="login-social">
-            {GOOGLE_CLIENT_ID && (
-              <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                <GoogleButton
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError('Error al iniciar sesión con Google')}
-                  disabled={loading}
-                />
-              </GoogleOAuthProvider>
-            )}
-            {FACEBOOK_APP_ID && (
-              <button className="login-social-btn login-facebook" onClick={handleFacebook} disabled={loading}>
-                <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                Continuar con Facebook
-              </button>
-            )}
-          </div>
-        )}
-
-        {hasSocial && <div className="login-divider"><span>o continúa con email</span></div>}
-
-        {/* Form */}
-        <form className="login-form" onSubmit={handleSubmit}>
-          {mode === 'register' && (
-            <div className="login-field">
-              <label className="login-label">Nombre completo</label>
-              <input type="text" className="login-input" placeholder="Tu nombre" value={name} onChange={e => setName(e.target.value)} />
+          {/* Social buttons — only rendered when provider env vars are set */}
+          {hasSocial && (
+            <div className="login-social">
+              {GOOGLE_CLIENT_ID && (
+                <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                  <GoogleButton
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setError('Error al iniciar sesión con Google')}
+                    disabled={loading}
+                  />
+                </GoogleOAuthProvider>
+              )}
+              {FACEBOOK_APP_ID && (
+                <button className="login-social-btn login-facebook" onClick={handleFacebook} disabled={loading}>
+                  <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  Continuar con Facebook
+                </button>
+              )}
             </div>
           )}
-          <div className="login-field">
-            <label className="login-label">Correo electrónico</label>
-            <input type="email" className="login-input" placeholder="nombre@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} required />
-          </div>
-          <div className="login-field">
-            <label className="login-label">Contraseña</label>
-            <input type="password" className="login-input" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
-          </div>
-          {mode === 'login' && (
+
+          {hasSocial && <div className="login-divider"><span>o continúa con email</span></div>}
+
+          {/* Form — sólo login. El registro abierto está deshabilitado
+              para aikikan: el flujo es Solicitar Alta → admin aprueba. */}
+          <form className="login-form" onSubmit={handleSubmit}>
+            <div className="login-field">
+              <label className="login-label">Correo electrónico</label>
+              <input type="email" className="login-input" placeholder="nombre@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} required />
+            </div>
+            <div className="login-field">
+              <label className="login-label">Contraseña</label>
+              <input type="password" className="login-input" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+            </div>
             <a href="#" className="login-forgot" onClick={async e => {
               e.preventDefault()
               if (email) { await auth.forgotPassword(email); setSuccess('Si ese email existe, recibirás un enlace de recuperación.') }
             }}>
               <span className="slash">/</span> ¿Olvidaste tu contraseña?
             </a>
-          )}
-          <button type="submit" className="login-submit" disabled={loading}>
-            {loading ? 'Cargando…' : mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
-          </button>
-        </form>
+            <button type="submit" className="login-submit" disabled={loading}>
+              {loading ? 'Cargando…' : 'Iniciar sesión'}
+            </button>
+          </form>
 
-        <p className="login-switch">
-          {mode === 'login' ? '¿Aún no eres socio? ' : '¿Ya tienes cuenta? '}
-          <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); setSuccess(null) }}>
-            {mode === 'login' ? 'Regístrate' : 'Inicia sesión'}
-          </button>
-        </p>
+          <p className="login-switch">
+            ¿Aún no eres socio?{' '}
+            <button onClick={() => { setError(null); setSuccess(null); setRequestOpen(true) }}>
+              Solicitar alta
+            </button>
+          </p>
+        </div>
       </div>
-    </div>
+
+      {requestOpen && (
+        <RequestMembershipModal
+          onClose={() => setRequestOpen(false)}
+          onSubmitted={() => {
+            setRequestOpen(false)
+            setSuccess('Solicitud enviada. Recibirás un email cuando el admin la apruebe.')
+          }}
+        />
+      )}
+    </>
   )
 }
 

@@ -94,6 +94,37 @@ export function startEventConsumer() {
         }
       }
 
+      // ── Self-register + Admin-approval (Ruta 1) ──────────────────────
+      if (event.type === 'auth.signup.requested') {
+        const { email, displayName, userId } = event.payload ?? {}
+        if (email) {
+          const { sendSignupRequestedEmail } = await import('./email.service.js')
+          await gated(userId, event.type, 'email', () => sendSignupRequestedEmail(email, { displayName, locale }))
+        }
+      }
+      if (event.type === 'auth.signup.approved') {
+        const { email, displayName, token, userId, appId } = event.payload ?? {}
+        if (email && token) {
+          const subdomain    = event.payload.subdomain ?? appId
+          const publicDomain = process.env.PLATFORM_PUBLIC_DOMAIN
+          const base = subdomain && publicDomain
+            ? `https://${subdomain}.${publicDomain}`
+            : subdomain
+              ? `http://${subdomain}.hulkstein.local:8080`
+              : 'http://hulkstein.local:8080'
+          const magicLinkUrl = `${base}/reset-password?token=${token}`
+          const { sendSignupApprovedEmail } = await import('./email.service.js')
+          await gated(userId, event.type, 'email', () => sendSignupApprovedEmail(email, { displayName, magicLinkUrl, locale }))
+        }
+      }
+      if (event.type === 'auth.signup.rejected') {
+        const { email, displayName, reason, userId } = event.payload ?? {}
+        if (email) {
+          const { sendSignupRejectedEmail } = await import('./email.service.js')
+          await gated(userId, event.type, 'email', () => sendSignupRejectedEmail(email, { displayName, reason, locale }))
+        }
+      }
+
       // ── Tenant bootstrap (Fase A) ───────────────────────────────────
       // Producido por platform-tenant-config tras crear app+tenant+owner.
       // El payload incluye el magic-link ya compuesto (con el subdomain del

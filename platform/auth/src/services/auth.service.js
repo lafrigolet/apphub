@@ -43,6 +43,59 @@ export async function register({ appId, tenantId, subTenantId, email, password, 
   })
 }
 
+// Devuelve TRUE si el tenant tiene `requires_user_approval=true` en
+// platform_tenants. Pequeño boundary leak — el GRANT en la migration
+// 0014_tenant_requires_approval.sql autoriza esta lectura específica
+// al rol svc_platform_auth.
+export async function tenantRequiresApproval(appId, tenantId) {
+  if (!appId || !tenantId) return false
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT requires_user_approval FROM platform_tenants.tenants
+       WHERE id = $1 AND app_id = $2 LIMIT 1`,
+      [tenantId, appId],
+    )
+    return rows[0]?.requires_user_approval === true
+  } finally {
+    client.release()
+  }
+}
+
+// Ruta 1 — Solicitar alta: visitante envía email + nombre (+ notas).
+// Crea un user con password_hash=NULL y pending_approval=TRUE. No
+// devuelve sesión — el flujo se completa cuando el admin aprueba y se
+// dispara el magic-link.
+export async function requestMembership({ appId, tenantId, email, displayName, notes }) {
+  if (!appId || !tenantId || !email) {
+    throw new AppError('VALIDATION_ERROR', 'appId, tenantId, email required', 422)
+  }
+  const requiresApproval = await tenantRequiresApproval(appId, tenantId)
+  if (!requiresApproval) {
+    // Tenant abierto — no aceptamos solicitudes de aprobación porque
+    // no hay flow de "aprobación" que las procese. El portal debería
+    // mostrar el register normal.
+    throw new AppError('APPROVAL_NOT_REQUIRED', 'Este tenant no requiere aprobación; use el registro normal', 400)
+  }
+  return withTenantTransaction(pool, appId, tenantId, null, async (client) => {
+    const existing = await userRepo.findByEmail(client, appId, tenantId, email)
+    if (existing) throw new ConflictError('Ya existe una solicitud o cuenta con este email')
+    const id = uuidv4()
+    await userRepo.createUser(client, {
+      id, appId, tenantId, subTenantId: null,
+      email, passwordHash: null, role: 'user',
+      displayName: displayName ?? null,
+      pendingActivation: false,
+      pendingApproval:   true,
+    })
+    await publish({
+      type: 'auth.signup.requested',
+      payload: { userId: id, email, displayName: displayName ?? null, notes: notes ?? null, appId, tenantId },
+    })
+    return { userId: id }
+  })
+}
+
 async function resolveUserTenant(client, email) {
   // Staff-access bypass: look across every tenant to find a user by email.
   // Only used when the caller didn't supply appId/tenantId.
@@ -79,6 +132,13 @@ export async function login({ appId, tenantId, email, password }) {
     const user = await userRepo.findByEmail(client, appId, tenantId, email)
     if (!user) throw new UnauthorizedError('Invalid credentials')
     if (user.locked_until && new Date(user.locked_until) > new Date()) throw new UnauthorizedError('Account locked. Try again later.')
+    // Self-registered users que aún esperan aprobación del admin del
+    // tenant. Mensaje distinto del PENDING_ACTIVATION para que la UI
+    // muestre "tu solicitud está pendiente" en lugar de "fija tu
+    // contraseña".
+    if (user.pending_approval) {
+      throw new AppError('PENDING_APPROVAL', 'Tu solicitud está pendiente de aprobación', 403)
+    }
     // Owners pre-activación: password_hash es NULL hasta consumir el
     // magic-link. Cualquier login antes de activate → 401 con código
     // PENDING_ACTIVATION para que la UI redirija al flujo correcto.

@@ -122,6 +122,39 @@ export async function sendPasswordResetEmail(to, resetUrl, locale = 'es') {
   await send({ to, ...tmpl })
 }
 
+// ── Self-register + Admin-approval (Ruta 1) ─────────────────────────────
+
+export async function sendSignupRequestedEmail(to, { displayName, locale = 'es' } = {}) {
+  const namePrefix = displayName ? ' ' + displayName : ''
+  const tmpl = await compose('auth.signup.requested', { namePrefix }, {
+    subject: 'Hemos recibido tu solicitud',
+    text: `Hola${namePrefix},\n\nHemos recibido tu solicitud de alta. Un administrador la revisará y te avisaremos por email en cuanto la decisión esté tomada.\n\nGracias por tu interés.`,
+    html: `<p>Hola${namePrefix},</p><p>Hemos recibido tu solicitud de alta. Un administrador la revisará y te avisaremos por email en cuanto la decisión esté tomada.</p><p>Gracias por tu interés.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendSignupApprovedEmail(to, { displayName, magicLinkUrl, locale = 'es' } = {}) {
+  const namePrefix = displayName ? ' ' + displayName : ''
+  const tmpl = await compose('auth.signup.approved', { namePrefix, magicLinkUrl }, {
+    subject: 'Tu cuenta ha sido aprobada — fija tu contraseña',
+    text: `Hola${namePrefix},\n\n¡Buenas noticias! Tu solicitud ha sido aprobada. Para activar tu cuenta, pulsa el siguiente enlace y fija tu contraseña (válido durante 1 hora):\n\n${magicLinkUrl}\n\nSi te has registrado con Google o Facebook, puedes ignorar este enlace y simplemente volver a iniciar sesión con ese proveedor.`,
+    html: `<p>Hola${namePrefix},</p><p>¡Buenas noticias! Tu solicitud ha sido aprobada. Para activar tu cuenta, pulsa el siguiente enlace y fija tu contraseña (válido durante 1 hora):</p><p><a href="${magicLinkUrl}">${magicLinkUrl}</a></p><p>Si te has registrado con Google o Facebook, puedes ignorar este enlace y simplemente volver a iniciar sesión con ese proveedor.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendSignupRejectedEmail(to, { displayName, reason, locale = 'es' } = {}) {
+  const namePrefix  = displayName ? ' ' + displayName : ''
+  const reasonBlock = reason ? ` Motivo: ${reason}.` : ''
+  const tmpl = await compose('auth.signup.rejected', { namePrefix, reasonBlock }, {
+    subject: 'Tu solicitud no ha sido aprobada',
+    text: `Hola${namePrefix},\n\nLamentamos comunicarte que tu solicitud de alta no ha sido aprobada.${reasonBlock}\n\nSi crees que se trata de un error o quieres volver a solicitarlo más adelante, contacta con el equipo.`,
+    html: `<p>Hola${namePrefix},</p><p>Lamentamos comunicarte que tu solicitud de alta no ha sido aprobada.${reasonBlock}</p><p>Si crees que se trata de un error o quieres volver a solicitarlo más adelante, contacta con el equipo.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
 // Enviado tras POST /v1/tenants/bootstrap. Incluye el magic-link que el
 // owner abrirá en su portal (subdomain.hulkstein.com/activate?token=...).
 export async function sendTenantBootstrapEmail(to, { ownerDisplayName, magicLinkUrl, expiresAt, appDisplayName, tenantDisplayName, locale = 'es' }) {

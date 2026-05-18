@@ -6,7 +6,12 @@ const listQuery = z.object({
   appId:    z.string().min(1).optional(),
   tenantId: z.string().uuid().optional(),
   role:     z.string().min(1).optional(),
+  pending:  z.enum(['approval']).optional(),
 })
+
+const rejectBody = z.object({
+  reason: z.string().max(1024).optional().nullable(),
+}).optional()
 
 const roleBody = z.object({
   role: z.string().min(1).max(32),
@@ -50,9 +55,9 @@ export async function usersRoutes(fastify) {
 
   fastify.get('/v1/users', async (req) => {
     requireStaffOrAdmin(req)
-    const { appId, tenantId, role } = listQuery.parse(req.query)
+    const { appId, tenantId, role, pending } = listQuery.parse(req.query)
     const roles = role ? role.split(',').map((s) => s.trim()).filter(Boolean) : undefined
-    return usersService.listUsers({ appId, tenantId, role: roles }, req.identity)
+    return usersService.listUsers({ appId, tenantId, role: roles, pending }, req.identity)
   })
 
   fastify.patch('/v1/users/:id/role', async (req) => {
@@ -86,6 +91,25 @@ export async function usersRoutes(fastify) {
   fastify.delete('/v1/users/:id', async (req, reply) => {
     requireStaffOrAdmin(req)
     await usersService.revokeUser({ id: req.params.id }, req.identity)
+    return reply.status(204).send()
+  })
+
+  // Aprobar solicitud pendiente. Flippea pending_approval=FALSE y
+  // dispara magic-link de password-set (evento auth.signup.approved).
+  fastify.post('/v1/users/:id/approve', async (req, reply) => {
+    requireStaffOrAdmin(req)
+    const { id } = idParams.parse(req.params)
+    const result = await usersService.approveUser(id, req.identity)
+    return reply.send({ data: result })
+  })
+
+  // Rechazar solicitud pendiente — hard-delete del row. El email queda
+  // libre y la persona puede re-solicitar.
+  fastify.post('/v1/users/:id/reject', async (req, reply) => {
+    requireStaffOrAdmin(req)
+    const { id } = idParams.parse(req.params)
+    const body = rejectBody.parse(req.body ?? {}) ?? {}
+    await usersService.rejectUser(id, req.identity, body)
     return reply.status(204).send()
   })
 }

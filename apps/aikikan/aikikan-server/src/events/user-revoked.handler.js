@@ -31,7 +31,12 @@ export function startUserRevokedSubscriber() {
   sub.on('message', async (_channel, message) => {
     let event
     try { event = JSON.parse(message) } catch { return }
-    if (event?.type !== 'user.revoked') return
+    // Limpia el row de app_aikikan.members en dos casos:
+    //   - user.revoked         → soft-delete del user (admin revoca)
+    //   - auth.signup.rejected → hard-delete (admin rechaza solicitud)
+    // En ambos casos el perfil aikikan se elimina para no dejar rows
+    // colgantes apuntando a un user.id que ya no existe.
+    if (event?.type !== 'user.revoked' && event?.type !== 'auth.signup.rejected') return
 
     const p = event.payload ?? {}
     if (p.appId !== env.EXPECTED_APP_ID) return       // not our app
@@ -44,9 +49,9 @@ export function startUserRevokedSubscriber() {
         subTenantId: p.subTenantId ?? null,
         userId:      p.userId,
       })
-      if (ok) logger.info({ userId: p.userId }, 'Deleted member after user.revoked')
+      if (ok) logger.info({ userId: p.userId, eventType: event.type }, 'Deleted member')
     } catch (err) {
-      logger.error({ err, userId: p.userId }, 'Failed to handle user.revoked')
+      logger.error({ err, userId: p.userId, eventType: event.type }, 'Failed to handle event')
     }
   })
 

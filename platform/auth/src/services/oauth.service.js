@@ -8,6 +8,7 @@ import * as oauthRepo from '../repositories/oauth.repository.js'
 import * as providersRepo from '../repositories/oauth-providers.repository.js'
 import { publish } from '../lib/redis.js'
 import { AppError } from '../utils/errors.js'
+import { tenantRequiresApproval } from './auth.service.js'
 
 const REFRESH_TTL = env.PLATFORM_JWT_REFRESH_DAYS * 24 * 60 * 60
 
@@ -72,10 +73,26 @@ async function resolveOAuthUser(client, { appId, tenantId, subTenantId, provider
     return byEmail
   }
 
-  // Create new user
+  // Create new user — si el tenant requiere aprobación, queda pending.
+  // El caller (oauthLogin) ve `pending_approval=true` y devuelve 403
+  // PENDING_APPROVAL en lugar de tokens, similar al gate del password
+  // login. Emitimos `auth.signup.requested` para notificar igual que
+  // el flow de password-self-register.
+  const pendingApproval = await tenantRequiresApproval(appId, tenantId)
   const id = uuidv4()
-  const user = await oauthRepo.createUserWithOAuth(client, { id, appId, tenantId, subTenantId: subTenantId ?? null, email, role: 'user', provider, providerUid, name, avatarUrl })
-  await publish({ type: 'user.registered', payload: { userId: id, email, role: 'user', appId, tenantId, subTenantId: subTenantId ?? null, provider } })
+  const user = await oauthRepo.createUserWithOAuth(client, {
+    id, appId, tenantId, subTenantId: subTenantId ?? null,
+    email, role: 'user', provider, providerUid, name, avatarUrl,
+    pendingApproval,
+  })
+  if (pendingApproval) {
+    await publish({
+      type: 'auth.signup.requested',
+      payload: { userId: id, email, displayName: name ?? null, notes: `Vía ${provider}`, appId, tenantId },
+    })
+  } else {
+    await publish({ type: 'user.registered', payload: { userId: id, email, role: 'user', appId, tenantId, subTenantId: subTenantId ?? null, provider } })
+  }
   return user
 }
 
@@ -99,6 +116,7 @@ export async function loginWithGoogle({ appId, tenantId, subTenantId, credential
 
   return withTransaction(pool, async (client) => {
     const user = await resolveOAuthUser(client, { appId, tenantId, subTenantId, provider: 'google', providerUid, email, name, avatarUrl })
+    if (user.pending_approval) throw new AppError('PENDING_APPROVAL', 'Tu solicitud está pendiente de aprobación', 403)
     return issueTokens(user)
   })
 }
@@ -133,6 +151,7 @@ export async function loginWithFacebook({ appId, tenantId, subTenantId, accessTo
 
   return withTransaction(pool, async (client) => {
     const user = await resolveOAuthUser(client, { appId, tenantId, subTenantId, provider: 'facebook', providerUid, email, name, avatarUrl })
+    if (user.pending_approval) throw new AppError('PENDING_APPROVAL', 'Tu solicitud está pendiente de aprobación', 403)
     return issueTokens(user)
   })
 }

@@ -3,7 +3,7 @@ const SCHEMA = 'platform_auth'
 const PUBLIC_COLUMNS = `
   id, app_id, tenant_id, sub_tenant_id, email, role,
   display_name, last_login_at, revoked_at, failed_login_attempts, locked_until,
-  pending_activation, owner_activated_at,
+  pending_activation, pending_approval, owner_activated_at,
   created_at, updated_at
 `
 
@@ -23,13 +23,13 @@ export async function findById(client, appId, tenantId, id) {
   return rows[0] ?? null
 }
 
-export async function createUser(client, { id, appId, tenantId, subTenantId, email, passwordHash, role, displayName, pendingActivation = false }) {
+export async function createUser(client, { id, appId, tenantId, subTenantId, email, passwordHash, role, displayName, pendingActivation = false, pendingApproval = false }) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.users
-       (id, app_id, tenant_id, sub_tenant_id, email, password_hash, role, display_name, pending_activation)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING id, app_id, tenant_id, sub_tenant_id, email, role, display_name, pending_activation, created_at`,
-    [id, appId, tenantId, subTenantId ?? null, email, passwordHash ?? null, role, displayName ?? null, pendingActivation],
+       (id, app_id, tenant_id, sub_tenant_id, email, password_hash, role, display_name, pending_activation, pending_approval)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING id, app_id, tenant_id, sub_tenant_id, email, role, display_name, pending_activation, pending_approval, created_at`,
+    [id, appId, tenantId, subTenantId ?? null, email, passwordHash ?? null, role, displayName ?? null, pendingActivation, pendingApproval],
   )
   return rows[0]
 }
@@ -81,7 +81,7 @@ export async function touchLastLogin(client, id) {
   )
 }
 
-export async function list(client, { appId, tenantId, role }) {
+export async function list(client, { appId, tenantId, role, pending }) {
   const conditions = []
   const values = []
   let idx = 1
@@ -92,6 +92,13 @@ export async function list(client, { appId, tenantId, role }) {
     const placeholders = roles.map(() => `$${idx++}`).join(', ')
     conditions.push(`role IN (${placeholders})`)
     values.push(...roles)
+  }
+  // `pending=approval` → solo solicitudes self-register a la espera del
+  // admin. Cualquier otro valor (o ausencia) devuelve users activos.
+  if (pending === 'approval') {
+    conditions.push(`pending_approval = TRUE`)
+  } else {
+    conditions.push(`pending_approval = FALSE`)
   }
   conditions.push(`revoked_at IS NULL`)
   const { rows } = await client.query(
@@ -127,6 +134,29 @@ export async function softDelete(client, id) {
     [id],
   )
   return rowCount > 0
+}
+
+// Hard-delete usado por el flujo de rechazo de solicitudes: el user
+// estaba sólo en pending_approval, sin actividad asociada, así que
+// borrar el row entero libera el email y permite re-solicitar.
+// Las FKs con ON DELETE CASCADE limpian oauth_connections,
+// password_resets, activation_tokens.
+export async function hardDelete(client, id) {
+  const { rowCount } = await client.query(
+    `DELETE FROM ${SCHEMA}.users WHERE id = $1`,
+    [id],
+  )
+  return rowCount > 0
+}
+
+export async function approve(client, id) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.users SET pending_approval = FALSE, updated_at = now()
+     WHERE id = $1 AND pending_approval = TRUE
+     RETURNING ${PUBLIC_COLUMNS}`,
+    [id],
+  )
+  return rows[0] ?? null
 }
 
 // Self-service profile update — sólo campos seguros (display_name por

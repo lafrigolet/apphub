@@ -53,10 +53,25 @@ const internalReissueBody = z.object({
   ttlDays: z.number().int().min(1).max(30).optional(),
 })
 
+const requestMembershipBody = z.object({
+  appId:       z.string().min(1),
+  tenantId:    z.string().uuid(),
+  email:       z.string().email(),
+  displayName: z.string().min(1).max(128).optional(),
+  notes:       z.string().max(2048).optional(),
+})
+
 export async function authRoutes(fastify) {
   fastify.post('/register', { schema: { body: registerBody }, config: { public: true } }, async (req, reply) => {
     const user = await authService.register(req.body)
     return reply.status(201).send({ data: user })
+  })
+
+  // Ruta 1 (Solicitar Alta) — el visitante envía email + nombre, queda
+  // pending_approval en DB hasta que un admin del tenant le apruebe.
+  fastify.post('/request-membership', { schema: { body: requestMembershipBody }, config: { public: true } }, async (req, reply) => {
+    const result = await authService.requestMembership(req.body)
+    return reply.status(201).send({ data: result })
   })
 
   fastify.post('/login', { schema: { body: loginBody }, config: { public: true } }, async (req, reply) => {

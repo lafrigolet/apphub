@@ -1,7 +1,10 @@
 import crypto from 'node:crypto'
+import { v4 as uuidv4 } from 'uuid'
 import { pool } from '../lib/db.js'
+import { publish } from '../lib/redis.js'
 import * as userRepo from '../repositories/user.repository.js'
-import { ForbiddenError, NotFoundError } from '../utils/errors.js'
+import * as resetRepo from '../repositories/password-reset.repository.js'
+import { ForbiddenError, NotFoundError, AppError } from '../utils/errors.js'
 import { register as authRegister, forgotPassword as authForgotPassword } from './auth.service.js'
 
 const STAFF_ROLES = new Set(['staff', 'super_admin'])
@@ -48,7 +51,7 @@ async function withTenantContext(appId, tenantId, fn) {
   }
 }
 
-export async function listUsers({ appId, tenantId, role }, identity) {
+export async function listUsers({ appId, tenantId, role, pending }, identity) {
   if (!isStaff(identity)) {
     // Non-staff can only list users in their own (app, tenant) scope
     if ((appId && appId !== identity.appId) || (tenantId && tenantId !== identity.tenantId)) {
@@ -59,10 +62,10 @@ export async function listUsers({ appId, tenantId, role }, identity) {
   }
   if (!appId || !tenantId) {
     if (!isStaff(identity)) throw new ForbiddenError('appId and tenantId required')
-    return withStaffContext((client) => userRepo.list(client, { appId, tenantId, role }))
+    return withStaffContext((client) => userRepo.list(client, { appId, tenantId, role, pending }))
   }
   const runner = isStaff(identity) ? withStaffContext : (fn) => withTenantContext(appId, tenantId, fn)
-  return runner((client) => userRepo.list(client, { appId, tenantId, role }))
+  return runner((client) => userRepo.list(client, { appId, tenantId, role, pending }))
 }
 
 export async function changeRole({ id, role }, identity) {
@@ -168,6 +171,75 @@ export async function inviteUser({ appId, tenantId, email, role, displayName }, 
   // de sesión — la activación va por correo.
   await authForgotPassword({ appId, tenantId, email })
   return { userId: id }
+}
+
+// Cualquier admin del tenant (owner/admin/staff/super_admin) aprueba la
+// solicitud. Pasos:
+//   1) flip pending_approval=FALSE
+//   2) crear password_reset token (mismo store que forgotPassword)
+//   3) emitir `auth.signup.approved` con el token plano → notifications
+//      manda email con magic-link "tu cuenta ha sido aprobada, fija tu
+//      contraseña aquí"
+// Si el user llegó vía OAuth y nunca usará password, el link queda sin
+// consumir pero puede volver a entrar con Google/Facebook igual.
+export async function approveUser(id, identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+  return withStaffContext(async (client) => {
+    const target = await userRepo.findAnywhereById(client, id)
+    if (!target) throw new NotFoundError('User')
+    if (!isStaff(identity) && (target.app_id !== identity.appId || target.tenant_id !== identity.tenantId)) {
+      throw new ForbiddenError('Cannot approve a user outside your tenant')
+    }
+    if (!target.pending_approval) {
+      throw new AppError('NOT_PENDING', 'El usuario no está pendiente de aprobación', 409)
+    }
+    const approved = await userRepo.approve(client, id)
+    if (!approved) throw new NotFoundError('User')
+
+    // Crea el token de password-reset que el user usará como magic-link
+    // de bienvenida. Mismo store que forgotPassword (1h TTL).
+    const token = uuidv4()
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+    await resetRepo.createReset(client, {
+      id: token, userId: approved.id, appId: approved.app_id, tenantId: approved.tenant_id, expiresAt,
+    })
+    await publish({
+      type: 'auth.signup.approved',
+      payload: {
+        userId: approved.id, email: approved.email, displayName: approved.display_name,
+        appId: approved.app_id, tenantId: approved.tenant_id, token,
+      },
+    })
+    return approved
+  })
+}
+
+// Rechazo: hard-delete del row. El email queda libre y la persona puede
+// re-solicitar. Cualquier oauth_connection / password_reset cae por
+// cascada de FK. Emite `auth.signup.rejected` para que aikikan-server
+// limpie el row de app_aikikan.members si lo tuviera, y notifications
+// envíe email "lo sentimos".
+export async function rejectUser(id, identity, { reason } = {}) {
+  if (!identity?.userId) throw new ForbiddenError()
+  return withStaffContext(async (client) => {
+    const target = await userRepo.findAnywhereById(client, id)
+    if (!target) throw new NotFoundError('User')
+    if (!isStaff(identity) && (target.app_id !== identity.appId || target.tenant_id !== identity.tenantId)) {
+      throw new ForbiddenError('Cannot reject a user outside your tenant')
+    }
+    if (!target.pending_approval) {
+      throw new AppError('NOT_PENDING', 'El usuario no está pendiente de aprobación (use revoke)', 409)
+    }
+    const ok = await userRepo.hardDelete(client, id)
+    if (!ok) throw new NotFoundError('User')
+    await publish({
+      type: 'auth.signup.rejected',
+      payload: {
+        userId: target.id, email: target.email, displayName: target.display_name,
+        appId: target.app_id, tenantId: target.tenant_id, reason: reason ?? null,
+      },
+    })
+  })
 }
 
 export async function revokeUser({ id }, identity) {

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getIdentity } from '../../lib/auth.js'
 import { api } from '../../lib/api.js'
 import InviteUserModal from './InviteUserModal.jsx'
+import ConfirmModal from '../ConfirmModal.jsx'
 
 const APP_ID = 'aikikan'
 
@@ -53,11 +54,13 @@ function fmtMoney(cents, currency = 'eur') {
 export default function UsersAdmin() {
   const identity = getIdentity()
   const [rows, setRows]       = useState([])
+  const [pendingRows, setPendingRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
   const [query, setQuery]     = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
+  const [rejecting, setRejecting]   = useState(null)   // userId pendiente de confirmación de rechazo
 
   function load() {
     setLoading(true); setError(null)
@@ -66,16 +69,36 @@ export default function UsersAdmin() {
       api('GET', `/api/users?${q}&role=user`),
       api('GET', `/api/users?${q}&role=admin,owner`),
       api('GET', '/api/aikikan/members'),
+      api('GET', `/api/users?${q}&pending=approval`),
     ])
-      .then(([socios, admins, profiles]) => {
+      .then(([socios, admins, profiles, pending]) => {
         const users = [...(socios ?? []), ...(admins ?? [])]
         const byUser = new Map((profiles ?? []).map((p) => [p.user_id, p]))
         setRows(users.map((u) => ({ ...u, profile: byUser.get(u.id) ?? null })))
+        setPendingRows(pending ?? [])
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }
   useEffect(load, [identity.tenantId])
+
+  async function approve(userId) {
+    try {
+      await api('POST', `/api/users/${userId}/approve`)
+      load()
+    } catch (err) {
+      alert(`No se pudo aprobar: ${err.message}`)
+    }
+  }
+
+  async function reject(userId) {
+    try {
+      await api('POST', `/api/users/${userId}/reject`, { reason: null })
+      load()
+    } catch (err) {
+      alert(`No se pudo rechazar: ${err.message}`)
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -125,6 +148,46 @@ export default function UsersAdmin() {
       {loading && <p className="admin-loading">Cargando usuarios…</p>}
       {error   && <p className="admin-error">Error: {error}</p>}
 
+      {!loading && !error && pendingRows.length > 0 && (
+        <div className="admin-card" style={{ marginBottom: '1.5rem', borderColor: 'rgba(197,72,46,.3)' }}>
+          <div className="admin-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Solicitudes pendientes ({pendingRows.length})</span>
+            <span style={{ fontSize: '.7rem', color: 'rgba(9,9,8,.5)', textTransform: 'none', letterSpacing: 0 }}>
+              Auto-registros esperando tu aprobación
+            </span>
+          </div>
+          <table className="users-table" style={{ marginTop: '.5rem' }}>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Nombre</th>
+                <th>Solicitada</th>
+                <th style={{ width: 200, textAlign: 'right' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingRows.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.email}</td>
+                  <td>{p.display_name ?? <em className="users-empty">—</em>}</td>
+                  <td style={{ fontSize: '.85rem', color: 'rgba(9,9,8,.55)' }}>
+                    {new Date(p.created_at).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="admin-btn" onClick={() => approve(p.id)} style={{ background: '#2F6F4F', color: '#fff', borderColor: '#2F6F4F', marginRight: '.4rem' }}>
+                      Aprobar
+                    </button>
+                    <button className="admin-btn" onClick={() => setRejecting(p)} style={{ borderColor: '#8A2C2C', color: '#8A2C2C' }}>
+                      Rechazar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {!loading && !error && (
         <div className="users-table-wrap">
           <table className="users-table">
@@ -169,6 +232,16 @@ export default function UsersAdmin() {
           tenantId={identity.tenantId}
           onClose={() => setInviteOpen(false)}
           onCreated={() => { setInviteOpen(false); load() }}
+        />
+      )}
+
+      {rejecting && (
+        <ConfirmModal
+          title="Rechazar solicitud"
+          message={`¿Rechazar la solicitud de ${rejecting.email}? Se borrará el registro y el email quedará libre — la persona podrá volver a solicitar más adelante.`}
+          confirmLabel="Rechazar"
+          onConfirm={() => reject(rejecting.id)}
+          onClose={() => setRejecting(null)}
         />
       )}
     </>

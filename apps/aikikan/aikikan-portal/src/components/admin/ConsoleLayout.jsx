@@ -10,12 +10,25 @@
 // Para volver al shell embebido (con sus categorías/módulos cargados
 // del backend), el item "Inicio" navega a /consola exact.
 
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { getIdentity, clearSession } from '../../lib/auth.js'
+import { api } from '../../lib/api.js'
 
 export default function ConsoleLayout({ children }) {
   const identity = getIdentity()
   const navigate = useNavigate()
+  const [pendingCount, setPendingCount] = useState(0)
+
+  // Contador de solicitudes pendientes mostrado como badge junto a
+  // "Usuarios" en el sidebar. Lazy fetch al mount; no es crítico si falla.
+  useEffect(() => {
+    if (!identity?.tenantId) return
+    const q = `appId=aikikan&tenantId=${encodeURIComponent(identity.tenantId)}&pending=approval`
+    api('GET', `/api/users?${q}`)
+      .then((arr) => setPendingCount(Array.isArray(arr) ? arr.length : 0))
+      .catch(() => setPendingCount(0))
+  }, [identity?.tenantId])
 
   function logout() {
     clearSession()
@@ -41,7 +54,10 @@ export default function ConsoleLayout({ children }) {
 
             <div className="admin-sidebar-category">Operaciones</div>
             <NavLink to="/consola/usuarios" className={({ isActive }) => `admin-sidebar-item${isActive ? ' active' : ''}`}>
-              Usuarios
+              <span>Usuarios</span>
+              {pendingCount > 0 && (
+                <span className="admin-sidebar-badge">{pendingCount}</span>
+              )}
             </NavLink>
 
             <div className="admin-sidebar-category">Negocio</div>

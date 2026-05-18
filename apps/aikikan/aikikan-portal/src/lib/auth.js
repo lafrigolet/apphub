@@ -124,6 +124,21 @@ export async function forgotPassword(email) {
   return post('/forgot-password', { appId: APP_ID, tenantId: TENANT_ID, email })
 }
 
+// Ruta 1 — Solicitar alta: el visitante envía email + nombre + (opcional)
+// notas. El backend crea el user con pending_approval=true. Resuelve el
+// tenantId por subdomain ya que TENANT_ID puede no estar poblada.
+export async function requestMembership({ email, displayName, notes }) {
+  const { resolveTenantId } = await import('./tenant.js')
+  const tenantId = TENANT_ID || await resolveTenantId(APP_ID)
+  return post('/request-membership', {
+    appId:    APP_ID,
+    tenantId,
+    email,
+    ...(displayName ? { displayName } : {}),
+    ...(notes ? { notes } : {}),
+  })
+}
+
 // /reset-password?token=... — landing del magic-link "olvidé mi contraseña".
 // El usuario llega con un token de un solo uso y aquí fija una nueva
 // contraseña. El backend NO devuelve sesión — tras el reset hace falta

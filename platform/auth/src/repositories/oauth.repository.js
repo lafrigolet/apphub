@@ -19,12 +19,12 @@ export async function findByEmailForOAuth(client, appId, tenantId, email) {
   return rows[0] ?? null
 }
 
-export async function createUserWithOAuth(client, { id, appId, tenantId, subTenantId, email, role, provider, providerUid, name, avatarUrl }) {
+export async function createUserWithOAuth(client, { id, appId, tenantId, subTenantId, email, role, provider, providerUid, name, avatarUrl, pendingApproval = false }) {
   const { rows } = await client.query(
-    `INSERT INTO ${SCHEMA}.users (id, app_id, tenant_id, sub_tenant_id, email, role)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO ${SCHEMA}.users (id, app_id, tenant_id, sub_tenant_id, email, role, display_name, pending_approval)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [id, appId, tenantId, subTenantId ?? null, email, role],
+    [id, appId, tenantId, subTenantId ?? null, email, role, name ?? null, pendingApproval],
   )
   const user = rows[0]
   await client.query(
