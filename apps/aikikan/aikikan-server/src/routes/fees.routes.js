@@ -11,6 +11,13 @@ const setPriceBody = z.object({
   stripePriceId: z.string().min(1),
 })
 
+const productUpdateBody = z.object({
+  name:          z.string().min(1).max(256).optional(),
+  description:   z.string().max(2048).optional().nullable(),
+  amountCents:   z.number().int().min(0).optional(),
+  stripePriceId: z.string().min(1).max(256).optional().nullable(),
+})
+
 export async function feesRoutes(fastify) {
   // Public — el catálogo lo ve cualquiera (visitor). Tenant se resuelve
   // por Bearer token o ?tenantId=<uuid>.
@@ -44,5 +51,14 @@ export async function feesRoutes(fastify) {
   fastify.patch('/v1/aikikan/fees/products/:code/stripe-price', async (req) => {
     const { stripePriceId } = setPriceBody.parse(req.body ?? {})
     return service.setProductStripePriceId(req.identity, req.params.code, stripePriceId)
+  })
+
+  // Admin: edición general del producto (name, description, amount_cents
+  // y stripe_price_id). Reemplaza al endpoint de stripe-price para edición
+  // desde la consola de billing — pero ese se mantiene para
+  // compatibilidad con scripts.
+  fastify.patch('/v1/aikikan/fees/products/:code', async (req) => {
+    const body = productUpdateBody.parse(req.body ?? {})
+    return service.updateProduct(req.identity, req.params.code, body)
   })
 }

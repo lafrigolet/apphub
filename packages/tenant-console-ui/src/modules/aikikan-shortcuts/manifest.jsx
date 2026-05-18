@@ -18,6 +18,12 @@ export default {
       label:    'Usuarios',
       icon:     icons.admins,
     },
+    {
+      category: 'business',
+      href:     '/consola/billing',
+      label:    'Billing',
+      icon:     icons.tag,
+    },
   ],
 
   routes: {},

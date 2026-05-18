@@ -160,6 +160,42 @@ export async function createCheckout(identity, bearerToken, { codes, returnPath 
   )
 }
 
+// ── Admin: actualiza cualquier campo editable del producto ────────────
+//
+// Los campos `code`, `kind`, `interval_months`, `currency`, `active` y
+// `position` quedan bloqueados (cambios disruptivos para Stripe y para
+// los socios que ya tienen historial). Sólo se editan `name`,
+// `description`, `amount_cents` y `stripe_price_id` — el patrón es
+// COALESCE-por-campo: el caller envía sólo lo que cambia.
+export async function updateProduct(identity, code, body) {
+  if (!identity?.userId) throw new ForbiddenError()
+  if (!ADMIN_ROLES.has(identity.role)) throw new ForbiddenError('Only owner/admin')
+  return withTenantTransaction(
+    pool, identity.appId, identity.tenantId, identity.subTenantId ?? null,
+    async (client) => {
+      const { rows } = await client.query(
+        `UPDATE app_aikikan.fee_products SET
+           name            = COALESCE($2, name),
+           description     = COALESCE($3, description),
+           amount_cents    = COALESCE($4, amount_cents),
+           stripe_price_id = COALESCE($5, stripe_price_id),
+           updated_at      = now()
+         WHERE code = $1
+         RETURNING *`,
+        [
+          code,
+          body.name ?? null,
+          body.description ?? null,
+          body.amountCents ?? null,
+          body.stripePriceId ?? null,
+        ],
+      )
+      if (rows.length === 0) throw new NotFoundError('Product')
+      return rows[0]
+    },
+  )
+}
+
 // ── Admin: actualiza stripe_price_id de un producto ───────────────────
 export async function setProductStripePriceId(identity, code, stripePriceId) {
   if (!ADMIN_ROLES.has(identity?.role)) throw new ForbiddenError('Only owner/admin')
