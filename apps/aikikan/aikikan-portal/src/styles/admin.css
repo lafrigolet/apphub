@@ -205,6 +205,25 @@
 .users-empty { color: rgba(9, 9, 8, .35); font-style: italic; }
 .users-empty-row { text-align: center; padding: 2rem; color: rgba(9, 9, 8, .55); }
 
+.users-chev {
+  text-align: center;
+  color: rgba(9, 9, 8, .45);
+  font-size: .9rem;
+  user-select: none;
+}
+.users-row.is-open { background: rgba(197, 72, 46, .06); }
+.users-row.is-open .users-chev { color: #C5482E; }
+
+.users-accordion > td {
+  padding: 0 !important;
+  background: rgba(9, 9, 8, .025);
+  border-top: 1px solid rgba(197, 72, 46, .15);
+}
+.user-accordion-inner {
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-bottom: 1px solid rgba(9, 9, 8, .07);
+}
+
 /* ── User detail: tabs + form ─────────────────────────────────────────── */
 
 .user-tabs {

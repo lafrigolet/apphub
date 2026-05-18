@@ -43,16 +43,34 @@ export default function Sidebar({ embedded = false }) {
               <div className="px-4 pt-5 pb-2 text-[10px] uppercase tracking-[0.18em] text-ink3 border-t border-line mt-3">
                 {categoryLabel(cat.id)}
               </div>
-              {entries.map((e) => (
-                <button
-                  key={e.view}
-                  onClick={() => navigate(e.view)}
-                  className={`w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-[13.5px] ${view === e.view ? 'bg-paper2 text-ink' : 'text-ink2 hover:bg-paper2'}`}
-                >
-                  <span className={view === e.view ? 'text-ink' : 'text-ink3'}>{e.icon ?? icons.settings}</span>
-                  <span>{e.label}</span>
-                </button>
-              ))}
+              {entries.map((e) => {
+                // Entradas con `href` son atajos a rutas del host SPA
+                // (ej. aikikan-portal: /consola/usuarios). El shell no
+                // depende de react-router, así que usamos <a>; el host
+                // re-monta su tree en la nueva ruta.
+                if (e.href) {
+                  return (
+                    <a
+                      key={`${e.moduleId}-${e.href}`}
+                      href={e.href}
+                      className="w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-[13.5px] text-ink2 hover:bg-paper2 no-underline"
+                    >
+                      <span className="text-ink3">{e.icon ?? icons.settings}</span>
+                      <span>{e.label}</span>
+                    </a>
+                  )
+                }
+                return (
+                  <button
+                    key={e.view}
+                    onClick={() => navigate(e.view)}
+                    className={`w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-[13.5px] ${view === e.view ? 'bg-paper2 text-ink' : 'text-ink2 hover:bg-paper2'}`}
+                  >
+                    <span className={view === e.view ? 'text-ink' : 'text-ink3'}>{e.icon ?? icons.settings}</span>
+                    <span>{e.label}</span>
+                  </button>
+                )
+              })}
             </div>
           )
         })}

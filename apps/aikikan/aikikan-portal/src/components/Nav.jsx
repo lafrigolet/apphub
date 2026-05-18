@@ -47,9 +47,8 @@ export default function Nav({ onLoginOpen, identity, onLogout }) {
         <li><Link to="/#videos"   onClick={close}>Vídeos</Link></li>
         <li><Link to="/#dojos"    onClick={close}>Dojos</Link></li>
         <li><Link to="/#contacto" onClick={close}>Contacto</Link></li>
-        {isAdmin  && <li><Link to="/consola"          onClick={close}>Consola</Link></li>}
-        {isAdmin  && <li><Link to="/consola/usuarios" onClick={close}>Usuarios</Link></li>}
-        {isMember && <li><Link to="/area-socio"       onClick={close}>Mi área</Link></li>}
+        {isAdmin  && <li><Link to="/consola"    onClick={close}>Consola</Link></li>}
+        {isMember && <li><Link to="/area-socio" onClick={close}>Mi área</Link></li>}
       </ul>
       <div className={`nav-actions ${open ? 'is-open' : ''}`}>
         {identity ? (
