@@ -30,8 +30,8 @@ function LandingPage() {
       <About />
       <Masters />
       <Videos />
-      <Dojos />
       <Events />
+      <Dojos />
       <Contact />
       <Footer />
     </div>

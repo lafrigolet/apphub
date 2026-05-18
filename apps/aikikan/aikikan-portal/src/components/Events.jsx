@@ -175,7 +175,7 @@ export default function Events() {
           {sessions.map((e) => {
             const { month, year } = formatDate(e.starts_at)
             return (
-              <div key={e.id} className="event-row reveal">
+              <div key={e.id} className="event-row">
                 <div className="event-date">{month}<small>{year}</small></div>
                 <div>
                   <p className="event-name">{e.name}</p>
