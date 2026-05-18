@@ -445,12 +445,15 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .event-modal-btn.primary:hover { background: #960023; }
 .event-modal-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-/* LOGIN MAGIC-LINK CTA — link extra debajo del formulario para el flow
-   passwordless. Compartido con el "¿olvidaste contraseña?" del estilo. */
-.login-magiclink-cta { text-align: center; margin-top: 1rem; font-size: .82rem; font-family: 'Space Mono', monospace; }
-.login-magiclink-cta a { color: rgba(9,9,8,.55); text-decoration: none; transition: color .15s; }
-.login-magiclink-cta a:hover { color: var(--accent); }
-.login-magiclink-cta .slash { color: var(--accent); margin-right: .35rem; }
+/* LOGIN MAGIC-LINK — hint debajo del input antes del botón.
+   Aikikan es passwordless: este flow es el único email-based. */
+.login-magiclink-hint {
+  font-family: 'Space Mono', monospace;
+  font-size: .72rem;
+  color: rgba(9, 9, 8, .5);
+  margin: .5rem 0 1rem;
+  line-height: 1.4;
+}
 
 /* LOGIN OVERLAY */
 .login-overlay { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }

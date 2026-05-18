@@ -22,18 +22,18 @@ function GoogleButton({ onSuccess, onError, disabled }) {
 }
 
 function LoginForm({ onClose, onLoggedIn }) {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState(null)
-  const [success, setSuccess]   = useState(null)
+  const [email, setEmail]     = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState(null)
+  const [success, setSuccess] = useState(null)
   const [requestOpen, setRequestOpen] = useState(false)
 
-  // Después de cualquier flujo de login (password / Google / Facebook)
-  // notificamos al padre y cerramos el modal. El padre (App.jsx) decide
-  // qué montar según el rol:
+  // Después de Google/Facebook notificamos al padre y cerramos el modal.
+  // El padre (App.jsx) decide qué montar según el rol:
   //   admin → <AdminShell> (consola embebida, paquete @apphub/tenant-console-ui)
   //   socio → <MemberHome>
+  // Magic-link login NO pasa por aquí — el user clica el link del email
+  // y aterriza en /magic-login (MagicLoginView).
   function dispatchByRole(data) {
     onLoggedIn?.(data)
     onClose()
@@ -41,11 +41,11 @@ function LoginForm({ onClose, onLoggedIn }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
+    if (!email) { setError('Introduce tu email.'); return }
+    setError(null); setSuccess(null); setLoading(true)
     try {
-      const data = await auth.login({ email, password })
-      dispatchByRole(data)
+      await auth.requestMagicLink(email)
+      setSuccess('Si ese email existe, te hemos enviado un enlace de acceso. Revisa tu bandeja (caduca en 15 min).')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -129,43 +129,22 @@ function LoginForm({ onClose, onLoggedIn }) {
 
           {hasSocial && <div className="login-divider"><span>o continúa con email</span></div>}
 
-          {/* Form — sólo login. El registro abierto está deshabilitado
-              para aikikan: el flujo es Solicitar Alta → admin aprueba. */}
+          {/* Aikikan es passwordless: el único flujo email-based es el
+              magic-link. Mete tu email → recibes un enlace de un solo
+              uso (15 min) → entras. Sin contraseñas que recordar. */}
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="login-field">
               <label className="login-label">Correo electrónico</label>
               <input type="email" className="login-input" placeholder="nombre@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
-            <div className="login-field">
-              <label className="login-label">Contraseña</label>
-              <input type="password" className="login-input" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
-            </div>
-            <a href="#" className="login-forgot" onClick={async e => {
-              e.preventDefault()
-              if (email) { await auth.forgotPassword(email); setSuccess('Si ese email existe, recibirás un enlace de recuperación.') }
-            }}>
-              <span className="slash">/</span> ¿Olvidaste tu contraseña?
-            </a>
+            <p className="login-magiclink-hint">
+              Te enviaremos un enlace de acceso (válido durante 15 minutos).
+              Sin contraseñas.
+            </p>
             <button type="submit" className="login-submit" disabled={loading}>
-              {loading ? 'Cargando…' : 'Iniciar sesión'}
+              {loading ? 'Enviando…' : 'Enviar enlace de acceso'}
             </button>
           </form>
-
-          <p className="login-magiclink-cta">
-            <a href="#" onClick={async e => {
-              e.preventDefault()
-              if (!email) { setError('Introduce tu email primero.'); return }
-              setError(null); setSuccess(null); setLoading(true)
-              try {
-                await auth.requestMagicLink(email)
-                setSuccess('Si ese email existe, te hemos enviado un enlace de acceso. Revisa tu bandeja (caduca en 15 min).')
-              } catch (err) {
-                setError(err.message)
-              } finally { setLoading(false) }
-            }}>
-              <span className="slash">/</span> Acceder sin contraseña (magic-link)
-            </a>
-          </p>
 
           <p className="login-switch">
             ¿Aún no eres socio?{' '}
