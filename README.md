@@ -57,7 +57,7 @@ Open http://console.hulkstein.local:8080 (after adding the alias to
 
 | Container | Port | Modules |
 |---|---|---|
-| `platform-core` | 3000 | auth, payments, notifications, tenant-config, splitpay |
+| `platform-core` | 3000 | auth, payments, notifications, tenant-config, splitpay, storage, leads, donations |
 | `platform-marketplace` | 3100 | orders, inventory, reviews, messaging, shipping, disputes, catalog, basket |
 | `platform-restaurant` | 3200 | menu, reservations, floor-plan, kds, pos, delivery-dispatch |
 

@@ -26,6 +26,73 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     tras desplegar.
 
 ### Added
+- **`platform/donations` module** — infraestructura completa para
+  gestión de donaciones, reutilizable por cualquier app de la
+  plataforma. Vive dentro de `platform-core` (puerto 3000) junto a
+  `splitpay` y `notifications`.
+  - Cubre **todos los tipos**: one-shot vs `recurring_monthly`,
+    anónimas vs identificadas, donante registrado vs invitado, fondo
+    general vs campaña/causa, fiscal completo (Ley 49/2002 + AEAT
+    modelo 182).
+  - **DB**: schema `platform_donations`, rol `svc_platform_donations`,
+    4 tablas con RLS por `(app_id, tenant_id)` —
+    `causes` (campañas con `target_cents`/`raised_cents`),
+    `donations` (estado + PII donante incluyendo `donor_nif`),
+    `donation_subscriptions` (recurrentes Stripe),
+    `fiscal_certificates` (idempotente por
+    `(app_id, tenant_id, fiscal_year, donor_nif)`).
+    Lectura selectiva sobre `platform_tenants.tenants` (NIF/razón
+    social/dirección — necesarios para certificado y modelo 182).
+  - **Splitpay queda intacto** — `createCheckoutSession` ya aceptaba
+    `price_data` ad-hoc y `mode:'subscription'` con
+    `recurring.interval`. El módulo lo consume vía HTTP loopback con
+    `metadata.purpose='donation'`.
+  - **Eventos**: subscriber psubscribe a `*.events` filtrando por
+    `metadata.purpose='donation'`. Actualiza estados, incrementa
+    `raised_cents`. Emite `donation.completed`,
+    `donation.recurring.{charged,failed,cancelled}`,
+    `donation.refunded`, `donation.certificate.ready`.
+  - **Fiscal**:
+    - Certificado PDF con `@react-pdf/renderer` (sin JSX,
+      `React.createElement` directo — Node 20 sin transpilador).
+      Sube a `platform/storage` (MinIO).
+    - Export TXT modelo 182 en ISO-8859-1, registros 600 chars
+      (header tipo 1 declarante + detalle tipo 2 por donante con
+      NIF). Spec base Orden HAC/665/2004.
+  - **Endpoints** (montados en `/api/donations/` vía nginx →
+    `platform_core/v1/donations/`):
+    - Públicos: `GET /causes/?appId=&tenantId=`,
+      `POST /checkout` (one-shot o recurring), `GET /health`.
+    - Autenticados: `GET /me`, `GET /subscriptions/me`,
+      `POST /subscriptions/:id/cancel`, `GET /:id`.
+    - Admin (`owner|admin|staff|super_admin`):
+      `GET/POST/PATCH/DELETE /causes/admin/*`,
+      `GET /admin/`, `GET /admin/subscriptions`,
+      `POST /admin/:id/refund`,
+      `GET /fiscal/certificates`,
+      `POST /fiscal/certificates/generate`,
+      `GET /fiscal/modelo-182?year=`.
+  - **Notifications** (`platform_notifications.migrations/0019`):
+    6 plantillas nuevas (`donation.thank_you`,
+    `donation.receipt.monthly`, `donation.payment_failed`,
+    `donation.cancelled`, `donation.refunded`,
+    `donation.certificate.ready`) + 6 helpers `sendDonation*` en
+    `email.service.js` + 6 subscribers en `event-consumer.js` que
+    mapean cada evento de donación a su email Resend.
+  - **Provisión**: schema + rol en
+    `infra/postgres/init/01_platform_schemas.sql` con GRANT default
+    de DML; ruta `/api/donations/` en
+    `infra/nginx/snippets/platform-routes.conf` (burst=20);
+    `DATABASE_URL_DONATIONS` + `PLATFORM_CORE_BASE_URL` en
+    `docker-compose.yml` (servicio `platform-core`);
+    `SVC_PLATFORM_DONATIONS_DB_PASSWORD` en `.env.example`;
+    Dockerfile platform/core actualizado (COPY package.json + src,
+    en dev y prod stages).
+  - **No app-side en este commit**: se construye sólo la
+    infraestructura plataforma. La integración con apps específicos
+    (aikikan: formulario donante en `/area-socio`, admin de causas
+    en `/consola`, link "Donar" en la landing) queda como commit
+    posterior.
 - **`platform/leads` module** — public lead-capture endpoint for the
   Hulkstein landing's contact form. New schema `platform_leads` + role
   `svc_platform_leads`. POST `/v1/leads` is public (no auth, nginx rate

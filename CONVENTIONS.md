@@ -33,6 +33,33 @@ Use JSDoc comments only where the types are non-obvious.
 └── package.json
 ```
 
+## Cross-module HTTP loopback
+
+Cuando un módulo de `platform-core` necesita las capacidades de otro
+módulo del mismo proceso (ej. `platform/donations` → `platform/splitpay`
+para crear la Checkout Session, o `platform/donations` →
+`platform/storage` para subir el PDF del certificado), llama por **HTTP
+loopback** a `process.env.PLATFORM_CORE_BASE_URL` (default
+`http://platform-core:3000`), no a través de un import directo.
+
+Razones:
+- El módulo destino aplica `appGuard`, rate-limit y validación zod tal
+  como lo haría con cualquier otro consumidor — sin reglas especiales
+  para llamadas "internas".
+- El día que el módulo se separe a su propio container, la llamada
+  funciona sin cambios.
+- El JWT del request inicial (si lo hubiera) puede propagarse en el
+  header `Authorization: Bearer …` para preservar identidad.
+
+## Cross-app event subscribers
+
+Los módulos de plataforma que sirven a varios apps a la vez (p.ej.
+`platform/donations` recibe checkout events que podrían venir de
+aikikan, splitpay o cualquier otro) deben **`psubscribe('*.events')`**
+con patrón y filtrar internamente por `metadata.purpose` (o equivalente)
+para identificar los eventos relevantes. No suscribirse hard-coded a
+`aikikan.events` — eso ataría el módulo a un único app.
+
 ## Platform SDK usage
 
 Always import shared utilities from `@apphub/platform-sdk` — never copy-paste them:

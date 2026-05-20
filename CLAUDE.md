@@ -31,6 +31,8 @@ apphub/
 │   ├── tenant-config/         # Tenant-config module (in platform-core) — schema platform_tenants
 │   ├── splitpay/              # Splitpay module (in platform-core) — schema splitpay_core
 │   ├── storage/               # Storage module (in platform-core) — schema platform_storage; S3-compatible bucket via MinIO
+│   ├── leads/                 # Leads module (in platform-core) — schema platform_leads; public contact form + staff CRM
+│   ├── donations/             # Donations module (in platform-core) — schema platform_donations; one-shot + recurring + fiscal (Ley 49/2002, AEAT 182)
 │   ├── orders/                # Orders module (in platform-marketplace) — schema platform_orders
 │   ├── inventory/             # Inventory module (in platform-marketplace) — schema platform_inventory
 │   ├── reviews/               # Reviews module (in platform-marketplace) — schema platform_reviews
@@ -668,6 +670,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Stripe Connect (split payments) | `platform/splitpay` | `splitpay_core` | `splitpay` (shared) | ✅ Implemented |
 | Object storage (S3/MinIO presigned URLs) | `platform/storage` | `platform_storage` | `svc_platform_storage` | ✅ Implemented |
 | Leads (landing contact form, lead CRM) | `platform/leads` | `platform_leads` | `svc_platform_leads` | ✅ Implemented |
+| Donations (one-shot + recurring + fiscal Ley 49/2002 + AEAT 182) | `platform/donations` | `platform_donations` | `svc_platform_donations` | ✅ Implemented |
 
 ### platform-marketplace (port 3100) — marketplace transactions
 

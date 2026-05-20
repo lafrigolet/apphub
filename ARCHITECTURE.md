@@ -60,6 +60,9 @@ services. Each app gets its own subdomain and its own app-specific microservices
 | `/api/notifications/` | Platform notifications | platform-core | All subdomains |
 | `/api/tenants/` | Tenant registry | platform-core | All subdomains |
 | `/api/splitpay/` | Stripe Connect | platform-core | All subdomains |
+| `/api/storage/` | Object storage (MinIO/S3 presigned URLs) | platform-core | All subdomains |
+| `/api/leads/` | Public lead-capture + staff CRM | platform-core | Hulkstein landing |
+| `/api/donations/` | Donations (one-shot + recurring + fiscal) | platform-core | All subdomains |
 | `/api/orders/` | Orders ledger | platform-marketplace | All subdomains |
 | `/api/inventory/` | Stock per SKU | platform-marketplace | All subdomains |
 | `/api/reviews/` | Reviews + replies | platform-marketplace | All subdomains |
@@ -139,6 +142,9 @@ PostgreSQL instance
 ├── platform_notifications        (platform/notifications)   role: svc_platform_notifications
 ├── platform_tenants              (platform/tenant-config)   role: svc_platform_tenants
 ├── splitpay_core                 (platform/splitpay)        role: splitpay (shared, legacy)
+├── platform_storage              (platform/storage)         role: svc_platform_storage
+├── platform_leads                (platform/leads)           role: svc_platform_leads
+├── platform_donations            (platform/donations)       role: svc_platform_donations
 │
 │ ── platform-marketplace modules ──
 ├── platform_orders               (platform/orders)          role: svc_platform_orders
@@ -172,6 +178,19 @@ Services communicate asynchronously via Redis Pub/Sub. Events are published to a
 named `{appId}.events` using `publish()` from `@apphub/platform-sdk/redis.js`. Consumers
 subscribe to the same channel in their startup hook.
 
+Cross-app subscribers (modules en `platform-core` que sirven a más de un
+app, p.ej. `platform/donations`) usan **`psubscribe('*.events')`** y
+filtran por `metadata.*` para identificar los eventos relevantes —
+patrón inspirado en cómo splitpay enruta sus webhooks de Stripe a la
+app correcta vía `metadata.app_id`.
+
+Eventos clave emitidos por el dominio dinero:
+
+| Origen | Tipo | Cuándo | Consumido por |
+|---|---|---|---|
+| `platform/splitpay` | `splitpay.checkout.completed`, `splitpay.invoice.paid`, `splitpay.invoice.payment_failed`, `splitpay.subscription.updated`, `splitpay.subscription.deleted` | webhook Stripe correspondiente | Cada app que cobra (aikikan-server, `platform/donations`, …) |
+| `platform/donations` | `donation.completed`, `donation.recurring.charged`, `donation.recurring.failed`, `donation.recurring.cancelled`, `donation.refunded`, `donation.certificate.ready` | tras reconciliar el webhook de splitpay | `platform/notifications` (emails al donante) + apps suscritas |
+
 ## Idempotency
 
 All Stripe API calls carry an `Idempotency-Key` derived from the internal operation ID.
@@ -187,7 +206,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 
 | Docker service | What runs inside | Ports |
 |---|---|---|
-| `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay | 3000 |
+| `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay + storage + leads + donations | 3000 |
 | `platform-marketplace` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes + catalog + basket | 3100 |
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
 | `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |

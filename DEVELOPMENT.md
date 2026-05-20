@@ -143,7 +143,7 @@ docker compose exec postgres psql -U splitpay -d splitpay -c "\dt app_aikikan.*"
 
 | Container | Modules / service | Port |
 |---|---|---|
-| platform-core | auth, payments, notifications, tenant-config, splitpay | 3000 |
+| platform-core | auth, payments, notifications, tenant-config, splitpay, storage, leads, donations | 3000 |
 | platform-marketplace | orders, inventory, reviews, messaging, shipping, disputes, catalog, basket | 3100 |
 | platform-restaurant | menu, reservations, floor-plan, kds, pos, delivery-dispatch | 3200 |
 | platform-appointments | services, resources, bookings, availability, intake-forms, telehealth, packages, practitioner-payouts | 3300 |
