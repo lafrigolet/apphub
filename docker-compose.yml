@@ -484,6 +484,24 @@ services:
       - ./apps/tenant-console/tenant-console-portal/vite.config.js:/app/apps/tenant-console/tenant-console-portal/vite.config.js:ro
       - ./apps/tenant-console/tenant-console-portal/index.html:/app/apps/tenant-console/tenant-console-portal/index.html:ro
 
+  # ── Aulavera (frontend 5179) ──────────────────────────────────
+  aulavera-portal:
+    build:
+      context: .
+      dockerfile: apps/aulavera/aulavera-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    networks: [edge]
+    ports:
+      - '5179:5179'
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://aulavera.hulkstein.local:8080
+    volumes:
+      - ./apps/aulavera/aulavera-portal/src:/app/apps/aulavera/aulavera-portal/src:ro
+      - ./apps/aulavera/aulavera-portal/vite.config.js:/app/apps/aulavera/aulavera-portal/vite.config.js:ro
+      - ./apps/aulavera/aulavera-portal/index.html:/app/apps/aulavera/aulavera-portal/index.html:ro
+
   # ── Gateway ────────────────────────────────────────────────────
   # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
   # server blocks from a Redis hash and reloads nginx within ~2s of any
@@ -524,6 +542,7 @@ services:
       aikikan-server:          { condition: service_started }
       console-portal: { condition: service_started }
       tenant-console-portal:   { condition: service_started }
+      aulavera-portal:         { condition: service_started }
 
 volumes:
   postgres_data:
