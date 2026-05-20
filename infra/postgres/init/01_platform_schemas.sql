@@ -42,6 +42,9 @@ CREATE SCHEMA IF NOT EXISTS platform_storage;
 -- platform-core leads module schema
 CREATE SCHEMA IF NOT EXISTS platform_leads;
 
+-- platform-core donations module schema
+CREATE SCHEMA IF NOT EXISTS platform_donations;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -141,6 +144,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_leads') THEN
     CREATE ROLE svc_platform_leads LOGIN PASSWORD 'platform_leads_secret';
   END IF;
+
+  -- platform-core donations module role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_donations') THEN
+    CREATE ROLE svc_platform_donations LOGIN PASSWORD 'platform_donations_secret';
+  END IF;
 END
 $$;
 
@@ -185,6 +193,16 @@ GRANT USAGE ON SCHEMA platform_storage              TO svc_platform_storage;
 
 -- USAGE grants (platform-core leads module)
 GRANT USAGE ON SCHEMA platform_leads                TO svc_platform_leads;
+
+-- USAGE grants (platform-core donations module)
+GRANT USAGE ON SCHEMA platform_donations            TO svc_platform_donations;
+-- El módulo donations necesita leer info del declarante para emitir
+-- certificados y modelo 182 → pequeño boundary leak sólo sobre
+-- columnas no-secretas de tenants. Patrón ya usado en auth para la
+-- flag requires_user_approval.
+GRANT USAGE ON SCHEMA platform_tenants              TO svc_platform_donations;
+GRANT SELECT (id, app_id, legal_name, display_name, cif, address)
+  ON platform_tenants.tenants TO svc_platform_donations;
 
 -- DML default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth
@@ -257,6 +275,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_leads
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_leads;
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_leads
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_leads;
+
+-- DML default privs (platform-core donations)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_donations
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_donations;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_donations
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_donations;
 
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth

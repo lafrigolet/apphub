@@ -118,6 +118,63 @@ export function startEventConsumer() {
         }
       }
 
+      // ── Donaciones (platform/donations) ──────────────────────────────
+      if (event.type === 'donation.completed') {
+        const { donorEmail, donorName, amountCents, causeId, userId, kind } = event.payload ?? {}
+        if (donorEmail && kind === 'one_shot') {
+          const { sendDonationThankYou } = await import('./email.service.js')
+          await gated(userId ?? null, event.type, 'email',
+            () => sendDonationThankYou(donorEmail, { donorName, amountCents, causeName: null, locale }))
+        }
+        // El primer cobro de una recurring también pasa por aquí; lo
+        // mandamos como thank_you (es el "te has suscrito, gracias").
+        if (donorEmail && kind === 'recurring_monthly') {
+          const { sendDonationThankYou } = await import('./email.service.js')
+          await gated(userId ?? null, event.type, 'email',
+            () => sendDonationThankYou(donorEmail, { donorName, amountCents, causeName: null, locale }))
+        }
+      }
+      if (event.type === 'donation.recurring.charged') {
+        const { donorEmail, donorName, amountCents, userId } = event.payload ?? {}
+        if (donorEmail) {
+          const { sendDonationMonthlyReceipt } = await import('./email.service.js')
+          await gated(userId ?? null, event.type, 'email',
+            () => sendDonationMonthlyReceipt(donorEmail, { donorName, amountCents, causeName: null, locale }))
+        }
+      }
+      if (event.type === 'donation.recurring.failed') {
+        const { donorEmail, donorName, userId } = event.payload ?? {}
+        if (donorEmail) {
+          const { sendDonationPaymentFailed } = await import('./email.service.js')
+          await gated(userId ?? null, event.type, 'email',
+            () => sendDonationPaymentFailed(donorEmail, { donorName, amountCents: 0, locale }))
+        }
+      }
+      if (event.type === 'donation.recurring.cancelled') {
+        const { donorEmail, donorName, userId } = event.payload ?? {}
+        if (donorEmail) {
+          const { sendDonationCancelled } = await import('./email.service.js')
+          await gated(userId ?? null, event.type, 'email',
+            () => sendDonationCancelled(donorEmail, { donorName, locale }))
+        }
+      }
+      if (event.type === 'donation.refunded') {
+        const { donorEmail, donorName, amountCents, userId } = event.payload ?? {}
+        if (donorEmail) {
+          const { sendDonationRefunded } = await import('./email.service.js')
+          await gated(userId ?? null, event.type, 'email',
+            () => sendDonationRefunded(donorEmail, { donorName, amountCents, locale }))
+        }
+      }
+      if (event.type === 'donation.certificate.ready') {
+        const { donorEmail, donorName, fiscalYear, certificateUrl, userId } = event.payload ?? {}
+        if (donorEmail && certificateUrl) {
+          const { sendDonationCertificateReady } = await import('./email.service.js')
+          await gated(userId ?? null, event.type, 'email',
+            () => sendDonationCertificateReady(donorEmail, { donorName, year: fiscalYear, certificateUrl, locale }))
+        }
+      }
+
       // ── Self-register + Admin-approval (Ruta 1) ──────────────────────
       if (event.type === 'auth.signup.requested') {
         const { email, displayName, userId } = event.payload ?? {}

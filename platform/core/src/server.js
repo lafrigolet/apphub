@@ -25,6 +25,7 @@ const moduleDescriptors = [
   { name: 'splitpay',      package: '@apphub/platform-splitpay',      databaseUrl: env.DATABASE_URL_SPLITPAY      },
   { name: 'storage',       package: '@apphub/platform-storage',       databaseUrl: env.DATABASE_URL_STORAGE       },
   { name: 'leads',         package: '@apphub/platform-leads',         databaseUrl: env.DATABASE_URL_LEADS         },
+  { name: 'donations',     package: '@apphub/platform-donations',     databaseUrl: env.DATABASE_URL_DONATIONS     },
 ]
 
 async function loadModule(descriptor) {

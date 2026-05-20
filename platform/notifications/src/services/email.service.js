@@ -147,6 +147,78 @@ export async function sendMagicLinkPendingApprovalEmail(to, { displayName, local
   await send({ to, ...tmpl })
 }
 
+// ── Donaciones (platform/donations) ─────────────────────────────────────
+
+function fmtEur(cents) {
+  return ((cents ?? 0) / 100).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })
+}
+
+export async function sendDonationThankYou(to, { donorName, amountCents, causeName, locale = 'es' } = {}) {
+  const namePrefix = donorName ? ' ' + donorName : ''
+  const amountFormatted = fmtEur(amountCents)
+  const cause = causeName || 'el fondo general'
+  const tmpl = await compose('donation.thank_you', { namePrefix, amountFormatted, causeName: cause }, {
+    subject: 'Gracias por tu donación',
+    text: `Hola${namePrefix},\n\nHemos recibido tu donación de ${amountFormatted}. Va destinada a ${cause}.\n\nGracias de corazón.`,
+    html: `<p>Hola${namePrefix},</p><p>Hemos recibido tu donación de <strong>${amountFormatted}</strong>. Va destinada a <em>${cause}</em>.</p><p>Gracias de corazón.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendDonationMonthlyReceipt(to, { donorName, amountCents, causeName, locale = 'es' } = {}) {
+  const namePrefix = donorName ? ' ' + donorName : ''
+  const amountFormatted = fmtEur(amountCents)
+  const cause = causeName || 'el fondo general'
+  const tmpl = await compose('donation.receipt.monthly', { namePrefix, amountFormatted, causeName: cause }, {
+    subject: 'Tu donación mensual — recibo',
+    text: `Hola${namePrefix},\n\nAcabamos de procesar tu donación mensual de ${amountFormatted} para ${cause}.\n\nGracias por seguir con nosotros.`,
+    html: `<p>Hola${namePrefix},</p><p>Acabamos de procesar tu donación mensual de <strong>${amountFormatted}</strong> para <em>${cause}</em>.</p><p>Gracias por seguir con nosotros.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendDonationPaymentFailed(to, { donorName, amountCents, locale = 'es' } = {}) {
+  const namePrefix = donorName ? ' ' + donorName : ''
+  const amountFormatted = fmtEur(amountCents)
+  const tmpl = await compose('donation.payment_failed', { namePrefix, amountFormatted }, {
+    subject: 'No pudimos procesar tu donación mensual',
+    text: `Hola${namePrefix},\n\nNo hemos podido cobrar tu donación mensual de ${amountFormatted} este mes. Stripe reintentará automáticamente.`,
+    html: `<p>Hola${namePrefix},</p><p>No hemos podido cobrar tu donación mensual de <strong>${amountFormatted}</strong> este mes. Stripe reintentará automáticamente.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendDonationCancelled(to, { donorName, locale = 'es' } = {}) {
+  const namePrefix = donorName ? ' ' + donorName : ''
+  const tmpl = await compose('donation.cancelled', { namePrefix }, {
+    subject: 'Tu donación mensual ha sido cancelada',
+    text: `Hola${namePrefix},\n\nTu donación mensual ha sido cancelada. Gracias por todo el apoyo.`,
+    html: `<p>Hola${namePrefix},</p><p>Tu donación mensual ha sido cancelada. Gracias por todo el apoyo.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendDonationRefunded(to, { donorName, amountCents, locale = 'es' } = {}) {
+  const namePrefix = donorName ? ' ' + donorName : ''
+  const amountFormatted = fmtEur(amountCents)
+  const tmpl = await compose('donation.refunded', { namePrefix, amountFormatted }, {
+    subject: 'Tu donación ha sido reembolsada',
+    text: `Hola${namePrefix},\n\nHemos procesado el reembolso de tu donación de ${amountFormatted}. Aparecerá en tu cuenta en 5-10 días.`,
+    html: `<p>Hola${namePrefix},</p><p>Hemos procesado el reembolso de tu donación de <strong>${amountFormatted}</strong>. Aparecerá en tu cuenta en 5-10 días.</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
+export async function sendDonationCertificateReady(to, { donorName, year, certificateUrl, locale = 'es' } = {}) {
+  const namePrefix = donorName ? ' ' + donorName : ''
+  const tmpl = await compose('donation.certificate.ready', { namePrefix, year, certificateUrl }, {
+    subject: `Tu certificado de donativos ${year}`,
+    text: `Hola${namePrefix},\n\nYa está disponible tu certificado de donativos del año ${year}.\n\n${certificateUrl}`,
+    html: `<p>Hola${namePrefix},</p><p>Ya está disponible tu certificado de donativos del año <strong>${year}</strong>.</p><p><a href="${certificateUrl}">${certificateUrl}</a></p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
 // ── Self-register + Admin-approval (Ruta 1) ─────────────────────────────
 
 export async function sendSignupRequestedEmail(to, { displayName, locale = 'es' } = {}) {

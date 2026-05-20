@@ -14,6 +14,7 @@ COPY platform/tenant-config/package.json           ./platform/tenant-config/pack
 COPY platform/splitpay/package.json                ./platform/splitpay/package.json
 COPY platform/storage/package.json                 ./platform/storage/package.json
 COPY platform/leads/package.json                   ./platform/leads/package.json
+COPY platform/donations/package.json               ./platform/donations/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-core...
@@ -33,6 +34,8 @@ COPY platform/storage/src             ./platform/storage/src
 COPY platform/storage/migrations      ./platform/storage/migrations
 COPY platform/leads/src               ./platform/leads/src
 COPY platform/leads/migrations        ./platform/leads/migrations
+COPY platform/donations/src           ./platform/donations/src
+COPY platform/donations/migrations    ./platform/donations/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core
@@ -50,6 +53,7 @@ COPY platform/tenant-config/package.json           ./platform/tenant-config/pack
 COPY platform/splitpay/package.json                ./platform/splitpay/package.json
 COPY platform/storage/package.json                 ./platform/storage/package.json
 COPY platform/leads/package.json                   ./platform/leads/package.json
+COPY platform/donations/package.json               ./platform/donations/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-core...
@@ -69,6 +73,8 @@ COPY platform/storage/src             ./platform/storage/src
 COPY platform/storage/migrations      ./platform/storage/migrations
 COPY platform/leads/src               ./platform/leads/src
 COPY platform/leads/migrations        ./platform/leads/migrations
+COPY platform/donations/src           ./platform/donations/src
+COPY platform/donations/migrations    ./platform/donations/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core
