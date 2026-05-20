@@ -484,6 +484,37 @@ services:
       - ./apps/tenant-console/tenant-console-portal/vite.config.js:/app/apps/tenant-console/tenant-console-portal/vite.config.js:ro
       - ./apps/tenant-console/tenant-console-portal/index.html:/app/apps/tenant-console/tenant-console-portal/index.html:ro
 
+  # ── Aulavera backend monolith (port 3031) ────────────────────
+  # Second app to follow ADR 013: one container, schema `app_aulavera`,
+  # role `svc_app_aulavera`. Domain code (events/disciplines/resources)
+  # lives in folders under src/, NOT separate schemas.
+  aulavera-server:
+    build:
+      context: .
+      dockerfile: apps/aulavera/aulavera-server/Dockerfile
+      target: development
+    restart: unless-stopped
+    networks: [app, data]
+    ports:
+      - '3031:3031'
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      PORT: '3031'
+      DATABASE_URL: postgresql://svc_app_aulavera:app_aulavera_secret@postgres:5432/splitpay
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      EXPECTED_APP_ID: aulavera
+      PLATFORM_CORE_URL: http://platform-core:3000
+      AULAVERA_PUBLIC_URL: ${AULAVERA_PUBLIC_URL:-http://aulavera.hulkstein.local:8080}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    volumes:
+      - ./apps/aulavera/aulavera-server/src:/app/apps/aulavera/aulavera-server/src:ro
+      - ./apps/aulavera/aulavera-server/migrations:/app/apps/aulavera/aulavera-server/migrations:ro
+
   # ── Aulavera (frontend 5179) ──────────────────────────────────
   aulavera-portal:
     build:
@@ -543,6 +574,7 @@ services:
       console-portal: { condition: service_started }
       tenant-console-portal:   { condition: service_started }
       aulavera-portal:         { condition: service_started }
+      aulavera-server:         { condition: service_started }
 
 volumes:
   postgres_data:

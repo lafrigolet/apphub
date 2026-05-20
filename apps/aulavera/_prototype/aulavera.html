@@ -1,0 +1,2547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AulaVera · Fundación &amp; Granja Escuela en Losar de la Vera</title>
+<meta name="description" content="Fundación AulaVera: educación medioambiental, creativa y de desarrollo personal en una granja-escuela en Losar de la Vera, Cáceres." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,500&family=Caveat:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     AULAVERA · Diseño orgánico editorial con calidez manuscrita
+     ============================================================ */
+  :root {
+    --cream:        #F4EDDE;
+    --cream-deep:   #ECE2CC;
+    --paper:        #FBF6EA;
+    --ink:          #2B2218;
+    --ink-soft:     #5A4836;
+    --ink-mute:     #8A7860;
+    --forest:       #2C4A2A;
+    --forest-deep:  #1E3520;
+    --moss:         #6B8E4E;
+    --terra:        #B5532A;
+    --terra-deep:   #8E3D1B;
+    --ochre:        #C8923D;
+    --ochre-light:  #E5BC72;
+    --sky:          #B7CFD6;
+    --rose:         #D9A38C;
+    --line:         rgba(43, 34, 24, 0.15);
+    --line-strong:  rgba(43, 34, 24, 0.35);
+    --shadow:       0 1px 0 rgba(43, 34, 24, 0.06), 0 12px 32px -8px rgba(43, 34, 24, 0.18);
+
+    --display:  "Fraunces", "Times New Roman", serif;
+    --body:     "EB Garamond", Georgia, serif;
+    --script:   "Caveat", "Brush Script MT", cursive;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 18px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Paper grain overlay across the whole site */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.5;
+    mix-blend-mode: multiply;
+    background-image:
+      radial-gradient(circle at 12% 22%, rgba(181,83,42,0.04) 0, transparent 30%),
+      radial-gradient(circle at 88% 78%, rgba(44,74,42,0.04) 0, transparent 30%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.17 0 0 0 0 0.13 0 0 0 0 0.09 0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  ::selection { background: var(--ochre-light); color: var(--ink); }
+
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+  img { max-width: 100%; display: block; }
+
+  /* ========== Typography helpers ========== */
+  .script { font-family: var(--script); font-weight: 500; }
+  .display { font-family: var(--display); font-weight: 400; letter-spacing: -0.01em; }
+  .eyebrow {
+    font-family: var(--body);
+    font-style: italic;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+    font-size: 0.95rem;
+  }
+  .rule {
+    display: inline-block;
+    width: 38px; height: 1px;
+    background: var(--terra);
+    vertical-align: middle;
+    margin-right: 14px;
+  }
+
+  /* ========== Layout chrome ========== */
+  .site-nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(244, 237, 222, 0.86);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 18px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 24px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .brand-mark {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--forest);
+    color: var(--cream);
+    display: grid; place-items: center;
+    font-family: var(--script);
+    font-size: 1.6rem;
+    line-height: 1;
+    padding-bottom: 4px;
+  }
+  .brand-name {
+    font-family: var(--script);
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--forest-deep);
+    letter-spacing: 0.01em;
+  }
+  .brand-sub {
+    font-family: var(--body);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--ink-mute);
+    margin-top: 2px;
+    line-height: 1;
+  }
+  .nav-links {
+    display: flex; align-items: center; gap: 4px;
+    list-style: none; margin: 0; padding: 0;
+  }
+  .nav-links a {
+    display: inline-block;
+    padding: 10px 14px;
+    font-family: var(--body);
+    font-size: 1rem;
+    font-style: italic;
+    color: var(--ink-soft);
+    border-radius: 999px;
+    transition: color .25s, background .25s;
+  }
+  .nav-links a:hover { color: var(--forest); }
+  .nav-links a.is-active {
+    color: var(--cream);
+    background: var(--forest);
+  }
+  .nav-cta {
+    margin-left: 8px;
+    padding: 10px 18px;
+    font-family: var(--body);
+    font-size: 0.95rem;
+    background: var(--terra);
+    color: var(--cream) !important;
+    border-radius: 999px;
+    border: 1px solid var(--terra-deep);
+    transition: transform .2s, background .25s;
+  }
+  .nav-cta:hover { background: var(--terra-deep); transform: translateY(-1px); }
+
+  .nav-toggle {
+    display: none;
+    background: none; border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    width: 42px; height: 42px;
+    color: var(--ink);
+    font-size: 1.4rem;
+  }
+
+  /* ========== Section primitives ========== */
+  main { position: relative; z-index: 2; }
+  .section {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 96px 32px;
+    position: relative;
+  }
+  .section-narrow { max-width: 920px; }
+  h1, h2, h3, h4 { font-family: var(--display); font-weight: 400; color: var(--ink); margin: 0; }
+  h1 { font-size: clamp(2.6rem, 5.4vw, 5rem); line-height: 1.02; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(2rem, 3.6vw, 3.2rem); line-height: 1.08; letter-spacing: -0.015em; }
+  h3 { font-size: 1.5rem; line-height: 1.2; }
+  h4 { font-size: 1.15rem; line-height: 1.3; font-weight: 500; }
+  p { margin: 0 0 1em; }
+  p strong { font-weight: 600; color: var(--forest-deep); }
+
+  /* ========== Hero ========== */
+  .hero {
+    padding-top: 60px;
+    padding-bottom: 60px;
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 56px;
+    align-items: center;
+  }
+  .hero-left { position: relative; }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center;
+    color: var(--terra);
+    font-family: var(--script);
+    font-size: 1.6rem;
+    margin-bottom: 24px;
+  }
+  .hero-eyebrow::before {
+    content: ""; display:inline-block;
+    width: 28px; height: 2px;
+    background: var(--terra);
+    margin-right: 12px; vertical-align: middle;
+  }
+  .hero-title {
+    font-family: var(--display);
+    font-size: clamp(3.2rem, 7vw, 6.4rem);
+    line-height: 0.96;
+    letter-spacing: -0.03em;
+    color: var(--forest-deep);
+    margin: 0 0 28px;
+  }
+  .hero-title em {
+    font-style: italic;
+    color: var(--terra-deep);
+    font-weight: 400;
+  }
+  .hero-title .script-accent {
+    font-family: var(--script);
+    color: var(--ochre);
+    display: inline-block;
+    transform: translateY(8px) rotate(-3deg);
+    font-size: 0.7em;
+    margin: 0 6px;
+  }
+  .hero-lead {
+    font-size: 1.22rem;
+    color: var(--ink-soft);
+    max-width: 540px;
+    margin-bottom: 36px;
+  }
+  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 24px;
+    border-radius: 999px;
+    font-family: var(--body);
+    font-size: 1.02rem;
+    border: 1px solid transparent;
+    transition: transform .2s, background .25s, color .25s, border-color .25s;
+  }
+  .btn-primary {
+    background: var(--forest);
+    color: var(--cream);
+    border-color: var(--forest-deep);
+  }
+  .btn-primary:hover { background: var(--forest-deep); transform: translateY(-1px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .btn-ghost:hover { border-color: var(--ink); background: var(--paper); }
+  .btn-terra {
+    background: var(--terra);
+    color: var(--cream);
+    border-color: var(--terra-deep);
+  }
+  .btn-terra:hover { background: var(--terra-deep); }
+
+  .hero-right { position: relative; }
+  .hero-illustration {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    position: relative;
+  }
+  .hero-illustration svg { width: 100%; height: 100%; display: block; }
+
+  .hero-tag {
+    position: absolute;
+    font-family: var(--script);
+    color: var(--forest);
+    font-size: 1.5rem;
+    transform: rotate(-4deg);
+  }
+  .hero-tag-1 { top: 10%; right: -2%; }
+  .hero-tag-2 { bottom: 6%; left: -4%; transform: rotate(3deg); color: var(--terra); }
+
+  /* ========== Stat band ========== */
+  .stat-band {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 28px 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-top: 40px;
+  }
+  .stat-item {
+    text-align: left;
+    padding: 0 16px;
+    border-left: 1px solid var(--line);
+  }
+  .stat-item:first-child { border-left: none; padding-left: 0; }
+  .stat-num {
+    font-family: var(--display);
+    font-size: 2.4rem;
+    color: var(--forest-deep);
+    line-height: 1;
+    display: block;
+    font-weight: 500;
+  }
+  .stat-num small { font-size: 1rem; vertical-align: super; color: var(--terra); }
+  .stat-lbl {
+    font-style: italic;
+    color: var(--ink-mute);
+    font-size: 0.92rem;
+    margin-top: 8px;
+    display: block;
+  }
+
+  /* ========== Que es AulaVera ========== */
+  .about {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 72px;
+    align-items: start;
+  }
+  .about-aside {
+    position: sticky;
+    top: 120px;
+  }
+  .about-aside .script {
+    font-size: 3rem;
+    color: var(--terra);
+    line-height: 1;
+    margin-bottom: 20px;
+  }
+  .about-aside .label {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.8rem;
+    color: var(--ink-mute);
+    margin-bottom: 12px;
+  }
+  .about h2 { margin-bottom: 28px; }
+  .about-text p { font-size: 1.08rem; color: var(--ink-soft); }
+  .about-text p:first-of-type::first-letter {
+    font-family: var(--display);
+    font-size: 4.2rem;
+    line-height: 0.85;
+    float: left;
+    padding: 6px 12px 0 0;
+    color: var(--terra);
+    font-weight: 500;
+    font-style: italic;
+  }
+  .timeline {
+    margin-top: 36px;
+    padding-top: 28px;
+    border-top: 1px dashed var(--line-strong);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+  }
+  .timeline-item .year {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 1.4rem;
+    color: var(--forest-deep);
+  }
+  .timeline-item .what {
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+  }
+
+  /* ========== Compass / 4 áreas ========== */
+  .areas-section { background: var(--paper); }
+  .areas-section-wrap {
+    max-width: 1280px; margin: 0 auto;
+    padding: 96px 32px;
+  }
+  .areas-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 40px; margin-bottom: 56px; flex-wrap: wrap;
+  }
+  .areas-head p { max-width: 460px; color: var(--ink-soft); margin: 0; }
+
+  .compass {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    position: relative;
+    border: 1px solid var(--line);
+    background: var(--cream);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .compass-cell {
+    padding: 40px 36px 36px;
+    position: relative;
+    cursor: pointer;
+    transition: background .3s;
+    min-height: 320px;
+    display: flex; flex-direction: column;
+  }
+  .compass-cell:nth-child(1) { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .compass-cell:nth-child(2) { border-bottom: 1px solid var(--line); }
+  .compass-cell:nth-child(3) { border-right: 1px solid var(--line); }
+  .compass-cell:hover { background: var(--paper); }
+  .compass-cell .arrow {
+    position: absolute; top: 18px; right: 22px;
+    width: 36px; height: 36px;
+    color: var(--ink-mute);
+    transition: color .25s, transform .25s;
+  }
+  .compass-cell:hover .arrow { color: var(--terra); transform: translate(4px, -4px); }
+  .compass-num {
+    font-family: var(--script);
+    font-size: 1.6rem;
+    color: var(--terra);
+    line-height: 1;
+    margin-bottom: 14px;
+  }
+  .compass-cell h3 {
+    font-family: var(--display);
+    font-size: 1.8rem;
+    line-height: 1.1;
+    color: var(--forest-deep);
+    margin-bottom: 14px;
+    max-width: 380px;
+  }
+  .compass-cell h3 em {
+    font-family: var(--script);
+    font-style: normal;
+    color: var(--terra);
+    font-size: 1.1em;
+  }
+  .compass-cell p {
+    color: var(--ink-soft);
+    font-size: 1rem;
+    margin: 0;
+    max-width: 460px;
+  }
+  .compass-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 110px; height: 110px;
+    background: var(--forest);
+    border: 6px solid var(--cream);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    color: var(--cream);
+    font-family: var(--script);
+    font-size: 2.6rem;
+    line-height: 1;
+    z-index: 2;
+    box-shadow: 0 12px 24px -6px rgba(30, 53, 32, 0.4);
+  }
+  .compass-center span { transform: translateY(-3px); }
+
+  /* ========== Servimayor band ========== */
+  .servimayor-band {
+    margin-top: 80px;
+    border: 1px solid var(--line);
+    background: var(--cream);
+    border-radius: 4px;
+    padding: 36px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr auto;
+    gap: 36px;
+    align-items: center;
+  }
+  .servimayor-band .badge {
+    font-family: var(--script);
+    font-size: 1.5rem;
+    color: var(--terra);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .servimayor-band .badge::before {
+    content: ""; width: 36px; height: 36px;
+    background: var(--rose);
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .servimayor-band p {
+    margin: 0;
+    font-size: 1.02rem;
+    color: var(--ink-soft);
+  }
+  .servimayor-band p strong { color: var(--forest-deep); }
+
+  /* ========== Gallery ========== */
+  .gallery-section { padding-top: 80px; padding-bottom: 80px; }
+  .gallery-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; gap: 24px; flex-wrap: wrap; }
+  .gallery-head .eyebrow { font-family: var(--script); font-size: 1.6rem; color: var(--terra); margin-bottom: 8px; display: block; font-style: normal; }
+
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 14px;
+  }
+  .g-card {
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    background: var(--cream-deep);
+    transition: transform .35s ease;
+  }
+  .g-card:hover { transform: translateY(-3px); }
+  .g-card svg { width: 100%; height: 100%; display: block; }
+  .g-card .cap {
+    position: absolute;
+    bottom: 12px; left: 14px; right: 14px;
+    color: var(--cream);
+    font-family: var(--script);
+    font-size: 1.3rem;
+    text-shadow: 0 2px 8px rgba(0,0,0,.4);
+    pointer-events: none;
+  }
+  .g-1 { grid-column: span 7; aspect-ratio: 16/10; }
+  .g-2 { grid-column: span 5; aspect-ratio: 4/5; grid-row: span 2; }
+  .g-3 { grid-column: span 3; aspect-ratio: 1/1; }
+  .g-4 { grid-column: span 4; aspect-ratio: 1/1; }
+  .g-5 { grid-column: span 5; aspect-ratio: 5/4; }
+  .g-6 { grid-column: span 7; aspect-ratio: 16/9; }
+
+  /* ========== Poem block ========== */
+  .poem {
+    margin: 80px auto;
+    max-width: 700px;
+    padding: 40px 24px;
+    text-align: center;
+    position: relative;
+  }
+  .poem::before, .poem::after {
+    content: "✦";
+    display: block;
+    color: var(--terra);
+    font-size: 1.1rem;
+    margin: 0 auto 24px;
+  }
+  .poem::after { margin: 24px auto 0; }
+  .poem-text {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 1.32rem;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    white-space: pre-line;
+  }
+  .poem-attr {
+    margin-top: 18px;
+    font-family: var(--script);
+    font-size: 1.4rem;
+    color: var(--terra);
+  }
+  .poem-attr small {
+    display: block;
+    font-family: var(--body);
+    font-style: italic;
+    color: var(--ink-mute);
+    font-size: 0.9rem;
+    margin-top: 4px;
+  }
+
+  /* ========== Page titles (sub-routes) ========== */
+  .page-header {
+    padding: 96px 32px 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .page-header .eyebrow {
+    font-family: var(--script);
+    font-style: normal;
+    font-size: 1.4rem;
+    color: var(--terra);
+    display: block;
+    margin-bottom: 12px;
+  }
+  .page-header h1 {
+    font-size: clamp(2.4rem, 5vw, 4.4rem);
+    max-width: 920px;
+  }
+  .page-header h1 em { font-style: italic; color: var(--terra-deep); }
+  .page-lead {
+    margin-top: 24px;
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+    max-width: 720px;
+  }
+
+  /* ========== Áreas page ========== */
+  .area-detail {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 64px;
+    padding: 72px 0;
+    align-items: start;
+    border-top: 1px solid var(--line);
+  }
+  .area-detail:last-of-type { border-bottom: 1px solid var(--line); }
+  .area-detail .num {
+    font-family: var(--script);
+    font-size: 6rem;
+    line-height: 0.9;
+    color: var(--terra);
+  }
+  .area-detail h2 { margin-bottom: 8px; }
+  .area-detail .area-meta {
+    font-family: var(--script);
+    color: var(--forest);
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+  }
+  .area-detail .body p {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+  }
+  .area-detail .tags {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px;
+  }
+  .tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: var(--cream-deep);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .tag.featured { background: var(--terra); color: var(--cream); border-color: var(--terra-deep); }
+
+  /* ========== Proyectos page ========== */
+  .tabs {
+    display: flex; gap: 6px;
+    border-bottom: 1px solid var(--line);
+    margin: 0 0 48px;
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    background: none; border: none;
+    font-family: var(--body);
+    font-size: 1.08rem;
+    font-style: italic;
+    color: var(--ink-mute);
+    padding: 14px 22px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .25s, border-color .25s;
+  }
+  .tab-btn:hover { color: var(--ink); }
+  .tab-btn.is-active {
+    color: var(--forest-deep);
+    border-bottom-color: var(--terra);
+  }
+  .tab-btn .count {
+    display: inline-block;
+    background: var(--cream-deep);
+    color: var(--ink-soft);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 0.8rem;
+    margin-left: 6px;
+    font-style: normal;
+  }
+
+  .projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 28px;
+  }
+  .project-card {
+    background: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: transform .3s, box-shadow .3s;
+  }
+  .project-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+  .project-img {
+    aspect-ratio: 16/10;
+    background: var(--cream-deep);
+    position: relative;
+  }
+  .project-img svg { width: 100%; height: 100%; }
+  .project-img .chip {
+    position: absolute; top: 14px; left: 14px;
+    background: rgba(43, 34, 24, 0.78);
+    color: var(--cream);
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    font-style: italic;
+  }
+  .project-body { padding: 24px; flex: 1; display: flex; flex-direction: column; }
+  .project-body .when {
+    font-family: var(--script);
+    color: var(--terra);
+    font-size: 1.2rem;
+    margin-bottom: 6px;
+  }
+  .project-body h3 {
+    font-size: 1.35rem;
+    color: var(--forest-deep);
+    margin-bottom: 12px;
+    line-height: 1.2;
+  }
+  .project-body p {
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    margin: 0 0 16px;
+  }
+  .project-body .meta {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.9rem;
+    color: var(--ink-mute);
+    font-style: italic;
+  }
+  .project-body .meta a {
+    color: var(--terra);
+    font-weight: 500;
+    font-style: normal;
+  }
+  .project-body .meta a:hover { color: var(--terra-deep); text-decoration: underline; }
+
+  /* Cronica (full expanded story) */
+  .chronicle {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 40px;
+    margin-bottom: 36px;
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    gap: 40px;
+  }
+  .chronicle .img {
+    aspect-ratio: 4/5;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--cream-deep);
+  }
+  .chronicle .img svg { width: 100%; height: 100%; }
+  .chronicle blockquote {
+    border-left: 3px solid var(--terra);
+    padding: 8px 0 8px 18px;
+    margin: 0 0 24px;
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+  }
+  .chronicle h2 { margin-bottom: 8px; }
+  .chronicle .when { font-family: var(--script); color: var(--terra); font-size: 1.3rem; margin-bottom: 20px; }
+
+  /* Ideas cloud */
+  .ideas-cloud {
+    background: var(--paper);
+    border: 1px dashed var(--line-strong);
+    border-radius: 6px;
+    padding: 36px;
+    margin-top: 48px;
+  }
+  .ideas-cloud .label {
+    font-family: var(--script);
+    font-size: 1.5rem;
+    color: var(--terra);
+    margin-bottom: 16px;
+  }
+  .ideas-tags { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  /* ========== Contacto y Donaciones ========== */
+  .donate-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 80px;
+  }
+  .donate-card {
+    background: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 36px;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .donate-card.featured {
+    background: var(--forest);
+    color: var(--cream);
+    border-color: var(--forest-deep);
+  }
+  .donate-card .ribbon {
+    position: absolute; top: 20px; right: 20px;
+    background: var(--terra);
+    color: var(--cream);
+    font-family: var(--script);
+    font-size: 1.1rem;
+    padding: 3px 12px;
+    border-radius: 999px;
+  }
+  .donate-card h3 { color: inherit; margin-bottom: 10px; }
+  .donate-card .featured-text { color: rgba(244,237,222,0.86); }
+  .donate-card .price {
+    font-family: var(--display);
+    font-size: 2.6rem;
+    line-height: 1;
+    margin: 14px 0;
+  }
+  .donate-card .price small {
+    font-size: 1rem;
+    font-style: italic;
+    opacity: 0.7;
+  }
+  .donate-card ul {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 24px;
+  }
+  .donate-card li {
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 0.98rem;
+  }
+  .donate-card.featured li { border-color: rgba(244,237,222,0.18); }
+  .donate-card li::before { content: "✓  "; color: var(--terra); font-weight: 700; }
+  .donate-card.featured li::before { color: var(--ochre-light); }
+  .donate-card .donate-btn {
+    margin-top: auto;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .fiscal-info {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ochre);
+    border-radius: 4px;
+    padding: 24px 28px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 22px;
+    align-items: start;
+    margin-bottom: 80px;
+  }
+  .fiscal-info .icon {
+    width: 48px; height: 48px;
+    background: var(--ochre);
+    color: var(--cream);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--display);
+    font-size: 1.6rem;
+    font-weight: 500;
+  }
+  .fiscal-info h4 { color: var(--forest-deep); margin-bottom: 6px; }
+  .fiscal-info p { font-size: 0.98rem; color: var(--ink-soft); margin: 0; }
+  .fiscal-info .perc {
+    display: inline-block;
+    background: var(--ochre);
+    color: var(--cream);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    margin: 0 2px;
+  }
+
+  /* Contact form */
+  .contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+  .form { display: grid; gap: 16px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-family: var(--body);
+    font-style: italic;
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+  }
+  .field input,
+  .field textarea,
+  .field select {
+    font-family: var(--body);
+    font-size: 1.02rem;
+    padding: 12px 14px;
+    border: 1px solid var(--line-strong);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    transition: border-color .2s, background .2s;
+  }
+  .field input:focus,
+  .field textarea:focus,
+  .field select:focus {
+    outline: none;
+    border-color: var(--forest);
+    background: var(--cream);
+  }
+  .field textarea { resize: vertical; min-height: 110px; }
+  .check {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+  }
+  .check input { margin-top: 4px; }
+
+  .contact-info {
+    background: var(--forest);
+    color: var(--cream);
+    border-radius: 6px;
+    padding: 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .contact-info::before {
+    content: "";
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 160px; height: 160px;
+    background: var(--moss);
+    border-radius: 50%;
+    opacity: 0.4;
+  }
+  .contact-info h3 { color: var(--cream); margin-bottom: 16px; position: relative; }
+  .contact-info p { color: rgba(244,237,222,0.86); font-size: 0.98rem; margin-bottom: 18px; position: relative; }
+  .contact-info dl {
+    margin: 0; position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px 18px;
+  }
+  .contact-info dt {
+    font-family: var(--script);
+    color: var(--ochre-light);
+    font-size: 1.1rem;
+  }
+  .contact-info dd {
+    margin: 0;
+    color: var(--cream);
+    font-size: 0.98rem;
+  }
+  .map-mock {
+    margin-top: 24px;
+    aspect-ratio: 16/9;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--moss);
+    position: relative;
+  }
+
+  /* ========== Área privada ========== */
+  .login-wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 60px 0 100px;
+  }
+  .login-card {
+    background: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 40px;
+    box-shadow: var(--shadow);
+  }
+  .login-card h2 { margin-bottom: 6px; }
+  .login-card .sub { color: var(--ink-mute); font-style: italic; margin-bottom: 28px; font-size: 0.96rem; }
+  .login-card .form button { margin-top: 8px; }
+  .login-meta {
+    margin-top: 18px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--ink-mute);
+    font-style: italic;
+  }
+  .login-meta a { color: var(--terra); }
+
+  .private-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 40px;
+    margin-bottom: 80px;
+  }
+  .private-side {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 24px;
+    height: fit-content;
+    position: sticky; top: 100px;
+  }
+  .private-side .user {
+    display: flex; gap: 12px; align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+    border-bottom: 1px dashed var(--line-strong);
+  }
+  .private-side .user .av {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--terra);
+    color: var(--cream);
+    display: grid; place-items: center;
+    font-family: var(--display);
+    font-weight: 500;
+  }
+  .private-side .user .nm { font-weight: 600; color: var(--forest-deep); }
+  .private-side .user .rl { font-size: 0.85rem; color: var(--ink-mute); font-style: italic; }
+  .private-nav { display: flex; flex-direction: column; gap: 4px; }
+  .private-nav button {
+    text-align: left;
+    background: none; border: none;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-family: var(--body);
+    font-size: 1rem;
+    color: var(--ink-soft);
+    transition: background .2s, color .2s;
+  }
+  .private-nav button:hover { background: var(--cream-deep); color: var(--ink); }
+  .private-nav button.is-active { background: var(--forest); color: var(--cream); }
+  .resource-list { display: grid; gap: 12px; }
+  .resource-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px; align-items: center;
+    padding: 16px 20px;
+    background: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    transition: background .2s;
+  }
+  .resource-row:hover { background: var(--paper); }
+  .resource-row .ic {
+    width: 40px; height: 40px;
+    background: var(--cream-deep);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    color: var(--forest);
+  }
+  .resource-row .ttl { font-weight: 500; color: var(--ink); }
+  .resource-row .sub { font-size: 0.86rem; color: var(--ink-mute); font-style: italic; }
+  .resource-row .act { color: var(--terra); font-style: italic; font-size: 0.95rem; }
+
+  /* ========== Footer ========== */
+  .site-footer {
+    background: var(--forest-deep);
+    color: var(--cream);
+    position: relative;
+    z-index: 2;
+    margin-top: 60px;
+  }
+  .footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 72px 32px 32px;
+  }
+  .footer-top {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr 1fr;
+    gap: 48px;
+    padding-bottom: 48px;
+    border-bottom: 1px solid rgba(244,237,222,0.18);
+  }
+  .footer-brand .brand-name { color: var(--cream); }
+  .footer-brand p {
+    color: rgba(244,237,222,0.7);
+    font-size: 0.96rem;
+    max-width: 360px;
+    font-style: italic;
+    margin-top: 14px;
+  }
+  .footer-col h5 {
+    font-family: var(--script);
+    font-size: 1.5rem;
+    color: var(--ochre-light);
+    margin: 0 0 16px;
+    font-weight: 500;
+  }
+  .footer-col ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .footer-col a {
+    color: rgba(244,237,222,0.78);
+    font-size: 0.96rem;
+    transition: color .2s;
+  }
+  .footer-col a:hover { color: var(--cream); }
+
+  .collaborators {
+    padding: 36px 0;
+    border-bottom: 1px solid rgba(244,237,222,0.18);
+  }
+  .collaborators .lbl {
+    text-align: center;
+    font-family: var(--script);
+    color: var(--ochre-light);
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+  }
+  .collab-row {
+    display: flex; flex-wrap: wrap; gap: 22px;
+    justify-content: center; align-items: center;
+  }
+  .collab-row .collab {
+    padding: 10px 22px;
+    border: 1px solid rgba(244,237,222,0.3);
+    border-radius: 999px;
+    font-family: var(--display);
+    font-size: 1rem;
+    color: rgba(244,237,222,0.85);
+    font-style: italic;
+    transition: background .25s, color .25s, border-color .25s;
+  }
+  .collab-row .collab:hover {
+    background: var(--cream);
+    color: var(--forest-deep);
+    border-color: var(--cream);
+  }
+
+  .footer-bottom {
+    padding-top: 28px;
+    display: flex; justify-content: space-between; align-items: center;
+    color: rgba(244,237,222,0.6);
+    font-size: 0.86rem;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .footer-bottom a { color: inherit; margin-left: 16px; }
+  .footer-bottom a:hover { color: var(--cream); }
+
+  /* ========== Cookies banner ========== */
+  .cookies {
+    position: fixed;
+    bottom: 24px; left: 24px; right: 24px;
+    max-width: 760px;
+    margin: 0 auto;
+    background: var(--ink);
+    color: var(--cream);
+    padding: 18px 22px;
+    border-radius: 6px;
+    display: flex; align-items: center; gap: 24px;
+    z-index: 100;
+    box-shadow: 0 20px 50px -10px rgba(0,0,0,0.4);
+    flex-wrap: wrap;
+  }
+  .cookies p { margin: 0; font-size: 0.92rem; flex: 1; min-width: 280px; }
+  .cookies p strong { color: var(--ochre-light); }
+  .cookies .btns { display: flex; gap: 8px; }
+  .cookies button {
+    background: transparent; color: var(--cream);
+    border: 1px solid rgba(244,237,222,0.4);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-family: var(--body);
+    font-style: italic;
+  }
+  .cookies button.primary {
+    background: var(--terra);
+    border-color: var(--terra);
+  }
+  .cookies button:hover { border-color: var(--cream); }
+
+  /* ========== Toast / messages ========== */
+  .toast {
+    position: fixed;
+    top: 100px; right: 24px;
+    background: var(--forest);
+    color: var(--cream);
+    padding: 14px 22px;
+    border-radius: 4px;
+    z-index: 200;
+    box-shadow: var(--shadow);
+    font-style: italic;
+    animation: slideIn .3s ease-out;
+    max-width: 360px;
+  }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* ========== Modal (reserva) ========== */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(43, 34, 24, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 150;
+    display: grid; place-items: center;
+    padding: 24px;
+    animation: fadeIn .25s;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 36px;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.4);
+    position: relative;
+  }
+  .modal .close {
+    position: absolute; top: 12px; right: 12px;
+    background: none; border: none;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    color: var(--ink-mute);
+  }
+  .modal .close:hover { background: var(--cream-deep); color: var(--ink); }
+  .modal h3 { margin-bottom: 6px; color: var(--forest-deep); }
+  .modal .when { font-family: var(--script); color: var(--terra); font-size: 1.2rem; margin-bottom: 24px; display: block; }
+  .modal .price-row {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal .price-row .lab { font-style: italic; color: var(--ink-soft); }
+  .modal .price-row .val {
+    font-family: var(--display);
+    font-size: 1.4rem;
+    color: var(--terra);
+    font-weight: 500;
+  }
+
+  /* ========== Responsive ========== */
+  @media (max-width: 980px) {
+    .nav-links { display: none; position: absolute; top: 100%; right: 16px; flex-direction: column; background: var(--cream); border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-width: 220px; box-shadow: var(--shadow); }
+    .nav-links.is-open { display: flex; }
+    .nav-toggle { display: grid; place-items: center; }
+
+    .hero { grid-template-columns: 1fr; gap: 40px; padding: 30px 0 40px; }
+    .hero-right { order: -1; max-width: 380px; margin: 0 auto; }
+    .stat-band { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .stat-item { border-left: none; border-top: 1px solid var(--line); padding: 14px 0 0; }
+    .stat-item:nth-child(-n+2) { border-top: none; padding-top: 0; }
+
+    .about { grid-template-columns: 1fr; gap: 32px; }
+    .about-aside { position: static; }
+    .timeline { grid-template-columns: 1fr; gap: 14px; }
+
+    .compass { grid-template-columns: 1fr; }
+    .compass-cell { border-right: none !important; border-bottom: 1px solid var(--line); padding: 28px 24px; }
+    .compass-cell:last-child { border-bottom: none; }
+    .compass-center { display: none; }
+
+    .servimayor-band { grid-template-columns: 1fr; gap: 16px; }
+    .gallery { grid-template-columns: repeat(6, 1fr); }
+    .g-1, .g-2, .g-3, .g-4, .g-5, .g-6 { grid-column: span 6; aspect-ratio: 16/10; grid-row: auto; }
+
+    .area-detail { grid-template-columns: 1fr; gap: 24px; padding: 48px 0; }
+    .donate-grid { grid-template-columns: 1fr; }
+    .contact-grid { grid-template-columns: 1fr; gap: 32px; }
+    .chronicle { grid-template-columns: 1fr; }
+
+    .footer-top { grid-template-columns: 1fr; gap: 32px; }
+    .private-grid { grid-template-columns: 1fr; }
+    .private-side { position: static; }
+  }
+  @media (max-width: 600px) {
+    .section { padding: 56px 20px; }
+    .areas-section-wrap { padding: 56px 20px; }
+    .page-header { padding: 56px 20px 32px; }
+    .nav-inner { padding: 14px 20px; }
+    .form-row { grid-template-columns: 1fr; }
+    .footer-inner { padding: 56px 20px 28px; }
+    .servimayor-band { padding: 24px; }
+    .chronicle { padding: 24px; }
+    .donate-card, .login-card { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     NAV
+     ============================================================ -->
+<header class="site-nav">
+  <div class="nav-inner">
+    <a href="#home" class="brand">
+      <div class="brand-mark"><span>A</span></div>
+      <div>
+        <div class="brand-name">AulaVera</div>
+        <div class="brand-sub">Fundación · Granja Escuela</div>
+      </div>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Menú">≡</button>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#home" data-route="home">Inicio</a></li>
+      <li><a href="#areas" data-route="areas">Áreas</a></li>
+      <li><a href="#proyectos" data-route="proyectos">Proyectos</a></li>
+      <li><a href="#contacto" data-route="contacto">Contacto</a></li>
+      <li><a href="#privada" data-route="privada">Área privada</a></li>
+      <li><a href="#donar" data-route="donar" class="nav-cta">Donar</a></li>
+    </ul>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="site-footer">
+  <div class="footer-inner">
+
+    <div class="collaborators">
+      <div class="lbl">Caminamos junto a</div>
+      <div class="collab-row">
+        <a href="#" class="collab" rel="noopener" target="_blank">Residencia Servimayor</a>
+        <a href="#" class="collab" rel="noopener" target="_blank">COCEMFE Cáceres</a>
+        <a href="#" class="collab" rel="noopener" target="_blank">Adiscasar</a>
+        <a href="#" class="collab" rel="noopener" target="_blank">Asociación Novaforma</a>
+      </div>
+    </div>
+
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="brand-name">AulaVera</div>
+        <p>Educación medioambiental, creativa y de desarrollo personal — al aire libre, en una finca rústica de Losar de la Vera, Cáceres.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Explorar</h5>
+        <ul>
+          <li><a href="#home">Qué es AulaVera</a></li>
+          <li><a href="#areas">Las 4 áreas</a></li>
+          <li><a href="#proyectos">Proyectos</a></li>
+          <li><a href="#proyectos">Áreas de acción</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Apoya</h5>
+        <ul>
+          <li><a href="#donar">Donaciones</a></li>
+          <li><a href="#donar">Hacerse socio</a></li>
+          <li><a href="#contacto">Voluntariado</a></li>
+          <li><a href="#privada">Área privada</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Contacto</h5>
+        <ul>
+          <li>Finca rústica de Losar de la Vera</li>
+          <li>Cáceres · Extremadura</li>
+          <li><a href="mailto:hola@aulavera.org">hola@aulavera.org</a></li>
+          <li><a href="#contacto">Visítanos</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div>© 2026 Fundación AulaVera — antes Fundación SmileStone (2013).</div>
+      <div>
+        <a href="#">Aviso legal</a>
+        <a href="#">Privacidad</a>
+        <a href="#">Cookies</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ============================================================
+     COOKIES BANNER
+     ============================================================ -->
+<div class="cookies" id="cookies" style="display:none;">
+  <p><strong>Usamos cookies como pequeñas migas de pan</strong> — algunas son necesarias, otras nos ayudan a entender cómo se navega por la web. Puedes aceptarlas todas o configurarlas a tu gusto.</p>
+  <div class="btns">
+    <button onclick="closeCookies()">Configurar</button>
+    <button class="primary" onclick="closeCookies()">Aceptar todas</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// VIEWS — each view is a function that returns an HTML string
+// ============================================================
+
+const SVG = {
+  // Hero scene — campsite at dawn, inspired by the original document illustration
+  campsite: () => `
+    <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="sky" cx="50%" cy="40%" r="65%">
+          <stop offset="0%" stop-color="#F5E6CE"/>
+          <stop offset="60%" stop-color="#E5BC72" stop-opacity="0.45"/>
+          <stop offset="100%" stop-color="#F4EDDE" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#B89A6E"/>
+          <stop offset="100%" stop-color="#8E7440"/>
+        </linearGradient>
+      </defs>
+      <!-- sky glow -->
+      <circle cx="300" cy="240" r="290" fill="url(#sky)"/>
+      <!-- sun -->
+      <circle cx="300" cy="220" r="58" fill="#E5BC72" opacity="0.85"/>
+      <!-- distant mountains -->
+      <path d="M 0 380 L 90 290 L 170 350 L 260 250 L 340 330 L 430 240 L 520 320 L 600 270 L 600 600 L 0 600 Z" fill="#6B8E4E" opacity="0.55"/>
+      <path d="M 0 430 L 80 360 L 180 410 L 270 350 L 360 410 L 450 360 L 540 410 L 600 380 L 600 600 L 0 600 Z" fill="#2C4A2A" opacity="0.85"/>
+      <!-- ground -->
+      <path d="M 0 470 Q 300 450 600 470 L 600 600 L 0 600 Z" fill="url(#ground)"/>
+      <!-- pine trees -->
+      <g transform="translate(70,330)">
+        <rect x="-3" y="60" width="6" height="32" fill="#5A4836"/>
+        <polygon points="0,0 -28,60 28,60" fill="#2C4A2A"/>
+        <polygon points="0,15 -22,55 22,55" fill="#1E3520"/>
+      </g>
+      <g transform="translate(120,360)">
+        <rect x="-2" y="50" width="4" height="22" fill="#5A4836"/>
+        <polygon points="0,0 -20,50 20,50" fill="#2C4A2A"/>
+      </g>
+      <g transform="translate(500,330)">
+        <rect x="-3" y="60" width="6" height="34" fill="#5A4836"/>
+        <polygon points="0,0 -30,60 30,60" fill="#2C4A2A"/>
+        <polygon points="0,15 -24,55 24,55" fill="#1E3520"/>
+      </g>
+      <g transform="translate(540,360)">
+        <rect x="-2" y="50" width="4" height="22" fill="#5A4836"/>
+        <polygon points="0,0 -20,50 20,50" fill="#2C4A2A"/>
+      </g>
+      <!-- tent -->
+      <g transform="translate(220,400)">
+        <polygon points="0,0 -50,80 50,80" fill="#7CADC5"/>
+        <polygon points="0,0 -10,80 0,80" fill="#5A8DA5"/>
+        <polygon points="0,12 -32,72 0,72" fill="#1E3520" opacity="0.6"/>
+        <line x1="0" y1="0" x2="0" y2="80" stroke="#3A2E1F" stroke-width="2"/>
+      </g>
+      <!-- campfire -->
+      <g transform="translate(360,470)">
+        <ellipse cx="0" cy="14" rx="22" ry="5" fill="#3A2E1F" opacity="0.5"/>
+        <path d="M -16 12 L 14 -2" stroke="#5A4836" stroke-width="3" stroke-linecap="round"/>
+        <path d="M -14 -2 L 16 12" stroke="#5A4836" stroke-width="3" stroke-linecap="round"/>
+        <path d="M 0 -2 Q -8 -22 0 -36 Q 6 -22 0 -2 Z" fill="#B5532A"/>
+        <path d="M 0 -6 Q -4 -20 2 -30 Q 4 -18 0 -6 Z" fill="#E5BC72"/>
+      </g>
+      <!-- guitar -->
+      <g transform="translate(310,440) rotate(15)">
+        <ellipse cx="0" cy="0" rx="20" ry="26" fill="#B5532A"/>
+        <ellipse cx="0" cy="0" rx="14" ry="20" fill="#8E3D1B"/>
+        <circle cx="0" cy="0" r="5" fill="#2B2218"/>
+        <rect x="-2" y="-50" width="4" height="30" fill="#5A4836"/>
+        <rect x="-4" y="-54" width="8" height="6" rx="1" fill="#3A2E1F"/>
+      </g>
+      <!-- backpack -->
+      <g transform="translate(420,455)">
+        <rect x="-18" y="-30" width="36" height="40" rx="6" fill="#C8923D"/>
+        <rect x="-14" y="-22" width="28" height="14" rx="2" fill="#8E7440"/>
+        <circle cx="0" cy="-2" r="6" fill="#2B2218"/>
+        <circle cx="0" cy="-2" r="3" fill="#E5BC72"/>
+        <line x1="0" y1="-5" x2="0" y2="2" stroke="#2B2218" stroke-width="1.2"/>
+        <line x1="-3" y1="-2" x2="3" y2="-2" stroke="#2B2218" stroke-width="1.2"/>
+      </g>
+      <!-- music notes -->
+      <g fill="#C8923D" opacity="0.9">
+        <g transform="translate(140,140)">
+          <ellipse cx="0" cy="14" rx="6" ry="5" transform="rotate(-15)"/>
+          <rect x="4" y="-12" width="2.5" height="22" transform="rotate(-15)"/>
+        </g>
+        <g transform="translate(180,90)">
+          <ellipse cx="0" cy="14" rx="5" ry="4" transform="rotate(-15)"/>
+          <rect x="3" y="-8" width="2" height="18" transform="rotate(-15)"/>
+        </g>
+        <g transform="translate(460,110)">
+          <ellipse cx="0" cy="14" rx="6" ry="5" transform="rotate(15)"/>
+          <rect x="-7" y="-10" width="2.5" height="20" transform="rotate(15)"/>
+          <ellipse cx="20" cy="10" rx="6" ry="5" transform="rotate(15)"/>
+          <rect x="13" y="-14" width="2.5" height="20" transform="rotate(15)"/>
+          <path d="M 7 -14 Q 18 -18 27 -10" stroke="#C8923D" stroke-width="2" fill="none"/>
+        </g>
+      </g>
+      <!-- birds -->
+      <g fill="none" stroke="#3A2E1F" stroke-width="1.5" stroke-linecap="round">
+        <path d="M 100 200 Q 110 192 120 200 Q 130 192 140 200"/>
+        <path d="M 380 150 Q 388 144 396 150 Q 404 144 412 150"/>
+      </g>
+    </svg>
+  `,
+  // Compass center icon
+  faceIcon: () => `<span>A</span>`,
+  // Arrow for compass cells
+  arrow: () => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 17 L17 7 M9 7 L17 7 L17 15"/></svg>`,
+  // Olive grove gallery scene
+  olives: () => `
+    <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="400" fill="#E5D5A8"/>
+      <rect y="270" width="400" height="130" fill="#9C8855"/>
+      <g fill="#6B8E4E">
+        <ellipse cx="80" cy="220" rx="50" ry="46"/>
+        <ellipse cx="180" cy="210" rx="58" ry="54"/>
+        <ellipse cx="290" cy="225" rx="55" ry="48"/>
+      </g>
+      <g fill="#2C4A2A" opacity="0.5">
+        <ellipse cx="80" cy="240" rx="40" ry="30"/>
+        <ellipse cx="180" cy="230" rx="48" ry="36"/>
+        <ellipse cx="290" cy="245" rx="44" ry="32"/>
+      </g>
+      <g fill="#5A4836">
+        <rect x="76" y="250" width="8" height="40"/>
+        <rect x="176" y="248" width="8" height="42"/>
+        <rect x="286" y="252" width="8" height="40"/>
+      </g>
+      <circle cx="320" cy="80" r="34" fill="#E5BC72" opacity="0.85"/>
+    </svg>
+  `,
+  // Cow in field
+  cow: () => `
+    <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="400" fill="#A8B89C"/>
+      <rect y="280" width="400" height="120" fill="#6B8E4E"/>
+      <g transform="translate(200,260)">
+        <ellipse cx="0" cy="0" rx="80" ry="50" fill="#F4EDDE"/>
+        <ellipse cx="-30" cy="-10" rx="20" ry="15" fill="#3A2E1F"/>
+        <ellipse cx="20" cy="10" rx="25" ry="18" fill="#3A2E1F"/>
+        <ellipse cx="50" cy="-15" rx="15" ry="12" fill="#3A2E1F"/>
+        <ellipse cx="-70" cy="-15" rx="22" ry="22" fill="#F4EDDE"/>
+        <circle cx="-78" cy="-18" r="3" fill="#2B2218"/>
+        <ellipse cx="-76" cy="-8" rx="4" ry="3" fill="#3A2E1F"/>
+        <rect x="-30" y="40" width="6" height="30" fill="#3A2E1F"/>
+        <rect x="-10" y="40" width="6" height="30" fill="#F4EDDE"/>
+        <rect x="20" y="40" width="6" height="30" fill="#3A2E1F"/>
+        <rect x="40" y="40" width="6" height="30" fill="#F4EDDE"/>
+      </g>
+      <circle cx="60" cy="80" r="20" fill="#FBF6EA" opacity="0.6"/>
+      <circle cx="120" cy="60" r="14" fill="#FBF6EA" opacity="0.5"/>
+      <circle cx="340" cy="100" r="18" fill="#FBF6EA" opacity="0.55"/>
+    </svg>
+  `,
+  // Garganta / river
+  river: () => `
+    <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="400" fill="#3A5A45"/>
+      <path d="M 0 0 L 400 0 L 400 220 Q 300 240 200 235 Q 100 230 0 250 Z" fill="#1E3520"/>
+      <path d="M 0 250 Q 100 270 200 260 Q 300 250 400 270 L 400 400 L 0 400 Z" fill="#7CADC5"/>
+      <g stroke="#FBF6EA" stroke-width="1.2" fill="none" opacity="0.6">
+        <path d="M 30 290 Q 80 285 130 290"/>
+        <path d="M 180 310 Q 230 305 280 310"/>
+        <path d="M 60 340 Q 120 335 180 340"/>
+        <path d="M 230 350 Q 290 345 360 350"/>
+      </g>
+      <g fill="#5A4836">
+        <ellipse cx="80" cy="320" rx="22" ry="8"/>
+        <ellipse cx="320" cy="335" rx="28" ry="10"/>
+        <ellipse cx="180" cy="345" rx="18" ry="6"/>
+      </g>
+    </svg>
+  `,
+  // Workshop / children illustration
+  workshop: () => `
+    <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="400" fill="#ECE2CC"/>
+      <rect y="240" width="400" height="160" fill="#B5532A" opacity="0.2"/>
+      <line x1="0" y1="240" x2="400" y2="240" stroke="#5A4836" stroke-width="2"/>
+      <g transform="translate(120,260)">
+        <rect x="-40" y="0" width="80" height="60" fill="#C8923D"/>
+        <rect x="-38" y="2" width="76" height="6" fill="#8E7440"/>
+        <line x1="-40" y1="60" x2="-50" y2="120" stroke="#5A4836" stroke-width="3"/>
+        <line x1="40" y1="60" x2="50" y2="120" stroke="#5A4836" stroke-width="3"/>
+        <circle cx="-10" cy="-20" r="14" fill="#F4EDDE"/>
+        <rect x="-22" y="-8" width="24" height="36" rx="4" fill="#2C4A2A"/>
+        <circle cx="20" cy="-22" r="13" fill="#E5BC72"/>
+        <rect x="10" y="-12" width="22" height="34" rx="4" fill="#B5532A"/>
+      </g>
+      <g transform="translate(280,250)">
+        <rect x="-30" y="0" width="60" height="80" fill="#7CADC5"/>
+        <rect x="-25" y="10" width="50" height="30" fill="#FBF6EA"/>
+        <line x1="-20" y1="15" x2="20" y2="15" stroke="#3A2E1F" stroke-width="1"/>
+        <line x1="-20" y1="22" x2="15" y2="22" stroke="#3A2E1F" stroke-width="1"/>
+        <line x1="-20" y1="29" x2="18" y2="29" stroke="#3A2E1F" stroke-width="1"/>
+      </g>
+      <g fill="#C8923D" opacity="0.7">
+        <circle cx="60" cy="80" r="6"/>
+        <circle cx="340" cy="100" r="4"/>
+        <circle cx="240" cy="60" r="5"/>
+      </g>
+    </svg>
+  `,
+  // Vega / valley landscape
+  vega: () => `
+    <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="vsky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#F5E6CE"/>
+          <stop offset="100%" stop-color="#D9A38C"/>
+        </linearGradient>
+      </defs>
+      <rect width="400" height="400" fill="url(#vsky)"/>
+      <path d="M 0 200 L 60 140 L 130 190 L 200 130 L 270 180 L 340 140 L 400 180 L 400 230 L 0 230 Z" fill="#3A5A45"/>
+      <path d="M 0 230 L 400 230 L 400 280 L 0 290 Z" fill="#6B8E4E"/>
+      <path d="M 0 290 L 400 280 L 400 400 L 0 400 Z" fill="#2C4A2A"/>
+      <circle cx="300" cy="100" r="40" fill="#FBF6EA" opacity="0.9"/>
+      <g fill="#2C4A2A">
+        <polygon points="100,310 90,340 110,340"/>
+        <polygon points="160,320 150,350 170,350"/>
+        <polygon points="240,315 230,345 250,345"/>
+        <polygon points="320,325 310,355 330,355"/>
+      </g>
+    </svg>
+  `,
+  // Frog / pond
+  frog: () => `
+    <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="400" fill="#5A8DA5"/>
+      <g fill="#7CADC5" opacity="0.7">
+        <ellipse cx="100" cy="100" rx="60" ry="20"/>
+        <ellipse cx="300" cy="180" rx="80" ry="25"/>
+        <ellipse cx="150" cy="280" rx="70" ry="22"/>
+      </g>
+      <g transform="translate(200,220)">
+        <ellipse cx="0" cy="20" rx="80" ry="60" fill="#6B8E4E"/>
+        <ellipse cx="-30" cy="-30" rx="20" ry="25" fill="#6B8E4E"/>
+        <ellipse cx="30" cy="-30" rx="20" ry="25" fill="#6B8E4E"/>
+        <circle cx="-30" cy="-35" r="10" fill="#FBF6EA"/>
+        <circle cx="30" cy="-35" r="10" fill="#FBF6EA"/>
+        <circle cx="-30" cy="-33" r="5" fill="#2B2218"/>
+        <circle cx="30" cy="-33" r="5" fill="#2B2218"/>
+        <path d="M -25 20 Q 0 35 25 20" stroke="#2C4A2A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      </g>
+      <g fill="#C8923D" opacity="0.8">
+        <ellipse cx="60" cy="80" rx="15" ry="6"/>
+        <ellipse cx="340" cy="60" rx="12" ry="5"/>
+      </g>
+    </svg>
+  `
+};
+
+// ============================================================
+// HOME view
+// ============================================================
+function viewHome() {
+  return `
+    <section class="section">
+      <div class="hero">
+        <div class="hero-left">
+          <span class="hero-eyebrow">Losar de la Vera · Cáceres</span>
+          <h1 class="hero-title">
+            Una <em>granja-escuela</em><br>
+            entre <span class="script-accent">olivos</span> y<br>
+            música <em>al aire libre</em>
+          </h1>
+          <p class="hero-lead">
+            Educación medioambiental, creativa y de desarrollo personal — especialmente
+            para niños, adolescentes y personas con dificultades de integración.
+            Aprendemos cuidando: a la tierra, a los animales, a quienes nos preceden y a nosotros mismos.
+          </p>
+          <div class="hero-actions">
+            <a href="#areas" class="btn btn-primary" data-route="areas">Conoce las 4 áreas →</a>
+            <a href="#donar" class="btn btn-ghost" data-route="donar">Apoyar el proyecto</a>
+          </div>
+
+          <div class="stat-band">
+            <div class="stat-item">
+              <span class="stat-num">2013<small>·</small></span>
+              <span class="stat-lbl">Fundadas como SmileStone</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-num">4</span>
+              <span class="stat-lbl">áreas estatutarias</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-num">1</span>
+              <span class="stat-lbl">finca en la Vera</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-num">∞</span>
+              <span class="stat-lbl">caminos posibles</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-right">
+          <div class="hero-illustration">${SVG.campsite()}</div>
+          <div class="hero-tag hero-tag-1">~ vivencia ~</div>
+          <div class="hero-tag hero-tag-2">naturaleza &amp; comunidad</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="que-es">
+      <div class="about">
+        <aside class="about-aside">
+          <div class="label">— Sobre nosotros</div>
+          <div class="script">Qué es AulaVera</div>
+          <p style="color: var(--ink-mute); font-style: italic; font-size: 0.95rem;">
+            Una fundación con 12 años de historia que abre nueva etapa
+            como granja-escuela en una finca rústica de la Vera.
+          </p>
+        </aside>
+        <div class="about-text">
+          <h2>Aprender <em>reconectando</em> con la naturaleza.</h2>
+          <p>
+            La <strong>Fundación AulaVera</strong> fue constituida bajo otra denominación —
+            Fundación SmileStone — el 30 de julio de 2013. Su propósito es promover la
+            <strong>educación creativa, artística y cultural</strong> como instrumento para
+            favorecer la integración social de las personas participantes en sus actividades.
+          </p>
+          <p>
+            12 años después, en una finca rústica de Losar de la Vera, se inicia una nueva
+            etapa con la renovación del Patronato y la actualización de sus objetivos. La
+            Fundación orienta ahora su acción a facilitar una educación medioambiental,
+            creativa y de desarrollo personal, dirigida especialmente a personas con
+            discapacidad u otras dificultades de adaptación e integración.
+          </p>
+          <p>
+            Como eje principal se prevé la creación de una <strong>granja-escuela concebida
+            como un espacio educativo, terapéutico y comunitario</strong> en contacto directo
+            con la Naturaleza: tareas del campo, cuidado de los animales y del medio, refuerzan
+            la sensibilización medioambiental y consolidan valores de respeto, sostenibilidad
+            y cooperación.
+          </p>
+
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="year">2013</div>
+              <div class="what">Constitución como Fundación SmileStone</div>
+            </div>
+            <div class="timeline-item">
+              <div class="year">2025</div>
+              <div class="what">Nueva etapa en Losar de la Vera, renovación del Patronato</div>
+            </div>
+            <div class="timeline-item">
+              <div class="year">Hoy</div>
+              <div class="what">Granja-escuela en construcción y primeros talleres con Servimayor</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 AREAS -->
+    <section class="areas-section" id="areas-preview">
+      <div class="areas-section-wrap">
+        <div class="areas-head">
+          <div>
+            <span class="eyebrow"><span class="rule"></span>Las 4 áreas de aplicación</span>
+            <h2>Cuatro caminos, <em>un solo lugar</em>.</h2>
+          </div>
+          <p>
+            Cuatro áreas estatutarias atraviesan todo lo que hacemos. Cada una con
+            su propia voz, todas en diálogo con la tierra, la comunidad y la convivencia.
+          </p>
+        </div>
+
+        <div class="compass">
+          <div class="compass-cell" onclick="navigate('areas')">
+            <div class="arrow">${SVG.arrow()}</div>
+            <div class="compass-num">01</div>
+            <h3>Educación, desarrollo<br>personal e <em>inclusión</em></h3>
+            <p>Tendemos un puente a través de actividades en la naturaleza, terapias integrativas
+            y convivencias para personas con dificultades motoras, psíquicas o de aprendizaje.</p>
+          </div>
+          <div class="compass-cell" onclick="navigate('areas')">
+            <div class="arrow">${SVG.arrow()}</div>
+            <div class="compass-num">02</div>
+            <h3>Agronomía y <em>agricultura</em> sostenible</h3>
+            <p>Huertos, animales, ecología, permacultura y agricultura regenerativa.
+            Producción con fines educativos y creativos, no de explotación comercial.</p>
+          </div>
+          <div class="compass-cell" onclick="navigate('areas')">
+            <div class="arrow">${SVG.arrow()}</div>
+            <div class="compass-num">03</div>
+            <h3>Arte y cultura<br>en el <em>mundo rural</em></h3>
+            <p>Rescate de costumbres, gastronomía, artesanías, música y danza locales,
+            siempre en sintonía con la sostenibilidad y el apoyo a artistas del territorio.</p>
+          </div>
+          <div class="compass-cell" onclick="navigate('areas')">
+            <div class="arrow">${SVG.arrow()}</div>
+            <div class="compass-num">04</div>
+            <h3>Investigación <em>I+D</em></h3>
+            <p>Colaboración con universidades y centros de I+D para estudios respaldados
+            por psicólogos, pedagogos, antropólogos, médicos y profesores.</p>
+          </div>
+          <div class="compass-center"><span>A</span></div>
+        </div>
+
+        <div class="servimayor-band">
+          <div class="badge">Una colaboración querida</div>
+          <p>
+            <strong>Residencia Servimayor</strong>, ubicada en un espacio contiguo, comparte con nosotros
+            la convicción de que aprender a tratar con dignidad a quienes nos preceden es aprender,
+            también, a relacionarnos así con todas las personas.
+          </p>
+          <a href="#proyectos" class="btn btn-terra" data-route="proyectos">Ver el taller juntos →</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- GALLERY -->
+    <section class="section gallery-section">
+      <div class="gallery-head">
+        <div>
+          <span class="eyebrow">Fotos y vídeos</span>
+          <h2>El lugar, <em>despacio</em>.</h2>
+        </div>
+        <p style="color: var(--ink-soft); max-width: 380px; font-style: italic;">
+          Imágenes de la finca, los animales y las primeras actividades — algunas propias,
+          otras de uso libre mientras se sustituyen progresivamente.
+        </p>
+      </div>
+      <div class="gallery">
+        <div class="g-card g-1">${SVG.vega()}<span class="cap">La Vera al amanecer</span></div>
+        <div class="g-card g-2">${SVG.olives()}<span class="cap">Olivar centenario</span></div>
+        <div class="g-card g-3">${SVG.cow()}<span class="cap">Vacas</span></div>
+        <div class="g-card g-4">${SVG.frog()}<span class="cap">El charco</span></div>
+        <div class="g-card g-5">${SVG.river()}<span class="cap">Garganta cercana</span></div>
+        <div class="g-card g-6">${SVG.workshop()}<span class="cap">Taller en Servimayor</span></div>
+      </div>
+    </section>
+
+    <!-- POEM -->
+    <div class="poem">
+      <div class="poem-text">Tú eres una criatura del universo,
+no menos que los árboles y las estrellas,
+tienes derecho a existir,
+y sea que te resulte claro o no,
+indudablemente el universo marcha como debiera.</div>
+      <div class="poem-attr">Desiderata<small>— Max Ehrmann, 1927</small></div>
+    </div>
+  `;
+}
+
+// ============================================================
+// AREAS view
+// ============================================================
+function viewAreas() {
+  return `
+    <header class="page-header">
+      <span class="eyebrow">Las 4 áreas estatutarias</span>
+      <h1>Cuatro <em>hilos conductores</em> que tejen el proyecto.</h1>
+      <p class="page-lead">
+        Cada área se aplica a través de la granja-escuela, con tres principios transversales:
+        creatividad, contacto con la naturaleza y convivencia.
+      </p>
+    </header>
+
+    <section class="section section-narrow">
+
+      <article class="area-detail" id="educacion">
+        <div>
+          <div class="num">01</div>
+          <div class="area-meta">— educación &amp; inclusión</div>
+          <h2>Educación, desarrollo<br>personal e <em>inclusión</em></h2>
+        </div>
+        <div class="body">
+          <p>
+            De forma vocacional, en AulaVera estamos muy concienciados con las situaciones
+            vulnerables en las que a menudo se encuentran niños y adolescentes con dificultades
+            motoras, psíquicas o de aprendizaje. <strong>Para cruzar este río</strong>, tendemos
+            un puente a través de actividades en la naturaleza, cuidando a los animales,
+            desarrollando valores personales, nuevas destrezas, competencias emocionales y
+            aptitud humana.
+          </p>
+          <p>
+            Apostamos por <strong>talleres, charlas y terapias integrativas</strong>, impartidos
+            por expertos creativos o de diferentes disciplinas — desde alimentación y agricultura
+            a literatura y escritura creativa, pasando por toda expresión artística — para que
+            cada persona descubra sus capacidades y avance en su integración social o adaptación familiar.
+          </p>
+          <div class="tags">
+            <span class="tag featured">Convivencias</span>
+            <span class="tag">Terapias integrativas</span>
+            <span class="tag">Talleres creativos</span>
+            <span class="tag">Escritura</span>
+            <span class="tag">Animales</span>
+            <span class="tag">Naturaleza</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="area-detail" id="agronomia">
+        <div>
+          <div class="num">02</div>
+          <div class="area-meta">— tierra &amp; cuidado</div>
+          <h2>Agronomía y <em>agricultura</em><br>sostenible</h2>
+        </div>
+        <div class="body">
+          <p>
+            Para traer <strong>a tierra</strong> la creación de una granja-escuela resulta de
+            inestimable valor contar con huertos y animales, para reconectar con las bondades y
+            usos de una producción agrícola respetuosa y de apoyo a la región cacereña, su industria
+            y compañeros del sector primario.
+          </p>
+          <p>
+            La <strong>ecología, la permacultura y la agricultura regenerativa</strong> son pilares
+            fundamentales. Poco a poco, cada planta que germina, cada ser que crece aquí, van
+            enraizando este tejido con fines educativos y creativos — nunca de explotación comercial —,
+            abonando el terreno con una educación basada en la sostenibilidad y el respeto.
+          </p>
+          <div class="tags">
+            <span class="tag">Ecología</span>
+            <span class="tag">Permacultura</span>
+            <span class="tag">Agricultura regenerativa</span>
+            <span class="tag">Huertos</span>
+            <span class="tag">Animales</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="area-detail" id="investigacion">
+        <div>
+          <div class="num">03</div>
+          <div class="area-meta">— estudio &amp; medición</div>
+          <h2>Investigación <em>I+D</em></h2>
+        </div>
+        <div class="body">
+          <p>
+            En estos tiempos en los que soplan vientos de cambio, apostamos por la
+            <strong>colaboración con universidades y centros de I+D</strong> para realizar estudios
+            respaldados por expertos: psicólogos, pedagogos, antropólogos, médicos y profesores.
+          </p>
+          <p>
+            El entorno y las actividades que organizamos son puro aire fresco para esta tarea:
+            permitirán mediciones y cálculos sobre la creatividad y autoestima de los niños o
+            personas en riesgo de exclusión, sobre alimentación y agricultura ecológica, y sobre
+            otras líneas que se vayan abriendo. Todos los cursillos y eventos que se organicen en
+            el futuro ayudarán a financiar esta investigación.
+          </p>
+          <div class="tags">
+            <span class="tag">Universidades</span>
+            <span class="tag">Convenios</span>
+            <span class="tag">Pedagogía</span>
+            <span class="tag">Antropología</span>
+            <span class="tag">Salud</span>
+            <span class="tag">Sostenibilidad</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="area-detail" id="arte">
+        <div>
+          <div class="num">04</div>
+          <div class="area-meta">— historia &amp; memoria</div>
+          <h2>Arte y cultura<br>en el <em>mundo rural</em></h2>
+        </div>
+        <div class="body">
+          <p>
+            La cultura, el arte y las tradiciones de una sociedad son la <strong>llama que mantiene
+            viva su historia</strong>. En AulaVera queremos rescatar y divulgar costumbres,
+            gastronomía y prácticas artesanales — tradicionales o novedosas — que coincidan en
+            la sostenibilidad y el respeto al medio ambiente.
+          </p>
+          <p>
+            Cocinamos a fuego lento el desarrollo integral del mundo rural, la conservación del
+            patrimonio histórico, cultural, artístico y natural. Potenciamos la cultura local —
+            arte, tradiciones culinarias, artesanías, música, danza — y <strong>apoyamos a los
+            artistas del territorio</strong>. ¡Esto está que echa chispas!
+          </p>
+          <div class="tags">
+            <span class="tag">Artesanías</span>
+            <span class="tag">Música</span>
+            <span class="tag">Danza</span>
+            <span class="tag">Gastronomía</span>
+            <span class="tag">Patrimonio</span>
+            <span class="tag">Artistas locales</span>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- POEM -->
+    <div class="poem">
+      <div class="poem-text">Un árbol enorme
+crece de un tierno retoño.
+Un camino de mil pasos
+comienza en un solo paso.</div>
+      <div class="poem-attr">Tao Te Ching<small>— Lao Tzu</small></div>
+    </div>
+  `;
+}
+
+// ============================================================
+// PROYECTOS view (with internal tabs)
+// ============================================================
+let projectsTab = 'realizados';
+function viewProyectos() {
+  return `
+    <header class="page-header">
+      <span class="eyebrow">Proyectos &amp; actividades</span>
+      <h1>Lo que <em>hicimos</em>, lo que está por <em>llegar</em>.</h1>
+      <p class="page-lead">
+        Construcciones, terapias, encuentros y talleres — todo lo que va dando forma
+        a la granja-escuela.
+      </p>
+    </header>
+
+    <section class="section section-narrow">
+      <nav class="tabs" role="tablist">
+        <button class="tab-btn ${projectsTab==='realizados'?'is-active':''}" onclick="setProjectsTab('realizados')">
+          Realizados <span class="count">1</span>
+        </button>
+        <button class="tab-btn ${projectsTab==='futuros'?'is-active':''}" onclick="setProjectsTab('futuros')">
+          Futuros <span class="count">5</span>
+        </button>
+        <button class="tab-btn ${projectsTab==='areas-accion'?'is-active':''}" onclick="setProjectsTab('areas-accion')">
+          Áreas de acción <span class="count">4</span>
+        </button>
+      </nav>
+
+      <div id="projectsBody">
+        ${projectsTab === 'realizados' ? renderRealizados() : ''}
+        ${projectsTab === 'futuros' ? renderFuturos() : ''}
+        ${projectsTab === 'areas-accion' ? renderAreasAccion() : ''}
+      </div>
+    </section>
+
+    <!-- POEM -->
+    <div class="poem">
+      <div class="poem-text">Es justamente la posibilidad de realizar un sueño
+lo que hace que la vida sea interesante.
+El miedo a sufrir es peor que el propio sufrimiento.</div>
+      <div class="poem-attr">El Alquimista<small>— Paulo Coelho, 1987</small></div>
+    </div>
+  `;
+}
+
+function renderRealizados() {
+  return `
+    <article class="chronicle">
+      <div class="img">${SVG.workshop()}</div>
+      <div>
+        <span class="when">Sábado, 7 de junio · Losar de la Vera</span>
+        <h2>Taller de lectura, manualidades<br>y grafomotricidad en <em>Servimayor</em></h2>
+        <blockquote>
+          "La mayor mentira del mundo es que, en determinado momento de nuestra existencia,
+          perdemos el control de nuestras vidas y éstas pasan a ser gobernadas por el destino."
+        </blockquote>
+        <p>
+          Así comenzó el encuentro intergeneracional en la residencia de la tercera edad. Ante
+          atentas miradas, gerentes, terapeutas, habitantes, socios y simpatizantes de AulaVera
+          quedamos transportados al mundo de <em>El Alquimista</em>, gracias a la expresividad
+          y pasión de Berta, la trovadora.
+        </p>
+        <p>
+          Después, Cris compartió una técnica para liberar bloqueos mediante la movilidad de la
+          muñeca — con apenas 50 gramos de materiales — y Juanjo sembró cortocircuitos mentales
+          con su explicación sobre la escritura, invitando a probar ejercicios donde no se trata
+          de hacerlo bien, <em>sino de sentirse bien</em>.
+        </p>
+        <p>
+          Concluimos con una comida conjunta, vistas al paisaje, lágrimas de emoción y un
+          homenaje del equipo de cocina. <strong>¡Repetiremos!</strong>
+        </p>
+        <div style="display:flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+          <span class="tag">Intergeneracional</span>
+          <span class="tag">Lectura</span>
+          <span class="tag">Grafomotricidad</span>
+          <span class="tag">Manualidades</span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderFuturos() {
+  const items = [
+    { id: 'terapia-animales', title: 'Terapias con animales', when: 'Próximamente · agenda abierta', area: 'Educación', body: 'Las terapias con animales facilitan una mejoría en niños y adultos con discapacidades. La equinoterapia es especialmente recomendable para autismo, parálisis cerebral y síndrome Down.', img: SVG.cow, price: 'Reservar (señal 25 €)' },
+    { id: 'ruta-caballo', title: 'Ruta a caballo por la Vera', when: 'Sábados · primavera 2026', area: 'Arte y cultura', body: 'Recorrido guiado por caminos rurales con un grupo reducido. Aprenderemos a relacionarnos con el caballo desde el respeto.', img: SVG.vega, price: 'Reservar (señal 30 €)' },
+    { id: 'bio-construccion', title: 'Construye una casa (bio-construcción)', when: 'Taller de 3 días', area: 'Agronomía', body: 'Iniciación a la bio-construcción con materiales locales: barro, paja, madera. Manos a la obra.', img: SVG.olives, price: 'Reservar (señal 40 €)' },
+    { id: 'pozas', title: 'Excursión a las pozas', when: 'Verano 2026', area: 'Educación', body: 'Caminata familiar hasta las gargantas más cercanas, baño y picnic. Apta para todas las edades.', img: SVG.river, price: 'Reservar (señal 15 €)' },
+    { id: 'cinefórum', title: 'Cine fórum: paisajes y memoria', when: 'Viernes mensuales', area: 'Arte y cultura', body: 'Proyección y conversación abierta. Patrimonio cultural y rural a través del cine.', img: SVG.frog, price: 'Reservar (señal 10 €)' },
+  ];
+  return `
+    <div class="projects-grid">
+      ${items.map(it => `
+        <article class="project-card">
+          <div class="project-img">
+            ${it.img()}
+            <span class="chip">${it.area}</span>
+          </div>
+          <div class="project-body">
+            <span class="when">${it.when}</span>
+            <h3>${it.title}</h3>
+            <p>${it.body}</p>
+            <div class="meta">
+              <span>Plazas limitadas · alojamiento opcional</span>
+              <a href="#" onclick="openReserveModal('${it.title}', '${it.when}', '${it.price}'); return false;">${it.price} →</a>
+            </div>
+          </div>
+        </article>
+      `).join('')}
+    </div>
+
+    <div class="ideas-cloud">
+      <div class="label">Lluvia de ideas para la sección</div>
+      <div class="ideas-tags">
+        ${['Ruta a caballo','Bio-construcción','Excursión a las pozas','Visita intergeneracional','Reeducación escritural','Orientación y supervivencia','Cine fórum','Baile (claqué)','Tiro con arco','Esgrima','Aprende a escribir','Cocina lenta'].map(t => `<span class="tag">${t}</span>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderAreasAccion() {
+  const disciplines = [
+    { name: 'Terapia con animales', state: 'En preparación', body: 'Equinoterapia y otras intervenciones asistidas con animales.', icon: '🐎' },
+    { name: 'Grafomotricidad &amp; reeducación escritural', state: 'Consolidada', body: 'Talleres impartidos por especialistas en escritura.', icon: '✍︎' },
+    { name: 'Bio-construcción', state: 'En preparación', body: 'Aprendizaje con materiales locales y técnicas tradicionales.', icon: '⌂' },
+    { name: 'Convivencias intergeneracionales', state: 'Consolidada', body: 'En colaboración con Servimayor: encuentros, lecturas, comidas conjuntas.', icon: '◐' }
+  ];
+  return `
+    <div class="projects-grid">
+      ${disciplines.map(d => `
+        <article class="project-card">
+          <div class="project-body" style="padding: 32px;">
+            <div style="font-size: 2rem; color: var(--terra); margin-bottom: 12px;">${d.icon}</div>
+            <h3>${d.name}</h3>
+            <p>${d.body}</p>
+            <div class="meta">
+              <span class="tag ${d.state==='Consolidada'?'featured':''}">${d.state}</span>
+              <a href="#contacto" data-route="contacto">Saber más →</a>
+            </div>
+          </div>
+        </article>
+      `).join('')}
+    </div>
+  `;
+}
+
+function setProjectsTab(t) {
+  projectsTab = t;
+  document.getElementById('app').innerHTML = viewProyectos();
+  highlightNav();
+}
+
+// ============================================================
+// CONTACTO + DONACIONES view
+// ============================================================
+function viewContacto() {
+  return `
+    <header class="page-header">
+      <span class="eyebrow">Contacto &amp; donaciones</span>
+      <h1>Escríbenos, <em>apóyanos</em>,<br>o ven a visitarnos.</h1>
+      <p class="page-lead">
+        Puedes hacernos llegar una propuesta, reservar tu sitio en una actividad o sumarte
+        como donante o socio recurrente — cada gesto cuenta.
+      </p>
+    </header>
+
+    <section class="section section-narrow" id="donar">
+
+      <h2 style="margin-bottom: 32px;">Donar al proyecto</h2>
+
+      <div class="donate-grid">
+        <div class="donate-card">
+          <h3>Donación puntual</h3>
+          <p style="color: var(--ink-soft); margin-bottom: 0;">Una contribución única, cuando puedas.</p>
+          <div class="price">25 €<small> · sugerida</small></div>
+          <ul>
+            <li>Certificado fiscal para tu declaración</li>
+            <li>Boletín trimestral del proyecto</li>
+            <li>Acceso a fotos de los talleres</li>
+          </ul>
+          <button class="btn btn-ghost donate-btn" onclick="showToast('Gracias 💛 Te llevamos al pago seguro.')">Donar una vez →</button>
+        </div>
+        <div class="donate-card featured">
+          <span class="ribbon">favorita</span>
+          <h3>Hazte socio/a · cuota mensual</h3>
+          <p class="featured-text" style="margin-bottom: 0;">Apoyo recurrente, la forma más estable de cuidar el proyecto.</p>
+          <div class="price">10 €<small> · al mes</small></div>
+          <ul>
+            <li>Todo lo anterior</li>
+            <li>Acceso al <strong>Área privada</strong> con vídeos y recursos</li>
+            <li>Plaza preferente en convivencias</li>
+            <li>Modifica o cancela cuando quieras</li>
+          </ul>
+          <button class="btn btn-terra donate-btn" onclick="showToast('Gracias por sumarte 💛 Te enviamos el formulario de alta.')">Hacerme socio/a →</button>
+        </div>
+      </div>
+
+      <div class="fiscal-info">
+        <div class="icon">€</div>
+        <div>
+          <h4>Tu donación desgrava — somos Fundación.</h4>
+          <p>
+            Las donaciones a la Fundación AulaVera tienen deducción fiscal según la Ley 49/2002.
+            Personas físicas:
+            <span class="perc">80%</span> hasta 250 € y
+            <span class="perc">40%</span> sobre el resto (45% si donaste durante 3 años seguidos).
+            Personas jurídicas:
+            <span class="perc">40%</span> con un máximo del 10% de la base imponible.
+          </p>
+        </div>
+      </div>
+
+      <h2 style="margin-bottom: 24px;">Escríbenos</h2>
+      <div class="contact-grid">
+        <form class="form" onsubmit="event.preventDefault(); showToast('Mensaje recibido 🌿 Te respondemos en 48 h.'); event.target.reset();">
+          <div class="form-row">
+            <div class="field">
+              <label for="nm">Tu nombre</label>
+              <input id="nm" type="text" placeholder="Daniel et al." required>
+            </div>
+            <div class="field">
+              <label for="em">Tu email</label>
+              <input id="em" type="email" placeholder="tu@correo.com" required>
+            </div>
+          </div>
+          <div class="field">
+            <label for="as">Asunto</label>
+            <select id="as">
+              <option>Información general</option>
+              <option>Quiero apuntarme a una actividad</option>
+              <option>Soy investigador/a — convenio I+D</option>
+              <option>Quiero proponer una colaboración</option>
+              <option>Soy artista local</option>
+              <option>Voluntariado</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ms">Tu mensaje</label>
+            <textarea id="ms" placeholder="Cuéntanos qué te trae por aquí…"></textarea>
+          </div>
+          <label class="check">
+            <input type="checkbox" required>
+            <span>He leído y acepto la <a href="#" style="color: var(--terra);">política de privacidad</a>. Mis datos se tratarán para responder a esta consulta.</span>
+          </label>
+          <button type="submit" class="btn btn-primary" style="justify-self: start;">Enviar mensaje →</button>
+        </form>
+
+        <aside class="contact-info">
+          <h3>Donde nos encontrarás</h3>
+          <p>Finca rústica en Losar de la Vera, junto a la residencia Servimayor.</p>
+          <dl>
+            <dt>Dirección postal</dt><dd>Por confirmar · Jarandilla de la Vera (Cáceres)</dd>
+            <dt>Email</dt><dd>hola@aulavera.org</dd>
+            <dt>Visitas</dt><dd>Con cita previa</dd>
+            <dt>Comunidad</dt><dd>Cáceres · Extremadura</dd>
+          </dl>
+          <div class="map-mock">
+            <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <rect width="400" height="225" fill="#A8B89C"/>
+              <path d="M 0 110 Q 80 100 160 120 T 320 100 T 400 110 L 400 225 L 0 225 Z" fill="#6B8E4E"/>
+              <path d="M 0 150 Q 100 145 200 155 T 400 145 L 400 225 L 0 225 Z" fill="#3A5A45"/>
+              <path d="M -20 60 Q 100 70 200 50 T 420 70" stroke="#7CADC5" stroke-width="6" fill="none" opacity="0.7"/>
+              <g transform="translate(220,120)">
+                <circle r="14" fill="#B5532A"/>
+                <circle r="6" fill="#FBF6EA"/>
+              </g>
+              <text x="240" y="116" font-family="Caveat, cursive" font-size="20" fill="#FBF6EA">AulaVera</text>
+            </svg>
+          </div>
+        </aside>
+      </div>
+    </section>
+  `;
+}
+
+// ============================================================
+// AREA PRIVADA view
+// ============================================================
+let privateSession = null;
+let privateTab = 'videos';
+
+function viewPrivada() {
+  if (!privateSession) return viewPrivateLogin();
+  return viewPrivateDashboard();
+}
+
+function viewPrivateLogin() {
+  return `
+    <header class="page-header" style="padding-bottom: 0;">
+      <span class="eyebrow">Área privada</span>
+      <h1>Para <em>socios</em><br>y colaboradores.</h1>
+      <p class="page-lead">
+        Vídeos, recursos pedagógicos y documentación interna — un espacio reservado a quienes
+        están vinculados con la Fundación.
+      </p>
+    </header>
+
+    <section class="section section-narrow">
+      <div class="login-wrap">
+        <div class="login-card">
+          <h2>Acceder</h2>
+          <p class="sub">Identifícate con tu correo y contraseña</p>
+          <form class="form" onsubmit="event.preventDefault(); doLogin();">
+            <div class="field">
+              <label for="lem">Email</label>
+              <input id="lem" type="email" placeholder="tu@correo.com" value="socio@aulavera.org">
+            </div>
+            <div class="field">
+              <label for="lpw">Contraseña</label>
+              <input id="lpw" type="password" placeholder="••••••••" value="demo">
+            </div>
+            <button type="submit" class="btn btn-primary">Entrar →</button>
+          </form>
+          <div class="login-meta">
+            ¿Aún no eres socio/a? <a href="#donar" data-route="donar">Únete al proyecto</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function viewPrivateDashboard() {
+  return `
+    <header class="page-header">
+      <span class="eyebrow">Área privada · ${privateSession.email}</span>
+      <h1>Bienvenida, <em>${privateSession.name}</em>.</h1>
+      <p class="page-lead">Aquí encontrarás los recursos reservados a la comunidad de socios y colaboradores.</p>
+    </header>
+
+    <section class="section section-narrow">
+      <div class="private-grid">
+        <aside class="private-side">
+          <div class="user">
+            <div class="av">${privateSession.name[0]}</div>
+            <div>
+              <div class="nm">${privateSession.name}</div>
+              <div class="rl">Socio/a · desde 2025</div>
+            </div>
+          </div>
+          <nav class="private-nav">
+            <button class="${privateTab==='videos'?'is-active':''}" onclick="setPrivateTab('videos')">🎬 Vídeos grabados</button>
+            <button class="${privateTab==='recursos'?'is-active':''}" onclick="setPrivateTab('recursos')">📚 Recursos para socios</button>
+            <button class="${privateTab==='docs'?'is-active':''}" onclick="setPrivateTab('docs')">📄 Documentación</button>
+            <button class="${privateTab==='cuota'?'is-active':''}" onclick="setPrivateTab('cuota')">💛 Mi cuota</button>
+            <button onclick="doLogout()" style="margin-top: 12px; color: var(--terra);">↩ Salir</button>
+          </nav>
+        </aside>
+        <div>
+          ${renderPrivateContent()}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderPrivateContent() {
+  if (privateTab === 'videos') {
+    const videos = [
+      { t: 'Taller de grafomotricidad — sesión 1', s: '14:32 · 7 jun 2025' },
+      { t: 'Trovador en Servimayor — El Alquimista', s: '08:45 · 7 jun 2025' },
+      { t: 'Recorrido por la finca — primavera', s: '06:12 · 12 abr 2025' }
+    ];
+    return `
+      <div style="background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--ochre); padding: 18px 22px; border-radius: 4px; margin-bottom: 24px; font-size: 0.95rem; color: var(--ink-soft); font-style: italic;">
+        Cada vídeo se publica con la correspondiente autorización de las personas grabadas. El material puede descargarse y utilizarse por terceros bajo esa misma condición.
+      </div>
+      <div class="resource-list">
+        ${videos.map(v => `
+          <a href="#" class="resource-row" onclick="event.preventDefault(); showToast('Cargando reproductor...')">
+            <div class="ic">▶</div>
+            <div>
+              <div class="ttl">${v.t}</div>
+              <div class="sub">${v.s}</div>
+            </div>
+            <div class="act">Ver →</div>
+          </a>
+        `).join('')}
+      </div>
+    `;
+  }
+  if (privateTab === 'recursos') {
+    const res = [
+      { t: 'Guía pedagógica · convivencias intergeneracionales', s: 'PDF · 24 págs.' },
+      { t: 'Plantilla de evaluación de talleres', s: 'DOCX · 4 págs.' },
+      { t: 'Pack de imágenes propias (uso interno)', s: 'ZIP · 142 MB' },
+      { t: 'Lista de poemas seleccionados', s: 'PDF · 8 págs.' }
+    ];
+    return `
+      <div class="resource-list">
+        ${res.map(r => `
+          <a href="#" class="resource-row" onclick="event.preventDefault(); showToast('Descargando...')">
+            <div class="ic">⤓</div>
+            <div>
+              <div class="ttl">${r.t}</div>
+              <div class="sub">${r.s}</div>
+            </div>
+            <div class="act">Descargar →</div>
+          </a>
+        `).join('')}
+      </div>
+    `;
+  }
+  if (privateTab === 'docs') {
+    return `
+      <div class="resource-list">
+        <a href="#" class="resource-row"><div class="ic">📜</div><div><div class="ttl">Estatutos de la Fundación</div><div class="sub">Última actualización · 2025</div></div><div class="act">Abrir →</div></a>
+        <a href="#" class="resource-row"><div class="ic">📊</div><div><div class="ttl">Memoria 2024</div><div class="sub">PDF · 32 págs.</div></div><div class="act">Abrir →</div></a>
+        <a href="#" class="resource-row"><div class="ic">⚖</div><div><div class="ttl">Plan estratégico 2025-2028</div><div class="sub">Documento de trabajo</div></div><div class="act">Abrir →</div></a>
+      </div>
+    `;
+  }
+  if (privateTab === 'cuota') {
+    return `
+      <div style="background: var(--cream); border: 1px solid var(--line); border-radius: 6px; padding: 32px;">
+        <h3 style="margin-bottom: 18px;">Tu cuota mensual</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px;">
+          <div>
+            <div class="eyebrow" style="font-style: normal; font-family: var(--script); color: var(--terra); font-size: 1.2rem;">Cuota actual</div>
+            <div style="font-family: var(--display); font-size: 2.4rem; color: var(--forest-deep);">10 € <small style="font-size: 1rem; font-style: italic; color: var(--ink-mute);">/mes</small></div>
+          </div>
+          <div>
+            <div class="eyebrow" style="font-style: normal; font-family: var(--script); color: var(--terra); font-size: 1.2rem;">Total donado</div>
+            <div style="font-family: var(--display); font-size: 2.4rem; color: var(--forest-deep);">120 € <small style="font-size: 1rem; font-style: italic; color: var(--ink-mute);">en 2025</small></div>
+          </div>
+        </div>
+        <p style="color: var(--ink-soft); font-style: italic; margin-bottom: 24px;">
+          Puedes modificar el importe o cancelar tu suscripción en cualquier momento.
+          Te enviaremos el certificado fiscal anual a tu correo.
+        </p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-ghost" onclick="showToast('Editando cuota...')">Modificar cuota</button>
+          <button class="btn btn-ghost" onclick="showToast('Descargando certificado...')">Certificado fiscal</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function setPrivateTab(t) {
+  privateTab = t;
+  document.getElementById('app').innerHTML = viewPrivada();
+  highlightNav();
+}
+
+function doLogin() {
+  privateSession = { name: 'Daniel', email: document.getElementById('lem').value };
+  showToast('Bienvenido/a 🌿');
+  document.getElementById('app').innerHTML = viewPrivada();
+  highlightNav();
+}
+function doLogout() {
+  privateSession = null;
+  privateTab = 'videos';
+  document.getElementById('app').innerHTML = viewPrivada();
+  highlightNav();
+}
+
+// ============================================================
+// ROUTER
+// ============================================================
+const routes = {
+  home: viewHome,
+  areas: viewAreas,
+  proyectos: viewProyectos,
+  contacto: viewContacto,
+  donar: viewContacto,
+  privada: viewPrivada
+};
+
+function navigate(route) {
+  if (!routes[route]) route = 'home';
+  window.location.hash = route;
+}
+
+function render() {
+  const hash = window.location.hash.replace('#', '') || 'home';
+  const route = routes[hash] ? hash : 'home';
+  document.getElementById('app').innerHTML = routes[route]();
+  highlightNav();
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  // close mobile menu
+  document.getElementById('navLinks').classList.remove('is-open');
+}
+
+function highlightNav() {
+  const hash = window.location.hash.replace('#', '') || 'home';
+  document.querySelectorAll('.nav-links a[data-route]').forEach(a => {
+    a.classList.toggle('is-active', a.dataset.route === hash);
+  });
+}
+
+window.addEventListener('hashchange', render);
+window.addEventListener('DOMContentLoaded', () => {
+  render();
+  // Mobile menu toggle
+  document.getElementById('navToggle').addEventListener('click', () => {
+    document.getElementById('navLinks').classList.toggle('is-open');
+  });
+  // Cookies banner (first visit only — in-memory only)
+  setTimeout(() => {
+    document.getElementById('cookies').style.display = 'flex';
+  }, 1200);
+
+  // Intercept all data-route links (so they work even when delegated)
+  document.body.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-route]');
+    if (link) {
+      // The href hash navigation will trigger render() via hashchange anyway,
+      // but we close the mobile menu now.
+      document.getElementById('navLinks').classList.remove('is-open');
+    }
+  });
+});
+
+// ============================================================
+// UI helpers — toast, modal, cookies
+// ============================================================
+function showToast(msg) {
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+function closeCookies() {
+  document.getElementById('cookies').style.display = 'none';
+}
+
+function openReserveModal(title, when, priceLabel) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = `
+    <div class="modal">
+      <button class="close" onclick="this.closest('.modal-backdrop').remove()">×</button>
+      <span class="when">${when}</span>
+      <h3>${title}</h3>
+      <p style="color: var(--ink-soft); margin-bottom: 20px;">Reserva tu plaza. La señal solo se reembolsa si anulas con al menos 7 días de antelación.</p>
+      <div class="price-row">
+        <span class="lab">Señal de reserva</span>
+        <span class="val">${priceLabel.replace('Reservar (','').replace(')','')}</span>
+      </div>
+      <form class="form" onsubmit="event.preventDefault(); this.closest('.modal-backdrop').remove(); showToast('Reserva confirmada 🌿 Revisa tu correo.');">
+        <div class="form-row">
+          <div class="field"><label>Nombre</label><input type="text" required></div>
+          <div class="field"><label>Email</label><input type="email" required></div>
+        </div>
+        <div class="field"><label>Preferencias de alojamiento <span style="color:var(--ink-mute);">(opcional)</span></label><textarea placeholder="Habitación compartida / individual, accesibilidad, alergias…"></textarea></div>
+        <label class="check"><input type="checkbox" required><span>Acepto la política de cancelación y el tratamiento de datos.</span></label>
+        <button type="submit" class="btn btn-primary">Pagar señal y reservar →</button>
+      </form>
+    </div>
+  `;
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+  document.body.appendChild(modal);
+}
+</script>
+
+</body>
+</html>
