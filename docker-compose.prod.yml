@@ -74,6 +74,14 @@ services:
     ports: !reset []
     volumes: !reset []
 
+  # ── Aulavera portal (prod) ─────────────────────────────────────
+  aulavera-portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aulavera-portal:${IMAGE_TAG:-latest}
+    build:
+      target: production
+    ports: !reset []
+    volumes: !reset []
+
   # ── Infra: NO publicar puertos al host en prod ────────────────
   # En dev el compose base publica 5432/6379/9000/9001 al host para
   # comodidad del desarrollador (psql, redis-cli, consola MinIO en
@@ -140,6 +148,12 @@ services:
     environment:
       NODE_ENV: production
 
+  aulavera-server:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aulavera-server:${IMAGE_TAG:-latest}
+    volumes: !reset []
+    environment:
+      NODE_ENV: production
+
   # ── Frontal gateway: swap to prod upstream definitions ─────────
   nginx:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-nginx:${IMAGE_TAG:-latest}
@@ -158,6 +172,11 @@ services:
       # + ssl_certificate. Esto activa TLS sin tocar los seeds ni los
       # templates dinámicos (incluyen tls-listen.conf por path).
       - ./infra/nginx/snippets/tls-listen.prod.conf:/etc/nginx/snippets/tls-listen.conf:ro
+      # Hermano para el server block catch-all (nginx.conf) — añade un
+      # `listen 443 ssl http2 default_server;` de modo que SNI desconocidos
+      # devuelven 444 en lugar de caer en el primer server block :443
+      # alfabético (lo que hacía que aikikan respondiera a aulavera).
+      - ./infra/nginx/snippets/tls-listen-default.prod.conf:/etc/nginx/snippets/tls-listen-default.conf:ro
       # Cloudflare Origin Certificate (15-year ECDSA), generado en CF UI
       # y subido al host antes del primer arranque de prod con TLS.
       # cert.pem 0644, key.pem 0600.
@@ -173,3 +192,5 @@ services:
       aikikan-portal:          { condition: service_started }
       console-portal: { condition: service_started }
       tenant-console-portal:   { condition: service_started }
+      aulavera-portal:         { condition: service_started }
+      aulavera-server:         { condition: service_started }

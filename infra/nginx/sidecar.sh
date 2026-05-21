@@ -40,18 +40,20 @@ wait_for_redis() {
   return 1
 }
 
-# seed_if_empty: when the Redis hash has no fields, populate it from the seed
-# directory. Idempotent and only runs on first boot of the cluster.
-seed_if_empty() {
-  n=$(rcli HLEN "$CONF_KEY")
-  if [ "$n" != "0" ]; then return 0; fi
+# seed_missing: for each .conf in the seed directory, HSET it into Redis only
+# if that field is not present yet (HSETNX-like semantics — never overwrite
+# entries that the platform may have customized at runtime). Runs on every
+# init so that adding a new seed file (e.g. a new app) reliably reaches every
+# cluster, not just empty ones.
+seed_missing() {
   if [ ! -d "$SEED_DIR" ]; then return 0; fi
-  log "Redis hash $CONF_KEY is empty — seeding from $SEED_DIR"
   for f in "$SEED_DIR"/*.conf; do
     [ -e "$f" ] || continue
     name=$(basename "$f" .conf)
+    existing=$(rcli HEXISTS "$CONF_KEY" "$name")
+    if [ "$existing" = "1" ]; then continue; fi
     rcli -x HSET "$CONF_KEY" "$name" < "$f" >/dev/null
-    log "  seeded $name"
+    log "  seeded $name (was missing)"
   done
 }
 
@@ -95,7 +97,7 @@ cmd_init() {
     fi
     return 0
   fi
-  seed_if_empty
+  seed_missing
   render
   count=$(ls "$SITES_DIR"/*.conf 2>/dev/null | wc -l)
   log "init: rendered $count config(s) to $SITES_DIR"
