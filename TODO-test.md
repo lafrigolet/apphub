@@ -33,7 +33,7 @@
 - [x] `auth.routes.test.js` — endpoints públicos + protegidos
 - [x] `integration/auth.integration.test.js`
 - [x] `integration/users.integration.test.js`
-- [ ] `oauth.service.test.js` — Google + Facebook id-token verify (mock provider) **P1**
+- [x] `oauth.service.test.js` — Google + Facebook id-token verify (mock provider) **P1**
 - [x] `magic-links.service.test.js` — emit, hash, expiry 15min, consume, replay **P0** (idempotencia)
 - [x] `signup-approval.test.js` — `pending_approval` flow + admin approve/reject **P1**
 - [x] `rls.integration.test.js` — un user de tenant A no puede leer rows de tenant B (set GUC + intentar SELECT) **P0**
@@ -204,7 +204,7 @@
 #### 1.12.4 availability
 - [x] `availability.service.test.js`
 - [x] `integration/availability.integration.test.js`
-- [ ] `atomic-hold.test.js` — SET NX EX en Redis; race condition con 2 holds simultáneos solo gana 1 **P0**
+- [x] `atomic-hold.test.js` — SET NX EX en Redis; race condition con 2 holds simultáneos solo gana 1 **P0**
 - [ ] `slot-computation.test.js` — descontar bookings + holds + horarios + bloques **P0**
 
 #### 1.12.5 intake-forms
@@ -220,13 +220,13 @@
 #### 1.12.7 packages
 - [x] `packages.service.test.js`
 - [x] `integration/packages.integration.test.js`
-- [ ] `balance-consume.test.js` — descontar sesiones; bloquear cuando balance=0 **P0**
+- [x] `balance-consume.test.js` — descontar sesiones; bloquear cuando balance=0 **P0**
 - [ ] `expiry.test.js` — scheduler T-30d, T-7d, transición a expired **P1**
 
 #### 1.12.8 practitioner-payouts
 - [x] `practitioner-payouts.service.test.js`
 - [x] `integration/practitioner-payouts.integration.test.js`
-- [ ] `commission-calc.test.js` — % vs flat fee, retenciones IRPF, edge cases **P0**
+- [x] `commission-calc.test.js` — % vs flat fee, retenciones IRPF, edge cases **P0**
 - [ ] `period-close.test.js` — scheduler `payout.period_due`, idempotente **P0**
 
 ### 1.13 scheduler — `platform/scheduler/`
@@ -250,14 +250,14 @@
 - [ ] `videos.service.test.js` — YouTube id validation, link a member **P2**
 - [ ] `fees.service.test.js` — products + subscriptions Stripe loopback **P1**
 - [ ] `certificates.service.test.js` — PDF de grado con QR de verificación **P1**
-- [ ] `events/user-revoked.handler.test.js` — al recibir el evento, borra el row member **P0**
+- [x] `events/user-revoked.handler.test.js` — al recibir el evento, borra el row member **P0**
 - [ ] `events/splitpay.handler.test.js` — `invoice.paid` → marca cuota pagada **P0**
 - [ ] `integration/aikikan.integration.test.js` — RLS + cross-event flow **P0**
 
 ### 2.2 aulavera-server — `apps/aulavera/aulavera-server/` *(módulo nuevo)*
 
-- [ ] `events.service.test.js` — list por `kind=chronicle|workshop`, filtros, RLS **P0**
-- [ ] `events.routes.test.js` — público con `?tenantId=`, no permite cross-tenant **P0**
+- [x] `events.service.test.js` — list por `kind=chronicle|workshop`, filtros, RLS **P0**
+- [x] `events.routes.test.js` — público con `?tenantId=`, no permite cross-tenant **P0**
 - [ ] `disciplines.service.test.js` — listado ordenado por position **P1**
 - [ ] `resources.service.test.js` — filtrado por type, requires_membership **P1**
 - [ ] `migrations.test.js` — 0001 + 0002_seed idempotente (reaplicar no duplica) **P1**
@@ -273,13 +273,13 @@
 
 ### 3.1 platform-sdk — `packages/platform-sdk/`
 
-- [ ] `app-guard.test.js` — JWT decode, `app_id` mismatch, claim ausente, exp, `public: true` skip **P0** (la causa raíz del bug donations)
-- [ ] `db.test.js` — `withTenantTransaction` setea GUC `app.app_id` y `app.tenant_id` + ROLLBACK en error **P0**
+- [x] `app-guard.test.js` — JWT decode, `app_id` mismatch, claim ausente, exp, `public: true` skip **P0** (la causa raíz del bug donations)
+- [x] `db.test.js` — `withTenantTransaction` setea GUC `app.app_id` y `app.tenant_id` + ROLLBACK en error **P0**
 - [ ] `errors.test.js` — clases + statusCode + payload **P1**
 - [ ] `logger.test.js` — formato + scrubbing de PII **P2**
 - [ ] `redis.test.js` — connect + reconnect **P2**
 - [ ] `storage.test.js` — helpers de presigned URL **P2**
-- [ ] `crypto.test.js` — AES-256-GCM encrypt/decrypt, key rotation **P0** (secrets at rest)
+- [x] `crypto.test.js` — AES-256-GCM encrypt/decrypt, key rotation **P0** (secrets at rest)
 
 ### 3.2 sdk-js — `packages/sdk-js/`
 
