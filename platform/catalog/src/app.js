@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import helmet from '@fastify/helmet'
 import cors from '@fastify/cors'
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod'
 import { appGuard } from '@apphub/platform-sdk/app-guard'
 import { logger } from './lib/logger.js'
 import { AppError } from '@apphub/platform-sdk/errors'
@@ -9,6 +10,11 @@ import { itemsRoutes } from './routes/items.routes.js'
 
 export function createApp() {
   const fastify = Fastify({ logger: false })
+  // En el monolito real (platform-marketplace) el compiler zod se setea
+  // en server.js antes de registrar módulos. Aquí lo repetimos para que
+  // createApp() funcione standalone en los tests de health.
+  fastify.setValidatorCompiler(validatorCompiler)
+  fastify.setSerializerCompiler(serializerCompiler)
   fastify.register(helmet)
   fastify.register(cors, { origin: '*' })
   fastify.register(appGuard)

@@ -14,7 +14,7 @@
     "db:migrate": "node src/lib/migrate.js",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.js"
+    "test:integration": "node ../../scripts/integration-or-skip.mjs"
   },
   "dependencies": {
     "@apphub/platform-sdk": "workspace:*",

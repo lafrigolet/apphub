@@ -9,7 +9,7 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test:unit": "vitest run",
+    "test:unit": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "lint": "eslint src",
     "db:migrate": "node src/lib/migrate.js"

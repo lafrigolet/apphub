@@ -48,7 +48,8 @@ async function emit(event) {
 describe('user.registered event', () => {
   it('calls sendWelcomeEmail with correct args', async () => {
     await emit({ type: 'user.registered', payload: { email: 'a@test.com', appId: 'yoga-studio' } })
-    expect(sendWelcomeEmail).toHaveBeenCalledWith('a@test.com', 'yoga-studio')
+    // El sender acepta un 3er arg `locale` (default 'es') desde la migración i18n.
+    expect(sendWelcomeEmail).toHaveBeenCalledWith('a@test.com', 'yoga-studio', 'es')
     expect(sendPasswordResetEmail).not.toHaveBeenCalled()
   })
 
@@ -68,7 +69,11 @@ describe('user.registered event', () => {
 describe('auth.password_reset_requested event', () => {
   it('calls sendPasswordResetEmail with URL containing the token', async () => {
     await emit({ type: 'auth.password_reset_requested', payload: { email: 'a@test.com', token: 'reset-uuid-123' } })
-    expect(sendPasswordResetEmail).toHaveBeenCalledWith('a@test.com', expect.stringContaining('reset-uuid-123'))
+    expect(sendPasswordResetEmail).toHaveBeenCalledWith(
+      'a@test.com',
+      expect.stringContaining('reset-uuid-123'),
+      'es',
+    )
   })
 
   it('skips when email is absent', async () => {

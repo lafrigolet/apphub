@@ -92,6 +92,14 @@ describe('getPurchase / listPurchases', () => {
 })
 
 describe('redeem / refund', () => {
+  // ensureRedeemAllowed busca el package y compara client_user_id con ctx.userId.
+  // Devolvemos un pkg cuyo dueño es USER_ID para que el caller pase el guard.
+  beforeEach(() => {
+    repo.findPurchaseById.mockResolvedValue({
+      id: PKG_ID, client_user_id: USER_ID, total_sessions: 10, remaining_sessions: 8,
+    })
+  })
+
   it('redeem decrements and inserts redemption', async () => {
     repo.decrementSessions.mockResolvedValue({ id: PKG_ID, status: 'active', remaining_sessions: 9, client_user_id: USER_ID })
     repo.insertRedemption.mockResolvedValue()

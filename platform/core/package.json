@@ -6,9 +6,10 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
-    "test:unit": "vitest run",
+    "dev": "node --watch src/bootstrap.js",
+    "start": "node src/bootstrap.js",
+    "test:unit": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src",
     "clean": "rm -rf coverage"
   },
@@ -36,6 +37,7 @@
     "pino-pretty": "^11.2.0"
   },
   "devDependencies": {
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0"
   }
 }

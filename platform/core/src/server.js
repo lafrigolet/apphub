@@ -36,7 +36,7 @@ async function loadModule(descriptor) {
   return mod
 }
 
-async function start() {
+export async function start() {
   const modules = []
   for (const d of moduleDescriptors) {
     const mod = await loadModule(d)
@@ -168,7 +168,7 @@ async function start() {
   process.on('SIGINT', () => shutdown('SIGINT'))
 }
 
-start().catch((err) => {
-  console.error('Failed to start platform-core:', err)
-  process.exit(1)
-})
+// El bootstrap real (auto-arranque cuando se ejecuta `node src/bootstrap.js`)
+// vive en src/bootstrap.js. Aquí sólo exportamos `start()` — los tests
+// importan este módulo y controlan la inicialización con mocks sin
+// disparar el listen() del top-level.

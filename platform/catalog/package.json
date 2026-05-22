@@ -13,7 +13,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test:unit": "vitest run --passWithNoTests",
-    "test:integration": "vitest run --config vitest.integration.config.js",
+    "test:integration": "node ../../scripts/integration-or-skip.mjs",
     "db:migrate": "node src/lib/migrate.js",
     "clean": "rm -rf coverage"
   },

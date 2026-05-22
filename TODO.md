@@ -294,6 +294,7 @@
 | **HTTP transport entre contenedores** con auth | ❌ todo Redis events | media |
 | **Tests E2E** entre los 4 monoliths | ❌ solo unit + integration por módulo | media |
 | **Backup/restore** automatizado de Postgres | ❌ no — implementar ahora (ver subitems abajo) | alta producción |
+| **Zero-downtime onboarding de nuevas apps** | ❌ no — bloque dedicado abajo (DNS lazy + auto-provisioning DB + CI guards + `add-app.sh`) | alta producción |
 | **Pool RO opcional** (`DATABASE_URL_RO` con fallback) | ❌ no — implementar ahora (subitems abajo) | baja hoy, deja el cluster trivial cuando llegue |
 | **i18n** | parcial (notifications via `(key,channel,locale)` UNIQUE; resto del UI todavía hardcoded) | alta para mercado ES |
 | **Frontend para staff** (console) | parcial — `staff/*` cubierto, suficiente para roadmap actual | media |
@@ -448,6 +449,100 @@ de tenerlos todos cuando suena el teléfono.
 - [ ] **DPIA** (Data Protection Impact Assessment) para features
   sensibles: telehealth, intake-forms (datos médicos en algunos casos),
   practitioner-payouts (datos fiscales). Plantilla AEPD existe.
+
+## Zero-downtime onboarding de nuevas apps — **alta · producción**
+
+> **Por qué duele**: el rollout de `aulavera` en prod (2026-05-21) tumbó
+> nginx ~10 min porque (a) `upstream.prod.conf` referenciaba
+> `aulavera-server:3031` antes de que el container existiera —
+> `[emerg] host not found in upstream` → restart loop → toda la plataforma
+> caída; (b) `deploy/services.json` no incluía aulavera → CI no construyó
+> las imágenes; (c) el rol `svc_app_aulavera` no existía porque
+> `infra/postgres/init/*.sql` solo se aplica con volumen virgen → SQL
+> manual en prod.
+>
+> **Objetivo**: añadir una app nueva = un `add-app.sh <nombre>` + commit +
+> push. Sin tocar prod, sin SQL manual, sin riesgo de tumbar las apps
+> existentes si algo sale mal en la nueva.
+
+### 1. nginx — DNS lazy en lugar de `upstream` estático para apps
+
+- [ ] Eliminar los bloques `upstream <app>_server` / `upstream <app>_portal`
+  para app-specific upstreams en `infra/nginx/conf.d/upstream{,.prod}.conf`.
+  En `seed/<app>.conf` reemplazar `proxy_pass http://aulavera_server/...`
+  por:
+  ```nginx
+  set $upstream "aulavera-server:3031";
+  proxy_pass http://$upstream/v1/aulavera/;
+  ```
+- [ ] El `resolver 127.0.0.11 valid=10s` ya está en `nginx.conf` —
+  la resolución pasa a ser **per-request**: si el container no existe,
+  ESA ruta concreta devuelve 502; el resto de la plataforma sigue
+  intacta. nginx no entra en restart loop al fallar un upstream.
+- [ ] Mantener los `upstream` estáticos solo para servicios *platform*
+  (core, marketplace, restaurant, appointments) que ya están y donde
+  el fallo de DNS al boot SÍ es un bug real que queremos detectar
+  pronto.
+
+### 2. app-server — auto-provisionar rol + grants + tenant al arrancar
+
+- [ ] En `apps/<app>/<app>-server/src/lib/migrate.js`, antes del bucle de
+  ficheros, ejecutar (con superuser via `MIGRATION_DATABASE_URL`):
+  ```sql
+  CREATE SCHEMA IF NOT EXISTS app_<app>;
+  DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_app_<app>') THEN
+      CREATE ROLE svc_app_<app> LOGIN PASSWORD <env>;
+    END IF;
+  END $$;
+  GRANT USAGE ON SCHEMA app_<app> TO svc_app_<app>;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA app_<app>
+    GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO svc_app_<app>;
+  GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA app_<app>
+    TO svc_app_<app>;
+  ```
+- [ ] Password se lee de `SVC_APP_DB_PASSWORD` (env var nueva en el
+  container) — no más `app_<app>_secret` literal en docker-compose.
+- [ ] Registro idempotente del tenant en `platform_tenants.{apps,tenants}`
+  vía una migración `0001_register_tenant.sql` que corre como superuser.
+  Datos (tenant_id, display_name, country, locale) parametrizados via
+  env del container.
+- [ ] Resultado: levantar el container es **suficiente** para que
+  `/api/<app>/*` responda. Cero SQL manual en prod.
+
+### 3. CI — validación pre-deploy
+
+- [ ] **Guard de `services.json`**: script en `.github/workflows/test.yml`
+  que comprueba que para cada `apps/*/` y cada `apps/*/(*-server|*-portal)/`
+  existe una entrada en `deploy/services.json`. Falla la PR si falta.
+- [ ] **`nginx -t` previo al deploy**: nuevo job en deploy.yml que renderiza
+  `docker compose -f … config`, monta solo nginx + redis con la config
+  de prod, corre `nginx -t`, y solo si pasa promueve al step SSH.
+- [ ] **Smoke en el runner**: tras `build-and-push`, antes del SSH-deploy,
+  `docker compose pull && up -d` en el runner + `curl /health` a cada
+  servicio del matrix. Si algo falla, no se toca prod.
+
+### 4. Comando `add-app.sh` generador idempotente
+
+- [ ] `scripts/add-app.sh <name>` que:
+  - Ejecuta el flujo `Bootstrap app <name>` (portal scaffolding).
+  - Ejecuta el flujo `Implementa <name>` si hay un `<name>.html`
+    prototipo presente.
+  - Auto-añade compose stanzas (dev + prod).
+  - Auto-añade entries a `deploy/services.json`.
+  - Auto-añade `seed/<name>.conf` con DNS lazy (sin upstream estático).
+  - Corre `pnpm install` para refrescar lockfile.
+  - Verifica que `nginx -t` pasa contra la nueva config localmente.
+  - Imprime el siguiente paso: `git add . && commit && push`.
+- [ ] Cero pasos manuales si todo funciona. Si algo falla, falla pronto
+  y local — antes de involucrar a prod.
+
+### 5. (Diferido) nginx con 2 réplicas para rolling reload
+
+- Solo cuando una recarga de nginx ya no sea aceptable (~50ms hoy). Patrón:
+  `replicas: 2` detrás de un LB TCP simple. Adding un app reconfigura
+  uno, espera al health, luego al otro. Compleja para el beneficio actual.
 
 ## HA / clustering de la infra compartida — **DIFERIDO hasta señal de necesidad**
 
@@ -827,6 +922,11 @@ en `docs/runbooks/tenant-onboarding.md`. Implementado en 5 commits sobre
 
 ## Top 10 prioridades por impacto
 
+0. [ ] **Zero-downtime onboarding de apps** — DNS lazy en nginx +
+   auto-provisioning DB en el app-server + guards de CI + `add-app.sh`.
+   Ver bloque "Zero-downtime onboarding de nuevas apps". Lección
+   aprendida del incidente aulavera del 2026-05-21 (~10 min de
+   downtime de toda la plataforma).
 1. [x] **Scheduler/cron** — desbloquea recurrencias, recordatorios, expiry, close-period en 5+ módulos
 2. [x] **Object storage** — MinIO + `platform/storage` cableado (ADR 008); 2/12 consumidores cableados (`menu`, `intake-forms`); 10 pendientes
 3. [ ] **`payments` real** — `pos.payBill`, `packages.purchase`, `bookings.deposit` no cobran

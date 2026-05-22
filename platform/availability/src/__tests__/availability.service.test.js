@@ -12,6 +12,14 @@ vi.mock('../lib/db.js', () => ({
 }))
 vi.mock('../lib/redis.js', () => ({
   publish: vi.fn(),
+  redis: {
+    mget: vi.fn().mockResolvedValue([]),
+    incr: vi.fn().mockResolvedValue(1),
+    get:  vi.fn(),
+    set:  vi.fn(),
+    setex: vi.fn(),
+    del:  vi.fn(),
+  },
 }))
 vi.mock('../repositories/availability.repository.js')
 
@@ -152,6 +160,10 @@ describe('holdSlot / releaseHold', () => {
 
   it('releaseHold deletes and emits event', async () => {
     repo.deleteHold.mockResolvedValue(true)
+    // releaseHold antes del DELETE hace un SELECT resource_id para luego
+    // invalidar el cache. Inyectamos el client que devuelve esa fila.
+    const c = { query: vi.fn().mockResolvedValue({ rows: [{ resource_id: RES_ID }] }), release: vi.fn() }
+    withTenantTransaction.mockImplementationOnce(async (_p, _a, _t, _s, fn) => fn(c))
     await service.releaseHold(ctx, 'h1')
     expect(repo.deleteHold).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, 'h1')
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'availability.released' }))

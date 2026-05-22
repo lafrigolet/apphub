@@ -13,7 +13,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 
 const AUTH    = process.env.VORAGINE_AUTH_URL    ?? 'http://localhost:3000'
-const TENANTS = process.env.VORAGINE_TENANTS_URL ?? 'http://localhost:3005'
+// tenant-config dejó de ser un standalone (puerto 3005). Ahora es un
+// módulo de platform-core en el puerto 3000, mismo upstream que auth.
+const TENANTS = process.env.VORAGINE_TENANTS_URL ?? 'http://localhost:3000'
 
 const SEEDED = {
   staffEmail: 'ana@voragine.local',
