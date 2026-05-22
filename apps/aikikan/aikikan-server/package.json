@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test:unit": "vitest run --passWithNoTests"
+    "test:unit": "vitest run --passWithNoTests",
+    "test:integration": "node ../../../scripts/integration-or-skip.mjs"
   },
   "dependencies": {
     "@apphub/platform-sdk": "workspace:*",
@@ -23,6 +24,9 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@apphub/platform-bookings": "workspace:*",
+    "@apphub/platform-services": "workspace:*",
+    "uuid": "^10.0.0",
     "vitest": "^2.0.0"
   }
 }

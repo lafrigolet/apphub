@@ -201,8 +201,20 @@ GRANT USAGE ON SCHEMA platform_donations            TO svc_platform_donations;
 -- columnas no-secretas de tenants. Patrón ya usado en auth para la
 -- flag requires_user_approval.
 GRANT USAGE ON SCHEMA platform_tenants              TO svc_platform_donations;
-GRANT SELECT (id, app_id, legal_name, display_name, cif, address)
-  ON platform_tenants.tenants TO svc_platform_donations;
+-- La tabla platform_tenants.tenants la crea la migration 0001 de tenant-config,
+-- que corre después de los init scripts (vía platform-core boot). En una
+-- inicialización fresca de Postgres este GRANT se aplica antes de que la
+-- tabla exista; lo envolvemos en un DO block tolerante para no crashear el
+-- entrypoint. La migration de tenant-config 0001 re-emite el GRANT cuando
+-- la tabla ya existe, así el estado final es idempotente y correcto.
+DO $$
+BEGIN
+  GRANT SELECT (id, app_id, legal_name, display_name, cif, address)
+    ON platform_tenants.tenants TO svc_platform_donations;
+EXCEPTION
+  WHEN undefined_table THEN
+    RAISE NOTICE 'platform_tenants.tenants does not exist yet; tenant-config migration will re-apply this GRANT';
+END $$;
 
 -- DML default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth

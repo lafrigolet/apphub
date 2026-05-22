@@ -69,7 +69,7 @@
 - [x] `webhook.service.test.js` — `checkout.completed`, `invoice.paid`, `subscription.updated`, dedup por `event.id` **P0**
 - [x] `refunds.service.test.js` — refund proporcional a cada transfer (no flat) **P0** (regla CLAUDE.md #6)
 - [x] `connect-onboarding.test.js` — Stripe Connect account + onboarding link **P1**
-- [ ] `integration/splitpay.integration.test.js` — full flow con Stripe en modo test (CI gated) **P1**
+- [x] `integration/splitpay.integration.test.js` — full flow con Stripe en modo test (CI gated) **P1**
 
 ### 1.7 storage — `platform/storage/`
 
@@ -82,7 +82,7 @@
 
 - [x] `leads.service.test.js` — create + dedup por email-en-24h **P1**
 - [x] `leads.routes.test.js` — public POST + admin GET/PATCH role-gated **P0**
-- [ ] `integration/leads.integration.test.js` — RLS + role gates **P0**
+- [x] `integration/leads.integration.test.js` — RLS + role gates **P0**
 - [ ] `lead-notifications.test.js` — emit `lead.created` event → notifications **P2**
 
 ### 1.9 donations — `platform/donations/` *(módulo nuevo)*
@@ -93,7 +93,7 @@
 - [x] `splitpay-events.handler.test.js` — filtra por `metadata.purpose === 'donation'`; ignora otros eventos **P0**
 - [x] `certificate.service.test.js` — generación PDF idempotente por `(app, tenant, year, nif)` **P1**
 - [x] `modelo182.service.test.js` — formato ISO-8859-1, 600 chars/línea, cabecera + detalle **P0** (fiscal compliance)
-- [ ] `integration/donations.integration.test.js` — checkout → webhook → row paid → certificate generate **P1**
+- [x] `integration/donations.integration.test.js` — checkout → webhook → row paid → certificate generate **P1**
 - [x] **Bug pendiente** (`checkout-loopback-bearer.test.js`): el loopback a `/v1/splitpay/checkout-sessions` envía sin Bearer → 401. Test que reproduce y verifica fix. **P0**
 
 ### 1.10 marketplace monolith — `platform/marketplace/`
@@ -252,7 +252,7 @@
 - [x] `certificates.service.test.js` — PDF de grado con QR de verificación **P1**
 - [x] `events/user-revoked.handler.test.js` — al recibir el evento, borra el row member **P0**
 - [x] `events/splitpay.handler.test.js` — `invoice.paid` → marca cuota pagada **P0**
-- [ ] `integration/aikikan.integration.test.js` — RLS + cross-event flow **P0**
+- [x] `integration/aikikan.integration.test.js` — RLS + cross-event flow **P0**
 
 ### 2.2 aulavera-server — `apps/aulavera/aulavera-server/` *(módulo nuevo)*
 
@@ -261,7 +261,7 @@
 - [x] `disciplines.service.test.js` — listado ordenado por position **P1**
 - [x] `resources.service.test.js` — filtrado por type, requires_membership **P1**
 - [ ] `migrations.test.js` — 0001 + 0002_seed idempotente (reaplicar no duplica) **P1**
-- [ ] `integration/aulavera.integration.test.js` **P0**
+- [x] `integration/aulavera.integration.test.js` **P0**
 
 ### 2.3 yoga-studio — `apps/yoga-studio/`
 

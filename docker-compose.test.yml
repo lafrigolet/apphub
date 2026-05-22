@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────
+# Ephemeral test database for integration tests.
+#
+# Use:
+#   docker compose -f docker-compose.test.yml up -d
+#   pnpm --filter @apphub/platform-leads test:integration
+#   docker compose -f docker-compose.test.yml down -v
+#
+# What this provides:
+#   - postgres-test on host port 5433 (separate from prod :5432 which is
+#     internal-only). Project name `apphub-test` keeps containers + volume
+#     isolated from the main `apphub` stack.
+#   - Same image + same /infra/postgres/init scripts as prod, so schemas and
+#     service roles are provisioned identically.
+#   - Tmpfs storage for fast teardown + reset between runs.
+#   - redis-test on host port 6380 for modules that need pub/sub or caches.
+#
+# Tests set DATABASE_URL=postgresql://svc_..@localhost:5433/splitpay and
+# MIGRATION_DATABASE_URL=postgresql://splitpay:splitpay@localhost:5433/splitpay.
+# ─────────────────────────────────────────────────────────────────
+
+name: apphub-test
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    restart: 'no'
+    environment:
+      POSTGRES_USER: splitpay
+      POSTGRES_PASSWORD: splitpay
+      POSTGRES_DB: splitpay
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U splitpay']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis-test:
+    image: redis:7-alpine
+    restart: 'no'
+    ports:
+      - '127.0.0.1:6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 10

@@ -10,6 +10,7 @@
   },
   "scripts": {
     "test:unit": "vitest run --passWithNoTests",
+    "test:integration": "node ../../scripts/integration-or-skip.mjs",
     "test:watch": "vitest",
     "lint": "eslint src",
     "db:migrate": "node src/lib/migrate.js"
@@ -23,6 +24,8 @@
     "pino": "^9.3.0"
   },
   "devDependencies": {
+    "fastify-type-provider-zod": "^4.0.0",
+    "uuid": "^10.0.0",
     "vitest": "^2.0.0"
   }
 }

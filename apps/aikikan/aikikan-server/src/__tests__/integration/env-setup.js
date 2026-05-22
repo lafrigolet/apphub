@@ -1,0 +1,11 @@
+// Test DB ephemeral (docker-compose.test.yml) — postgres on 5433.
+process.env.DATABASE_URL           ??= 'postgresql://svc_app_aikikan:app_aikikan_secret@localhost:5433/splitpay'
+process.env.MIGRATION_DATABASE_URL ??= 'postgresql://splitpay:splitpay@localhost:5433/splitpay'
+process.env.REDIS_URL              ??= 'redis://localhost:6380'
+process.env.PLATFORM_JWT_SECRET     = 'platform_dev_secret_at_least_32_characters_long_ok'
+process.env.EXPECTED_APP_ID         = 'aikikan'
+process.env.SPLITPAY_BASE_URL       = 'http://platform-core:3000'
+process.env.AIKIKAN_PUBLIC_URL      = 'http://aikikan.test.local'
+process.env.PLATFORM_CORE_URL       = 'http://platform-core:3000'
+process.env.NODE_ENV                = 'test'
+process.env.LOG_LEVEL               = 'error'
