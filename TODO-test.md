@@ -76,7 +76,7 @@
 - [x] `storage.service.test.js`
 - [x] `integration/storage.integration.test.js`
 - [x] `presigned-url.test.js` — TTL, multipart, content-type lock **P1**
-- [ ] `object-lifecycle.test.js` — soft delete + purge job **P2**
+- [x] `object-lifecycle.test.js` — soft delete + purge job **P2**
 
 ### 1.8 leads — `platform/leads/`
 
@@ -153,18 +153,18 @@
 - [x] `menu.service.test.js`
 - [x] `integration/menu.integration.test.js`
 - [x] `86-list.test.js` — marcar item agotado, propagación a POS/KDS **P1**
-- [ ] `availability-windows.test.js` — brunch only 10-14h, etc. **P1**
+- [x] `availability-windows.test.js` — brunch only 10-14h, etc. **P1**
 
 #### 1.11.2 reservations
 - [x] `reservations.service.test.js`
 - [x] `integration/reservations.integration.test.js`
-- [ ] `waitlist.test.js` — promover de waitlist a confirmed cuando hay hueco **P1**
-- [ ] `overbooking-guard.test.js` — no permitir más reservas que capacity **P0**
+- [x] `waitlist.test.js` — promover de waitlist a confirmed cuando hay hueco **P1**
+- [x] `overbooking-guard.test.js` — no permitir más reservas que capacity **P0**
 
 #### 1.11.3 floor-plan
 - [x] `floor-plan.service.test.js`
 - [x] `integration/floor-plan.integration.test.js`
-- [ ] `table-assign.test.js` — asignar reserva a mesa con capacity match **P1**
+- [x] `table-assign.test.js` — asignar reserva a mesa con capacity match **P1**
 
 #### 1.11.4 kds
 - [x] `kds.service.test.js`
