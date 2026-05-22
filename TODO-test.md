@@ -61,12 +61,12 @@
 - [x] `integration/tenant-config.integration.test.js`
 - [x] `apps.repository.test.js` — register/unregister + emisión Redis `tenant.app.created` **P1**
 - [ ] `nginx-config-render.test.js` — el render del server block es válido (`nginx -t` en sandbox) **P0**
-- [ ] `enabled-modules.test.js` — `tenant-console` solo monta los manifests listados **P1**
+- [x] `enabled-modules.test.js` — `tenant-console` solo monta los manifests listados **P1**
 
 ### 1.6 splitpay — `platform/splitpay/`
 
 - [x] `checkout-session.service.test.js` — one-shot, subscription, splitRule, idempotencia **P0**
-- [ ] `webhook.service.test.js` — `checkout.completed`, `invoice.paid`, `subscription.updated`, dedup por `event.id` **P0**
+- [x] `webhook.service.test.js` — `checkout.completed`, `invoice.paid`, `subscription.updated`, dedup por `event.id` **P0**
 - [x] `refunds.service.test.js` — refund proporcional a cada transfer (no flat) **P0** (regla CLAUDE.md #6)
 - [x] `connect-onboarding.test.js` — Stripe Connect account + onboarding link **P1**
 - [ ] `integration/splitpay.integration.test.js` — full flow con Stripe en modo test (CI gated) **P1**
@@ -110,7 +110,7 @@
 - [x] `inventory.service.test.js`
 - [x] `integration/inventory.integration.test.js`
 - [x] `stock-reservation.test.js` — reservar + liberar al expirar; race condition con SELECT FOR UPDATE **P0**
-- [ ] `low-stock-event.test.js` — emisión de `inventory.low_stock` cuando cae por debajo del umbral **P2**
+- [x] `low-stock-event.test.js` — emisión de `inventory.low_stock` cuando cae por debajo del umbral **P2**
 
 #### 1.10.3 reviews
 - [x] `reviews.service.test.js`
@@ -126,12 +126,12 @@
 #### 1.10.5 shipping
 - [x] `shipping.service.test.js`
 - [x] `integration/shipping.integration.test.js`
-- [ ] `rate-quote.test.js` — combinaciones zone + weight + carrier **P1**
+- [x] `rate-quote.test.js` — combinaciones zone + weight + carrier **P1**
 
 #### 1.10.6 disputes
 - [x] `disputes.service.test.js`
 - [x] `integration/disputes.integration.test.js`
-- [ ] `sla-breach.test.js` — scheduler job emite `dispute.sla_breached` a las 48h sin respuesta **P1**
+- [x] `sla-breach.test.js` — scheduler job emite `dispute.sla_breached` a las 48h sin respuesta **P1**
 
 #### 1.10.7 catalog
 - [x] `health.test.js`
@@ -143,7 +143,7 @@
 - [x] `health.test.js`
 - [x] `integration/basket.integration.test.js`
 - [x] `basket.service.test.js` — add/remove/checkout en Redis-only, TTL **P1**
-- [ ] `abandoned-basket.test.js` — scheduler emite `basket.abandoned` tras 1h idle **P2**
+- [x] `abandoned-basket.test.js` — scheduler emite `basket.abandoned` tras 1h idle **P2**
 
 ### 1.11 restaurant monolith — `platform/restaurant/`
 
@@ -174,13 +174,13 @@
 #### 1.11.5 pos
 - [x] `pos.service.test.js`
 - [x] `integration/pos.integration.test.js`
-- [ ] `split-bill.test.js` — dividir cuenta por items / por igual / por %  **P1**
-- [ ] `tip-handling.test.js` — propina como add-on no sujeta a IVA **P1**
+- [x] `split-bill.test.js` — dividir cuenta por items / por igual / por %  **P1**
+- [x] `tip-handling.test.js` — propina como add-on no sujeta a IVA **P1**
 
 #### 1.11.6 delivery-dispatch
 - [x] `delivery-dispatch.service.test.js`
 - [x] `integration/delivery-dispatch.integration.test.js`
-- [ ] `gps-tracking.test.js` — coords stream, no PII en payload **P2**
+- [x] `gps-tracking.test.js` — coords stream, no PII en payload **P2**
 
 ### 1.12 appointments monolith — `platform/appointments/`
 
@@ -197,7 +197,7 @@
 #### 1.12.3 bookings
 - [x] `bookings.service.test.js`
 - [x] `integration/bookings.integration.test.js`
-- [ ] `recurrence.test.js` — RRULE expansion 30d ahead, exception dates **P1**
+- [x] `recurrence.test.js` — RRULE expansion 30d ahead, exception dates **P1**
 - [x] `reschedule.test.js` — cancel + rebook libera hold del slot **P0**
 - [x] `fsm.test.js` — pending → confirmed → completed | cancelled | no_show **P0**
 
@@ -205,7 +205,7 @@
 - [x] `availability.service.test.js`
 - [x] `integration/availability.integration.test.js`
 - [x] `atomic-hold.test.js` — SET NX EX en Redis; race condition con 2 holds simultáneos solo gana 1 **P0**
-- [ ] `slot-computation.test.js` — descontar bookings + holds + horarios + bloques **P0**
+- [x] `slot-computation.test.js` — descontar bookings + holds + horarios + bloques **P0**
 
 #### 1.12.5 intake-forms
 - [x] `intake-forms.service.test.js`
@@ -215,7 +215,7 @@
 #### 1.12.6 telehealth
 - [x] `telehealth.service.test.js`
 - [x] `integration/telehealth.integration.test.js`
-- [ ] `room-token.test.js` — JWT de Daily/Twilio con TTL = duración de cita **P1**
+- [x] `room-token.test.js` — JWT de Daily/Twilio con TTL = duración de cita **P1**
 
 #### 1.12.7 packages
 - [x] `packages.service.test.js`
@@ -235,7 +235,7 @@
 - [x] `lock.test.js`
 - [x] `integration/scheduler.integration.test.js`
 - [ ] `advisory-lock.test.js` — 2 runners simultáneos: solo uno ejecuta el job **P0**
-- [ ] `cron-parse.test.js` — expresiones cron correctas para cada job declarado **P1**
+- [x] `cron-parse.test.js` — expresiones cron correctas para cada job declarado **P1**
 - [ ] `missed-tick-recovery.test.js` — qué pasa si el runner estuvo caído 1h **P2**
 
 ---
@@ -247,9 +247,9 @@
 - [x] `members.service.test.js` — CRUD socios scoped por `(app_id, tenant_id)` **P0**
 - [x] `members.routes.test.js` — role gates owner/admin/user **P0**
 - [x] `dojos.service.test.js` — CRUD + listado público con `?tenantId=` **P1**
-- [ ] `videos.service.test.js` — YouTube id validation, link a member **P2**
+- [x] `videos.service.test.js` — YouTube id validation, link a member **P2**
 - [x] `fees.service.test.js` — products + subscriptions Stripe loopback **P1**
-- [ ] `certificates.service.test.js` — PDF de grado con QR de verificación **P1**
+- [x] `certificates.service.test.js` — PDF de grado con QR de verificación **P1**
 - [x] `events/user-revoked.handler.test.js` — al recibir el evento, borra el row member **P0**
 - [x] `events/splitpay.handler.test.js` — `invoice.paid` → marca cuota pagada **P0**
 - [ ] `integration/aikikan.integration.test.js` — RLS + cross-event flow **P0**
@@ -276,8 +276,8 @@
 - [x] `app-guard.test.js` — JWT decode, `app_id` mismatch, claim ausente, exp, `public: true` skip **P0** (la causa raíz del bug donations)
 - [x] `db.test.js` — `withTenantTransaction` setea GUC `app.app_id` y `app.tenant_id` + ROLLBACK en error **P0**
 - [x] `errors.test.js` — clases + statusCode + payload **P1**
-- [ ] `logger.test.js` — formato + scrubbing de PII **P2**
-- [ ] `redis.test.js` — connect + reconnect **P2**
+- [x] `logger.test.js` — formato + scrubbing de PII **P2**
+- [x] `redis.test.js` — connect + reconnect **P2**
 - [x] `storage.test.js` — helpers de presigned URL **P2**
 - [x] `crypto.test.js` — AES-256-GCM encrypt/decrypt, key rotation **P0** (secrets at rest)
 
