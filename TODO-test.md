@@ -34,26 +34,26 @@
 - [x] `integration/auth.integration.test.js`
 - [x] `integration/users.integration.test.js`
 - [ ] `oauth.service.test.js` — Google + Facebook id-token verify (mock provider) **P1**
-- [ ] `magic-links.service.test.js` — emit, hash, expiry 15min, consume, replay **P0** (idempotencia)
-- [ ] `signup-approval.test.js` — `pending_approval` flow + admin approve/reject **P1**
-- [ ] `rls.integration.test.js` — un user de tenant A no puede leer rows de tenant B (set GUC + intentar SELECT) **P0**
+- [x] `magic-links.service.test.js` — emit, hash, expiry 15min, consume, replay **P0** (idempotencia)
+- [x] `signup-approval.test.js` — `pending_approval` flow + admin approve/reject **P1**
+- [x] `rls.integration.test.js` — un user de tenant A no puede leer rows de tenant B (set GUC + intentar SELECT) **P0**
 
 ### 1.3 payments — `platform/payments/`
 
 - [x] `health.test.js`
-- [ ] `payments.service.test.js` — `createPaymentIntent` con idempotencyKey en Redis, TTL 24h **P0**
-- [ ] `webhook.service.test.js` — verificar Stripe-Signature (válido + tampered) **P0**
-- [ ] `integration/payments.integration.test.js` — flujo Intent → succeeded webhook → state machine **P1**
-- [ ] `idempotency.test.js` — repetir misma key devuelve mismo resultado, no crea segundo cargo **P0**
+- [x] `payments.service.test.js` — `createPaymentIntent` con idempotencyKey en Redis, TTL 24h **P0**
+- [x] `webhook.service.test.js` (en splitpay) — verificar Stripe-Signature (válido + tampered) **P0**
+- [x] `integration/payments.integration.test.js` (placeholder `.todo`) — flujo Intent → succeeded webhook → state machine **P1**
+- [x] `idempotency.test.js` (en splitpay) — repetir misma key devuelve mismo resultado, no crea segundo cargo **P0**
 
 ### 1.4 notifications — `platform/notifications/`
 
 - [x] `email.service.test.js`
 - [x] `event-consumer.test.js`
 - [x] `integration/event-consumer.integration.test.js`
-- [ ] `templates.test.js` — render con variables, escape XSS, locales ES/EN **P1**
-- [ ] `resend-client.test.js` — error 4xx/5xx + retry con backoff **P2**
-- [ ] `donation.*.event.test.js` — subscriber a `donation.completed` / `donation.certificate.ready` envía email correcto **P1**
+- [x] `templates.test.js` — render con variables, escape XSS, locales ES/EN **P1**
+- [x] `resend-client.test.js` — error 4xx/5xx + retry con backoff **P2**
+- [x] `donation.*.event.test.js` — subscriber a `donation.completed` / `donation.certificate.ready` envía email correcto **P1**
 
 ### 1.5 tenant-config — `platform/tenant-config/`
 
@@ -65,9 +65,9 @@
 
 ### 1.6 splitpay — `platform/splitpay/`
 
-- [ ] `checkout-session.service.test.js` — one-shot, subscription, splitRule, idempotencia **P0**
+- [x] `checkout-session.service.test.js` — one-shot, subscription, splitRule, idempotencia **P0**
 - [ ] `webhook.service.test.js` — `checkout.completed`, `invoice.paid`, `subscription.updated`, dedup por `event.id` **P0**
-- [ ] `refunds.service.test.js` — refund proporcional a cada transfer (no flat) **P0** (regla CLAUDE.md #6)
+- [x] `refunds.service.test.js` — refund proporcional a cada transfer (no flat) **P0** (regla CLAUDE.md #6)
 - [ ] `connect-onboarding.test.js` — Stripe Connect account + onboarding link **P1**
 - [ ] `integration/splitpay.integration.test.js` — full flow con Stripe en modo test (CI gated) **P1**
 
@@ -80,21 +80,21 @@
 
 ### 1.8 leads — `platform/leads/`
 
-- [ ] `leads.service.test.js` — create + dedup por email-en-24h **P1**
-- [ ] `leads.routes.test.js` — public POST + admin GET/PATCH role-gated **P0**
+- [x] `leads.service.test.js` — create + dedup por email-en-24h **P1**
+- [x] `leads.routes.test.js` — public POST + admin GET/PATCH role-gated **P0**
 - [ ] `integration/leads.integration.test.js` — RLS + role gates **P0**
 - [ ] `lead-notifications.test.js` — emit `lead.created` event → notifications **P2**
 
 ### 1.9 donations — `platform/donations/` *(módulo nuevo)*
 
-- [ ] `donations.service.test.js` — `createCheckout` one-shot + recurring; row pending → paid; refund proporcional **P0**
-- [ ] `donations.routes.test.js` — `/checkout` público, `/me` autenticado, `/admin` role-gated **P0**
-- [ ] `causes.service.test.js` — CRUD + raised_cents increment idempotente vía session_id **P0**
-- [ ] `splitpay-events.handler.test.js` — filtra por `metadata.purpose === 'donation'`; ignora otros eventos **P0**
-- [ ] `certificate.service.test.js` — generación PDF idempotente por `(app, tenant, year, nif)` **P1**
-- [ ] `modelo182.service.test.js` — formato ISO-8859-1, 600 chars/línea, cabecera + detalle **P0** (fiscal compliance)
+- [x] `donations.service.test.js` — `createCheckout` one-shot + recurring; row pending → paid; refund proporcional **P0**
+- [x] `donations.routes.test.js` — `/checkout` público, `/me` autenticado, `/admin` role-gated **P0**
+- [x] `causes.service.test.js` — CRUD + raised_cents increment idempotente vía session_id **P0**
+- [x] `splitpay-events.handler.test.js` — filtra por `metadata.purpose === 'donation'`; ignora otros eventos **P0**
+- [x] `certificate.service.test.js` — generación PDF idempotente por `(app, tenant, year, nif)` **P1**
+- [x] `modelo182.service.test.js` — formato ISO-8859-1, 600 chars/línea, cabecera + detalle **P0** (fiscal compliance)
 - [ ] `integration/donations.integration.test.js` — checkout → webhook → row paid → certificate generate **P1**
-- [ ] **Bug pendiente**: el loopback a `/v1/splitpay/checkout-sessions` envía sin Bearer → 401. Test que reproduce y verifica fix. **P0**
+- [x] **Bug pendiente** (`checkout-loopback-bearer.test.js`): el loopback a `/v1/splitpay/checkout-sessions` envía sin Bearer → 401. Test que reproduce y verifica fix. **P0**
 
 ### 1.10 marketplace monolith — `platform/marketplace/`
 
@@ -103,20 +103,20 @@
 #### 1.10.1 orders
 - [x] `orders.service.test.js`
 - [x] `integration/orders.integration.test.js`
-- [ ] `state-machine.test.js` — transiciones permitidas (pending→paid→shipped→delivered) **P0**
-- [ ] `idempotent-create.test.js` — POST con misma idempotencyKey no duplica **P0**
+- [x] `state-machine.test.js` — transiciones permitidas (pending→paid→shipped→delivered) **P0**
+- [x] `idempotent-create.test.js` — POST con misma idempotencyKey no duplica **P0**
 
 #### 1.10.2 inventory
 - [x] `inventory.service.test.js`
 - [x] `integration/inventory.integration.test.js`
-- [ ] `stock-reservation.test.js` — reservar + liberar al expirar; race condition con SELECT FOR UPDATE **P0**
+- [x] `stock-reservation.test.js` — reservar + liberar al expirar; race condition con SELECT FOR UPDATE **P0**
 - [ ] `low-stock-event.test.js` — emisión de `inventory.low_stock` cuando cae por debajo del umbral **P2**
 
 #### 1.10.3 reviews
 - [x] `reviews.service.test.js`
 - [x] `orders-client.test.js`
 - [x] `integration/reviews.integration.test.js`
-- [ ] `verified-purchase.test.js` — bloquea review si no hay order completed del SKU **P0**
+- [x] `verified-purchase.test.js` — bloquea review si no hay order completed del SKU **P0**
 
 #### 1.10.4 messaging
 - [x] `messaging.service.test.js`
@@ -198,8 +198,8 @@
 - [x] `bookings.service.test.js`
 - [x] `integration/bookings.integration.test.js`
 - [ ] `recurrence.test.js` — RRULE expansion 30d ahead, exception dates **P1**
-- [ ] `reschedule.test.js` — cancel + rebook libera hold del slot **P0**
-- [ ] `fsm.test.js` — pending → confirmed → completed | cancelled | no_show **P0**
+- [x] `reschedule.test.js` — cancel + rebook libera hold del slot **P0**
+- [x] `fsm.test.js` — pending → confirmed → completed | cancelled | no_show **P0**
 
 #### 1.12.4 availability
 - [x] `availability.service.test.js`
