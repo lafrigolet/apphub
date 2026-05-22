@@ -59,7 +59,7 @@
 
 - [x] `health.test.js`
 - [x] `integration/tenant-config.integration.test.js`
-- [ ] `apps.repository.test.js` — register/unregister + emisión Redis `tenant.app.created` **P1**
+- [x] `apps.repository.test.js` — register/unregister + emisión Redis `tenant.app.created` **P1**
 - [ ] `nginx-config-render.test.js` — el render del server block es válido (`nginx -t` en sandbox) **P0**
 - [ ] `enabled-modules.test.js` — `tenant-console` solo monta los manifests listados **P1**
 
@@ -68,14 +68,14 @@
 - [x] `checkout-session.service.test.js` — one-shot, subscription, splitRule, idempotencia **P0**
 - [ ] `webhook.service.test.js` — `checkout.completed`, `invoice.paid`, `subscription.updated`, dedup por `event.id` **P0**
 - [x] `refunds.service.test.js` — refund proporcional a cada transfer (no flat) **P0** (regla CLAUDE.md #6)
-- [ ] `connect-onboarding.test.js` — Stripe Connect account + onboarding link **P1**
+- [x] `connect-onboarding.test.js` — Stripe Connect account + onboarding link **P1**
 - [ ] `integration/splitpay.integration.test.js` — full flow con Stripe en modo test (CI gated) **P1**
 
 ### 1.7 storage — `platform/storage/`
 
 - [x] `storage.service.test.js`
 - [x] `integration/storage.integration.test.js`
-- [ ] `presigned-url.test.js` — TTL, multipart, content-type lock **P1**
+- [x] `presigned-url.test.js` — TTL, multipart, content-type lock **P1**
 - [ ] `object-lifecycle.test.js` — soft delete + purge job **P2**
 
 ### 1.8 leads — `platform/leads/`
@@ -136,13 +136,13 @@
 #### 1.10.7 catalog
 - [x] `health.test.js`
 - [x] `integration/catalog.integration.test.js`
-- [ ] `catalog.service.test.js` — CRUD productos + variants + categorías **P1**
+- [x] `catalog.service.test.js` — CRUD productos + variants + categorías **P1**
 - [ ] `search.test.js` — full-text search ES (tsvector / pg_trgm) **P2**
 
 #### 1.10.8 basket
 - [x] `health.test.js`
 - [x] `integration/basket.integration.test.js`
-- [ ] `basket.service.test.js` — add/remove/checkout en Redis-only, TTL **P1**
+- [x] `basket.service.test.js` — add/remove/checkout en Redis-only, TTL **P1**
 - [ ] `abandoned-basket.test.js` — scheduler emite `basket.abandoned` tras 1h idle **P2**
 
 ### 1.11 restaurant monolith — `platform/restaurant/`
@@ -152,7 +152,7 @@
 #### 1.11.1 menu
 - [x] `menu.service.test.js`
 - [x] `integration/menu.integration.test.js`
-- [ ] `86-list.test.js` — marcar item agotado, propagación a POS/KDS **P1**
+- [x] `86-list.test.js` — marcar item agotado, propagación a POS/KDS **P1**
 - [ ] `availability-windows.test.js` — brunch only 10-14h, etc. **P1**
 
 #### 1.11.2 reservations
@@ -169,7 +169,7 @@
 #### 1.11.4 kds
 - [x] `kds.service.test.js`
 - [x] `integration/kds.integration.test.js`
-- [ ] `ticket-state.test.js` — pending → cooking → ready → served **P1**
+- [x] `ticket-state.test.js` — pending → cooking → ready → served **P1**
 
 #### 1.11.5 pos
 - [x] `pos.service.test.js`
@@ -210,7 +210,7 @@
 #### 1.12.5 intake-forms
 - [x] `intake-forms.service.test.js`
 - [x] `integration/intake-forms.integration.test.js`
-- [ ] `signature.test.js` — firma digital + hash de integridad **P1**
+- [x] `signature.test.js` — firma digital + hash de integridad **P1**
 
 #### 1.12.6 telehealth
 - [x] `telehealth.service.test.js`
@@ -221,13 +221,13 @@
 - [x] `packages.service.test.js`
 - [x] `integration/packages.integration.test.js`
 - [x] `balance-consume.test.js` — descontar sesiones; bloquear cuando balance=0 **P0**
-- [ ] `expiry.test.js` — scheduler T-30d, T-7d, transición a expired **P1**
+- [x] `expiry.test.js` — scheduler T-30d, T-7d, transición a expired **P1**
 
 #### 1.12.8 practitioner-payouts
 - [x] `practitioner-payouts.service.test.js`
 - [x] `integration/practitioner-payouts.integration.test.js`
 - [x] `commission-calc.test.js` — % vs flat fee, retenciones IRPF, edge cases **P0**
-- [ ] `period-close.test.js` — scheduler `payout.period_due`, idempotente **P0**
+- [x] `period-close.test.js` — scheduler `payout.period_due`, idempotente **P0**
 
 ### 1.13 scheduler — `platform/scheduler/`
 
@@ -244,22 +244,22 @@
 
 ### 2.1 aikikan-server — `apps/aikikan/aikikan-server/`
 
-- [ ] `members.service.test.js` — CRUD socios scoped por `(app_id, tenant_id)` **P0**
-- [ ] `members.routes.test.js` — role gates owner/admin/user **P0**
-- [ ] `dojos.service.test.js` — CRUD + listado público con `?tenantId=` **P1**
+- [x] `members.service.test.js` — CRUD socios scoped por `(app_id, tenant_id)` **P0**
+- [x] `members.routes.test.js` — role gates owner/admin/user **P0**
+- [x] `dojos.service.test.js` — CRUD + listado público con `?tenantId=` **P1**
 - [ ] `videos.service.test.js` — YouTube id validation, link a member **P2**
-- [ ] `fees.service.test.js` — products + subscriptions Stripe loopback **P1**
+- [x] `fees.service.test.js` — products + subscriptions Stripe loopback **P1**
 - [ ] `certificates.service.test.js` — PDF de grado con QR de verificación **P1**
 - [x] `events/user-revoked.handler.test.js` — al recibir el evento, borra el row member **P0**
-- [ ] `events/splitpay.handler.test.js` — `invoice.paid` → marca cuota pagada **P0**
+- [x] `events/splitpay.handler.test.js` — `invoice.paid` → marca cuota pagada **P0**
 - [ ] `integration/aikikan.integration.test.js` — RLS + cross-event flow **P0**
 
 ### 2.2 aulavera-server — `apps/aulavera/aulavera-server/` *(módulo nuevo)*
 
 - [x] `events.service.test.js` — list por `kind=chronicle|workshop`, filtros, RLS **P0**
 - [x] `events.routes.test.js` — público con `?tenantId=`, no permite cross-tenant **P0**
-- [ ] `disciplines.service.test.js` — listado ordenado por position **P1**
-- [ ] `resources.service.test.js` — filtrado por type, requires_membership **P1**
+- [x] `disciplines.service.test.js` — listado ordenado por position **P1**
+- [x] `resources.service.test.js` — filtrado por type, requires_membership **P1**
 - [ ] `migrations.test.js` — 0001 + 0002_seed idempotente (reaplicar no duplica) **P1**
 - [ ] `integration/aulavera.integration.test.js` **P0**
 
@@ -275,10 +275,10 @@
 
 - [x] `app-guard.test.js` — JWT decode, `app_id` mismatch, claim ausente, exp, `public: true` skip **P0** (la causa raíz del bug donations)
 - [x] `db.test.js` — `withTenantTransaction` setea GUC `app.app_id` y `app.tenant_id` + ROLLBACK en error **P0**
-- [ ] `errors.test.js` — clases + statusCode + payload **P1**
+- [x] `errors.test.js` — clases + statusCode + payload **P1**
 - [ ] `logger.test.js` — formato + scrubbing de PII **P2**
 - [ ] `redis.test.js` — connect + reconnect **P2**
-- [ ] `storage.test.js` — helpers de presigned URL **P2**
+- [x] `storage.test.js` — helpers de presigned URL **P2**
 - [x] `crypto.test.js` — AES-256-GCM encrypt/decrypt, key rotation **P0** (secrets at rest)
 
 ### 3.2 sdk-js — `packages/sdk-js/`
