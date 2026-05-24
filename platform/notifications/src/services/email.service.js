@@ -46,7 +46,7 @@ async function send(msg) {
   const skip = !cfg.resendApiKey || env.NODE_ENV === 'test'
 
   if (skip) {
-    logger.info({ to: msg.to, subject: msg.subject }, '[dev] Email not sent — logged only')
+    logger.info({ to: msg.to, subject: msg.subject, replyTo: msg.replyTo }, '[dev] Email not sent — logged only')
     return
   }
   // Resend expects `from` as "Name <email@domain>" or just "email@domain".
@@ -55,13 +55,18 @@ async function send(msg) {
     : cfg.senderEmail
   try {
     const resend = new Resend(cfg.resendApiKey)
-    const { data, error } = await resend.emails.send({
+    // replyTo opcional — usado por p.ej. inquiries (admin alert lleva
+    // Reply-To = email del user, para que "Responder" desde Gmail vaya
+    // directo al user). Resend acepta string o string[].
+    const payload = {
       from,
       to:      msg.to,
       subject: msg.subject,
       html:    msg.html,
       text:    msg.text,
-    })
+    }
+    if (msg.replyTo) payload.replyTo = msg.replyTo
+    const { data, error } = await resend.emails.send(payload)
     if (error) {
       logger.error({ err: error, to: msg.to }, 'Failed to send email')
       return
@@ -486,4 +491,61 @@ export async function sendPayoutPaidEmail(to, { amount, periodLabel, externalRef
       : `Hola,\n\nTu liquidación correspondiente al periodo ${periodLabel} ha sido pagada por importe de ${amount}. Referencia: ${externalRef}.`),
   }, locale)
   await send({ to, ...tmpl })
+}
+
+// ── Inquiries (platform/inquiries) ─────────────────────────────────────
+//
+// Dos helpers para el flujo email-only del módulo inquiries:
+//   1. sendInquiryAdminAlert: notifica al admin del tenant. Reply-To
+//      apunta al email del user, así "Responder" desde Gmail manda el
+//      reply directamente al user (sin necesidad de copiar manualmente).
+//   2. sendInquiryUserThankYou: confirma al user que la consulta llegó.
+//      Reply-To apunta al inbox del admin (o un Reply-To custom del
+//      tenant), por si el user quiere añadir info adicional.
+
+export async function sendInquiryAdminAlert(to, vars, locale = 'es') {
+  const v = {
+    contactName: vars.contactName ?? '',
+    email:       vars.email ?? '',
+    phone:       vars.phone ?? '—',
+    subject:     vars.subject ?? '—',
+    message:     vars.message ?? '',
+    reference:   vars.reference ?? '',
+  }
+  const tmpl = await compose('inquiry.admin_alert', v, {
+    subject: `Nueva consulta de ${v.contactName} (${v.reference})`,
+    text:    `Nueva consulta recibida desde el formulario de contacto.\n\n` +
+             `Nombre:    ${v.contactName}\n` +
+             `Email:     ${v.email}\n` +
+             `Teléfono:  ${v.phone}\n` +
+             `Asunto:    ${v.subject}\n\n` +
+             `Mensaje:\n${v.message}\n\n` +
+             `--\nReferencia: ${v.reference}`,
+    html:    `<p><strong>Nueva consulta</strong> recibida.</p>` +
+             `<p>De: <strong>${v.contactName}</strong> &lt;${v.email}&gt;</p>` +
+             (vars.phone     ? `<p>Teléfono: ${v.phone}</p>` : '') +
+             (vars.subject   ? `<p>Asunto: ${v.subject}</p>` : '') +
+             `<blockquote>${v.message}</blockquote>` +
+             `<p style="color:#666;font-size:12px">Ref: ${v.reference}</p>`,
+  }, locale)
+  await send({ to, ...tmpl, replyTo: vars.email })
+}
+
+export async function sendInquiryUserThankYou(to, vars, locale = 'es') {
+  const v = {
+    contactName: vars.contactName ?? '',
+    reference:   vars.reference ?? '',
+  }
+  const tmpl = await compose('inquiry.user_thank_you', v, {
+    subject: `Hemos recibido tu consulta — referencia ${v.reference}`,
+    text:    `Hola ${v.contactName},\n\n` +
+             `Hemos recibido tu mensaje y te responderemos lo antes posible.\n\n` +
+             `Referencia: ${v.reference}\n\n` +
+             `Gracias por escribirnos.`,
+    html:    `<p>Hola ${v.contactName},</p>` +
+             `<p>Hemos recibido tu mensaje y te responderemos lo antes posible.</p>` +
+             `<p>Referencia: <code>${v.reference}</code></p>` +
+             `<p>Gracias por escribirnos.</p>`,
+  }, locale)
+  await send({ to, ...tmpl, replyTo: vars.replyToEmail ?? vars.contactInboxEmail })
 }

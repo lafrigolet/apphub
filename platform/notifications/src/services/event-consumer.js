@@ -175,6 +175,38 @@ export function startEventConsumer() {
         }
       }
 
+      // ── Inquiries (platform/inquiries) ───────────────────────────────
+      // Form de contacto. 2 emails por consulta:
+      //   1) admin alert al contact_inbox_email del tenant (Reply-To = email user)
+      //   2) "gracias" al user (Reply-To = inbox del admin)
+      // NO se gatea con rate-limit per-user porque el initiator es anónimo
+      // y el inbox del admin no es un user; send() directo.
+      if (event.type === 'inquiry.created') {
+        const {
+          contactInboxEmail, email, contactName, phone, subject, message,
+          reference, replyToEmail,
+        } = event.payload ?? {}
+        const { sendInquiryAdminAlert, sendInquiryUserThankYou } = await import('./email.service.js')
+        if (contactInboxEmail) {
+          try {
+            await sendInquiryAdminAlert(contactInboxEmail, {
+              contactName, email, phone, subject, message, reference,
+            }, locale)
+          } catch (err) {
+            logger.error({ err, reference }, 'sendInquiryAdminAlert failed')
+          }
+        }
+        if (email) {
+          try {
+            await sendInquiryUserThankYou(email, {
+              contactName, reference, contactInboxEmail, replyToEmail,
+            }, locale)
+          } catch (err) {
+            logger.error({ err, reference }, 'sendInquiryUserThankYou failed')
+          }
+        }
+      }
+
       // ── Self-register + Admin-approval (Ruta 1) ──────────────────────
       if (event.type === 'auth.signup.requested') {
         const { email, displayName, userId } = event.payload ?? {}

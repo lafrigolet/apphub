@@ -45,6 +45,9 @@ CREATE SCHEMA IF NOT EXISTS platform_leads;
 -- platform-core donations module schema
 CREATE SCHEMA IF NOT EXISTS platform_donations;
 
+-- platform-core inquiries module schema (per-tenant contact form)
+CREATE SCHEMA IF NOT EXISTS platform_inquiries;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -149,6 +152,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_donations') THEN
     CREATE ROLE svc_platform_donations LOGIN PASSWORD 'platform_donations_secret';
   END IF;
+
+  -- platform-core inquiries module role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_inquiries') THEN
+    CREATE ROLE svc_platform_inquiries LOGIN PASSWORD 'platform_inquiries_secret';
+  END IF;
 END
 $$;
 
@@ -193,6 +201,9 @@ GRANT USAGE ON SCHEMA platform_storage              TO svc_platform_storage;
 
 -- USAGE grants (platform-core leads module)
 GRANT USAGE ON SCHEMA platform_leads                TO svc_platform_leads;
+
+-- USAGE grants (platform-core inquiries module)
+GRANT USAGE ON SCHEMA platform_inquiries            TO svc_platform_inquiries;
 
 -- USAGE grants (platform-core donations module)
 GRANT USAGE ON SCHEMA platform_donations            TO svc_platform_donations;
@@ -293,6 +304,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_donations
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_donations;
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_donations
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_donations;
+
+-- DML default privs (platform-core inquiries)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_inquiries
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_inquiries;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_inquiries
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_inquiries;
 
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth

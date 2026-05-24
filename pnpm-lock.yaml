@@ -750,6 +750,9 @@ importers:
       '@apphub/platform-donations':
         specifier: workspace:*
         version: link:../donations
+      '@apphub/platform-inquiries':
+        specifier: workspace:*
+        version: link:../inquiries
       '@apphub/platform-leads':
         specifier: workspace:*
         version: link:../leads
@@ -959,6 +962,37 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.0.0
         version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
+
+  platform/inquiries:
+    dependencies:
+      '@apphub/platform-sdk':
+        specifier: workspace:*
+        version: link:../../packages/platform-sdk
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.4
+      fastify-plugin:
+        specifier: ^5.0.0
+        version: 5.1.0
+      pg:
+        specifier: ^8.12.0
+        version: 8.20.0
+      pino:
+        specifier: ^9.3.0
+        version: 9.14.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      fastify-type-provider-zod:
+        specifier: ^4.0.0
+        version: 4.0.2(fastify@5.8.4)(zod@3.25.76)
+      uuid:
+        specifier: ^10.0.0
+        version: 10.0.0
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)

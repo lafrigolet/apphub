@@ -15,6 +15,7 @@ COPY platform/splitpay/package.json                ./platform/splitpay/package.j
 COPY platform/storage/package.json                 ./platform/storage/package.json
 COPY platform/leads/package.json                   ./platform/leads/package.json
 COPY platform/donations/package.json               ./platform/donations/package.json
+COPY platform/inquiries/package.json               ./platform/inquiries/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-core...
@@ -36,6 +37,8 @@ COPY platform/leads/src               ./platform/leads/src
 COPY platform/leads/migrations        ./platform/leads/migrations
 COPY platform/donations/src           ./platform/donations/src
 COPY platform/donations/migrations    ./platform/donations/migrations
+COPY platform/inquiries/src           ./platform/inquiries/src
+COPY platform/inquiries/migrations    ./platform/inquiries/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core
@@ -54,6 +57,7 @@ COPY platform/splitpay/package.json                ./platform/splitpay/package.j
 COPY platform/storage/package.json                 ./platform/storage/package.json
 COPY platform/leads/package.json                   ./platform/leads/package.json
 COPY platform/donations/package.json               ./platform/donations/package.json
+COPY platform/inquiries/package.json               ./platform/inquiries/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-core...
@@ -75,6 +79,8 @@ COPY platform/leads/src               ./platform/leads/src
 COPY platform/leads/migrations        ./platform/leads/migrations
 COPY platform/donations/src           ./platform/donations/src
 COPY platform/donations/migrations    ./platform/donations/migrations
+COPY platform/inquiries/src           ./platform/inquiries/src
+COPY platform/inquiries/migrations    ./platform/inquiries/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core

@@ -20,6 +20,7 @@ const envSchema = z.object({
   DATABASE_URL_STORAGE:        z.string().url(),
   DATABASE_URL_LEADS:          z.string().url(),
   DATABASE_URL_DONATIONS:      z.string().url(),
+  DATABASE_URL_INQUIRIES:      z.string().url(),
 
   // Storage module — S3-compatible object store (MinIO in dev, AWS S3/R2 in prod)
   S3_ENDPOINT:         z.string().url(),

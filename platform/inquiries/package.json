@@ -1,0 +1,30 @@
+{
+  "name": "@apphub/platform-inquiries",
+  "version": "0.1.0",
+  "description": "Platform inquiries module — per-tenant contact form (anonymous capture + admin email alert + user thank-you)",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test:unit": "vitest run --passWithNoTests",
+    "test:integration": "node ../../scripts/integration-or-skip.mjs",
+    "test:watch": "vitest",
+    "db:migrate": "node src/lib/migrate.js"
+  },
+  "dependencies": {
+    "@apphub/platform-sdk": "workspace:*",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.0",
+    "pg": "^8.12.0",
+    "zod": "^3.23.0",
+    "pino": "^9.3.0"
+  },
+  "devDependencies": {
+    "fastify-type-provider-zod": "^4.0.0",
+    "uuid": "^10.0.0",
+    "vitest": "^2.0.0"
+  }
+}
