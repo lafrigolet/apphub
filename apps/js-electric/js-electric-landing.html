@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JS Electric — Instalaciones Eléctricas, Climatización y Energía Solar</title>
+<meta name="description" content="JS Electric: instalaciones eléctricas, aire acondicionado, placas solares y cargadores para vehículos eléctricos. Más de 15 años electrificando hogares y empresas." />
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Space Grotesk"', 'sans-serif'],
+          serif: ['"Instrument Serif"', 'serif'],
+          sans: ['"Outfit"', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'monospace'],
+        },
+        colors: {
+          ink: {
+            900: '#050B1A',
+            800: '#0A1228',
+            700: '#0F1B3D',
+            600: '#1A2A5C',
+          },
+          electric: {
+            50: '#EBF2FF',
+            100: '#D6E4FF',
+            200: '#ADC8FF',
+            300: '#7AA5FF',
+            400: '#3D7DFF',
+            500: '#0066FF',
+            600: '#0052D9',
+            700: '#0040B3',
+            800: '#002F8C',
+            900: '#001F66',
+          },
+          spark: {
+            400: '#FBBF24',
+            500: '#F59E0B',
+            600: '#D97706',
+          },
+          bone: '#F7F9FC',
+        },
+        boxShadow: {
+          'soft': '0 1px 2px rgba(5,11,26,0.04), 0 8px 24px rgba(5,11,26,0.06)',
+          'lift': '0 1px 2px rgba(5,11,26,0.06), 0 20px 40px -12px rgba(0,82,217,0.22)',
+          'glow': '0 0 0 1px rgba(0,102,255,0.2), 0 12px 40px -8px rgba(0,102,255,0.45)',
+          'electric': '0 8px 30px -6px rgba(0,102,255,0.4)',
+        },
+      },
+    },
+  };
+</script>
+
+<!-- Fuentes -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  html { font-family: 'Outfit', sans-serif; background: #F7F9FC; }
+  body { -webkit-font-smoothing: antialiased; }
+
+  /* Texturas y fondos */
+  .grain {
+    position: relative;
+    isolation: isolate;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>");
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    z-index: 1;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+  .radial-glow {
+    background: radial-gradient(900px 500px at 80% 10%, rgba(0,102,255,0.28), transparent 60%),
+                radial-gradient(700px 400px at 10% 90%, rgba(61,125,255,0.18), transparent 60%);
+  }
+
+  /* Reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity .9s ease, transform .9s ease; }
+  .reveal.visible { opacity: 1; transform: none; }
+  .reveal-delay-1 { transition-delay: .08s; }
+  .reveal-delay-2 { transition-delay: .16s; }
+  .reveal-delay-3 { transition-delay: .24s; }
+  .reveal-delay-4 { transition-delay: .32s; }
+
+  /* Pulso eléctrico */
+  @keyframes spark {
+    0%, 100% { opacity: .55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.04); }
+  }
+  .spark-dot { animation: spark 2.4s ease-in-out infinite; }
+
+  /* Línea decorativa */
+  .hairline {
+    background: linear-gradient(90deg, transparent, rgba(5,11,26,0.18), transparent);
+    height: 1px;
+  }
+  .hairline-light {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+    height: 1px;
+  }
+
+  /* Botón principal */
+  .btn-primary {
+    position: relative;
+    overflow: hidden;
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .btn-primary:hover { transform: translateY(-2px); }
+  .btn-primary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform .8s ease;
+  }
+  .btn-primary:hover::before { transform: translateX(120%); }
+
+  /* Tarjetas servicios */
+  .svc-card { transition: transform .35s ease, box-shadow .35s ease, border-color .35s ease; }
+  .svc-card:hover { transform: translateY(-4px); border-color: rgba(0,102,255,0.25); box-shadow: 0 20px 40px -16px rgba(0,82,217,0.18); }
+  .svc-icon-wrap { transition: background .35s ease, color .35s ease; }
+  .svc-card:hover .svc-icon-wrap { background: #0066FF; color: white; }
+
+  /* Ticker */
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .marquee-track { animation: marquee 38s linear infinite; }
+
+  /* Galería hover */
+  .gallery-item img { transition: transform .7s ease; }
+  .gallery-item:hover img { transform: scale(1.06); }
+
+  /* Numero servicio */
+  .num-tag {
+    font-feature-settings: "tnum" 1;
+    letter-spacing: .04em;
+  }
+
+  /* Heading display: Space Grotesk con tracking tight + acentos serif itálicos */
+  .display {
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.035em;
+    font-weight: 600;
+  }
+  .display em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    color: #0066FF;
+    letter-spacing: -0.01em;
+  }
+
+  /* Form */
+  .field {
+    transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .field:focus {
+    outline: none;
+    border-color: #0066FF;
+    box-shadow: 0 0 0 4px rgba(0,102,255,0.14);
+    background: white;
+  }
+
+  /* Calc slider */
+  input[type="range"].calc-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, #0066FF var(--val,50%), #DBE4F0 var(--val,50%));
+    border-radius: 9999px;
+    outline: none;
+  }
+  input[type="range"].calc-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px; height: 22px;
+    background: #050B1A;
+    border: 3px solid #0066FF;
+    border-radius: 9999px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,102,255,0.4);
+  }
+  input[type="range"].calc-slider::-moz-range-thumb {
+    width: 22px; height: 22px;
+    background: #050B1A;
+    border: 3px solid #0066FF;
+    border-radius: 9999px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,102,255,0.4);
+  }
+
+  /* Mobile nav */
+  .mobile-nav { transform: translateY(-12px); opacity: 0; pointer-events: none; transition: all .25s ease; }
+  .mobile-nav.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+
+  /* Backdrop blur del header */
+  .header-blur { backdrop-filter: saturate(180%) blur(14px); -webkit-backdrop-filter: saturate(180%) blur(14px); }
+
+  /* Toast */
+  .toast { transform: translateY(20px); opacity: 0; transition: all .35s ease; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* Number counter style */
+  .counter { font-variant-numeric: tabular-nums; }
+
+  /* SVG icon stroke */
+  .ico { stroke-width: 1.6; }
+</style>
+</head>
+
+<body class="bg-bone text-ink-900 antialiased">
+
+<!-- ====================== HEADER ====================== -->
+<header id="site-header" class="fixed top-0 inset-x-0 z-50 header-blur bg-bone/70 border-b border-ink-900/5">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
+    <a href="#inicio" class="flex items-center gap-2.5 group">
+      <span class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl bg-electric-500 text-white shadow-electric">
+        <span class="font-display font-bold text-sm tracking-tight">JS</span>
+        <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-spark-400 spark-dot"></span>
+      </span>
+      <span class="font-display text-xl font-semibold tracking-tight">JS Electric<span class="text-electric-500">.</span></span>
+    </a>
+
+    <nav class="hidden lg:flex items-center gap-8 text-sm font-medium text-ink-700">
+      <a href="#servicios" class="hover:text-ink-900 transition">Servicios</a>
+      <a href="#proyectos" class="hover:text-ink-900 transition">Proyectos</a>
+      <a href="#calculadora" class="hover:text-ink-900 transition">Ahorro Solar</a>
+      <a href="#empresa" class="hover:text-ink-900 transition">Empresa</a>
+      <a href="#blog" class="hover:text-ink-900 transition">Recursos</a>
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <a href="tel:+34900123456" class="hidden sm:flex items-center gap-2 text-sm font-medium text-ink-800 hover:text-electric-600 transition">
+        <svg class="w-4 h-4 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5.5C3 4.12 4.12 3 5.5 3h2.13a2 2 0 011.94 1.5l.7 2.8a2 2 0 01-.5 1.9L8.4 10.6a14 14 0 005 5l1.4-1.37a2 2 0 011.9-.5l2.8.7A2 2 0 0121 16.37V18.5c0 1.38-1.12 2.5-2.5 2.5C10.4 21 3 13.6 3 5.5z"/></svg>
+        900 123 456
+      </a>
+      <a href="#contacto" class="btn-primary inline-flex items-center gap-2 bg-electric-500 text-white px-4 py-2.5 rounded-full text-sm font-medium shadow-electric hover:bg-electric-600">
+        Presupuesto gratis
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+      <button id="mobile-toggle" type="button" class="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-ink-900/10 hover:border-ink-900/30 transition" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobile-nav">
+        <svg id="icon-open" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg id="icon-close" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 6l12 12M6 18L18 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="mobile-nav" class="mobile-nav lg:hidden absolute left-0 right-0 top-full border-t border-ink-900/5 bg-bone shadow-soft">
+    <nav class="px-6 py-4 flex flex-col gap-1 text-ink-800 font-medium">
+      <a href="#servicios" class="py-3 border-b border-ink-900/5 hover:text-electric-600 transition">Servicios</a>
+      <a href="#proyectos" class="py-3 border-b border-ink-900/5 hover:text-electric-600 transition">Proyectos</a>
+      <a href="#calculadora" class="py-3 border-b border-ink-900/5 hover:text-electric-600 transition">Ahorro Solar</a>
+      <a href="#empresa" class="py-3 border-b border-ink-900/5 hover:text-electric-600 transition">Empresa</a>
+      <a href="#blog" class="py-3 border-b border-ink-900/5 hover:text-electric-600 transition">Recursos</a>
+      <a href="tel:+34900123456" class="py-3 text-electric-600 font-semibold">📞 900 123 456</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ====================== HERO ====================== -->
+<section id="inicio" class="relative pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden grain">
+  <!-- Decoración de fondo -->
+  <div class="absolute inset-0 -z-0 radial-glow"></div>
+  <div class="absolute inset-x-0 top-0 -z-0">
+    <svg class="w-full h-[480px] opacity-[0.05]" viewBox="0 0 1200 480" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <pattern id="lines" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+          <path d="M0 80 L80 0" stroke="#0A1628" stroke-width="0.5"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#lines)"/>
+    </svg>
+  </div>
+
+  <div class="relative max-w-7xl mx-auto px-5 sm:px-8 z-10">
+    <div class="grid lg:grid-cols-12 gap-12 items-center">
+      <!-- Columna izquierda -->
+      <div class="lg:col-span-7">
+        <div class="reveal inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-electric-50 border border-electric-200 text-xs font-medium text-electric-700">
+          <span class="w-1.5 h-1.5 rounded-full bg-electric-500 spark-dot"></span>
+          Instaladores autorizados · BT, RITE y RD 244/2019
+        </div>
+
+        <h1 class="reveal reveal-delay-1 display mt-6 text-5xl sm:text-6xl lg:text-7xl leading-[0.95]">
+          Energía que <em>enciende</em><br/>
+          tu hogar, tu empresa,<br/>
+          tu <span class="relative inline-block">
+            futuro
+            <svg class="absolute -bottom-2 left-0 w-full" viewBox="0 0 200 10" preserveAspectRatio="none">
+              <path d="M2 7 Q 50 1, 100 6 T 198 5" fill="none" stroke="#0066FF" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </span>.
+        </h1>
+
+        <p class="reveal reveal-delay-2 mt-8 max-w-xl text-lg text-ink-700 leading-relaxed">
+          Instalaciones eléctricas, climatización, fotovoltaica y puntos de recarga para VE.
+          Más de <strong class="text-ink-900">15 años</strong> diseñando soluciones energéticas
+          que <em class="text-ink-900 not-italic font-medium">duran, ahorran y respetan</em>.
+        </p>
+
+        <div class="reveal reveal-delay-3 mt-10 flex flex-col sm:flex-row gap-3">
+          <a href="#contacto" class="btn-primary inline-flex items-center justify-center gap-2 bg-electric-500 text-white px-7 py-4 rounded-full font-medium shadow-electric hover:bg-electric-600">
+            Solicita tu presupuesto
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#calculadora" class="inline-flex items-center justify-center gap-2 bg-white text-ink-900 px-7 py-4 rounded-full font-medium border border-ink-900/10 hover:border-electric-500 hover:text-electric-600 transition">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+            Calcula tu ahorro solar
+          </a>
+        </div>
+
+        <!-- Stats -->
+        <div class="reveal reveal-delay-4 mt-14 grid grid-cols-3 gap-6 max-w-lg">
+          <div>
+            <div class="flex items-baseline gap-1">
+              <span class="counter font-display text-4xl sm:text-5xl font-semibold text-ink-900" data-target="15">0</span>
+              <span class="text-electric-500 font-display text-2xl font-semibold">+</span>
+            </div>
+            <div class="text-xs uppercase tracking-wider text-ink-700 mt-1">años activos</div>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-1">
+              <span class="counter font-display text-4xl sm:text-5xl font-semibold text-ink-900" data-target="2400">0</span>
+              <span class="text-electric-500 font-display text-2xl font-semibold">+</span>
+            </div>
+            <div class="text-xs uppercase tracking-wider text-ink-700 mt-1">instalaciones</div>
+          </div>
+          <div>
+            <div class="flex items-baseline gap-1">
+              <span class="counter font-display text-4xl sm:text-5xl font-semibold text-ink-900" data-target="98">0</span>
+              <span class="text-electric-500 font-display text-2xl font-semibold">%</span>
+            </div>
+            <div class="text-xs uppercase tracking-wider text-ink-700 mt-1">satisfacción</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna derecha: tarjeta visual -->
+      <div class="lg:col-span-5 reveal reveal-delay-2">
+        <div class="relative">
+          <!-- Tarjeta superior -->
+          <div class="relative bg-ink-900 text-white rounded-3xl p-7 shadow-lift grid-bg overflow-hidden">
+            <div class="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-electric-500/30 blur-3xl"></div>
+            <div class="relative flex items-center justify-between mb-6">
+              <span class="text-xs uppercase tracking-widest text-electric-300">Sistema activo</span>
+              <span class="flex items-center gap-1.5 text-xs">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-400 spark-dot"></span>
+                en línea
+              </span>
+            </div>
+            <div class="relative font-display text-5xl font-semibold leading-none tracking-tight">7,42<span class="text-electric-400 ml-1">kWh</span></div>
+            <div class="relative text-xs text-white/60 mt-1.5">Generación solar hoy · hogar tipo</div>
+
+            <div class="relative hairline-light my-5"></div>
+
+            <div class="relative grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <div class="text-white/50 uppercase tracking-wider mb-1">Consumo</div>
+                <div class="font-medium text-base">3,1 kWh</div>
+              </div>
+              <div>
+                <div class="text-white/50 uppercase tracking-wider mb-1">Vertido</div>
+                <div class="font-medium text-base text-electric-300">4,3 kWh</div>
+              </div>
+              <div>
+                <div class="text-white/50 uppercase tracking-wider mb-1">CO₂ evit.</div>
+                <div class="font-medium text-base">2,9 kg</div>
+              </div>
+            </div>
+
+            <!-- Mini gráfico -->
+            <div class="relative mt-6 h-20">
+              <svg viewBox="0 0 300 80" class="w-full h-full" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="gradLine" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#3D7DFF" stop-opacity="0.5"/>
+                    <stop offset="100%" stop-color="#3D7DFF" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0 70 L20 65 L40 55 L60 50 L80 40 L100 28 L120 18 L140 12 L160 14 L180 20 L200 32 L220 45 L240 58 L260 65 L280 72 L300 75 L300 80 L0 80 Z" fill="url(#gradLine)"/>
+                <path d="M0 70 L20 65 L40 55 L60 50 L80 40 L100 28 L120 18 L140 12 L160 14 L180 20 L200 32 L220 45 L240 58 L260 65 L280 72 L300 75" fill="none" stroke="#3D7DFF" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Tarjeta flotante inferior -->
+          <div class="absolute -bottom-8 -left-4 sm:-left-8 bg-white rounded-2xl p-5 shadow-lift border border-ink-900/5 w-64">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl bg-electric-500 text-white flex items-center justify-center">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M7 18l4-12 4 12M9 14h4"/></svg>
+              </div>
+              <div>
+                <div class="text-xs text-ink-700">Ahorro estimado</div>
+                <div class="font-display text-xl font-semibold tracking-tight">−68% factura</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Etiqueta flotante derecha -->
+          <div class="absolute -top-5 -right-2 sm:right-4 bg-electric-500 text-white rounded-full pl-2 pr-4 py-1.5 text-xs font-semibold shadow-electric flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.39 7.36H22l-6.2 4.5L18.18 22 12 17.5 5.82 22l2.38-8.14L2 9.36h7.61z"/></svg>
+            Certificados oficiales
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banner ticker -->
+  <div class="mt-24 relative overflow-hidden bg-ink-900 text-white py-5 border-y border-white/10">
+    <div class="flex marquee-track whitespace-nowrap gap-12 font-display text-2xl sm:text-3xl">
+      <span class="flex items-center gap-12 px-6">
+        <span>Instalaciones Eléctricas</span><span class="text-electric-400">✦</span>
+        <span>Aire Acondicionado</span><span class="text-electric-400">✦</span>
+        <span>Placas Solares</span><span class="text-electric-400">✦</span>
+        <span>Cargadores VE</span><span class="text-electric-400">✦</span>
+        <span>Domótica</span><span class="text-electric-400">✦</span>
+        <span>Mantenimientos</span><span class="text-electric-400">✦</span>
+      </span>
+      <span class="flex items-center gap-12 px-6" aria-hidden="true">
+        <span>Instalaciones Eléctricas</span><span class="text-electric-400">✦</span>
+        <span>Aire Acondicionado</span><span class="text-electric-400">✦</span>
+        <span>Placas Solares</span><span class="text-electric-400">✦</span>
+        <span>Cargadores VE</span><span class="text-electric-400">✦</span>
+        <span>Domótica</span><span class="text-electric-400">✦</span>
+        <span>Mantenimientos</span><span class="text-electric-400">✦</span>
+      </span>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== SERVICIOS ====================== -->
+<section id="servicios" class="relative py-24 sm:py-32">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="grid lg:grid-cols-12 gap-10 mb-14">
+      <div class="lg:col-span-5 reveal">
+        <div class="text-xs uppercase tracking-[0.2em] text-electric-600 font-mono mb-4">— 01 / Servicios</div>
+        <h2 class="display text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[1.02]">
+          Todo lo que <em>conecta</em><br/>tu vida con la energía.
+        </h2>
+      </div>
+      <div class="lg:col-span-6 lg:col-start-7 reveal reveal-delay-1 flex items-end">
+        <p class="text-lg text-ink-700 leading-relaxed">
+          Diseñamos, instalamos y mantenemos. De la reforma eléctrica del piso al
+          autoconsumo industrial: una sola empresa, un solo responsable, garantía total.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <!-- Servicio 1 -->
+      <article class="svc-card group relative bg-white rounded-2xl p-7 border border-ink-900/8 shadow-soft reveal">
+        <div class="flex items-start justify-between mb-8">
+          <div class="svc-icon-wrap w-14 h-14 rounded-xl bg-electric-50 text-electric-700 flex items-center justify-center">
+            <svg class="w-7 h-7 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+          </div>
+          <span class="num-tag font-mono text-xs text-ink-700/50">/ 01</span>
+        </div>
+        <h3 class="font-display text-2xl font-semibold mb-2">Instalaciones eléctricas</h3>
+        <p class="text-ink-700 text-sm leading-relaxed mb-5">
+          Nuevas instalaciones, reformas, boletines y legalizaciones. Cuadros, líneas,
+          puesta a tierra, iluminación técnica y decorativa.
+        </p>
+        <ul class="space-y-1.5 text-sm text-ink-800 mb-6">
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Viviendas y locales</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Boletines CIE</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>BT / IT industrial</li>
+        </ul>
+        <a href="#contacto" class="inline-flex items-center gap-1.5 text-sm font-medium text-ink-900 group-hover:text-electric-700 transition">
+          Consultar
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </article>
+
+      <!-- Servicio 2 -->
+      <article class="svc-card group relative bg-white rounded-2xl p-7 border border-ink-900/8 shadow-soft reveal reveal-delay-1">
+        <div class="flex items-start justify-between mb-8">
+          <div class="svc-icon-wrap w-14 h-14 rounded-xl bg-electric-50 text-electric-700 flex items-center justify-center">
+            <svg class="w-7 h-7 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 12h18M3 17h12M19 17l-2-2m2 2l-2 2"/></svg>
+          </div>
+          <span class="num-tag font-mono text-xs text-ink-700/50">/ 02</span>
+        </div>
+        <h3 class="font-display text-2xl font-semibold mb-2">Aire acondicionado</h3>
+        <p class="text-ink-700 text-sm leading-relaxed mb-5">
+          Climatización eficiente: split, multisplit, conductos y aerotermia.
+          Diseño térmico, instalación y mantenimiento.
+        </p>
+        <ul class="space-y-1.5 text-sm text-ink-800 mb-6">
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Inverter A+++</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Aerotermia</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Carnet RITE</li>
+        </ul>
+        <a href="#contacto" class="inline-flex items-center gap-1.5 text-sm font-medium text-ink-900 group-hover:text-electric-700 transition">
+          Consultar
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </article>
+
+      <!-- Servicio 3 -->
+      <article class="svc-card group relative bg-electric-500 text-white rounded-2xl p-7 border border-electric-500 shadow-electric reveal reveal-delay-2 overflow-hidden">
+        <div class="absolute inset-0 opacity-30 grid-bg pointer-events-none"></div>
+        <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/15 blur-2xl"></div>
+        <div class="absolute -bottom-12 -left-8 w-32 h-32 rounded-full bg-electric-300/30 blur-2xl"></div>
+        <div class="relative">
+          <div class="flex items-start justify-between mb-8">
+            <div class="w-14 h-14 rounded-xl bg-white text-electric-600 flex items-center justify-center">
+              <svg class="w-7 h-7 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4" stroke-width="1.8"/><path stroke-linecap="round" stroke-width="1.8" d="M12 2v3M12 19v3M2 12h3M19 12h3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/></svg>
+            </div>
+            <span class="num-tag font-mono text-xs text-white/50">/ 03</span>
+          </div>
+          <span class="inline-block px-2.5 py-0.5 rounded-full bg-spark-400 text-ink-900 text-[10px] font-semibold uppercase tracking-wider mb-3">★ Más solicitado</span>
+          <h3 class="font-display text-2xl font-semibold mb-2 tracking-tight">Placas solares</h3>
+          <p class="text-white/85 text-sm leading-relaxed mb-5">
+            Autoconsumo fotovoltaico llave en mano. Estudio, legalización,
+            tramitación de ayudas y monitorización 24/7.
+          </p>
+          <ul class="space-y-1.5 text-sm text-white/90 mb-6">
+            <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-white"></span>Residencial e industrial</li>
+            <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-white"></span>Baterías y vertido</li>
+            <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-white"></span>Subvenciones Next Gen</li>
+          </ul>
+          <a href="#calculadora" class="inline-flex items-center gap-1.5 text-sm font-semibold text-white group-hover:gap-2.5 transition-all">
+            Calcular ahorro
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+      </article>
+
+      <!-- Servicio 4 -->
+      <article class="svc-card group relative bg-white rounded-2xl p-7 border border-ink-900/8 shadow-soft reveal">
+        <div class="flex items-start justify-between mb-8">
+          <div class="svc-icon-wrap w-14 h-14 rounded-xl bg-electric-50 text-electric-700 flex items-center justify-center">
+            <svg class="w-7 h-7 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M5 11V7a2 2 0 012-2h6a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2v-4M5 11h6m-6 4h6M17 9l3 3-3 3"/></svg>
+          </div>
+          <span class="num-tag font-mono text-xs text-ink-700/50">/ 04</span>
+        </div>
+        <h3 class="font-display text-2xl font-semibold mb-2">Cargadores VE</h3>
+        <p class="text-ink-700 text-sm leading-relaxed mb-5">
+          Puntos de recarga para vehículo eléctrico en garajes privados,
+          comunidades y empresas. Carga inteligente y solar.
+        </p>
+        <ul class="space-y-1.5 text-sm text-ink-800 mb-6">
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Wallbox, V2H, OCPP</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Carga compartida</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>MOVES III</li>
+        </ul>
+        <a href="#contacto" class="inline-flex items-center gap-1.5 text-sm font-medium text-ink-900 group-hover:text-electric-700 transition">
+          Consultar
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </article>
+
+      <!-- Servicio 5 -->
+      <article class="svc-card group relative bg-white rounded-2xl p-7 border border-ink-900/8 shadow-soft reveal reveal-delay-1">
+        <div class="flex items-start justify-between mb-8">
+          <div class="svc-icon-wrap w-14 h-14 rounded-xl bg-electric-50 text-electric-700 flex items-center justify-center">
+            <svg class="w-7 h-7 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.4" fill="currentColor"/><circle cx="14" cy="12" r="1.4" fill="currentColor"/><circle cx="10" cy="17" r="1.4" fill="currentColor"/></svg>
+          </div>
+          <span class="num-tag font-mono text-xs text-ink-700/50">/ 05</span>
+        </div>
+        <h3 class="font-display text-2xl font-semibold mb-2">Domótica & IoT</h3>
+        <p class="text-ink-700 text-sm leading-relaxed mb-5">
+          Hogar y oficina conectados. Iluminación, climatización, persianas y
+          consumos bajo control desde tu móvil.
+        </p>
+        <ul class="space-y-1.5 text-sm text-ink-800 mb-6">
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>KNX · Loxone · Shelly</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Asistentes de voz</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Monitor energético</li>
+        </ul>
+        <a href="#contacto" class="inline-flex items-center gap-1.5 text-sm font-medium text-ink-900 group-hover:text-electric-700 transition">
+          Consultar
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </article>
+
+      <!-- Servicio 6 -->
+      <article class="svc-card group relative bg-white rounded-2xl p-7 border border-ink-900/8 shadow-soft reveal reveal-delay-2">
+        <div class="flex items-start justify-between mb-8">
+          <div class="svc-icon-wrap w-14 h-14 rounded-xl bg-electric-50 text-electric-700 flex items-center justify-center">
+            <svg class="w-7 h-7 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <span class="num-tag font-mono text-xs text-ink-700/50">/ 06</span>
+        </div>
+        <h3 class="font-display text-2xl font-semibold mb-2">Mantenimientos</h3>
+        <p class="text-ink-700 text-sm leading-relaxed mb-5">
+          Contratos de mantenimiento preventivo y correctivo para comunidades,
+          locales e industrias. SAT 24/7.
+        </p>
+        <ul class="space-y-1.5 text-sm text-ink-800 mb-6">
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Revisiones OCA</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Urgencias 24h</li>
+          <li class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-electric-500"></span>Termografías</li>
+        </ul>
+        <a href="#contacto" class="inline-flex items-center gap-1.5 text-sm font-medium text-ink-900 group-hover:text-electric-700 transition">
+          Consultar
+          <svg class="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== PROYECTOS ====================== -->
+<section id="proyectos" class="relative py-24 sm:py-32 bg-ink-900 text-white overflow-hidden grain">
+  <div class="absolute inset-0 grid-bg opacity-40 pointer-events-none"></div>
+  <div class="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-electric-500/40 blur-3xl rounded-full pointer-events-none"></div>
+
+  <div class="relative max-w-7xl mx-auto px-5 sm:px-8 z-10">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-14">
+      <div class="reveal max-w-2xl">
+        <div class="text-xs uppercase tracking-[0.2em] text-electric-400 font-mono mb-4">— 02 / Proyectos</div>
+        <h2 class="display text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[1.02]">
+          Algunos trabajos<br/>que nos hacen <em>brillar</em>.
+        </h2>
+      </div>
+      <p class="reveal reveal-delay-1 text-white/70 max-w-md">
+        De viviendas unifamiliares a naves industriales con cubierta solar de 250kWp.
+        Cada proyecto, una solución a medida.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-6 gap-4 sm:gap-5">
+      <div class="gallery-item reveal md:col-span-4 md:row-span-2 relative rounded-2xl overflow-hidden group h-[340px] md:h-[520px]">
+        <img src="https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1400&q=80" alt="Instalación fotovoltaica residencial" class="absolute inset-0 w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/30 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 p-7">
+          <div class="text-xs uppercase tracking-widest text-electric-400 mb-2">Fotovoltaica residencial</div>
+          <h3 class="font-display text-3xl font-semibold mb-1">Villa Mediterránea · 9,2 kWp</h3>
+          <p class="text-white/70 text-sm max-w-md">Autoconsumo con baterías LiFePO₄ y cargador VE. Cubierta -73% factura anual.</p>
+        </div>
+      </div>
+
+      <div class="gallery-item reveal reveal-delay-1 md:col-span-2 relative rounded-2xl overflow-hidden group h-[240px] md:h-[250px]">
+        <img src="https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=900&q=80" alt="Climatización" class="absolute inset-0 w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/30 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 p-6">
+          <div class="text-[10px] uppercase tracking-widest text-electric-400 mb-1">Climatización</div>
+          <h3 class="font-display text-xl font-semibold tracking-tight">Oficinas Triton</h3>
+        </div>
+      </div>
+
+      <div class="gallery-item reveal reveal-delay-2 md:col-span-2 relative rounded-2xl overflow-hidden group h-[240px] md:h-[250px]">
+        <img src="https://images.unsplash.com/photo-1593941707882-a5bba14938c7?auto=format&fit=crop&w=900&q=80" alt="Cargadores VE" class="absolute inset-0 w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/30 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 p-6">
+          <div class="text-[10px] uppercase tracking-widest text-electric-400 mb-1">Movilidad eléctrica</div>
+          <h3 class="font-display text-xl font-semibold tracking-tight">Parking 32 puntos</h3>
+        </div>
+      </div>
+
+      <div class="gallery-item reveal md:col-span-3 relative rounded-2xl overflow-hidden group h-[240px]">
+        <img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80" alt="Cuadro eléctrico industrial" class="absolute inset-0 w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/30 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 p-6">
+          <div class="text-[10px] uppercase tracking-widest text-electric-400 mb-1">Industrial</div>
+          <h3 class="font-display text-xl font-semibold tracking-tight">Nave logística Norte</h3>
+        </div>
+      </div>
+
+      <div class="gallery-item reveal reveal-delay-1 md:col-span-3 relative rounded-2xl overflow-hidden group h-[240px]">
+        <img src="https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=1200&q=80" alt="Domótica" class="absolute inset-0 w-full h-full object-cover"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-ink-900/95 via-ink-900/30 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 p-6">
+          <div class="text-[10px] uppercase tracking-widest text-electric-400 mb-1">Domótica</div>
+          <h3 class="font-display text-xl font-semibold tracking-tight">Loft Centro · KNX</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== CALCULADORA SOLAR ====================== -->
+<section id="calculadora" class="relative py-24 sm:py-32">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="grid lg:grid-cols-12 gap-12 items-start">
+      <div class="lg:col-span-5 lg:sticky lg:top-28 reveal">
+        <div class="text-xs uppercase tracking-[0.2em] text-electric-600 font-mono mb-4">— 03 / Simulador</div>
+        <h2 class="display text-4xl sm:text-5xl font-semibold leading-[1.02] mb-6">
+          ¿Cuánto puedes <em>ahorrar</em> con placas solares?
+        </h2>
+        <p class="text-ink-700 leading-relaxed mb-8">
+          Mueve los selectores y descubre tu ahorro estimado anual, el periodo de
+          amortización y el CO₂ que dejarías de emitir. Sin compromiso.
+        </p>
+        <div class="space-y-3 text-sm text-ink-700">
+          <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 mt-0.5 text-electric-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span>Cálculo basado en irradiación media peninsular (1.650h equivalentes/año)</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 mt-0.5 text-electric-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span>Precio orientativo de instalación: 1.200€/kWp llave en mano</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 mt-0.5 text-electric-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span>Resultado estimativo. Para presupuesto exacto, contacta con nosotros</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calculadora -->
+      <div class="lg:col-span-7 reveal reveal-delay-1">
+        <div class="bg-white rounded-3xl shadow-lift border border-ink-900/5 p-8 sm:p-10">
+          <!-- Tipo -->
+          <div class="mb-8">
+            <label class="text-xs uppercase tracking-wider text-ink-700 font-medium block mb-3">Tipo de instalación</label>
+            <div class="grid grid-cols-2 gap-2" id="calc-type">
+              <button data-val="residencial" class="calc-type-btn active px-4 py-3 rounded-xl border-2 border-ink-900 bg-ink-900 text-white font-medium text-sm transition">Residencial</button>
+              <button data-val="empresa" class="calc-type-btn px-4 py-3 rounded-xl border-2 border-ink-900/10 bg-white text-ink-700 font-medium text-sm transition hover:border-ink-900/30">Empresa / Industrial</button>
+            </div>
+          </div>
+
+          <!-- Consumo -->
+          <div class="mb-8">
+            <div class="flex items-baseline justify-between mb-3">
+              <label class="text-xs uppercase tracking-wider text-ink-700 font-medium">Factura mensual de luz</label>
+              <span id="bill-val" class="font-display text-2xl font-semibold text-ink-900">120€</span>
+            </div>
+            <input id="bill" type="range" min="40" max="600" step="10" value="120" class="calc-slider" />
+            <div class="flex justify-between text-[10px] text-ink-700/60 mt-2 font-mono">
+              <span>40€</span><span>600€</span>
+            </div>
+          </div>
+
+          <!-- Superficie -->
+          <div class="mb-8">
+            <div class="flex items-baseline justify-between mb-3">
+              <label class="text-xs uppercase tracking-wider text-ink-700 font-medium">Superficie disponible (cubierta)</label>
+              <span id="area-val" class="font-display text-2xl font-semibold text-ink-900">30 m²</span>
+            </div>
+            <input id="area" type="range" min="10" max="300" step="5" value="30" class="calc-slider" />
+            <div class="flex justify-between text-[10px] text-ink-700/60 mt-2 font-mono">
+              <span>10 m²</span><span>300 m²</span>
+            </div>
+          </div>
+
+          <!-- Orientación -->
+          <div class="mb-8">
+            <label class="text-xs uppercase tracking-wider text-ink-700 font-medium block mb-3">Orientación</label>
+            <div class="grid grid-cols-4 gap-2" id="calc-orient">
+              <button data-val="0.85" class="calc-orient-btn px-3 py-2.5 rounded-lg border border-ink-900/10 bg-white text-ink-700 font-medium text-xs transition hover:border-ink-900/30">Este</button>
+              <button data-val="1" class="calc-orient-btn active px-3 py-2.5 rounded-lg border-2 border-ink-900 bg-ink-900 text-white font-medium text-xs transition">Sur</button>
+              <button data-val="0.85" class="calc-orient-btn px-3 py-2.5 rounded-lg border border-ink-900/10 bg-white text-ink-700 font-medium text-xs transition hover:border-ink-900/30">Oeste</button>
+              <button data-val="0.6" class="calc-orient-btn px-3 py-2.5 rounded-lg border border-ink-900/10 bg-white text-ink-700 font-medium text-xs transition hover:border-ink-900/30">Plana</button>
+            </div>
+          </div>
+
+          <div class="hairline mb-8"></div>
+
+          <!-- Resultados -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            <div>
+              <div class="text-[10px] uppercase tracking-widest text-ink-700/70 mb-1.5">Potencia</div>
+              <div class="font-display text-2xl sm:text-3xl font-semibold text-ink-900"><span id="r-power">4,2</span><span class="text-base text-ink-700 ml-0.5">kWp</span></div>
+            </div>
+            <div>
+              <div class="text-[10px] uppercase tracking-widest text-ink-700/70 mb-1.5">Ahorro anual</div>
+              <div class="font-display text-2xl sm:text-3xl font-semibold text-electric-700"><span id="r-saving">980</span><span class="text-base ml-0.5">€</span></div>
+            </div>
+            <div>
+              <div class="text-[10px] uppercase tracking-widest text-ink-700/70 mb-1.5">Amortización</div>
+              <div class="font-display text-2xl sm:text-3xl font-semibold text-ink-900"><span id="r-roi">5,1</span><span class="text-base text-ink-700 ml-0.5">años</span></div>
+            </div>
+            <div>
+              <div class="text-[10px] uppercase tracking-widest text-ink-700/70 mb-1.5">CO₂ evitado</div>
+              <div class="font-display text-2xl sm:text-3xl font-semibold text-ink-900"><span id="r-co2">1,8</span><span class="text-base text-ink-700 ml-0.5">t/año</span></div>
+            </div>
+          </div>
+
+          <!-- Banner resumen -->
+          <div class="bg-ink-900 text-white rounded-2xl p-6 grid-bg relative overflow-hidden">
+            <div class="absolute -right-12 -top-12 w-44 h-44 rounded-full bg-electric-500/30 blur-3xl"></div>
+            <div class="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <div class="text-xs text-white/70 mb-1">Inversión estimada</div>
+                <div class="flex items-baseline gap-2">
+                  <span id="r-cost" class="font-display text-3xl font-semibold tracking-tight">5.040€</span>
+                  <span class="text-xs text-white/60">llave en mano</span>
+                </div>
+              </div>
+              <a href="#contacto" class="btn-primary inline-flex items-center justify-center gap-2 bg-electric-500 text-white px-6 py-3 rounded-full font-semibold text-sm shadow-electric">
+                Pedir presupuesto exacto
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== TESTIMONIOS ====================== -->
+<section class="relative py-24 sm:py-32 bg-electric-50/40">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="grid lg:grid-cols-12 gap-10 mb-14">
+      <div class="lg:col-span-6 reveal">
+        <div class="text-xs uppercase tracking-[0.2em] text-electric-600 font-mono mb-4">— 04 / Testimonios</div>
+        <h2 class="display text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[1.02]">
+          La confianza<br/>se <em>conecta</em> con resultados.
+        </h2>
+      </div>
+      <div class="lg:col-span-5 lg:col-start-8 flex items-end reveal reveal-delay-1">
+        <div class="flex items-center gap-6">
+          <div class="flex">
+            <svg class="w-6 h-6 text-spark-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.39 7.36H22l-6.2 4.5L18.18 22 12 17.5 5.82 22l2.38-8.14L2 9.36h7.61z"/></svg>
+            <svg class="w-6 h-6 text-spark-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.39 7.36H22l-6.2 4.5L18.18 22 12 17.5 5.82 22l2.38-8.14L2 9.36h7.61z"/></svg>
+            <svg class="w-6 h-6 text-spark-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.39 7.36H22l-6.2 4.5L18.18 22 12 17.5 5.82 22l2.38-8.14L2 9.36h7.61z"/></svg>
+            <svg class="w-6 h-6 text-spark-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.39 7.36H22l-6.2 4.5L18.18 22 12 17.5 5.82 22l2.38-8.14L2 9.36h7.61z"/></svg>
+            <svg class="w-6 h-6 text-spark-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.39 7.36H22l-6.2 4.5L18.18 22 12 17.5 5.82 22l2.38-8.14L2 9.36h7.61z"/></svg>
+          </div>
+          <div class="text-sm text-ink-700"><strong class="text-ink-900">4,9 / 5</strong> · 312 valoraciones</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-5">
+      <figure class="reveal bg-white rounded-2xl p-7 border border-ink-900/5 shadow-soft">
+        <svg class="w-8 h-8 text-spark-500 mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 7H5a2 2 0 00-2 2v4a2 2 0 002 2h2v3a2 2 0 002 2V7zm10 0h-4a2 2 0 00-2 2v4a2 2 0 002 2h2v3a2 2 0 002 2V7z"/></svg>
+        <blockquote class="font-display text-lg leading-relaxed text-ink-900 mb-6">
+          "Cambiamos la instalación entera de casa y pusimos placas. Trabajo limpio, tiempos cumplidos, y la app para ver el consumo es una maravilla."
+        </blockquote>
+        <figcaption class="flex items-center gap-3 pt-4 border-t border-ink-900/5">
+          <div class="w-10 h-10 rounded-full bg-ink-900 text-white flex items-center justify-center font-display font-semibold">MR</div>
+          <div>
+            <div class="font-medium text-sm">Marta Ramírez</div>
+            <div class="text-xs text-ink-700">Particular · Sevilla</div>
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure class="reveal reveal-delay-1 bg-white rounded-2xl p-7 border border-ink-900/5 shadow-soft">
+        <svg class="w-8 h-8 text-spark-500 mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 7H5a2 2 0 00-2 2v4a2 2 0 002 2h2v3a2 2 0 002 2V7zm10 0h-4a2 2 0 00-2 2v4a2 2 0 002 2h2v3a2 2 0 002 2V7z"/></svg>
+        <blockquote class="font-display text-lg leading-relaxed text-ink-900 mb-6">
+          "Instalaron 14 puntos de recarga en nuestro parking de empresa. Gestionaron la subvención MOVES y el alta sin que tuviéramos que mover un dedo."
+        </blockquote>
+        <figcaption class="flex items-center gap-3 pt-4 border-t border-ink-900/5">
+          <div class="w-10 h-10 rounded-full bg-electric-500 text-white flex items-center justify-center font-display font-semibold">JT</div>
+          <div>
+            <div class="font-medium text-sm">Javier Torres</div>
+            <div class="text-xs text-ink-700">Logística Ártica S.L.</div>
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure class="reveal reveal-delay-2 bg-white rounded-2xl p-7 border border-ink-900/5 shadow-soft">
+        <svg class="w-8 h-8 text-spark-500 mb-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 7H5a2 2 0 00-2 2v4a2 2 0 002 2h2v3a2 2 0 002 2V7zm10 0h-4a2 2 0 00-2 2v4a2 2 0 002 2h2v3a2 2 0 002 2V7z"/></svg>
+        <blockquote class="font-display text-lg leading-relaxed text-ink-900 mb-6">
+          "Nos pusieron aerotermia y multisplit en toda la casa. La factura ha bajado a la mitad y el equipo técnico es de 10. Repetiremos seguro."
+        </blockquote>
+        <figcaption class="flex items-center gap-3 pt-4 border-t border-ink-900/5">
+          <div class="w-10 h-10 rounded-full bg-electric-300 text-ink-900 flex items-center justify-center font-display font-semibold">LP</div>
+          <div>
+            <div class="font-medium text-sm">Laura Pérez</div>
+            <div class="text-xs text-ink-700">Particular · Madrid</div>
+          </div>
+        </figcaption>
+      </figure>
+    </div>
+
+    <!-- Logos certificaciones -->
+    <div class="mt-16 reveal">
+      <div class="text-xs uppercase tracking-widest text-ink-700/60 text-center mb-6">Avalados por</div>
+      <div class="flex flex-wrap justify-center items-center gap-x-10 gap-y-4 opacity-70">
+        <span class="font-display text-xl font-semibold tracking-tight">FENIE</span>
+        <span class="w-1 h-1 rounded-full bg-ink-900/20"></span>
+        <span class="font-display text-xl font-semibold tracking-tight">UNEF</span>
+        <span class="w-1 h-1 rounded-full bg-ink-900/20"></span>
+        <span class="font-display text-xl font-semibold tracking-tight">ISO 9001</span>
+        <span class="w-1 h-1 rounded-full bg-ink-900/20"></span>
+        <span class="font-display text-xl font-semibold tracking-tight">RD 244/2019</span>
+        <span class="w-1 h-1 rounded-full bg-ink-900/20"></span>
+        <span class="font-display text-xl font-semibold tracking-tight">RITE</span>
+        <span class="w-1 h-1 rounded-full bg-ink-900/20"></span>
+        <span class="font-display text-xl font-semibold tracking-tight">IDAE</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== EMPRESA / SOBRE NOSOTROS ====================== -->
+<section id="empresa" class="relative py-24 sm:py-32">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="grid lg:grid-cols-12 gap-12 items-center">
+      <div class="lg:col-span-5 reveal order-2 lg:order-1">
+        <div class="relative">
+          <div class="rounded-3xl overflow-hidden shadow-lift">
+            <img src="https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=900&q=80" alt="Equipo JS Electric" class="w-full h-[480px] object-cover"/>
+          </div>
+          <div class="absolute -bottom-6 -right-4 sm:-right-8 bg-white rounded-2xl p-5 shadow-lift border border-ink-900/5 max-w-[240px]">
+            <div class="flex items-center gap-1 mb-2">
+              <svg class="w-4 h-4 text-spark-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.39 7.36H22l-6.2 4.5L18.18 22 12 17.5 5.82 22l2.38-8.14L2 9.36h7.61z"/></svg>
+              <span class="font-display text-sm font-semibold">Equipo certificado</span>
+            </div>
+            <p class="text-xs text-ink-700">12 técnicos titulados, carnet RITE y BT con formación continua.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-6 lg:col-start-7 reveal reveal-delay-1 order-1 lg:order-2">
+        <div class="text-xs uppercase tracking-[0.2em] text-electric-600 font-mono mb-4">— 05 / Empresa</div>
+        <h2 class="display text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[1.02] mb-8">
+          Una empresa <em>local</em>,<br/>con visión global.
+        </h2>
+        <p class="text-lg text-ink-700 leading-relaxed mb-6">
+          Desde 2009 ayudamos a familias, comunidades y empresas a tomar el control
+          de su energía. Empezamos con un electricista y una furgoneta; hoy somos
+          un equipo de <strong class="text-ink-900">28 personas</strong> que diseña, instala y mantiene proyectos
+          en toda la península.
+        </p>
+        <p class="text-ink-700 leading-relaxed mb-10">
+          Lo que no ha cambiado: trato cercano, presupuestos transparentes
+          y un compromiso real con la transición energética.
+        </p>
+
+        <!-- Valores -->
+        <div class="grid sm:grid-cols-2 gap-5">
+          <div class="flex gap-4">
+            <div class="w-11 h-11 rounded-xl bg-electric-500 text-white flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-display font-semibold mb-1">Plazos cumplidos</h3>
+              <p class="text-sm text-ink-700">Compromiso por escrito. Si nos retrasamos, te bonificamos.</p>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <div class="w-11 h-11 rounded-xl bg-electric-500 text-white flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-display font-semibold mb-1">Garantía 10 años</h3>
+              <p class="text-sm text-ink-700">En instalación y materiales. Atención post-venta real.</p>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <div class="w-11 h-11 rounded-xl bg-electric-500 text-white flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2l9 4.5v9L12 20l-9-4.5v-9L12 2z M12 2v18 M3 6.5l9 4.5 9-4.5"/></svg>
+            </div>
+            <div>
+              <h3 class="font-display font-semibold mb-1">Presupuesto claro</h3>
+              <p class="text-sm text-ink-700">Sin letra pequeña. Lo que firmas es lo que pagas.</p>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <div class="w-11 h-11 rounded-xl bg-electric-500 text-white flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-display font-semibold mb-1">Llave en mano</h3>
+              <p class="text-sm text-ink-700">Nos ocupamos de todo: trámites, ayudas y legalización.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== BLOG / RECURSOS ====================== -->
+<section id="blog" class="relative py-24 sm:py-32 bg-bone border-t border-ink-900/5">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
+      <div class="reveal">
+        <div class="text-xs uppercase tracking-[0.2em] text-electric-600 font-mono mb-4">— 06 / Recursos</div>
+        <h2 class="display text-4xl sm:text-5xl font-semibold leading-[1.02]">
+          Aprende, ahorra, <em>decide mejor</em>.
+        </h2>
+      </div>
+      <a href="#" class="reveal reveal-delay-1 inline-flex items-center gap-1.5 text-sm font-medium text-ink-900 hover:gap-2.5 transition-all">
+        Ver todos los artículos
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      <article class="reveal group">
+        <a href="#" class="block rounded-2xl overflow-hidden mb-5 aspect-[4/3] relative">
+          <img src="https://images.unsplash.com/photo-1611365892117-bce8cd8b6262?auto=format&fit=crop&w=800&q=80" alt="" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"/>
+        </a>
+        <div class="text-[10px] uppercase tracking-widest text-electric-600 font-mono mb-2">Guía · 8 min</div>
+        <h3 class="font-display text-xl font-semibold leading-snug mb-2 group-hover:text-electric-700 transition">¿Compensa instalar baterías solares en 2026? Análisis real</h3>
+        <p class="text-sm text-ink-700">Repasamos amortización, ciclos de vida y casos donde sí (y donde no) tiene sentido.</p>
+      </article>
+
+      <article class="reveal reveal-delay-1 group">
+        <a href="#" class="block rounded-2xl overflow-hidden mb-5 aspect-[4/3] relative">
+          <img src="https://images.unsplash.com/photo-1632833239869-a37e3a5806d2?auto=format&fit=crop&w=800&q=80" alt="" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"/>
+        </a>
+        <div class="text-[10px] uppercase tracking-widest text-electric-600 font-mono mb-2">Subvenciones · 6 min</div>
+        <h3 class="font-display text-xl font-semibold leading-snug mb-2 group-hover:text-electric-700 transition">Cómo pedir el MOVES III para tu cargador VE paso a paso</h3>
+        <p class="text-sm text-ink-700">Documentación, plazos y cuánto tarda en llegar el dinero. La realidad sin marketing.</p>
+      </article>
+
+      <article class="reveal reveal-delay-2 group">
+        <a href="#" class="block rounded-2xl overflow-hidden mb-5 aspect-[4/3] relative">
+          <img src="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=800&q=80" alt="" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"/>
+        </a>
+        <div class="text-[10px] uppercase tracking-widest text-electric-600 font-mono mb-2">Climatización · 5 min</div>
+        <h3 class="font-display text-xl font-semibold leading-snug mb-2 group-hover:text-electric-700 transition">Aerotermia vs caldera de gas: ¿qué te ahorra más al año?</h3>
+        <p class="text-sm text-ink-700">Comparativa con datos reales en vivienda media de 100m². Te sorprenderá.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== CONTACTO ====================== -->
+<section id="contacto" class="relative py-24 sm:py-32 bg-ink-900 text-white overflow-hidden grain">
+  <div class="absolute inset-0 grid-bg opacity-30 pointer-events-none"></div>
+  <div class="absolute top-0 right-0 w-[600px] h-[600px] bg-electric-700/30 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/2"></div>
+  <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-electric-500/30 rounded-full blur-3xl pointer-events-none translate-y-1/2 -translate-x-1/2"></div>
+
+  <div class="relative max-w-7xl mx-auto px-5 sm:px-8 z-10">
+    <div class="grid lg:grid-cols-12 gap-12">
+      <div class="lg:col-span-5 reveal">
+        <div class="text-xs uppercase tracking-[0.2em] text-electric-400 font-mono mb-4">— 07 / Contacto</div>
+        <h2 class="display text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[1.02] mb-6">
+          Cuéntanos<br/>tu <em>proyecto</em>.
+        </h2>
+        <p class="text-white/70 leading-relaxed mb-10 max-w-md">
+          Te llamamos en menos de 24h. Presupuesto sin compromiso y visita técnica gratuita
+          dentro de nuestra zona de servicio.
+        </p>
+
+        <div class="space-y-5">
+          <a href="tel:+34900123456" class="flex items-center gap-4 group">
+            <div class="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-electric-500 group-hover:text-white transition">
+              <svg class="w-5 h-5 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5.5C3 4.12 4.12 3 5.5 3h2.13a2 2 0 011.94 1.5l.7 2.8a2 2 0 01-.5 1.9L8.4 10.6a14 14 0 005 5l1.4-1.37a2 2 0 011.9-.5l2.8.7A2 2 0 0121 16.37V18.5c0 1.38-1.12 2.5-2.5 2.5C10.4 21 3 13.6 3 5.5z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs text-white/50 uppercase tracking-wider">Teléfono</div>
+              <div class="font-display text-lg">900 123 456</div>
+            </div>
+          </a>
+          <a href="mailto:hola@jselectric.es" class="flex items-center gap-4 group">
+            <div class="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-electric-500 group-hover:text-white transition">
+              <svg class="w-5 h-5 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs text-white/50 uppercase tracking-wider">Email</div>
+              <div class="font-display text-lg">hola@jselectric.es</div>
+            </div>
+          </a>
+          <a href="https://wa.me/34600000000" class="flex items-center gap-4 group">
+            <div class="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-electric-500 group-hover:text-white transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.762 5.617l-.999 3.648 3.726-.964zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/></svg>
+            </div>
+            <div>
+              <div class="text-xs text-white/50 uppercase tracking-wider">WhatsApp</div>
+              <div class="font-display text-lg">+34 600 000 000</div>
+            </div>
+          </a>
+          <div class="flex items-center gap-4">
+            <div class="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+              <svg class="w-5 h-5 ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3" stroke-width="1.6"/></svg>
+            </div>
+            <div>
+              <div class="text-xs text-white/50 uppercase tracking-wider">Oficina</div>
+              <div class="font-display text-lg">C/ Energía 42, Madrid</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario -->
+      <div class="lg:col-span-6 lg:col-start-7 reveal reveal-delay-1">
+        <form id="contact-form" class="bg-white text-ink-900 rounded-3xl p-7 sm:p-9 shadow-lift" novalidate>
+          <h3 class="font-display text-2xl font-semibold mb-1">Solicita presupuesto gratuito</h3>
+          <p class="text-sm text-ink-700 mb-7">Te respondemos en menos de 24h laborables.</p>
+
+          <div class="grid sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-xs font-medium text-ink-700 mb-1.5">Nombre*</label>
+              <input name="nombre" type="text" required class="field w-full px-4 py-3 rounded-xl border border-ink-900/10 bg-bone/50 text-sm" placeholder="Tu nombre"/>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-ink-700 mb-1.5">Teléfono*</label>
+              <input name="telefono" type="tel" required class="field w-full px-4 py-3 rounded-xl border border-ink-900/10 bg-bone/50 text-sm" placeholder="600 00 00 00"/>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-ink-700 mb-1.5">Email*</label>
+            <input name="email" type="email" required class="field w-full px-4 py-3 rounded-xl border border-ink-900/10 bg-bone/50 text-sm" placeholder="tucorreo@email.com"/>
+          </div>
+
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-ink-700 mb-1.5">Servicio de interés*</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="service-pills">
+              <button type="button" data-val="Eléctrica" class="service-pill px-3 py-2.5 rounded-lg border border-ink-900/10 bg-bone/50 text-xs font-medium hover:border-ink-900/30 transition">⚡ Eléctrica</button>
+              <button type="button" data-val="Aire" class="service-pill px-3 py-2.5 rounded-lg border border-ink-900/10 bg-bone/50 text-xs font-medium hover:border-ink-900/30 transition">❄ Aire acond.</button>
+              <button type="button" data-val="Solar" class="service-pill px-3 py-2.5 rounded-lg border border-ink-900/10 bg-bone/50 text-xs font-medium hover:border-ink-900/30 transition">☀ Solar</button>
+              <button type="button" data-val="VE" class="service-pill px-3 py-2.5 rounded-lg border border-ink-900/10 bg-bone/50 text-xs font-medium hover:border-ink-900/30 transition">🔌 Cargador VE</button>
+              <button type="button" data-val="Domótica" class="service-pill px-3 py-2.5 rounded-lg border border-ink-900/10 bg-bone/50 text-xs font-medium hover:border-ink-900/30 transition">🏠 Domótica</button>
+              <button type="button" data-val="Mantenimiento" class="service-pill px-3 py-2.5 rounded-lg border border-ink-900/10 bg-bone/50 text-xs font-medium hover:border-ink-900/30 transition">🛠 Manten.</button>
+            </div>
+            <input type="hidden" name="servicio" id="servicio-input" required/>
+          </div>
+
+          <div class="mb-5">
+            <label class="block text-xs font-medium text-ink-700 mb-1.5">Cuéntanos brevemente</label>
+            <textarea name="mensaje" rows="3" class="field w-full px-4 py-3 rounded-xl border border-ink-900/10 bg-bone/50 text-sm resize-none" placeholder="Tipo de vivienda, superficie, fechas estimadas..."></textarea>
+          </div>
+
+          <label class="flex items-start gap-2.5 mb-6 cursor-pointer">
+            <input type="checkbox" required class="mt-0.5 w-4 h-4 accent-ink-900 cursor-pointer"/>
+            <span class="text-xs text-ink-700 leading-relaxed">Acepto la <a href="#" class="underline">política de privacidad</a> y el tratamiento de mis datos para responder a esta solicitud.</span>
+          </label>
+
+          <button type="submit" class="btn-primary w-full inline-flex items-center justify-center gap-2 bg-ink-900 text-white px-6 py-4 rounded-full font-medium shadow-lift">
+            <span>Enviar solicitud</span>
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== FOOTER ====================== -->
+<footer class="bg-ink-900 text-white/70 border-t border-white/5">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-14">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
+      <div class="lg:col-span-2">
+        <a href="#inicio" class="flex items-center gap-2.5 mb-5">
+          <span class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl bg-electric-500 text-white">
+            <span class="font-display font-bold text-sm tracking-tight">JS</span>
+          </span>
+          <span class="font-display text-xl font-semibold tracking-tight text-white">JS Electric<span class="text-electric-400">.</span></span>
+        </a>
+        <p class="text-sm leading-relaxed max-w-xs mb-5">
+          Electricistas, climatización y energía solar.
+          Tu transición energética, llave en mano.
+        </p>
+        <div class="flex gap-2">
+          <a href="#" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition" aria-label="Instagram">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c2.717 0 3.056.01 4.122.06 1.065.05 1.79.217 2.428.465.66.254 1.216.598 1.772 1.153a4.908 4.908 0 011.153 1.772c.247.637.415 1.363.465 2.428.047 1.066.06 1.405.06 4.122 0 2.717-.01 3.056-.06 4.122-.05 1.065-.218 1.79-.465 2.428a4.883 4.883 0 01-1.153 1.772 4.915 4.915 0 01-1.772 1.153c-.637.247-1.363.415-2.428.465-1.066.047-1.405.06-4.122.06-2.717 0-3.056-.01-4.122-.06-1.065-.05-1.79-.218-2.428-.465a4.89 4.89 0 01-1.772-1.153 4.904 4.904 0 01-1.153-1.772c-.248-.637-.415-1.363-.465-2.428C2.013 15.056 2 14.717 2 12c0-2.717.01-3.056.06-4.122.05-1.066.217-1.79.465-2.428a4.88 4.88 0 011.153-1.772A4.897 4.897 0 015.45 2.525c.638-.248 1.362-.415 2.428-.465C8.944 2.013 9.283 2 12 2zm0 5a5 5 0 100 10 5 5 0 000-10zm6.5-.25a1.25 1.25 0 10-2.5 0 1.25 1.25 0 002.5 0zM12 9a3 3 0 110 6 3 3 0 010-6z"/></svg>
+          </a>
+          <a href="#" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition" aria-label="LinkedIn">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14zM8 17v-7H5.5v7H8zM6.75 8.75A1.5 1.5 0 108.5 7.25a1.5 1.5 0 00-1.75 1.5zM18.5 17v-4.4c0-2.1-1.13-3.1-2.65-3.1a2.3 2.3 0 00-2.1 1.15V10H11.4v7h2.4v-3.7c0-1.04.2-2.05 1.5-2.05 1.27 0 1.27 1.2 1.27 2.12V17h1.93z"/></svg>
+          </a>
+          <a href="#" class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition" aria-label="Facebook">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12a12 12 0 10-13.875 11.85V15.47H7.078V12h3.047V9.36c0-3.007 1.79-4.668 4.532-4.668 1.312 0 2.686.234 2.686.234v2.953H15.83c-1.491 0-1.956.925-1.956 1.875V12h3.328l-.532 3.47h-2.796v8.38A12 12 0 0024 12z"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-xs uppercase tracking-widest text-white/50 mb-4">Servicios</div>
+        <ul class="space-y-2.5 text-sm">
+          <li><a href="#servicios" class="hover:text-white transition">Eléctricas</a></li>
+          <li><a href="#servicios" class="hover:text-white transition">Climatización</a></li>
+          <li><a href="#servicios" class="hover:text-white transition">Fotovoltaica</a></li>
+          <li><a href="#servicios" class="hover:text-white transition">Cargadores VE</a></li>
+          <li><a href="#servicios" class="hover:text-white transition">Domótica</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="text-xs uppercase tracking-widest text-white/50 mb-4">Empresa</div>
+        <ul class="space-y-2.5 text-sm">
+          <li><a href="#empresa" class="hover:text-white transition">Sobre nosotros</a></li>
+          <li><a href="#proyectos" class="hover:text-white transition">Proyectos</a></li>
+          <li><a href="#blog" class="hover:text-white transition">Blog</a></li>
+          <li><a href="#" class="hover:text-white transition">Trabaja con nosotros</a></li>
+          <li><a href="#contacto" class="hover:text-white transition">Contacto</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="text-xs uppercase tracking-widest text-white/50 mb-4">Legal</div>
+        <ul class="space-y-2.5 text-sm">
+          <li><a href="#" class="hover:text-white transition">Aviso legal</a></li>
+          <li><a href="#" class="hover:text-white transition">Privacidad</a></li>
+          <li><a href="#" class="hover:text-white transition">Cookies</a></li>
+          <li><a href="#" class="hover:text-white transition">Condiciones</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hairline-light"></div>
+
+    <div class="pt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs text-white/50">
+      <div>© 2026 JS Electric S.L. · CIF B12345678 · Todos los derechos reservados.</div>
+      <div class="flex items-center gap-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-400 spark-dot"></span>
+        <span>Aceptando proyectos · Próxima cita en 3 días</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- Toast -->
+<div id="toast" class="toast fixed bottom-6 left-1/2 -translate-x-1/2 bg-ink-900 text-white px-5 py-3 rounded-full shadow-lift z-50 text-sm flex items-center gap-2">
+  <svg class="w-4 h-4 text-spark-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+  <span id="toast-msg">¡Solicitud enviada! Te llamaremos pronto.</span>
+</div>
+
+<!-- ====================== JS ====================== -->
+<script>
+/* Reveal on scroll */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* Counters */
+const counterIO = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    const el = e.target;
+    const target = +el.dataset.target;
+    const dur = 1600;
+    const t0 = performance.now();
+    const step = (t) => {
+      const p = Math.min((t - t0) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(eased * target).toLocaleString('es-ES');
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    counterIO.unobserve(el);
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.counter').forEach(el => counterIO.observe(el));
+
+/* Mobile nav */
+const mobToggle = document.getElementById('mobile-toggle');
+const mobNav = document.getElementById('mobile-nav');
+const iconOpen = document.getElementById('icon-open');
+const iconClose = document.getElementById('icon-close');
+
+function setMenu(open) {
+  if (!mobNav || !mobToggle) return;
+  mobNav.classList.toggle('open', open);
+  mobToggle.setAttribute('aria-expanded', String(open));
+  mobToggle.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+  iconOpen?.classList.toggle('hidden', open);
+  iconClose?.classList.toggle('hidden', !open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+
+mobToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setMenu(!mobNav.classList.contains('open'));
+});
+
+// Cerrar al hacer clic en cualquier enlace del menú
+mobNav?.querySelectorAll('a').forEach(a => {
+  a.addEventListener('click', () => setMenu(false));
+});
+
+// Cerrar al hacer clic fuera
+document.addEventListener('click', (e) => {
+  if (!mobNav?.classList.contains('open')) return;
+  if (mobNav.contains(e.target) || mobToggle.contains(e.target)) return;
+  setMenu(false);
+});
+
+// Cerrar con tecla Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && mobNav?.classList.contains('open')) setMenu(false);
+});
+
+// Cerrar si la ventana se agranda más allá del breakpoint lg (1024px)
+window.addEventListener('resize', () => {
+  if (window.innerWidth >= 1024 && mobNav?.classList.contains('open')) setMenu(false);
+});
+
+/* Header on scroll */
+const header = document.getElementById('site-header');
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 8) header.classList.add('shadow-soft'); else header.classList.remove('shadow-soft');
+});
+
+/* Calculadora solar */
+const bill = document.getElementById('bill');
+const area = document.getElementById('area');
+const billVal = document.getElementById('bill-val');
+const areaVal = document.getElementById('area-val');
+const rPower = document.getElementById('r-power');
+const rSaving = document.getElementById('r-saving');
+const rRoi = document.getElementById('r-roi');
+const rCo2 = document.getElementById('r-co2');
+const rCost = document.getElementById('r-cost');
+
+let typeMul = 1;     // residencial / empresa
+let orientMul = 1;   // sur por defecto
+
+function updateSlider(el) {
+  const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
+  el.style.setProperty('--val', pct + '%');
+}
+function fmt(n, d=0){ return Number(n).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+
+function calc() {
+  const b = +bill.value;
+  const a = +area.value;
+  // Potencia: 1 kWp por ~5 m²; máximo por consumo razonable (b/15 kWp aprox)
+  const maxByArea = a / 5;
+  const maxByBill = (b / 25) * (typeMul === 1 ? 1 : 1.4);
+  const power = Math.max(1, Math.min(maxByArea, maxByBill));
+  // Generación anual ~ 1650h equivalentes * orient
+  const yearGen = power * 1650 * orientMul;
+  // Precio kWh medio 0,18€
+  const yearSaving = yearGen * 0.18 * (typeMul === 1 ? 0.75 : 0.85); // % autoconsumido
+  const cost = power * 1200;
+  const roi = cost / yearSaving;
+  const co2 = yearGen * 0.00027; // toneladas
+
+  billVal.textContent = b + '€';
+  areaVal.textContent = a + ' m²';
+  rPower.textContent = fmt(power, 1).replace('.', ',');
+  rSaving.textContent = fmt(yearSaving, 0);
+  rRoi.textContent = fmt(roi, 1).replace('.', ',');
+  rCo2.textContent = fmt(co2, 1).replace('.', ',');
+  rCost.textContent = fmt(cost, 0) + '€';
+}
+
+[bill, area].forEach(el => {
+  updateSlider(el);
+  el.addEventListener('input', () => { updateSlider(el); calc(); });
+});
+
+document.querySelectorAll('.calc-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.calc-type-btn').forEach(b => {
+      b.classList.remove('active','border-ink-900','bg-ink-900','text-white');
+      b.classList.add('border-ink-900/10','bg-white','text-ink-700');
+    });
+    btn.classList.add('active','border-ink-900','bg-ink-900','text-white');
+    btn.classList.remove('border-ink-900/10','bg-white','text-ink-700');
+    typeMul = btn.dataset.val === 'residencial' ? 1 : 1.6;
+    calc();
+  });
+});
+document.querySelectorAll('.calc-orient-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.calc-orient-btn').forEach(b => {
+      b.classList.remove('active','border-ink-900','bg-ink-900','text-white','border-2');
+      b.classList.add('border','border-ink-900/10','bg-white','text-ink-700');
+    });
+    btn.classList.add('active','border-ink-900','bg-ink-900','text-white','border-2');
+    btn.classList.remove('border','border-ink-900/10','bg-white','text-ink-700');
+    orientMul = +btn.dataset.val;
+    calc();
+  });
+});
+
+calc();
+
+/* Service pills */
+const pills = document.querySelectorAll('.service-pill');
+const servicioInput = document.getElementById('servicio-input');
+pills.forEach(p => p.addEventListener('click', () => {
+  pills.forEach(x => {
+    x.classList.remove('bg-ink-900','text-white','border-ink-900');
+    x.classList.add('border-ink-900/10','bg-bone/50');
+  });
+  p.classList.add('bg-ink-900','text-white','border-ink-900');
+  p.classList.remove('border-ink-900/10','bg-bone/50');
+  servicioInput.value = p.dataset.val;
+}));
+
+/* Formulario */
+const form = document.getElementById('contact-form');
+const toast = document.getElementById('toast');
+const toastMsg = document.getElementById('toast-msg');
+
+function showToast(msg, ok=true) {
+  toastMsg.textContent = msg;
+  toast.classList.toggle('bg-red-700', !ok);
+  toast.classList.toggle('bg-ink-900', ok);
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  // Validación mínima
+  const data = new FormData(form);
+  if (!data.get('nombre') || !data.get('email') || !data.get('telefono')) {
+    showToast('Por favor completa los campos obligatorios.', false);
+    return;
+  }
+  if (!data.get('servicio')) {
+    showToast('Selecciona un servicio de interés.', false);
+    return;
+  }
+  // Simular envío
+  showToast('¡Solicitud enviada! Te llamaremos en menos de 24h.');
+  form.reset();
+  pills.forEach(x => {
+    x.classList.remove('bg-ink-900','text-white','border-ink-900');
+    x.classList.add('border-ink-900/10','bg-bone/50');
+  });
+  servicioInput.value = '';
+});
+</script>
+</body>
+</html>

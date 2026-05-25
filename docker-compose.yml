@@ -534,6 +534,26 @@ services:
       - ./apps/aulavera/aulavera-portal/vite.config.js:/app/apps/aulavera/aulavera-portal/vite.config.js:ro
       - ./apps/aulavera/aulavera-portal/index.html:/app/apps/aulavera/aulavera-portal/index.html:ro
 
+  # ── JS Electric (frontend 5180) ───────────────────────────────
+  js-electric-portal:
+    build:
+      context: .
+      dockerfile: apps/js-electric/js-electric-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    networks: [edge]
+    ports:
+      - '5180:5180'
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://js-electric.hulkstein.local:8080
+    volumes:
+      - ./apps/js-electric/js-electric-portal/src:/app/apps/js-electric/js-electric-portal/src:ro
+      - ./apps/js-electric/js-electric-portal/vite.config.js:/app/apps/js-electric/js-electric-portal/vite.config.js:ro
+      - ./apps/js-electric/js-electric-portal/index.html:/app/apps/js-electric/js-electric-portal/index.html:ro
+      - ./apps/js-electric/js-electric-portal/tailwind.config.js:/app/apps/js-electric/js-electric-portal/tailwind.config.js:ro
+      - ./apps/js-electric/js-electric-portal/postcss.config.js:/app/apps/js-electric/js-electric-portal/postcss.config.js:ro
+
   # ── Gateway ────────────────────────────────────────────────────
   # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
   # server blocks from a Redis hash and reloads nginx within ~2s of any
@@ -576,6 +596,7 @@ services:
       tenant-console-portal:   { condition: service_started }
       aulavera-portal:         { condition: service_started }
       aulavera-server:         { condition: service_started }
+      js-electric-portal:      { condition: service_started }
 
 volumes:
   postgres_data:

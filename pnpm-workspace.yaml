@@ -5,6 +5,7 @@ packages:
   - 'apps/console/*'           # console-portal (Hulkstein staff console)
   - 'apps/tenant-console/*'    # tenant-console-portal
   - 'apps/aulavera/*'          # aulavera-portal
+  - 'apps/js-electric/*'       # js-electric-portal
   - 'apps/__app-template__/*'   # template (never deployed)
   - 'platform/*'                # shared platform services
   - 'packages/*'                # eslint-config, sdk-js, platform-sdk, tsconfig
