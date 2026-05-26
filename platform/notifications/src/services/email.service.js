@@ -46,7 +46,10 @@ async function send(msg) {
   const skip = !cfg.resendApiKey || env.NODE_ENV === 'test'
 
   if (skip) {
-    logger.info({ to: msg.to, subject: msg.subject, replyTo: msg.replyTo }, '[dev] Email not sent — logged only')
+    logger.info(
+      { to: msg.to, subject: msg.subject, replyTo: msg.replyTo, text: msg.text },
+      '[dev] Email not sent — logged only',
+    )
     return
   }
   // Resend expects `from` as "Name <email@domain>" or just "email@domain".

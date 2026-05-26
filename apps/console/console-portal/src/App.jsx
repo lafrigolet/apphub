@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import ToastContainer from './components/Toast'
 import ModalContainer from './components/Modal'
 import LoginView from './views/auth/LoginView'
+import MagicLoginView from './views/auth/MagicLoginView'
 
 import StaffDashboard  from './views/staff/Dashboard'
 import StaffApps       from './views/staff/Apps'
@@ -109,7 +110,12 @@ function TenantHandoff({ tenant, onLogout }) {
 
 function Shell() {
   const { identity, onLogin, role, myTenant, logout } = useApp()
-  if (!identity) return <LoginView onSuccess={onLogin} />
+  // Magic-link callback: when the user opens the email link the URL lands on
+  // /magic-login?token=… — MagicLoginView redeems the token and then calls
+  // onLogin to flip AppContext. We route on pathname rather than pulling in
+  // react-router; one extra route doesn't justify the dep.
+  if (window.location.pathname === '/magic-login') return <MagicLoginView onSuccess={onLogin} />
+  if (!identity) return <LoginView />
   if (role !== 'staff') return <TenantHandoff tenant={myTenant} onLogout={logout} />
   return (
     <div className="min-h-screen flex flex-col">
