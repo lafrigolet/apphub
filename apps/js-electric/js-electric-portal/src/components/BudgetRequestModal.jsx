@@ -47,7 +47,7 @@ export default function BudgetRequestModal({ open, onClose, simulation, showToas
     setSubmitting(true)
     try {
       const tenantId = await resolveTenantId(APP_ID)
-      await api('POST', '/api/inquiries/v1/inquiries', {
+      await api('POST', '/api/inquiries/', {
         appId:       APP_ID,
         tenantId,
         contactName: nombre,
