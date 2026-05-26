@@ -47,6 +47,16 @@ const USERS = [
   },
 ]
 
+// Settings obligatorios del módulo platform/inquiries — sin estos, el POST
+// público devuelve 422 "contact inbox not configured for this tenant".
+// El admin puede sobreescribir luego vía PUT /v1/inquiries/admin/settings.
+const INQUIRIES_SETTINGS = {
+  contactInboxEmail: 'hola@jselectric.es',  // a dónde llegan los avisos de cada lead
+  replyToEmail:      null,                  // null = usa el del usuario que rellenó el form
+  userThanksSubject: null,                  // null = template por defecto del módulo
+  userThanksBody:    null,
+}
+
 // Módulos habilitados para este tenant. Mínimo viable para que el admin
 // pueda autenticarse y leer la bandeja de inquiries.
 const ENABLED_MODULES = ['tenants', 'auth', 'audit', 'notifications', 'inquiries']
@@ -102,6 +112,28 @@ async function main() {
       )
     }
 
+    // 4. Inquiries settings — idempotente. Sin esto el form de contacto
+    //    devuelve 422 al primer POST.
+    await client.query(
+      `INSERT INTO platform_inquiries.settings
+         (app_id, tenant_id, contact_inbox_email, reply_to_email,
+          user_thanks_subject, user_thanks_body)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (app_id, tenant_id) DO UPDATE SET
+         contact_inbox_email = EXCLUDED.contact_inbox_email,
+         reply_to_email      = EXCLUDED.reply_to_email,
+         user_thanks_subject = EXCLUDED.user_thanks_subject,
+         user_thanks_body    = EXCLUDED.user_thanks_body,
+         updated_at          = now()`,
+      [
+        APP_ID, TENANT_ID,
+        INQUIRIES_SETTINGS.contactInboxEmail,
+        INQUIRIES_SETTINGS.replyToEmail,
+        INQUIRIES_SETTINGS.userThanksSubject,
+        INQUIRIES_SETTINGS.userThanksBody,
+      ],
+    )
+
     await client.query('COMMIT')
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
@@ -114,8 +146,9 @@ async function main() {
   console.log(`  App:        ${APP_ID}      (subdomain: ${APP_SUBDOMAIN}.hulkstein.local)`)
   console.log(`  Tenant:     ${TENANT_NAME} (subdomain: ${TENANT_SUB}.hulkstein.local)`)
   console.log(`  Modules:    ${ENABLED_MODULES.length} habilitados`)
+  console.log(`  Inbox:      ${INQUIRIES_SETTINGS.contactInboxEmail} (settings de platform/inquiries)`)
   console.log('')
-  console.log('  Login (password "password123"):')
+  console.log('  Login (magic-link, sin password):')
   console.log(`    admin@jselectric.es → owner → /admin/inquiries\n`)
 }
 
