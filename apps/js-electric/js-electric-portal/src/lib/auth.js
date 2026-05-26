@@ -1,7 +1,14 @@
-// Auth lib del portal js-electric — versión mínima para login admin.
-// Sin OAuth / Magic-link / Reset / signup: la landing es marketing, no hay
-// user-signup; el único user con cuenta es el admin (seeded).
-// Patrón fuente: apps/aikikan/aikikan-portal/src/lib/auth.js (recortado).
+// Auth passwordless del portal js-electric — magic-link only.
+// El admin pide un enlace por email (POST /v1/auth/request-magic-link),
+// hace click en el email y aterriza en /magic-login?token=... donde se
+// canjea el token por sesión (POST /v1/auth/login-with-magic-link).
+// El email lo manda platform/notifications consumiendo el evento
+// `auth.magic_link_requested` y construye la URL como
+// http(s)://<subdomain>.<domain>/magic-login?token=… (ver
+// platform/notifications/src/services/event-consumer.js:115).
+//
+// Sin OAuth / sin password / sin signup público — la landing es marketing
+// y el único user con cuenta es el admin seeded.
 import { APP_ID, resolveTenantId } from './tenant.js'
 
 const BASE = '/api/auth'
@@ -78,9 +85,19 @@ export function isAdminRole(role) {
   return ADMIN_ROLES.has(role)
 }
 
-export async function login({ email, password }) {
+// Paso 1 — el visitante introduce email. El backend resuelve el user por
+// (appId, tenantId, email) y emite `auth.magic_link_requested` para que
+// notifications envíe el email. La respuesta es silenciosa ante emails
+// desconocidos (no exposición de inventario de usuarios).
+export async function requestMagicLink(email) {
   const tenantId = await resolveTenantId(APP_ID)
-  const data = await post('/login', { appId: APP_ID, tenantId, email, password })
+  return post('/request-magic-link', { appId: APP_ID, tenantId, email })
+}
+
+// Paso 2 — el user pulsa el link del email y aterriza en /magic-login?token=…
+// MagicLogin.jsx llama aquí para canjear el token por sesión.
+export async function loginWithMagicLink(token) {
+  const data = await post('/login-with-magic-link', { token })
   saveSession(data)
   return data
 }
