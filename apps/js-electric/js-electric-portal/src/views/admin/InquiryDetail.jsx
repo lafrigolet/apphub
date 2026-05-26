@@ -17,7 +17,7 @@ export default function InquiryDetail() {
 
   useEffect(() => {
     setLoading(true)
-    api('GET', `/api/inquiries/v1/inquiries/${id}`)
+    api('GET', `/api/inquiries/admin/${id}`)
       .then((j) => {
         const r = j.data ?? j
         setInquiry(r)
@@ -32,7 +32,7 @@ export default function InquiryDetail() {
     setSaving(true)
     setError('')
     try {
-      await api('PATCH', `/api/inquiries/v1/inquiries/${id}`, {
+      await api('PATCH', `/api/inquiries/admin/${id}`, {
         status,
         staffNotes: notes,
       })

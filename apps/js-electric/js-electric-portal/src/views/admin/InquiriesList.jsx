@@ -49,7 +49,7 @@ export default function InquiriesList() {
     if (statusFilter) params.set('status', statusFilter)
     params.set('limit', PAGE_SIZE)
     params.set('offset', offset)
-    api('GET', `/api/inquiries/v1/inquiries?${params}`)
+    api('GET', `/api/inquiries/admin?${params}`)
       .then((j) => setRows(j.data ?? []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
