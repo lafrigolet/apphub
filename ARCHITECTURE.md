@@ -50,6 +50,7 @@ services. Each app gets its own subdomain and its own app-specific microservices
 | `hulkstein.com` | `hulkstein.local` | AppHub admin portal |
 | `splitpay.hulkstein.com` | `splitpay.hulkstein.local` | Split Pay |
 | `aikikan.hulkstein.com` | `aikikan.hulkstein.local` | Aikikan (Aikido association) |
+| `js-electric.hulkstein.com` | `js-electric.hulkstein.local` | JS Electric (marketing landing + lead inbox) |
 
 ### Route namespace convention
 
@@ -166,8 +167,18 @@ PostgreSQL instance
 │
 │ ── App-specific schemas ──
 ├── app_aikikan                    (apps/aikikan/aikikan-server)  role: svc_app_aikikan
-└── … (one per app)
+└── … (one per app — apps without app-specific domain like js-electric have no schema)
 ```
+
+**Apps without an app-specific schema.** Not every app needs a backend.
+Marketing-site apps (current example: `js-electric`) live as portal-only
+deployments that REUSE platform modules — typically `platform/inquiries`
+for the contact form and `platform/auth` for an embedded admin inbox. No
+`app_<name>` schema, no `<name>-server` container. Admin views live inside
+the app's own portal (see memory `feedback_app_admin_in_own_portal.md`),
+not in `packages/tenant-console-ui/`. When/if the app later grows
+app-specific data (CMS for projects, blog posts, etc.), that's the trigger
+to introduce `app_<name>` per ADR 013.
 
 Cross-schema queries are never allowed. Roles and grants are defined in
 `infra/postgres/init/01_platform_schemas.sql`.
@@ -215,6 +226,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
 | `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |
 | `console-portal` | Voragine staff console (Vite dev) | 5177 |
+| `js-electric-portal` | JS Electric landing + admin inbox (Vite dev) | 5180 |
 | `postgres` | PostgreSQL 16 | 5432 |
 | `redis` | Redis 7 | 6379 |
 | `minio` | S3-compatible object store (MinIO) | 9000 (API), 9001 (console) |
