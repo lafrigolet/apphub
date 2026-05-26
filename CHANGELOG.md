@@ -6,6 +6,50 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **`apps/js-electric` CRM-lite iteración 1** — discriminación de leads
+  por canal (contacto vs presupuesto) + captura de simulación solar como
+  metadata. Cero microservicios nuevos: todo REUSE de
+  `platform/inquiries` (incluyendo el endpoint público, los admin GET/
+  PATCH y la columna JSONB `metadata`).
+  - **Modal de presupuesto**: nuevo `BudgetRequestModal.jsx` abierto
+    desde el botón "Pedir presupuesto exacto" de la calculadora solar.
+    Pide nombre/email/teléfono + GDPR y submitea con `source='landing-budget'`
+    + `metadata.simulation` ({potencia, ahorroAnual, roi, co2, coste,
+    facturaMensual, area, tipo, orientación}). Convierte la calculadora
+    en un canal de lead cualificado con contexto que antes se perdía.
+  - **Form de Contacto** marca ahora `source='landing-contact'` para
+    distinguir el canal en la bandeja.
+  - **Admin**: nav y H1 renombrados de "Inquiries" a "Leads"; nueva
+    columna **Tipo** (badges Contacto / Presupuesto derivados de
+    `source`); filtro de tipo cliente-side (el endpoint admin no
+    soporta `?source=…` todavía — iteración 5 lo extenderá si hace
+    falta); panel destacado "Simulación solar" en el detalle cuando
+    `metadata.kind === 'budget'`, con KPIs y inputs originales.
+  - **No tocado**: enum `status` del módulo `platform/inquiries`
+    (compatibilidad con otros consumidores), schema de inquiries (sin
+    migraciones), módulo platform en general (cero cambios).
+
+- **`apps/js-electric` Implementa lean — admin inbox + tenant seed**.
+  Sigue el patrón de marketing-site con admin embebido (vs. shared
+  tenant-console): toda la funcionalidad admin vive en el propio portal.
+  - **Seed**: `apps/js-electric/js-electric-portal/scripts/seed.js`
+    registra app `js-electric`, tenant `js-electric` (uuid `5000…0001`,
+    subdomain `js-electric`) y admin `admin@jselectric.es` (rol `owner`,
+    pass `password123`). Sin app schema — la app es marketing puro, no
+    tiene dominio de datos propio.
+  - **Backend**: cero módulos nuevos. Solo REUSE de `platform/inquiries`
+    (form público + admin CRUD) y `platform/auth` (login). El portal del
+    landing ya wireado a `POST /api/inquiries/v1/inquiries` durante
+    Importa funciona end-to-end con el seed.
+  - **Frontend**: `react-router-dom` añadido; nuevas rutas
+    `/admin/login`, `/admin/inquiries`, `/admin/inquiries/:id` con
+    `RequireAdmin` guard. Vistas: lista con filtro por status +
+    paginación, detalle con `status`/`staffNotes` editables (PATCH).
+  - **Out of scope**: CMS para `projects`/`testimonials`/`blogPosts`
+    (siguen estáticos en `mock.js`). Se evaluará cuando marketing pida
+    poder editarlos sin PR.
+
 ### Changed
 - **ESP swap: Resend en lugar de SendGrid** — `platform/notifications` ahora
   usa la SDK de Resend para envío de email y para la API de Domain
