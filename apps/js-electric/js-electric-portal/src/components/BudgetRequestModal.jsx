@@ -19,18 +19,27 @@ export default function BudgetRequestModal({ open, onClose, simulation, showToas
   const [gdpr, setGdpr]           = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Reset al abrir — un usuario que cierra y vuelve a abrir no debería
-  // ver datos viejos. Y cerrar con Escape.
+  // Reset solo al abrir (transición closed→open). NO incluir onClose en deps:
+  // el padre la pasa como función inline `() => setShowBudget(false)`, lo que
+  // cambia su referencia cada vez que el padre re-renderiza (p.ej. cuando
+  // showToast actualiza el estado del toast en Landing). Si dependiéramos de
+  // onClose, el efecto se re-ejecutaría a mitad del flujo del usuario y
+  // borraría los campos cuando llamáramos a showToast en un fallo de validación.
   useEffect(() => {
-    if (open) {
-      setNombre(''); setEmail(''); setTelefono(''); setMensaje(''); setGdpr(false)
-      const onKey = (e) => { if (e.key === 'Escape') onClose() }
-      document.addEventListener('keydown', onKey)
-      document.body.style.overflow = 'hidden'
-      return () => {
-        document.removeEventListener('keydown', onKey)
-        document.body.style.overflow = ''
-      }
+    if (!open) return
+    setNombre(''); setEmail(''); setTelefono(''); setMensaje(''); setGdpr(false)
+  }, [open])
+
+  // Keyboard + body-scroll lock — sí dependen de onClose pero solo
+  // adjuntan/limpian listeners; no tocan el estado del form.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
     }
   }, [open, onClose])
 
