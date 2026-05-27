@@ -17,6 +17,14 @@ export default function Contacto({ showToast }) {
     if (!servicio) {
       showToast('Selecciona un servicio de interés.', false); return
     }
+    // El form usa noValidate (para mostrar nuestros propios toasts en vez de
+    // los tooltips nativos del browser), así que el `required` del checkbox
+    // GDPR no se aplica — hay que validar en JS. Sin esto el form se enviaba
+    // aunque no se marcase aceptación, y aún peor: e.target.reset() del success
+    // path borraba los campos sin que el usuario supiera que faltaba el check.
+    if (!data.get('gdpr')) {
+      showToast('Necesitas aceptar la política de privacidad.', false); return
+    }
 
     setSubmitting(true)
     try {
@@ -111,7 +119,7 @@ export default function Contacto({ showToast }) {
               </div>
 
               <label className="flex items-start gap-2.5 mb-6 cursor-pointer">
-                <input type="checkbox" required className="mt-0.5 w-4 h-4 accent-ink-900 cursor-pointer" />
+                <input name="gdpr" type="checkbox" className="mt-0.5 w-4 h-4 accent-ink-900 cursor-pointer" />
                 <span className="text-xs text-ink-700 leading-relaxed">Acepto la <a href="#" className="underline">política de privacidad</a> y el tratamiento de mis datos para responder a esta solicitud.</span>
               </label>
 
