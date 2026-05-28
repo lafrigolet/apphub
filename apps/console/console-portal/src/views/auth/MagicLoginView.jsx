@@ -1,36 +1,45 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loginWithMagicLink } from '../../lib/auth'
 
 // Callback view for /magic-login?token=… — the user lands here from the
 // email link. We redeem the token for an access JWT once, scrub the URL of
 // the token (so reloads don't re-fire), and hand off to onSuccess() which
 // flips AppContext into the authenticated shell.
+//
+// StrictMode guard: in dev React mounts every effect twice intentionally.
+// Without `redeemed` the two mounts fire two parallel redemption requests;
+// the first consumes the one-shot token, the second sees it as already-used
+// and surfaces a misleading "ya utilizado" error. The ref persists across
+// the double-mount (same component instance) so only the first call hits
+// the network.
 
 export default function MagicLoginView({ onSuccess }) {
   const [error, setError] = useState(null)
+  const redeemed = useRef(false)
+  const onSuccessRef = useRef(onSuccess)
+  onSuccessRef.current = onSuccess
 
   useEffect(() => {
+    if (redeemed.current) return
+    redeemed.current = true
+
     const params = new URLSearchParams(window.location.search)
     const token  = params.get('token')
     if (!token) {
       setError('Falta el token en la URL')
       return
     }
-    let cancelled = false
     loginWithMagicLink({ token })
       .then(() => {
-        if (cancelled) return
         // Clean URL: strip the token from history so a refresh doesn't replay
         // the redemption (which would 401 — magic links are one-shot).
         window.history.replaceState({}, '', '/')
-        onSuccess()
+        onSuccessRef.current()
       })
       .catch((err) => {
-        if (cancelled) return
         setError(err.message ?? 'Enlace inválido o caducado')
       })
-    return () => { cancelled = true }
-  }, [onSuccess])
+  }, [])
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-white p-6">
