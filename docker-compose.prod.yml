@@ -82,6 +82,14 @@ services:
     ports: !reset []
     volumes: !reset []
 
+  # ── JS Electric portal (prod) ──────────────────────────────────
+  js-electric-portal:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-js-electric-portal:${IMAGE_TAG:-latest}
+    build:
+      target: production
+    ports: !reset []
+    volumes: !reset []
+
   # ── Infra: NO publicar puertos al host en prod ────────────────
   # En dev el compose base publica 5432/6379/9000/9001 al host para
   # comodidad del desarrollador (psql, redis-cli, consola MinIO en
@@ -194,3 +202,4 @@ services:
       tenant-console-portal:   { condition: service_started }
       aulavera-portal:         { condition: service_started }
       aulavera-server:         { condition: service_started }
+      js-electric-portal:      { condition: service_started }

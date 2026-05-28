@@ -23,6 +23,23 @@ export async function login({ email, password }) {
   return getIdentity()
 }
 
+// Magic-link request: silent endpoint that triggers an email if the account
+// exists. Always returns 204; the portal must never reveal whether an email
+// matched a real user (anti-enumeration).
+export async function requestMagicLink({ email }) {
+  await api.post('/api/auth/request-magic-link', { email })
+}
+
+// Magic-link redemption: trades the one-time token (from ?token= in the
+// callback URL) for an access token, same shape as password login.
+export async function loginWithMagicLink({ token }) {
+  const res = await api.post('/api/auth/login-with-magic-link', { token })
+  const accessToken = res?.data?.accessToken ?? res?.accessToken
+  if (!accessToken) throw new Error('Respuesta de login sin token')
+  localStorage.setItem(TOKEN_KEY, accessToken)
+  return getIdentity()
+}
+
 export function logout() {
   localStorage.removeItem(TOKEN_KEY)
 }

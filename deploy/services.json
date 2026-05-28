@@ -191,6 +191,17 @@
       "restart_policy": "rolling"
     },
     {
+      "name": "js-electric-portal",
+      "dockerfile": "apps/js-electric/js-electric-portal/Dockerfile",
+      "paths": [
+        "apps/js-electric/js-electric-portal/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
       "name": "nginx",
       "dockerfile": "infra/nginx/Dockerfile",
       "paths": [
