@@ -99,12 +99,6 @@ export const projects = [
   },
 ]
 
-export const calculadoraInfo = [
-  'Cálculo basado en irradiación media peninsular (1.650h equivalentes/año)',
-  'Precio orientativo de instalación: 1.200€/kWp llave en mano',
-  'Resultado estimativo. Para presupuesto exacto, contacta con nosotros',
-]
-
 export const testimonials = [
   {
     avatar:    'MR',

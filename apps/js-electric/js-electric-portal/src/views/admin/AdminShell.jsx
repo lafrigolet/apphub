@@ -22,7 +22,8 @@ export default function AdminShell() {
               <span className="font-display font-semibold tracking-tight">JS Electric<span className="text-electric-500">.</span><span className="text-ink-700/60 font-normal ml-2">admin</span></span>
             </Link>
             <nav className="hidden sm:flex items-center gap-5 text-sm">
-              <Link to="/admin/inquiries" className="text-ink-800 hover:text-electric-700 transition">Leads</Link>
+              <Link to="/admin/inquiries"   className="text-ink-800 hover:text-electric-700 transition">Leads</Link>
+              <Link to="/admin/calculadora" className="text-ink-800 hover:text-electric-700 transition">Calculadora</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

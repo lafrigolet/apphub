@@ -53,3 +53,26 @@ export async function updateEnabledModules(client, appId, modules) {
   )
   return rows[0] ?? null
 }
+
+// Devuelve el subtree metadata[key] o null si no existe. El caller decide
+// el merge con defaults — el repo no sabe nada de shape.
+export async function getMetadataKey(client, appId, key) {
+  const { rows } = await client.query(
+    `SELECT metadata -> $2 AS value FROM platform_tenants.apps WHERE app_id = $1`,
+    [appId, key],
+  )
+  if (rows.length === 0) return undefined          // app no existe
+  return rows[0].value ?? null                     // null = clave no seteada todavía
+}
+
+// Setea metadata[key] = value con jsonb_set. Idempotente.
+export async function setMetadataKey(client, appId, key, value) {
+  const { rows } = await client.query(
+    `UPDATE platform_tenants.apps
+       SET metadata = jsonb_set(metadata, ARRAY[$2]::text[], $3::jsonb, true)
+     WHERE app_id = $1
+     RETURNING app_id, metadata -> $2 AS value`,
+    [appId, key, JSON.stringify(value)],
+  )
+  return rows[0] ?? null
+}

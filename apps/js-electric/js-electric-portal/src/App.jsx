@@ -5,6 +5,7 @@ import MagicLogin    from './views/admin/MagicLogin.jsx'
 import AdminShell    from './views/admin/AdminShell.jsx'
 import InquiriesList from './views/admin/InquiriesList.jsx'
 import InquiryDetail from './views/admin/InquiryDetail.jsx'
+import CalculadoraConfig from './views/admin/CalculadoraConfig.jsx'
 import RequireAdmin  from './components/RequireAdmin.jsx'
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
             <Route index element={<Navigate to="inquiries" replace />} />
             <Route path="inquiries"     element={<InquiriesList />} />
             <Route path="inquiries/:id" element={<InquiryDetail />} />
+            <Route path="calculadora"   element={<CalculadoraConfig />} />
           </Route>
         </Route>
       </Routes>

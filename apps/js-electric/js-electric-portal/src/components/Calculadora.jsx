@@ -1,21 +1,42 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Arrow, Check } from './icons.jsx'
 import BudgetRequestModal from './BudgetRequestModal.jsx'
-import { calculadoraInfo } from '../data/mock.js'
 
-// Lógica pura del simulador — mismas constantes que el prototipo HTML.
-// Irradiación 1.650h/año, precio 0,18€/kWh, instalación 1.200€/kWp.
-// Devuelve display (formateado es-ES con coma) y raw (numérico) para que
-// el modal de presupuesto pueda enviar valores limpios a la API.
-function solarCalc({ bill, area, typeMul, orientMul }) {
-  const maxByArea = area / 5
-  const maxByBill = (bill / 25) * (typeMul === 1 ? 1 : 1.4)
+// Defaults — DEBEN coincidir con SOLAR_CALCULATOR_DEFAULTS en
+// platform/tenant-config/src/services/solar-calculator.service.js. Sirven
+// como fallback si la API falla (sigue funcionando offline o sin
+// platform-core arrancado).
+const DEFAULT_CONFIG = {
+  irradianceHours:   1650,
+  pricePerKwh:       0.18,
+  installCostPerKwp: 1200,
+  co2KgPerKwh:       0.27,
+  m2PerKwp:          5,
+  monthlyBillPerKwp: 25,
+  installations: {
+    residential: { label: 'Residencial',          billUplift: 1.0, selfConsumption: 0.75 },
+    business:    { label: 'Empresa / Industrial', billUplift: 1.4, selfConsumption: 0.85 },
+  },
+  orientations: [
+    { label: 'Este',  factor: 0.85 },
+    { label: 'Sur',   factor: 1.00 },
+    { label: 'Oeste', factor: 0.85 },
+    { label: 'Plana', factor: 0.60 },
+  ],
+}
+
+// Lógica pura del simulador. Toma todos los parámetros físico-económicos
+// del config (que viene de apps.metadata.solarCalculator vía la API), y
+// el estado interactivo (bill/area + install/orient seleccionados).
+function solarCalc({ bill, area, install, orient, config }) {
+  const maxByArea = area / config.m2PerKwp
+  const maxByBill = (bill / config.monthlyBillPerKwp) * install.billUplift
   const power     = Math.max(1, Math.min(maxByArea, maxByBill))
-  const yearGen   = power * 1650 * orientMul
-  const yearSaving = yearGen * 0.18 * (typeMul === 1 ? 0.75 : 0.85)
-  const cost = power * 1200
+  const yearGen   = power * config.irradianceHours * orient.factor
+  const yearSaving = yearGen * config.pricePerKwh * install.selfConsumption
+  const cost = power * config.installCostPerKwp
   const roi  = cost / yearSaving
-  const co2  = yearGen * 0.00027
+  const co2  = (yearGen * config.co2KgPerKwh) / 1000      // kg → toneladas
   const fmt  = (n, d = 0) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d })
   return {
     display: {
@@ -31,31 +52,61 @@ function solarCalc({ bill, area, typeMul, orientMul }) {
 
 const sliderStyle = (v, min, max) => ({ '--val': `${((v - min) / (max - min)) * 100}%` })
 
-// Etiquetas legibles para metadata.simulation (en lugar de los multiplicadores numéricos).
-const TYPE_LABEL = { 1: 'residencial', 1.6: 'empresa' }
-const ORIENT_LABEL = { 0.6: 'plana', 0.85: 'este-oeste', 1: 'sur' }
-
 export default function Calculadora({ showToast }) {
-  const [bill, setBill]           = useState(120)
-  const [area, setArea]           = useState(30)
-  const [typeMul, setTypeMul]     = useState(1)   // 1=residencial, 1.6=empresa
-  const [orientMul, setOrientMul] = useState(1)   // 0.6=plana, 0.85=E/O, 1=Sur
-  const [showBudget, setShowBudget] = useState(false)
-  const { display: calc, raw } = solarCalc({ bill, area, typeMul, orientMul })
+  const [config, setConfig] = useState(DEFAULT_CONFIG)
 
-  // Snapshot que viaja al backend en metadata.simulation. Valores raw en
-  // numérico para que el comercial los pueda re-procesar / comparar.
+  // Fetch on mount — si la API responde, sobreescribe defaults. Fallback
+  // silencioso (no toast — el visitante no debería ver errores de
+  // infra). Una calculadora que no carga es preferible a una calculadora
+  // con números aleatorios.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/apps/js-electric/solar-calculator')
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => { if (!cancelled && j) setConfig(j) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const installKeys = Object.keys(config.installations)         // ['residential', 'business']
+  const [bill, setBill]             = useState(120)
+  const [area, setArea]             = useState(30)
+  const [installKey, setInstallKey] = useState(installKeys[0])
+  const [orientIdx, setOrientIdx]   = useState(() => {
+    // Defaultea a la orientación 'sur' (factor 1) si existe; si no, la primera.
+    const idx = DEFAULT_CONFIG.orientations.findIndex((o) => o.factor === 1)
+    return idx >= 0 ? idx : 0
+  })
+  const [showBudget, setShowBudget] = useState(false)
+
+  // Si el config carga después con installKeys distintas o menos orientations,
+  // saneamos los índices para no crashear.
+  const install = config.installations[installKey] ?? config.installations[installKeys[0]]
+  const orient  = config.orientations[orientIdx] ?? config.orientations[0]
+  const { display: calc, raw } = solarCalc({ bill, area, install, orient, config })
+
+  // Snapshot que viaja al backend en metadata.simulation.
   const simulation = {
     facturaMensual: bill,
     area,
-    tipo:        TYPE_LABEL[typeMul] ?? String(typeMul),
-    orientacion: ORIENT_LABEL[orientMul] ?? String(orientMul),
+    tipo:        install.label,
+    orientacion: orient.label,
     potencia:    raw.power,
     ahorroAnual: raw.yearSaving,
     roi:         raw.roi,
     co2:         raw.co2,
     coste:       raw.cost,
   }
+
+  // Bullets informativos derivados del config — antes eran texto estático
+  // en data/mock.js. Si el admin cambia el precio o la irradiación, los
+  // valores aquí también se actualizan, manteniendo coherencia con la
+  // simulación.
+  const infoLines = [
+    `Cálculo basado en ${config.irradianceHours.toLocaleString('es-ES')}h equivalentes/año de irradiación`,
+    `Precio orientativo de instalación: ${config.installCostPerKwp.toLocaleString('es-ES')}€/kWp llave en mano`,
+    'Resultado estimativo. Para presupuesto exacto, contacta con nosotros',
+  ]
 
   return (
     <section id="calculadora" className="relative py-24 sm:py-32">
@@ -71,7 +122,7 @@ export default function Calculadora({ showToast }) {
               amortización y el CO₂ que dejarías de emitir. Sin compromiso.
             </p>
             <div className="space-y-3 text-sm text-ink-700">
-              {calculadoraInfo.map((line) => (
+              {infoLines.map((line) => (
                 <div key={line} className="flex items-start gap-3">
                   <Check className="w-5 h-5 mt-0.5 text-electric-600 flex-shrink-0" />
                   <span>{line}</span>
@@ -86,12 +137,12 @@ export default function Calculadora({ showToast }) {
               <div className="mb-8">
                 <label className="text-xs uppercase tracking-wider text-ink-700 font-medium block mb-3">Tipo de instalación</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {[['residencial', 1, 'Residencial'], ['empresa', 1.6, 'Empresa / Industrial']].map(([val, mul, lbl]) => {
-                    const active = typeMul === mul
+                  {installKeys.map((key) => {
+                    const active = installKey === key
                     return (
-                      <button key={val} type="button" onClick={() => setTypeMul(mul)}
+                      <button key={key} type="button" onClick={() => setInstallKey(key)}
                         className={`px-4 py-3 rounded-xl border-2 font-medium text-sm transition ${active ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-900/10 bg-white text-ink-700 hover:border-ink-900/30'}`}>
-                        {lbl}
+                        {config.installations[key].label}
                       </button>
                     )
                   })}
@@ -124,13 +175,13 @@ export default function Calculadora({ showToast }) {
 
               <div className="mb-8">
                 <label className="text-xs uppercase tracking-wider text-ink-700 font-medium block mb-3">Orientación</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[['Este', 0.85], ['Sur', 1], ['Oeste', 0.85], ['Plana', 0.6]].map(([lbl, val]) => {
-                    const isActive = orientMul === val
+                <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${config.orientations.length}, minmax(0, 1fr))` }}>
+                  {config.orientations.map((o, idx) => {
+                    const isActive = orientIdx === idx
                     return (
-                      <button key={lbl} type="button" onClick={() => setOrientMul(val)}
+                      <button key={`${o.label}-${idx}`} type="button" onClick={() => setOrientIdx(idx)}
                         className={`px-3 py-2.5 rounded-lg font-medium text-xs transition ${isActive ? 'border-2 border-ink-900 bg-ink-900 text-white' : 'border border-ink-900/10 bg-white text-ink-700 hover:border-ink-900/30'}`}>
-                        {lbl}
+                        {o.label}
                       </button>
                     )
                   })}
