@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { loginWithMagicLink, isAdminRole, clearSession } from '../../lib/auth.js'
 
@@ -10,6 +10,14 @@ import { loginWithMagicLink, isAdminRole, clearSession } from '../../lib/auth.js
 // Si el usuario no tiene rol admin (caso improbable porque el único user
 // seeded es owner) limpiamos la sesión y mostramos un mensaje — evita
 // que se cuele un user "user" al área admin solo por tener token válido.
+//
+// StrictMode guard: en dev React monta los efectos dos veces. Sin
+// `redeemed` los dos mounts disparan dos POST paralelos al backend; el
+// primero consume el token de un solo uso y el segundo recibe
+// TOKEN_USED ("Este enlace ya ha sido utilizado") que el componente
+// mostraba como error — y junto al subtítulo "los enlaces caducan a los
+// 15 minutos" se interpretaba como expiración. El ref persiste entre
+// los dos mounts (misma instancia) y solo el primero hace la petición.
 export default function MagicLogin() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
@@ -17,13 +25,15 @@ export default function MagicLogin() {
 
   const [error, setError]               = useState(null)
   const [missingToken, setMissingToken] = useState(false)
+  const redeemed = useRef(false)
 
   useEffect(() => {
     if (!token) { setMissingToken(true); return }
-    let cancelled = false
+    if (redeemed.current) return
+    redeemed.current = true
+
     loginWithMagicLink(token)
       .then((data) => {
-        if (cancelled) return
         if (!isAdminRole(data.role)) {
           clearSession()
           setError('Esta cuenta no tiene permisos de administración.')
@@ -32,9 +42,8 @@ export default function MagicLogin() {
         navigate('/admin/inquiries', { replace: true })
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message ?? 'No se pudo iniciar sesión con el enlace.')
+        setError(err.message ?? 'No se pudo iniciar sesión con el enlace.')
       })
-    return () => { cancelled = true }
   }, [token, navigate])
 
   return (
