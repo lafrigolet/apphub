@@ -6,9 +6,15 @@ const TOKEN_KEY = 'apphub.token'
 // use them. NB: the literal 'console' is the historic app_id baked
 // into staff JWTs. Renaming it would invalidate every live session, so the
 // rebrand stayed at the URL + UI level only.
+//
+// PLATFORM_TENANT is the synthetic UUID stamped into staff JWTs by
+// scripts/bootstrap.sh (PLATFORM_TENANT_ID env). No tenant row exists with
+// this id — staff never queries platform_tenants.tenants. Both files MUST
+// agree on the value or the magic-link / password lookups silent-skip when
+// the email is registered in more than one (app_id, tenant_id).
 const APP_ID          = 'console'
 const PLATFORM_APP    = 'platform'
-const PLATFORM_TENANT = '00000000-0000-0000-0000-0000000000f0'
+const PLATFORM_TENANT = '00000000-0000-0000-0000-000000000001'
 
 /**
  * Log in with email + password. The platform-auth service looks up the user's
@@ -26,8 +32,19 @@ export async function login({ email, password }) {
 // Magic-link request: silent endpoint that triggers an email if the account
 // exists. Always returns 204; the portal must never reveal whether an email
 // matched a real user (anti-enumeration).
+//
+// Pasamos appId/tenantId explícitos para evitar el silent-skip cuando el
+// mismo email existe en varias filas (p. ej. el operador es super_admin
+// en `console` y también admin en un app específico). Si solo mandamos
+// {email}, el backend `resolveUserTenant` exige exactly-one y devuelve
+// null sin emitir el evento — ningún error visible, pero el correo nunca
+// sale. Aquí scope = console staff.
 export async function requestMagicLink({ email }) {
-  await api.post('/api/auth/request-magic-link', { email })
+  await api.post('/api/auth/request-magic-link', {
+    appId:    APP_ID,
+    tenantId: PLATFORM_TENANT,
+    email,
+  })
 }
 
 // Magic-link redemption: trades the one-time token (from ?token= in the
