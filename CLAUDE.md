@@ -319,8 +319,14 @@ El flujo canónico para construir un app nuevo desde un prototipo HTML
 hasta un portal con admin configurable es:
 
 ```
-/opendragon-bootstrap-app → /opendragon-html-to-jsx → /opendragon-importa → /opendragon-implementa → /opendragon-add-admin-config
-  (scaffolding)   (HTML → JSX)  (JSX → split)  (backend)   (config dinámica)
+/opendragon-bootstrap-app → /opendragon-html-to-jsx → /opendragon-importa → /opendragon-implementa
+  (scaffolding)             (HTML → JSX)              (JSX → split)         (backend)
+                                                                                │
+                                       ┌────────────────────────────────────────┤
+                                       │                                        │
+                                       ▼                                        ▼
+                          /opendragon-add-admin-config           /opendragon-add-users-management
+                          (config dinámica)                      (gestión de usuarios)
 ```
 
 | Slash | Cuándo invocarlo | Archivo |
@@ -330,13 +336,18 @@ hasta un portal con admin configurable es:
 | `/opendragon-importa <name>` | Partir `Landing.jsx` monolítico en estructura canónica (`data/` + `components/` + `views/` + `lib/` + `hooks/`) y wirea forms públicos | [.claude/commands/opendragon-importa.md](.claude/commands/opendragon-importa.md) |
 | `/opendragon-implementa <name>` | Generar los microservicios derivados del prototipo importado (REUSE / EXTEND / IMPLEMENT / CREATE) | [.claude/commands/opendragon-implementa.md](.claude/commands/opendragon-implementa.md) |
 | `/opendragon-add-admin-config <name>` | Descubrir parámetros configurables en la landing y exponerlos en `/admin/<feature>` (precedencia: calculadora js-electric, commit `beb7c0b`) | [.claude/commands/opendragon-add-admin-config.md](.claude/commands/opendragon-add-admin-config.md) |
+| `/opendragon-add-users-management <name>` | Añadir vistas admin de usuarios (list, invite, approve, change role, revoke, resend) — REUSE de `platform/auth` + endpoint `resend-invitation` nuevo | [.claude/commands/opendragon-add-users-management.md](.claude/commands/opendragon-add-users-management.md) |
+
+Los 4 primeros forman el flujo lineal canónico. Los dos `add-*` son
+**extensiones opcionales** que se invocan tras `/opendragon-implementa`
+en cualquier orden.
 
 Cada paso es opcional según de dónde vengas:
 - Si ya tienes el JSX a mano (caso aulavera, aikikan), saltas
   `/opendragon-html-to-jsx` y vas directo a `/opendragon-importa`.
 - Si el app es marketing puro y reutiliza todo de `platform/`, puede que
   `/opendragon-implementa` sea casi no-op (solo seed) y vayas directo a
-  `/opendragon-add-admin-config`.
+  `/opendragon-add-admin-config` y/o `/opendragon-add-users-management`.
 
 Para añadir un comando nuevo: crea `.claude/commands/<name>.md` con
 frontmatter `description:` y opcional `argument-hint:`, y añade una

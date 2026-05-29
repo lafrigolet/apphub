@@ -1,17 +1,17 @@
 ---
-description: Convert an app's landing HTML prototype to a monolithic Landing.jsx (intermediate step before /importa)
+description: Convert an app's landing HTML prototype to a monolithic Landing.jsx (intermediate step before /opendragon-importa)
 argument-hint: <app-name>
 ---
 
 # HTML → JSX monolítico para `$ARGUMENTS`
 
 Convierte el prototipo HTML del landing a un único `Landing.jsx` React
-monolítico (sin partir en componentes todavía — eso es `/importa`).
+monolítico (sin partir en componentes todavía — eso es `/opendragon-importa`).
 Preserva markup, IDs y clases 1:1; cambia solo lo necesario para que
 funcione como React + extrae JS inline a hooks.
 
 > **Prerequisites**:
-> - `/bootstrap-app <name>` ya se ejecutó — existe
+> - `/opendragon-bootstrap-app <name>` ya se ejecutó — existe
 >   `apps/<name>/<name>-portal/` con scaffolding básico.
 > - El prototipo vive en
 >   `apps/<name>/<name>-landing.html` (o ruta equivalente).
@@ -162,15 +162,15 @@ function ProjectCard({ ... }) { ... }
 
 **Mantén subcomponentes inline** (al final del mismo archivo) cuando se
 repiten varias veces en el JSX. NO los pongas en archivos separados —
-eso lo hace `/importa`.
+eso lo hace `/opendragon-importa`.
 
 ## Step 7 — Decisiones a aplazar (no implementes)
 
 - **Form submit real** — deja el handler como stub local (showToast con
   mensaje hardcoded). El wiring a `/api/inquiries/` u otro endpoint lo
-  hace `/importa` Step 8.
+  hace `/opendragon-importa` Step 8.
 - **Routing** — sin react-router. Una única página. El admin/router lo
-  añade `/implementa`.
+  añade `/opendragon-implementa`.
 - **Auth** — no añadir login, tokens, ni guards.
 - **Componentes en archivos separados** — todo inline en Landing.jsx.
 
@@ -198,11 +198,11 @@ docker compose up -d --build <name>-portal nginx
 ## Anti-patterns to refuse
 
 - **Partir en componentes ya en este paso** — un `Landing.jsx` de ~800-
-  1000 líneas es **el output esperado**. Lo otro es `/importa`.
+  1000 líneas es **el output esperado**. Lo otro es `/opendragon-importa`.
 - **"Mejorar" el diseño / accesibilidad** — preservación 1:1. Si el HTML
   tenía un `<div>` donde debería haber `<button>`, déjalo. El refactor de
   accesibilidad es trabajo posterior, no parte de la conversión.
-- **Conectar a backend real** — los forms quedan stub. `/importa` los
+- **Conectar a backend real** — los forms quedan stub. `/opendragon-importa` los
   wirea.
 - **Saltarse hooks de página** — si el HTML tenía animaciones reveal y
   decides omitirlas porque "no aportan", **pregunta primero**. Es
