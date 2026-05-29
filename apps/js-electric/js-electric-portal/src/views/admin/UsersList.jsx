@@ -54,7 +54,10 @@ export default function UsersList() {
       appId:    identity.appId,
       tenantId: identity.tenantId,
     })
-    api('GET', `/api/users?${params}`)
+    // Trailing slash importante: NGINX (location /api/users/) hace 301 al
+    // path con slash cuando falta. fetch sigue el redirect pero pierde el
+    // header Authorization → 401. Forzar la slash de entrada lo evita.
+    api('GET', `/api/users/?${params}`)
       .then((j) => setUsers(j.data ?? j ?? []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
