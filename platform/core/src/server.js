@@ -6,7 +6,7 @@ import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
 import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from 'fastify-type-provider-zod'
 import { ZodError } from 'zod'
-import { createPool } from '@apphub/platform-sdk/db'
+import { createPool, ensureModuleRole } from '@apphub/platform-sdk/db'
 import { createRedis } from '@apphub/platform-sdk/redis'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { appGuard } from '@apphub/platform-sdk/app-guard'
@@ -17,16 +17,20 @@ import { logger } from './lib/logger.js'
 // BEFORE importing the module. configurePool() then injects the real pool below.
 process.env.DATABASE_URL ??= env.DATABASE_URL_AUTH
 
+// schema: el namespace PostgreSQL que cada módulo posee. ensureModuleRole
+// lo usa al final de cada arranque para reconciliar GRANTs sobre el rol
+// dedicado del módulo (CLAUDE.md rule #11). NB: tenant-config vive en
+// platform_tenants (histórico) y splitpay en splitpay_core (legacy shared).
 const moduleDescriptors = [
-  { name: 'auth',          package: '@apphub/platform-auth',          databaseUrl: env.DATABASE_URL_AUTH          },
-  { name: 'notifications', package: '@apphub/platform-notifications', databaseUrl: env.DATABASE_URL_NOTIFICATIONS },
-  { name: 'payments',      package: '@apphub/platform-payments',      databaseUrl: env.DATABASE_URL_PAYMENTS      },
-  { name: 'tenant-config', package: '@apphub/platform-tenant-config', databaseUrl: env.DATABASE_URL_TENANT_CONFIG },
-  { name: 'splitpay',      package: '@apphub/platform-splitpay',      databaseUrl: env.DATABASE_URL_SPLITPAY      },
-  { name: 'storage',       package: '@apphub/platform-storage',       databaseUrl: env.DATABASE_URL_STORAGE       },
-  { name: 'leads',         package: '@apphub/platform-leads',         databaseUrl: env.DATABASE_URL_LEADS         },
-  { name: 'donations',     package: '@apphub/platform-donations',     databaseUrl: env.DATABASE_URL_DONATIONS     },
-  { name: 'inquiries',     package: '@apphub/platform-inquiries',     databaseUrl: env.DATABASE_URL_INQUIRIES     },
+  { name: 'auth',          package: '@apphub/platform-auth',          databaseUrl: env.DATABASE_URL_AUTH,          schema: 'platform_auth'          },
+  { name: 'notifications', package: '@apphub/platform-notifications', databaseUrl: env.DATABASE_URL_NOTIFICATIONS, schema: 'platform_notifications' },
+  { name: 'payments',      package: '@apphub/platform-payments',      databaseUrl: env.DATABASE_URL_PAYMENTS,      schema: 'platform_payments'      },
+  { name: 'tenant-config', package: '@apphub/platform-tenant-config', databaseUrl: env.DATABASE_URL_TENANT_CONFIG, schema: 'platform_tenants'       },
+  { name: 'splitpay',      package: '@apphub/platform-splitpay',      databaseUrl: env.DATABASE_URL_SPLITPAY,      schema: 'splitpay_core'          },
+  { name: 'storage',       package: '@apphub/platform-storage',       databaseUrl: env.DATABASE_URL_STORAGE,       schema: 'platform_storage'       },
+  { name: 'leads',         package: '@apphub/platform-leads',         databaseUrl: env.DATABASE_URL_LEADS,         schema: 'platform_leads'         },
+  { name: 'donations',     package: '@apphub/platform-donations',     databaseUrl: env.DATABASE_URL_DONATIONS,     schema: 'platform_donations'     },
+  { name: 'inquiries',     package: '@apphub/platform-inquiries',     databaseUrl: env.DATABASE_URL_INQUIRIES,     schema: 'platform_inquiries'     },
 ]
 
 async function loadModule(descriptor) {
@@ -44,10 +48,17 @@ export async function start() {
     modules.push({ descriptor: d, mod })
   }
 
-  // 1. Run migrations for every module against the superuser URL
+  // 1. Run migrations for every module against the superuser URL, then
+  //    reconcile its dedicated DB role + grants (idempotent — no-op on
+  //    healthy environments; recovers from the missing-role drift when a
+  //    new module is added to a long-lived postgres volume).
   for (const { descriptor, mod } of modules) {
     logger.info({ module: descriptor.name }, 'Running migrations')
     await mod.runMigrations(env.MIGRATION_DATABASE_URL)
+    await ensureModuleRole(env.MIGRATION_DATABASE_URL, {
+      schema:      descriptor.schema,
+      databaseUrl: descriptor.databaseUrl,
+    })
   }
 
   // 2. Create one Pool per module, bound to its dedicated DB role
