@@ -319,24 +319,24 @@ El flujo canónico para construir un app nuevo desde un prototipo HTML
 hasta un portal con admin configurable es:
 
 ```
-/bootstrap-app → /html-to-jsx → /importa → /implementa → /add-admin-config
+/opendragon-bootstrap-app → /opendragon-html-to-jsx → /opendragon-importa → /opendragon-implementa → /opendragon-add-admin-config
   (scaffolding)   (HTML → JSX)  (JSX → split)  (backend)   (config dinámica)
 ```
 
 | Slash | Cuándo invocarlo | Archivo |
 |---|---|---|
-| `/bootstrap-app <name>` | Crear portal landing-only para un app nuevo, con dev + prod + CI completos | [.claude/commands/bootstrap-app.md](.claude/commands/bootstrap-app.md) |
-| `/html-to-jsx <name>` | Convertir `<name>-landing.html` prototype a un único `Landing.jsx` monolítico (preservación 1:1) | [.claude/commands/html-to-jsx.md](.claude/commands/html-to-jsx.md) |
-| `/importa <name>` | Partir `Landing.jsx` monolítico en estructura canónica (`data/` + `components/` + `views/` + `lib/` + `hooks/`) y wirea forms públicos | [.claude/commands/importa.md](.claude/commands/importa.md) |
-| `/implementa <name>` | Generar los microservicios derivados del prototipo importado (REUSE / EXTEND / IMPLEMENT / CREATE) | [.claude/commands/implementa.md](.claude/commands/implementa.md) |
-| `/add-admin-config <name>` | Descubrir parámetros configurables en la landing y exponerlos en `/admin/<feature>` (precedencia: calculadora js-electric, commit `beb7c0b`) | [.claude/commands/add-admin-config.md](.claude/commands/add-admin-config.md) |
+| `/opendragon-bootstrap-app <name>` | Crear portal landing-only para un app nuevo, con dev + prod + CI completos | [.claude/commands/opendragon-bootstrap-app.md](.claude/commands/opendragon-bootstrap-app.md) |
+| `/opendragon-html-to-jsx <name>` | Convertir `<name>-landing.html` prototype a un único `Landing.jsx` monolítico (preservación 1:1) | [.claude/commands/opendragon-html-to-jsx.md](.claude/commands/opendragon-html-to-jsx.md) |
+| `/opendragon-importa <name>` | Partir `Landing.jsx` monolítico en estructura canónica (`data/` + `components/` + `views/` + `lib/` + `hooks/`) y wirea forms públicos | [.claude/commands/opendragon-importa.md](.claude/commands/opendragon-importa.md) |
+| `/opendragon-implementa <name>` | Generar los microservicios derivados del prototipo importado (REUSE / EXTEND / IMPLEMENT / CREATE) | [.claude/commands/opendragon-implementa.md](.claude/commands/opendragon-implementa.md) |
+| `/opendragon-add-admin-config <name>` | Descubrir parámetros configurables en la landing y exponerlos en `/admin/<feature>` (precedencia: calculadora js-electric, commit `beb7c0b`) | [.claude/commands/opendragon-add-admin-config.md](.claude/commands/opendragon-add-admin-config.md) |
 
 Cada paso es opcional según de dónde vengas:
 - Si ya tienes el JSX a mano (caso aulavera, aikikan), saltas
-  `/html-to-jsx` y vas directo a `/importa`.
+  `/opendragon-html-to-jsx` y vas directo a `/opendragon-importa`.
 - Si el app es marketing puro y reutiliza todo de `platform/`, puede que
-  `/implementa` sea casi no-op (solo seed) y vayas directo a
-  `/add-admin-config`.
+  `/opendragon-implementa` sea casi no-op (solo seed) y vayas directo a
+  `/opendragon-add-admin-config`.
 
 Para añadir un comando nuevo: crea `.claude/commands/<name>.md` con
 frontmatter `description:` y opcional `argument-hint:`, y añade una
