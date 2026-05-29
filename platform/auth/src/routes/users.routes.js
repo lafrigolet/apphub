@@ -112,4 +112,15 @@ export async function usersRoutes(fastify) {
     await usersService.rejectUser(id, req.identity, body)
     return reply.status(204).send()
   })
+
+  // Reenviar magic-link al user — admin lo dispara desde la consola
+  // cuando el original expiró (TTL 15min) o el user lo perdió. Reutiliza
+  // el mismo evento `auth.magic_link_requested` que el flujo pasivo
+  // (user pidiéndolo por email vía /request-magic-link).
+  fastify.post('/v1/users/:id/resend-invitation', async (req, reply) => {
+    requireStaffOrAdmin(req)
+    const { id } = idParams.parse(req.params)
+    await usersService.resendInvitation(id, req.identity)
+    return reply.status(204).send()
+  })
 }
