@@ -4,8 +4,11 @@ import { pool } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import * as userRepo from '../repositories/user.repository.js'
 import * as resetRepo from '../repositories/password-reset.repository.js'
+import * as magicLinkRepo from '../repositories/magic-link.repository.js'
 import { ForbiddenError, NotFoundError, AppError } from '../utils/errors.js'
 import { register as authRegister, forgotPassword as authForgotPassword } from './auth.service.js'
+
+const MAGIC_LINK_TTL_MS = 15 * 60 * 1000
 
 const STAFF_ROLES = new Set(['staff', 'super_admin'])
 
@@ -255,5 +258,57 @@ export async function revokeUser({ id }, identity) {
     }
     const ok = await userRepo.softDelete(client, id)
     if (!ok) throw new NotFoundError('User')
+  })
+}
+
+// Admin manda manualmente un nuevo magic-link al user — caso típico:
+// el original expiró (TTL 15min) o el user no lo encuentra en su bandeja.
+// Reutiliza el mismo evento `auth.magic_link_requested` que el flujo
+// auto-servicio en auth.service.js:requestMagicLink, así que
+// platform/notifications procesa ambos canales por igual.
+//
+// Rechazado para users `revoked_at` (no se reactivan vía magic-link;
+// requiere flujo de invitación nueva) y `pending_approval` (deben pasar
+// por approveUser primero, que ya emite su propio magic-link).
+export async function resendInvitation(id, identity) {
+  if (!identity?.userId) throw new ForbiddenError()
+
+  return withStaffContext(async (client) => {
+    const target = await userRepo.findAnywhereById(client, id)
+    if (!target) throw new NotFoundError('User')
+
+    if (!isStaff(identity) && (target.app_id !== identity.appId || target.tenant_id !== identity.tenantId)) {
+      throw new ForbiddenError('Cannot resend invitation to a user outside your tenant')
+    }
+    if (target.revoked_at) {
+      throw new AppError('USER_REVOKED', 'Cannot resend invitation to a revoked user', 409)
+    }
+    if (target.pending_approval) {
+      throw new AppError('USER_PENDING_APPROVAL', 'User is pending approval — use /approve which emits its own magic-link', 409)
+    }
+
+    const plainToken = crypto.randomBytes(32).toString('base64url')
+    const tokenHash  = crypto.createHash('sha256').update(plainToken, 'utf8').digest('hex')
+    const expiresAt  = new Date(Date.now() + MAGIC_LINK_TTL_MS)
+    await magicLinkRepo.create(client, {
+      id:        uuidv4(),
+      userId:    target.id,
+      appId:     target.app_id,
+      tenantId:  target.tenant_id,
+      tokenHash,
+      expiresAt,
+    })
+
+    await publish({
+      type: 'auth.magic_link_requested',
+      payload: {
+        userId:      target.id,
+        email:       target.email,
+        token:       plainToken,
+        appId:       target.app_id,
+        tenantId:    target.tenant_id,
+        displayName: target.display_name ?? null,
+      },
+    })
   })
 }

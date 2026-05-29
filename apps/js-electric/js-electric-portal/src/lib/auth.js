@@ -15,6 +15,12 @@ const BASE = '/api/auth'
 
 const ADMIN_ROLES = new Set(['owner', 'admin', 'staff', 'super_admin'])
 
+// Roles asignables a un user de este app desde el admin. Centralizado
+// aquí para no hardcodearlo en cada vista (UserDetail select +
+// InviteUserModal select). Si el app necesita un role custom (e.g.
+// 'aikikan_grade_examiner') se añade UNA vez aquí.
+export const APP_ROLES = ['owner', 'admin', 'staff', 'user']
+
 const TOKEN_KEY   = 'js_electric_access_token'
 const REFRESH_KEY = 'js_electric_refresh_token'
 const USER_KEY    = 'js_electric_user_id'

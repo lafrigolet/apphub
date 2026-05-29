@@ -1,18 +1,18 @@
 ---
-description: Split a monolithic Landing.jsx into the canonical structure (data + components + views + lib + hooks) that /implementa expects
+description: Split a monolithic Landing.jsx into the canonical structure (data + components + views + lib + hooks) that /opendragon-implementa expects
 argument-hint: <app-name>
 ---
 
 # Importa `$ARGUMENTS`
 
-Toma el `Landing.jsx` monolítico (output de `/html-to-jsx` o hand-converted)
-y lo parte en la estructura canónica que `/implementa` Step 0 espera leer:
+Toma el `Landing.jsx` monolítico (output de `/opendragon-html-to-jsx` o hand-converted)
+y lo parte en la estructura canónica que `/opendragon-implementa` Step 0 espera leer:
 `data/mock.js`, `components/`, `views/`, `lib/api.js`, `lib/tenant.js`,
 `hooks/`. Cero cambio funcional — solo refactor estructural.
 
 > **Prerequisites**:
 > - Existe `apps/<name>/<name>-portal/src/Landing.jsx` monolítico.
-> - Si vienes de `/html-to-jsx`, ya tienes ese archivo. Si lo escribiste
+> - Si vienes de `/opendragon-html-to-jsx`, ya tienes ese archivo. Si lo escribiste
 >   a mano (caso js-electric en el bootstrap), también vale.
 >
 > **Precedencia**: la conversión de js-electric (commit `8092a20`) es el
@@ -86,7 +86,7 @@ Wrapper fino sobre fetch, con auto-Bearer si hay token en localStorage.
 Patrón canónico (lifted from `apps/aikikan/aikikan-portal/src/lib/api.js`):
 
 ```js
-import { getAccessToken } from './auth.js' // si /implementa ya añadió auth; si no, omite
+import { getAccessToken } from './auth.js' // si /opendragon-implementa ya añadió auth; si no, omite
 
 export async function api(method, path, body) {
   const token = getAccessToken?.()
@@ -105,8 +105,8 @@ export async function api(method, path, body) {
 }
 ```
 
-Si en este punto NO hay `auth.js` todavía (porque `/implementa` aún no se
-ejecutó), omite el `getAccessToken` — `/implementa` lo añade después.
+Si en este punto NO hay `auth.js` todavía (porque `/opendragon-implementa` aún no se
+ejecutó), omite el `getAccessToken` — `/opendragon-implementa` lo añade después.
 
 ## Step 4 — `lib/tenant.js`
 
@@ -188,7 +188,7 @@ del mismo archivo. Si se reusa entre 2+ secciones, sube a `components/`.
 ```
 
 - `App.jsx` — wrapper fino: `return <Landing />`. Importante tenerlo
-  separado porque `/implementa` luego lo convierte en `<BrowserRouter>`
+  separado porque `/opendragon-implementa` luego lo convierte en `<BrowserRouter>`
   con rutas admin.
 
 - `main.jsx` — actualiza para importar `App` en vez de `Landing` directo.
@@ -246,7 +246,7 @@ pnpm exec vite build 2>&1 | tail -5
 
 # Confirmar que cada sección consume mock.js:
 grep -l "from '../data/mock'" src/components/*.jsx
-# Debe listar la mayoría de secciones — esto es lo que /implementa Step 0
+# Debe listar la mayoría de secciones — esto es lo que /opendragon-implementa Step 0
 # busca para mapear endpoints después.
 
 # Visual:
@@ -257,16 +257,16 @@ docker compose up -d <name>-portal
 
 ## Anti-patterns to refuse
 
-- **Añadir auth / login / admin views** — eso es `/implementa`. Importa
+- **Añadir auth / login / admin views** — eso es `/opendragon-implementa`. Importa
   solo refactoriza estructura + wirea forms públicos.
-- **Añadir router (react-router-dom)** — eso es `/implementa`. El landing
+- **Añadir router (react-router-dom)** — eso es `/opendragon-implementa`. El landing
   es una sola página.
 - **Crear app schema `app_<name>`** — eso es ADR 013, decisión que toma
-  `/implementa`.
+  `/opendragon-implementa`.
 - **Saltarse el split en componentes** — un solo `Landing.jsx` con todo
-  inline es el output de `/html-to-jsx`, NO de `/importa`. El propósito
+  inline es el output de `/opendragon-html-to-jsx`, NO de `/opendragon-importa`. El propósito
   exacto de este comando es partirlo.
-- **Crear vistas admin / settings** — `/implementa` y `/add-admin-config`.
+- **Crear vistas admin / settings** — `/opendragon-implementa` y `/opendragon-add-admin-config`.
 - **Cambiar el comportamiento al refactorizar** — preservación total. Si
   ves un bug del HTML original, anótalo pero NO lo arregles en este paso;
   hazlo en un commit separado tras Importa.

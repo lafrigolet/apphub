@@ -6,6 +6,8 @@ import AdminShell    from './views/admin/AdminShell.jsx'
 import InquiriesList from './views/admin/InquiriesList.jsx'
 import InquiryDetail from './views/admin/InquiryDetail.jsx'
 import CalculadoraConfig from './views/admin/CalculadoraConfig.jsx'
+import UsersList     from './views/admin/UsersList.jsx'
+import UserDetail    from './views/admin/UserDetail.jsx'
 import RequireAdmin  from './components/RequireAdmin.jsx'
 
 export default function App() {
@@ -23,6 +25,8 @@ export default function App() {
             <Route path="inquiries"     element={<InquiriesList />} />
             <Route path="inquiries/:id" element={<InquiryDetail />} />
             <Route path="calculadora"   element={<CalculadoraConfig />} />
+            <Route path="users"         element={<UsersList />} />
+            <Route path="users/:id"     element={<UserDetail />} />
           </Route>
         </Route>
       </Routes>

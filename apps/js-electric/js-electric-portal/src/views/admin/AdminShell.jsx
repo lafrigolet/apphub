@@ -24,6 +24,7 @@ export default function AdminShell() {
             <nav className="hidden sm:flex items-center gap-5 text-sm">
               <Link to="/admin/inquiries"   className="text-ink-800 hover:text-electric-700 transition">Leads</Link>
               <Link to="/admin/calculadora" className="text-ink-800 hover:text-electric-700 transition">Calculadora</Link>
+              <Link to="/admin/users"       className="text-ink-800 hover:text-electric-700 transition">Usuarios</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
