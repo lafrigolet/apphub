@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Macabeo · Compras</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Manrope:wght@300..800&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --mb-primary:#4F6B2F;--mb-primary-soft:#A6B89A;--mb-accent:#C76E4A;
+  --mb-bg:#F5F1E8;--mb-surface:#FBF9F3;--mb-text:#2B2218;--mb-muted:#7A6F5C;
+  --mb-success:#5B8F3A;--mb-warning:#D5A021;--mb-danger:#9E3B23;
+  --mb-line:rgba(43,34,24,.12);--r-md:12px;--r-lg:20px;
+  --display:"Fraunces",ui-serif,Georgia,serif;--body:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:var(--body);background:var(--mb-bg);color:var(--mb-text);line-height:1.5;min-height:100vh;display:flex}
+.crumb{position:fixed;top:18px;right:24px;z-index:30;font-size:12px;letter-spacing:.06em;color:var(--mb-muted);text-decoration:none;background:var(--mb-surface);border:1px solid var(--mb-line);padding:6px 12px;border-radius:99px}
+
+.side{width:240px;flex-shrink:0;background:var(--mb-text);color:var(--mb-surface);min-height:100vh;display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 22px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:18px}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:var(--mb-accent);color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-style:italic;font-size:20px}
+.brand strong{font-family:var(--display);font-weight:500;font-size:19px;letter-spacing:-.02em}
+.brand strong em{font-style:italic;color:var(--mb-accent);font-weight:400}
+.brand small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mb-primary-soft);font-weight:600;margin-top:2px}
+.s-title{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.4);padding:0 12px;margin:14px 0 6px}
+.s-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;font-weight:500}
+.s-link:hover{background:rgba(255,255,255,.05);color:#fff}
+.s-link.on{background:var(--mb-primary);color:#fff}
+.s-link .ic{width:18px;height:18px;display:grid;place-items:center;font-style:italic;font-family:var(--display);font-size:14px;opacity:.8}
+.s-link .num{margin-left:auto;background:rgba(255,255,255,.1);font-size:10px;padding:2px 6px;border-radius:99px;font-family:var(--mono);font-weight:600}
+.s-link.on .num{background:rgba(0,0,0,.2)}
+.s-foot{margin-top:auto;padding:14px 12px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px}
+.s-foot .av{width:34px;height:34px;border-radius:50%;background:var(--mb-warning);color:#3a2c08;display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:600;font-size:14px}
+.s-foot .nm{font-size:13px;font-weight:600}.s-foot .ro{font-size:11px;opacity:.6}
+
+.main{flex:1;min-width:0;padding:24px 32px 60px}
+@media(max-width:900px){.side{display:none}.main{padding:20px}.crumb{display:none}}
+
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+.top .eb{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--mb-muted);font-weight:700;margin-bottom:4px}
+.top h1{font-family:var(--display);font-weight:300;font-size:clamp(28px,3.2vw,40px);letter-spacing:-.025em;margin:0;line-height:1.05}
+.top h1 em{font-style:italic;color:var(--mb-primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:99px;font-weight:600;font-size:13px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--mb-primary);color:#fff}.btn-ghost{background:transparent;border-color:var(--mb-line)}.btn-accent{background:var(--mb-accent);color:#fff}
+
+/* pipeline */
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+@media(max-width:1000px){.pipeline{grid-template-columns:repeat(2,1fr)}}
+.pcol{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:14px;display:flex;flex-direction:column;gap:8px;min-height:280px}
+.pcol-h{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 10px;border-bottom:1px dashed var(--mb-line);margin-bottom:4px}
+.pcol-h h3{font-family:var(--display);font-style:italic;font-size:17px;font-weight:500;margin:0;color:var(--mb-primary);letter-spacing:-.01em}
+.pcol-h .ct{font-family:var(--mono);font-size:10px;color:var(--mb-muted);background:var(--mb-bg);padding:3px 8px;border-radius:99px;font-weight:700}
+.pcard{background:var(--mb-bg);border-radius:var(--r-md);padding:12px;cursor:pointer;border-left:3px solid var(--mb-primary-soft);display:flex;flex-direction:column;gap:5px}
+.pcard:hover{background:#ede7d8}
+.pcard.urg{border-left-color:var(--mb-danger)}
+.pcard.warn{border-left-color:var(--mb-warning)}
+.pcard.ok{border-left-color:var(--mb-success)}
+.pcard code{font-family:var(--mono);font-size:10px;color:var(--mb-muted);font-weight:600}
+.pcard .nm{font-weight:600;font-size:13px;line-height:1.3}
+.pcard .mm{display:flex;justify-content:space-between;font-size:11px;color:var(--mb-muted)}
+.pcard .mm strong{color:var(--mb-text);font-family:var(--display);font-weight:500;font-size:14px}
+
+/* layout */
+.row{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;margin-bottom:24px}
+@media(max-width:1100px){.row{grid-template-columns:1fr}}
+.panel{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:22px}
+.panel-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.panel-h h3{font-family:var(--display);font-weight:500;font-size:20px;margin:0;letter-spacing:-.015em}
+.panel-h h3 em{font-style:italic;color:var(--mb-primary)}
+
+/* providers */
+.prov-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(max-width:700px){.prov-grid{grid-template-columns:1fr}}
+.prov{background:var(--mb-bg);border-radius:var(--r-md);padding:16px;display:flex;flex-direction:column;gap:8px}
+.prov-h{display:flex;gap:12px;align-items:center}
+.prov-h .av{width:44px;height:44px;border-radius:12px;background:var(--mb-primary);color:#fff;display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:600;font-size:22px;flex-shrink:0}
+.prov-h .nm{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:-.01em;line-height:1.1}
+.prov-h .ct{font-size:11px;color:var(--mb-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.stars{color:var(--mb-warning);font-size:13px;letter-spacing:.04em}
+.stars span{color:var(--mb-line)}
+.prov-data{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px;color:var(--mb-muted);border-top:1px dashed var(--mb-line);padding-top:10px}
+.prov-data div strong{display:block;color:var(--mb-text);font-family:var(--display);font-size:16px;font-weight:500;letter-spacing:-.01em}
+.prov-certs{display:flex;gap:5px;flex-wrap:wrap}
+.cert{font-size:10px;padding:3px 8px;border-radius:5px;background:rgba(79,107,47,.12);color:var(--mb-primary);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.cert.expiring{background:rgba(213,160,33,.18);color:#8a6717}
+
+/* suggestions */
+.sug{display:flex;flex-direction:column;gap:8px}
+.sug-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;padding:12px;border-radius:var(--r-md);background:var(--mb-bg);border-left:3px solid var(--mb-accent)}
+.sug-row .ic{width:36px;height:36px;border-radius:10px;background:rgba(199,110,74,.15);color:var(--mb-accent);display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:700;font-size:18px}
+.sug-row .nm{font-weight:600;font-size:13px}
+.sug-row .hh{font-size:11px;color:var(--mb-muted);margin-top:2px}
+.sug-row .qty{font-family:var(--display);font-size:16px;font-weight:500;letter-spacing:-.01em;text-align:right}
+.sug-row .qty em{font-style:italic;font-size:11px;color:var(--mb-muted);font-weight:400}
+.mini{font-size:10px;padding:5px 10px;border-radius:99px;background:var(--mb-text);color:#fff;border:none;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;font-family:inherit}
+
+/* compare */
+.compare{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.cmp{background:var(--mb-bg);border-radius:var(--r-md);padding:14px;text-align:center;border:2px solid transparent}
+.cmp.win{border-color:var(--mb-success);background:rgba(91,143,58,.06)}
+.cmp .nm{font-family:var(--display);font-size:15px;font-weight:500;letter-spacing:-.01em;margin-bottom:8px}
+.cmp .pr{font-family:var(--display);font-size:24px;font-weight:500;letter-spacing:-.02em}
+.cmp .pr em{font-style:italic;color:var(--mb-muted);font-size:14px;font-weight:400}
+.cmp .h{font-size:10px;color:var(--mb-muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px;font-weight:600}
+.cmp.win .h{color:var(--mb-success)}
+</style>
+</head>
+<body>
+<a class="crumb" href="index.html">← roles</a>
+
+<aside class="side">
+  <div class="brand">
+    <div class="brand-mark">m</div>
+    <div><strong style="color:var(--mb-surface)">macabeo<em>.</em></strong><small>compras</small></div>
+  </div>
+  <a class="s-link on" href="#"><span class="ic">◐</span>Pipeline OC<span class="num">18</span></a>
+  <a class="s-link" href="#"><span class="ic">◑</span>Proveedoras<span class="num">34</span></a>
+  <a class="s-link" href="#"><span class="ic">◓</span>Sugerencias<span class="num">7</span></a>
+  <a class="s-link" href="#"><span class="ic">◧</span>Certificados</a>
+  <a class="s-link" href="#"><span class="ic">◔</span>Comparador</a>
+  <div class="s-title">Histórico</div>
+  <a class="s-link" href="#"><span class="ic">◌</span>Compras 2026</a>
+  <a class="s-link" href="#"><span class="ic">◍</span>Por productora</a>
+  <div class="s-foot">
+    <div class="av">S</div>
+    <div><div class="nm">Sabela Riveiro</div><div class="ro">Compras</div></div>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="top">
+    <div>
+      <div class="eb">Compras · semana 21 · jueves 21 may</div>
+      <h1>18 órdenes <em>activas</em>, 7 sugerencias por revisar.</h1>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost">Ver calendario</button>
+      <button class="btn btn-primary">+ Nueva OC</button>
+    </div>
+  </header>
+
+  <section class="pipeline">
+    <div class="pcol">
+      <div class="pcol-h"><h3>Borrador</h3><span class="ct">4</span></div>
+      <div class="pcard"><code>OC-026-082</code><div class="nm">Horta da Lúa</div><div class="mm"><span>14 líneas</span><strong>248,50 €</strong></div></div>
+      <div class="pcard warn"><code>OC-026-081</code><div class="nm">Salgueiro Cereais</div><div class="mm"><span>6 líneas · urge</span><strong>412,00 €</strong></div></div>
+      <div class="pcard"><code>OC-026-080</code><div class="nm">Forno O Marqués</div><div class="mm"><span>3 líneas</span><strong>84,40 €</strong></div></div>
+      <div class="pcard"><code>OC-026-079</code><div class="nm">O Souto</div><div class="mm"><span>2 líneas</span><strong>168,00 €</strong></div></div>
+    </div>
+    <div class="pcol">
+      <div class="pcol-h"><h3>Enviada</h3><span class="ct">5</span></div>
+      <div class="pcard urg"><code>OC-026-078</code><div class="nm">Granxa Meixón</div><div class="mm"><span>↳ 4 días sin resp.</span><strong>312,00 €</strong></div></div>
+      <div class="pcard"><code>OC-026-077</code><div class="nm">Pomares do Sil</div><div class="mm"><span>enviada ayer</span><strong>184,60 €</strong></div></div>
+      <div class="pcard"><code>OC-026-076</code><div class="nm">Llagar Asturia</div><div class="mm"><span>enviada lun</span><strong>96,00 €</strong></div></div>
+      <div class="pcard"><code>OC-026-075</code><div class="nm">Cooperativa Vall</div><div class="mm"><span>enviada lun</span><strong>462,40 €</strong></div></div>
+      <div class="pcard"><code>OC-026-074</code><div class="nm">Casa Pepa</div><div class="mm"><span>enviada dom</span><strong>72,00 €</strong></div></div>
+    </div>
+    <div class="pcol">
+      <div class="pcol-h"><h3>Confirmada</h3><span class="ct">6</span></div>
+      <div class="pcard ok"><code>OC-026-073</code><div class="nm">Horta da Lúa</div><div class="mm"><span>entrega mié 21</span><strong>198,40 €</strong></div></div>
+      <div class="pcard ok"><code>OC-026-072</code><div class="nm">Granxa Meixón</div><div class="mm"><span>entrega vie 23</span><strong>284,00 €</strong></div></div>
+      <div class="pcard ok"><code>OC-026-071</code><div class="nm">Salgueiro</div><div class="mm"><span>entrega lun 26</span><strong>340,00 €</strong></div></div>
+      <div class="pcard ok"><code>OC-026-070</code><div class="nm">O Souto</div><div class="mm"><span>entrega mar 27</span><strong>168,80 €</strong></div></div>
+      <div class="pcard ok"><code>OC-026-069</code><div class="nm">Casa Pepa</div><div class="mm"><span>entrega jue 22</span><strong>54,60 €</strong></div></div>
+      <div class="pcard ok"><code>OC-026-068</code><div class="nm">Forno O Marqués</div><div class="mm"><span>entrega vie 23</span><strong>92,40 €</strong></div></div>
+    </div>
+    <div class="pcol">
+      <div class="pcol-h"><h3>Recibida</h3><span class="ct">3</span></div>
+      <div class="pcard ok"><code>OC-026-067</code><div class="nm">Pomares do Sil</div><div class="mm"><span>conformada 20/05</span><strong>164,40 €</strong></div></div>
+      <div class="pcard ok"><code>OC-026-066</code><div class="nm">Horta da Lúa</div><div class="mm"><span>conformada 19/05</span><strong>212,80 €</strong></div></div>
+      <div class="pcard ok"><code>OC-026-065</code><div class="nm">Llagar Asturia</div><div class="mm"><span>conformada 18/05</span><strong>96,00 €</strong></div></div>
+    </div>
+  </section>
+
+  <div class="row">
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Productoras <em>activas</em></h3>
+        <a href="#" style="font-size:12px;color:var(--mb-primary);text-decoration:none;font-weight:700">Ver fichas →</a>
+      </div>
+      <div class="prov-grid">
+        <div class="prov">
+          <div class="prov-h">
+            <div class="av">L</div>
+            <div><div class="nm">Horta da Lúa</div><div class="ct">Betanzos · 18 km</div></div>
+          </div>
+          <div class="stars">★★★★★</div>
+          <div class="prov-certs"><span class="cert">CRAEGA</span><span class="cert">Km 0</span></div>
+          <div class="prov-data"><div>vol. anual<strong>3.840 €</strong></div><div>pedidos<strong>42</strong></div><div>retraso<strong>0%</strong></div></div>
+        </div>
+        <div class="prov">
+          <div class="prov-h">
+            <div class="av" style="background:var(--mb-warning);color:#3a2c08">M</div>
+            <div><div class="nm">Granxa Meixón</div><div class="ct">Curtis · 32 km</div></div>
+          </div>
+          <div class="stars">★★★★<span>★</span></div>
+          <div class="prov-certs"><span class="cert">CRAEGA</span><span class="cert">Bienestar</span></div>
+          <div class="prov-data"><div>vol. anual<strong>6.420 €</strong></div><div>pedidos<strong>36</strong></div><div>retraso<strong>4%</strong></div></div>
+        </div>
+        <div class="prov">
+          <div class="prov-h">
+            <div class="av" style="background:var(--mb-accent)">S</div>
+            <div><div class="nm">Salgueiro Cereais</div><div class="ct">Lalín · 64 km</div></div>
+          </div>
+          <div class="stars">★★★★★</div>
+          <div class="prov-certs"><span class="cert">CRAEGA</span><span class="cert">Variedad local</span></div>
+          <div class="prov-data"><div>vol. anual<strong>4.180 €</strong></div><div>pedidos<strong>28</strong></div><div>retraso<strong>0%</strong></div></div>
+        </div>
+        <div class="prov">
+          <div class="prov-h">
+            <div class="av" style="background:var(--mb-muted)">O</div>
+            <div><div class="nm">O Souto</div><div class="ct">Quiroga · 184 km</div></div>
+          </div>
+          <div class="stars">★★★★<span>★</span></div>
+          <div class="prov-certs"><span class="cert expiring">CRAEGA cad. 18d</span></div>
+          <div class="prov-data"><div>vol. anual<strong>2.860 €</strong></div><div>pedidos<strong>14</strong></div><div>retraso<strong>7%</strong></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Sugerencias <em>auto</em></h3>
+        <span style="font-size:11px;color:var(--mb-muted);font-weight:600">según stock mín.</span>
+      </div>
+      <div class="sug">
+        <div class="sug-row">
+          <div class="ic">!</div>
+          <div><div class="nm">Tomate kumato</div><div class="hh">Stock 3,2 kg · mín 10 kg · Horta da Lúa</div></div>
+          <div class="qty">18 <em>kg</em></div>
+          <button class="mini">Crear OC</button>
+        </div>
+        <div class="sug-row">
+          <div class="ic">!</div>
+          <div><div class="nm">Yogur natural</div><div class="hh">Stock 14 uds · mín 40 uds · Granxa Meixón</div></div>
+          <div class="qty">60 <em>uds</em></div>
+          <button class="mini">Crear OC</button>
+        </div>
+        <div class="sug-row">
+          <div class="ic">!</div>
+          <div><div class="nm">Garbanzo castellano</div><div class="hh">Stock 9,8 kg · mín 20 kg · Salgueiro</div></div>
+          <div class="qty">25 <em>kg</em></div>
+          <button class="mini">Crear OC</button>
+        </div>
+        <div class="sug-row">
+          <div class="ic">!</div>
+          <div><div class="nm">Lechuga roble</div><div class="hh">Stock 8 uds · mín 15 uds · Horta da Lúa</div></div>
+          <div class="qty">20 <em>uds</em></div>
+          <button class="mini">Crear OC</button>
+        </div>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:14px">Agrupar en OC consolidada (4 líneas) →</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h">
+      <h3>Comparador <em>de costes</em> · garbanzo castellano</h3>
+      <span style="font-size:11px;color:var(--mb-muted);font-weight:600">€/kg · datos de los últimos 6 meses</span>
+    </div>
+    <div class="compare">
+      <div class="cmp win">
+        <div class="nm">Salgueiro Cereais</div>
+        <div class="pr">3,80 <em>€/kg</em></div>
+        <div class="h">✓ recomendado · 64 km</div>
+      </div>
+      <div class="cmp">
+        <div class="nm">Cooperativa Vall</div>
+        <div class="pr">4,20 <em>€/kg</em></div>
+        <div class="h">+10% · 320 km</div>
+      </div>
+      <div class="cmp">
+        <div class="nm">A Eira da Bouza</div>
+        <div class="pr">4,60 <em>€/kg</em></div>
+        <div class="h">+21% · 142 km</div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

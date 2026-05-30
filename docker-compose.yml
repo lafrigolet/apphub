@@ -554,6 +554,26 @@ services:
       - ./apps/js-electric/js-electric-portal/tailwind.config.js:/app/apps/js-electric/js-electric-portal/tailwind.config.js:ro
       - ./apps/js-electric/js-electric-portal/postcss.config.js:/app/apps/js-electric/js-electric-portal/postcss.config.js:ro
 
+  # ── Macabeo (frontend 5181) ───────────────────────────────────
+  macabeo-portal:
+    build:
+      context: .
+      dockerfile: apps/macabeo/macabeo-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    networks: [edge]
+    ports:
+      - '5181:5181'
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://macabeo.hulkstein.local:8080
+    volumes:
+      - ./apps/macabeo/macabeo-portal/src:/app/apps/macabeo/macabeo-portal/src:ro
+      - ./apps/macabeo/macabeo-portal/vite.config.js:/app/apps/macabeo/macabeo-portal/vite.config.js:ro
+      - ./apps/macabeo/macabeo-portal/index.html:/app/apps/macabeo/macabeo-portal/index.html:ro
+      - ./apps/macabeo/macabeo-portal/tailwind.config.js:/app/apps/macabeo/macabeo-portal/tailwind.config.js:ro
+      - ./apps/macabeo/macabeo-portal/postcss.config.js:/app/apps/macabeo/macabeo-portal/postcss.config.js:ro
+
   # ── Gateway ────────────────────────────────────────────────────
   # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
   # server blocks from a Redis hash and reloads nginx within ~2s of any
@@ -597,6 +617,7 @@ services:
       aulavera-portal:         { condition: service_started }
       aulavera-server:         { condition: service_started }
       js-electric-portal:      { condition: service_started }
+      macabeo-portal:          { condition: service_started }
 
 volumes:
   postgres_data:

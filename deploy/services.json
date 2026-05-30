@@ -202,6 +202,17 @@
       "restart_policy": "rolling"
     },
     {
+      "name": "macabeo-portal",
+      "dockerfile": "apps/macabeo/macabeo-portal/Dockerfile",
+      "paths": [
+        "apps/macabeo/macabeo-portal/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
       "name": "nginx",
       "dockerfile": "infra/nginx/Dockerfile",
       "paths": [

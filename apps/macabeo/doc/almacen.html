@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Macabeo · Almacén</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Manrope:wght@300..800&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --mb-primary:#4F6B2F;--mb-primary-soft:#A6B89A;--mb-accent:#C76E4A;
+  --mb-bg:#F5F1E8;--mb-surface:#FBF9F3;--mb-text:#2B2218;--mb-muted:#7A6F5C;
+  --mb-success:#5B8F3A;--mb-warning:#D5A021;--mb-danger:#9E3B23;
+  --mb-line:rgba(43,34,24,.12);--r-md:12px;--r-lg:20px;
+  --display:"Fraunces",ui-serif,Georgia,serif;--body:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:var(--body);background:var(--mb-bg);color:var(--mb-text);line-height:1.5;min-height:100vh;display:flex}
+.crumb{position:fixed;top:18px;right:24px;z-index:30;font-size:12px;letter-spacing:.06em;color:var(--mb-muted);text-decoration:none;background:var(--mb-surface);border:1px solid var(--mb-line);padding:6px 12px;border-radius:99px}
+
+.side{width:240px;flex-shrink:0;background:var(--mb-text);color:var(--mb-surface);min-height:100vh;display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 22px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:18px}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:var(--mb-accent);color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-style:italic;font-size:20px}
+.brand strong{font-family:var(--display);font-weight:500;font-size:19px;letter-spacing:-.02em}
+.brand strong em{font-style:italic;color:var(--mb-accent);font-weight:400}
+.brand small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mb-primary-soft);font-weight:600;margin-top:2px}
+.s-title{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.4);padding:0 12px;margin:14px 0 6px}
+.s-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;font-weight:500}
+.s-link:hover{background:rgba(255,255,255,.05);color:#fff}
+.s-link.on{background:var(--mb-primary);color:#fff}
+.s-link .ic{width:18px;height:18px;display:grid;place-items:center;font-style:italic;font-family:var(--display);font-size:14px;opacity:.8}
+.s-link .num{margin-left:auto;background:rgba(255,255,255,.1);font-size:10px;padding:2px 6px;border-radius:99px;font-family:var(--mono);font-weight:600}
+.s-link.on .num{background:rgba(0,0,0,.2)}
+.s-link .num.danger{background:var(--mb-danger);color:#fff}
+.s-foot{margin-top:auto;padding:14px 12px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px}
+.s-foot .av{width:34px;height:34px;border-radius:50%;background:var(--mb-primary);display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:600;font-size:14px}
+.s-foot .nm{font-size:13px;font-weight:600}.s-foot .ro{font-size:11px;opacity:.6}
+
+.main{flex:1;min-width:0;padding:24px 32px 60px}
+@media(max-width:900px){.side{display:none}.main{padding:20px}.crumb{display:none}}
+
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+.top .eb{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--mb-muted);font-weight:700;margin-bottom:4px}
+.top h1{font-family:var(--display);font-weight:300;font-size:clamp(28px,3.2vw,40px);letter-spacing:-.025em;margin:0;line-height:1.05}
+.top h1 em{font-style:italic;color:var(--mb-primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:99px;font-weight:600;font-size:13px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--mb-primary);color:#fff}.btn-ghost{background:transparent;border-color:var(--mb-line)}.btn-accent{background:var(--mb-accent);color:#fff}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:18px}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mb-muted);font-weight:600;margin-bottom:8px}
+.kpi .v{font-family:var(--display);font-size:32px;font-weight:500;line-height:1;letter-spacing:-.025em}
+.kpi .v em{font-style:italic;color:var(--mb-primary);font-size:20px;font-weight:400}
+.kpi .h{font-size:11px;color:var(--mb-muted);margin-top:6px;font-family:var(--mono)}
+.kpi.alarm{background:var(--mb-text);color:#fff;border-color:transparent}
+.kpi.alarm .l{color:rgba(255,255,255,.6)}
+.kpi.alarm .v em{color:var(--mb-accent)}
+
+/* layout */
+.row{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-bottom:24px}
+@media(max-width:1100px){.row{grid-template-columns:1fr}}
+.panel{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:22px}
+.panel-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.panel-h h3{font-family:var(--display);font-weight:500;font-size:20px;margin:0;letter-spacing:-.015em}
+.panel-h h3 em{font-style:italic;color:var(--mb-primary)}
+
+/* expiry alerts */
+.exp{display:flex;flex-direction:column;gap:8px}
+.exp-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;padding:12px;border-radius:var(--r-md);background:var(--mb-bg);border-left:3px solid}
+.exp-row.r3{border-color:var(--mb-danger)}
+.exp-row.r7{border-color:var(--mb-warning)}
+.exp-row.r15{border-color:var(--mb-primary-soft)}
+.exp-row .days{font-family:var(--display);font-size:28px;font-weight:500;letter-spacing:-.02em;width:46px;text-align:center;line-height:1}
+.exp-row.r3 .days{color:var(--mb-danger)}.exp-row.r7 .days{color:#8a6717}.exp-row.r15 .days{color:var(--mb-primary)}
+.exp-row .days em{font-style:italic;font-size:11px;color:var(--mb-muted);font-weight:600;display:block;margin-top:2px;font-family:var(--body);text-transform:uppercase;letter-spacing:.08em}
+.exp-row .nm{font-size:14px;font-weight:600}
+.exp-row .hh{font-size:12px;color:var(--mb-muted);font-family:var(--mono);margin-top:2px}
+.exp-row .qty{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:-.01em}
+.exp-row .qty em{font-style:italic;color:var(--mb-muted);font-size:12px;font-weight:400}
+.mini{font-size:10px;padding:4px 8px;border-radius:99px;border:1px solid var(--mb-line);background:#fff;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;font-family:inherit;color:var(--mb-text)}
+.mini:hover{background:var(--mb-text);color:#fff;border-color:var(--mb-text)}
+
+/* reception form */
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.full{grid-column:1/-1}
+.field label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mb-muted);font-weight:700}
+.field input,.field select{padding:10px 14px;border-radius:10px;border:1px solid var(--mb-line);background:#fff;font-family:inherit;font-size:13px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--mb-primary)}
+.upload{border:1.5px dashed var(--mb-line);border-radius:10px;padding:18px;text-align:center;font-size:12px;color:var(--mb-muted);background:var(--mb-bg);cursor:pointer}
+.upload:hover{border-color:var(--mb-primary);color:var(--mb-primary)}
+.upload strong{display:block;font-family:var(--display);font-size:16px;color:var(--mb-text);margin-bottom:4px;letter-spacing:-.01em;font-weight:500}
+
+/* stock table */
+.tab{width:100%;border-collapse:collapse;font-size:13px}
+.tab th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mb-muted);font-weight:700;padding:10px;border-bottom:1px solid var(--mb-line)}
+.tab td{padding:12px 10px;border-bottom:1px dashed var(--mb-line);vertical-align:middle}
+.tab tr:hover td{background:var(--mb-bg)}
+.tab code{font-family:var(--mono);font-size:11px;color:var(--mb-muted)}
+.tab .nm{font-weight:600}
+.tab .loc{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;background:var(--mb-bg);color:var(--mb-text);display:inline-block;letter-spacing:.04em;font-weight:600}
+.lvl{display:flex;align-items:center;gap:8px}
+.lvl-bar{width:80px;height:5px;background:var(--mb-line);border-radius:99px;overflow:hidden}
+.lvl-fill{height:100%;border-radius:99px}
+.lvl-fill.ok{background:var(--mb-success)}
+.lvl-fill.lo{background:var(--mb-warning)}
+.lvl-fill.cr{background:var(--mb-danger)}
+.tab .qty{font-family:var(--display);font-weight:500;font-size:15px}
+.tab .qty.lo{color:#8a6717}
+.tab .qty.cr{color:var(--mb-danger)}
+
+/* zones */
+.zones{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+@media(max-width:800px){.zones{grid-template-columns:repeat(2,1fr)}}
+.zone{background:var(--mb-bg);border-radius:var(--r-md);padding:14px;position:relative;overflow:hidden}
+.zone .zh{font-family:var(--display);font-size:18px;font-style:italic;color:var(--mb-primary);font-weight:500;letter-spacing:-.01em}
+.zone .zs{font-size:11px;color:var(--mb-muted);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;font-weight:600}
+.zone .occ{display:flex;align-items:baseline;gap:6px;margin-top:14px}
+.zone .occ .n{font-family:var(--display);font-size:30px;font-weight:500;letter-spacing:-.02em;line-height:1}
+.zone .occ .pct{font-size:11px;color:var(--mb-muted);font-family:var(--mono)}
+.zone .track{height:5px;background:var(--mb-line);border-radius:99px;margin-top:8px;overflow:hidden}
+.zone .fill{height:100%;background:var(--mb-primary);border-radius:99px}
+
+/* merma */
+.merma-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.merma-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:10px;border-radius:var(--r-md);background:var(--mb-bg);font-size:13px;align-items:center}
+.merma-row .dt{font-family:var(--mono);font-size:11px;color:var(--mb-muted)}
+.merma-row .rs{font-size:11px;color:var(--mb-danger);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.merma-row .am{font-family:var(--display);font-weight:500;color:var(--mb-danger)}
+</style>
+</head>
+<body>
+<a class="crumb" href="index.html">← roles</a>
+
+<aside class="side">
+  <div class="brand">
+    <div class="brand-mark">m</div>
+    <div><strong style="color:var(--mb-surface)">macabeo<em>.</em></strong><small>almacén</small></div>
+  </div>
+  <a class="s-link on" href="#"><span class="ic">◐</span>Inventario<span class="num">312</span></a>
+  <a class="s-link" href="#"><span class="ic">◑</span>Caducidades<span class="num danger">12</span></a>
+  <a class="s-link" href="#"><span class="ic">◓</span>Recepción</a>
+  <a class="s-link" href="#"><span class="ic">◧</span>Lotes & trazabilidad</a>
+  <a class="s-link" href="#"><span class="ic">◔</span>Mermas<span class="num">7</span></a>
+  <div class="s-title">Configuración</div>
+  <a class="s-link" href="#"><span class="ic">◌</span>Ubicaciones</a>
+  <a class="s-link" href="#"><span class="ic">◍</span>Alertas y umbrales</a>
+  <div class="s-foot">
+    <div class="av">B</div>
+    <div><div class="nm">Brais Lema</div><div class="ro">Responsable almacén</div></div>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="top">
+    <div>
+      <div class="eb">Almacén Cambre · jueves 21 may · 10:42</div>
+      <h1>312 referencias <em>activas</em>, 12 con caducidad inminente.</h1>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost">Inventario físico</button>
+      <button class="btn btn-primary">+ Registrar recepción</button>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi">
+      <div class="l">Valor inventario</div>
+      <div class="v">18.420 <em>€</em></div>
+      <div class="h">a coste · 312 SKUs</div>
+    </div>
+    <div class="kpi">
+      <div class="l">Rotación media</div>
+      <div class="v">12,4 <em>días</em></div>
+      <div class="h">↘ 1,2 d vs trimestre</div>
+    </div>
+    <div class="kpi alarm">
+      <div class="l">Caducidades &lt;7 días</div>
+      <div class="v">12 <em>SKUs</em></div>
+      <div class="h">valor 168 € · campaña?</div>
+    </div>
+    <div class="kpi">
+      <div class="l">Merma últimos 30d</div>
+      <div class="v">182 <em>€</em></div>
+      <div class="h">0,98% sobre ventas</div>
+    </div>
+  </section>
+
+  <div class="row">
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Caducidades <em>próximas</em></h3>
+        <div style="display:flex;gap:6px">
+          <button class="mini">3 días</button>
+          <button class="mini" style="background:var(--mb-text);color:#fff;border-color:var(--mb-text)">7 días</button>
+          <button class="mini">15 días</button>
+        </div>
+      </div>
+      <div class="exp">
+        <div class="exp-row r3">
+          <div class="days">2<em>días</em></div>
+          <div>
+            <div class="nm">Yogur natural · Granxa Meixón</div>
+            <div class="hh">L26-0514 · cad 23/05 · B-1-4</div>
+          </div>
+          <div class="qty">14 <em>uds</em></div>
+          <button class="mini">Acción →</button>
+        </div>
+        <div class="exp-row r3">
+          <div class="days">3<em>días</em></div>
+          <div>
+            <div class="nm">Lechuga roble · Horta da Lúa</div>
+            <div class="hh">L26-0515 · cad 24/05 · A-2-1</div>
+          </div>
+          <div class="qty">8 <em>uds</em></div>
+          <button class="mini">Acción →</button>
+        </div>
+        <div class="exp-row r7">
+          <div class="days">5<em>días</em></div>
+          <div>
+            <div class="nm">Pan caaveiro · Forno O Marqués</div>
+            <div class="hh">L26-0516 · cad 26/05 · D-1-1</div>
+          </div>
+          <div class="qty">6 <em>uds</em></div>
+          <button class="mini">Acción →</button>
+        </div>
+        <div class="exp-row r7">
+          <div class="days">6<em>días</em></div>
+          <div>
+            <div class="nm">Tomate kumato · Horta da Lúa</div>
+            <div class="hh">L26-0518 · cad 27/05 · A-2-3</div>
+          </div>
+          <div class="qty">3,2 <em>kg</em></div>
+          <button class="mini">Acción →</button>
+        </div>
+        <div class="exp-row r15">
+          <div class="days">12<em>días</em></div>
+          <div>
+            <div class="nm">Queso curado · Granxa Meixón</div>
+            <div class="hh">L26-0501 · cad 02/06 · B-1-2</div>
+          </div>
+          <div class="qty">2 <em>uds</em></div>
+          <button class="mini">Acción →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h3>Recepción de <em>mercancía</em></h3></div>
+      <div class="form-grid">
+        <div class="field full">
+          <label>Proveedor</label>
+          <select><option>Horta da Lúa — Betanzos</option><option>Granxa Meixón — Curtis</option><option>Salgueiro Cereais — Lalín</option></select>
+        </div>
+        <div class="field">
+          <label>Producto / SKU</label>
+          <input placeholder="Buscar o escanear…" value="Tomate kumato · FR-TKM-01">
+        </div>
+        <div class="field">
+          <label>Nº lote</label>
+          <input placeholder="L26-0521" value="L26-0521">
+        </div>
+        <div class="field">
+          <label>Cantidad</label>
+          <input placeholder="kg / uds" value="18,5">
+        </div>
+        <div class="field">
+          <label>Unidad</label>
+          <select><option>kg</option><option>uds</option><option>litros</option></select>
+        </div>
+        <div class="field">
+          <label>Fecha caducidad</label>
+          <input type="date" value="2026-05-31">
+        </div>
+        <div class="field">
+          <label>Ubicación</label>
+          <select><option>A-2-3 · Frescos huerta</option><option>B-1-2 · Lácteo</option><option>C-3 · Granel</option></select>
+        </div>
+        <div class="field full">
+          <div class="upload">
+            <strong>📎 Adjuntar certificado eco / albarán</strong>
+            certificado-craega-tomate-may26.pdf · 0,8 MB
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button class="btn btn-ghost">Cancelar</button>
+        <button class="btn btn-primary">Registrar recepción</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:24px">
+    <div class="panel-h">
+      <h3>Stock por <em>referencia</em></h3>
+      <div style="display:flex;gap:6px;font-size:11px">
+        <span style="color:var(--mb-muted)">Mostrar:</span>
+        <button class="mini" style="background:var(--mb-text);color:#fff;border-color:var(--mb-text)">Crítico</button>
+        <button class="mini">Bajo</button>
+        <button class="mini">Todo</button>
+      </div>
+    </div>
+    <table class="tab">
+      <thead><tr><th>SKU</th><th>Producto</th><th>Ubicación</th><th>Lote / Cad.</th><th>Stock</th><th>Mínimo</th><th>Nivel</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><code>FR-TKM-01</code></td><td><div class="nm">Tomate kumato</div><div style="font-size:11px;color:var(--mb-muted)">Horta da Lúa</div></td><td><span class="loc">A-2-3</span></td><td><code>L26-0518 · 27/05</code></td><td><span class="qty cr">3,2 kg</span></td><td>10 kg</td><td><div class="lvl"><div class="lvl-bar"><div class="lvl-fill cr" style="width:18%"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--mb-danger)">crítico</span></div></td><td><button class="mini">+ Pedido</button></td></tr>
+        <tr><td><code>LC-YGN-04</code></td><td><div class="nm">Yogur natural</div><div style="font-size:11px;color:var(--mb-muted)">Granxa Meixón</div></td><td><span class="loc">B-1-4</span></td><td><code>L26-0514 · 23/05</code></td><td><span class="qty cr">14 uds</span></td><td>40 uds</td><td><div class="lvl"><div class="lvl-bar"><div class="lvl-fill cr" style="width:24%"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--mb-danger)">crítico</span></div></td><td><button class="mini">+ Pedido</button></td></tr>
+        <tr><td><code>FR-LRO-02</code></td><td><div class="nm">Lechuga roble</div><div style="font-size:11px;color:var(--mb-muted)">Horta da Lúa</div></td><td><span class="loc">A-2-1</span></td><td><code>L26-0515 · 24/05</code></td><td><span class="qty lo">8 uds</span></td><td>15 uds</td><td><div class="lvl"><div class="lvl-bar"><div class="lvl-fill lo" style="width:42%"></div></div><span style="font-family:var(--mono);font-size:11px;color:#8a6717">bajo</span></div></td><td><button class="mini">+ Pedido</button></td></tr>
+        <tr><td><code>GR-GBC-09</code></td><td><div class="nm">Garbanzo castellano</div><div style="font-size:11px;color:var(--mb-muted)">Salgueiro Cereais</div></td><td><span class="loc">C-3-1</span></td><td><code>L26-0420</code></td><td><span class="qty lo">9,8 kg</span></td><td>20 kg</td><td><div class="lvl"><div class="lvl-bar"><div class="lvl-fill lo" style="width:48%"></div></div><span style="font-family:var(--mono);font-size:11px;color:#8a6717">bajo</span></div></td><td><button class="mini">+ Pedido</button></td></tr>
+        <tr><td><code>PN-CAV-12</code></td><td><div class="nm">Pan caaveiro</div><div style="font-size:11px;color:var(--mb-muted)">Forno O Marqués</div></td><td><span class="loc">D-1-1</span></td><td><code>L26-0516 · 26/05</code></td><td><span class="qty">24 uds</span></td><td>15 uds</td><td><div class="lvl"><div class="lvl-bar"><div class="lvl-fill ok" style="width:78%"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--mb-success)">ok</span></div></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="row">
+    <div class="panel">
+      <div class="panel-h"><h3>Ocupación <em>por zona</em></h3></div>
+      <div class="zones">
+        <div class="zone"><div class="zh">A · Frescos</div><div class="zs">huerta y fruta</div><div class="occ"><span class="n">68</span><span class="pct">/120 ud</span></div><div class="track"><div class="fill" style="width:57%;background:var(--mb-warning)"></div></div></div>
+        <div class="zone"><div class="zh">B · Lácteo</div><div class="zs">cámara 4 °C</div><div class="occ"><span class="n">42</span><span class="pct">/80 ud</span></div><div class="track"><div class="fill" style="width:52%"></div></div></div>
+        <div class="zone"><div class="zh">C · Granel</div><div class="zs">silos & dispensadores</div><div class="occ"><span class="n">112</span><span class="pct">/180 kg</span></div><div class="track"><div class="fill" style="width:62%"></div></div></div>
+        <div class="zone"><div class="zh">D · Despensa</div><div class="zs">seco y panadería</div><div class="occ"><span class="n">198</span><span class="pct">/220 ud</span></div><div class="track"><div class="fill" style="width:90%;background:var(--mb-danger)"></div></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h3>Mermas <em>recientes</em></h3><a href="#" style="font-size:12px;color:var(--mb-primary);text-decoration:none;font-weight:700">Ver todas →</a></div>
+      <div class="merma-list">
+        <div class="merma-row"><span class="dt">20/05</span><div><div style="font-weight:600">Lechuga roble · 4 uds</div><div class="rs">caducidad</div></div><span class="am">−9,40 €</span></div>
+        <div class="merma-row"><span class="dt">19/05</span><div><div style="font-weight:600">Yogur natural · 6 uds</div><div class="rs">vidrio roto</div></div><span class="am">−7,20 €</span></div>
+        <div class="merma-row"><span class="dt">18/05</span><div><div style="font-weight:600">Pan caaveiro · 2 uds</div><div class="rs">caducidad</div></div><span class="am">−8,40 €</span></div>
+        <div class="merma-row"><span class="dt">17/05</span><div><div style="font-weight:600">Tomate kumato · 1,8 kg</div><div class="rs">deterioro</div></div><span class="am">−12,24 €</span></div>
+        <div class="merma-row"><span class="dt">15/05</span><div><div style="font-weight:600">Huevos campero · 3 uds</div><div class="rs">rotura</div></div><span class="am">−1,12 €</span></div>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:14px">+ Registrar nueva merma</button>
+    </div>
+  </div>
+</main>
+</body>
+</html>

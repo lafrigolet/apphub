@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Macabeo · Gestor de pedidos · Picking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Manrope:wght@300..800&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --mb-primary:#4F6B2F;--mb-primary-soft:#A6B89A;--mb-accent:#C76E4A;
+  --mb-bg:#F5F1E8;--mb-surface:#FBF9F3;--mb-text:#2B2218;--mb-muted:#7A6F5C;
+  --mb-success:#5B8F3A;--mb-warning:#D5A021;--mb-danger:#9E3B23;
+  --mb-line:rgba(43,34,24,.12);--r-md:12px;--r-lg:20px;
+  --display:"Fraunces",ui-serif,Georgia,serif;--body:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:var(--body);background:var(--mb-bg);color:var(--mb-text);line-height:1.5;min-height:100vh;display:flex}
+.crumb{position:fixed;top:18px;right:24px;z-index:30;font-size:12px;letter-spacing:.06em;color:var(--mb-muted);text-decoration:none;background:var(--mb-surface);border:1px solid var(--mb-line);padding:6px 12px;border-radius:99px}
+
+.side{width:240px;flex-shrink:0;background:var(--mb-text);color:var(--mb-surface);min-height:100vh;display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 22px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:18px}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:var(--mb-accent);color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-style:italic;font-size:20px}
+.brand strong{font-family:var(--display);font-weight:500;font-size:19px;letter-spacing:-.02em}
+.brand strong em{font-style:italic;color:var(--mb-accent);font-weight:400}
+.brand small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mb-primary-soft);font-weight:600;margin-top:2px}
+.s-title{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.4);padding:0 12px;margin:14px 0 6px}
+.s-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;font-weight:500}
+.s-link:hover{background:rgba(255,255,255,.05);color:#fff}
+.s-link.on{background:var(--mb-primary);color:#fff}
+.s-link .ic{width:18px;height:18px;display:grid;place-items:center;font-style:italic;font-family:var(--display);font-size:14px;opacity:.8}
+.s-link .num{margin-left:auto;background:rgba(255,255,255,.1);font-size:10px;padding:2px 6px;border-radius:99px;font-family:var(--mono);font-weight:600}
+.s-link.on .num{background:rgba(0,0,0,.2)}
+.s-foot{margin-top:auto;padding:14px 12px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px}
+.s-foot .av{width:34px;height:34px;border-radius:50%;background:var(--mb-primary);display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:600;font-size:14px}
+.s-foot .nm{font-size:13px;font-weight:600}.s-foot .ro{font-size:11px;opacity:.6}
+
+.main{flex:1;min-width:0;padding:24px 32px 60px}
+@media(max-width:900px){.side{display:none}.main{padding:20px}.crumb{display:none}}
+
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+.top .eb{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--mb-muted);font-weight:700;margin-bottom:4px}
+.top h1{font-family:var(--display);font-weight:300;font-size:clamp(28px,3.2vw,40px);letter-spacing:-.025em;margin:0;line-height:1.05}
+.top h1 em{font-style:italic;color:var(--mb-primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:99px;font-weight:600;font-size:13px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--mb-primary);color:#fff}.btn-ghost{background:transparent;border-color:var(--mb-line)}.btn-accent{background:var(--mb-accent);color:#fff}
+
+/* progress */
+.progress{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:18px 24px;margin-bottom:18px;display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center}
+@media(max-width:700px){.progress{grid-template-columns:1fr}}
+.progress .info{font-family:var(--display);font-size:22px;font-weight:500;letter-spacing:-.015em}
+.progress .info em{font-style:italic;color:var(--mb-primary)}
+.progress .info .h{font-size:12px;color:var(--mb-muted);font-family:var(--body);font-weight:500;margin-top:2px;letter-spacing:0}
+.progress .track{height:8px;background:var(--mb-bg);border-radius:99px;overflow:hidden}
+.progress .fill{height:100%;width:62%;background:linear-gradient(90deg,var(--mb-primary-soft),var(--mb-primary));border-radius:99px}
+.progress .stats{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--mb-muted)}
+.progress .stats strong{color:var(--mb-text);font-family:var(--display);font-size:24px;display:block;font-weight:500}
+
+/* layout */
+.gridb{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:flex-start}
+@media(max-width:1000px){.gridb{grid-template-columns:1fr}}
+
+/* order queue */
+.queue{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);overflow:hidden;display:flex;flex-direction:column;max-height:78vh}
+.queue-h{padding:18px 20px;border-bottom:1px solid var(--mb-line);display:flex;justify-content:space-between;align-items:center}
+.queue-h h3{font-family:var(--display);font-weight:500;font-size:18px;margin:0;letter-spacing:-.01em}
+.queue-h h3 em{font-style:italic;color:var(--mb-primary)}
+.queue-list{overflow-y:auto;flex:1}
+.q-item{padding:16px 20px;border-bottom:1px dashed var(--mb-line);cursor:pointer;transition:background .15s;display:flex;flex-direction:column;gap:6px;position:relative}
+.q-item:hover{background:var(--mb-bg)}
+.q-item.act{background:rgba(79,107,47,.06);border-left:3px solid var(--mb-primary);padding-left:17px}
+.q-item .id-row{display:flex;justify-content:space-between;align-items:center}
+.q-item code{font-family:var(--mono);font-size:11px;color:var(--mb-muted);font-weight:600}
+.q-item .nm{font-weight:600;font-size:14px}
+.q-item .meta{font-size:12px;color:var(--mb-muted);display:flex;gap:12px}
+.q-item .meta span{display:inline-flex;align-items:center;gap:4px}
+.tag{font-size:10px;padding:3px 8px;border-radius:99px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.tag.todo{background:rgba(213,160,33,.18);color:#8a6717}
+.tag.prog{background:rgba(79,107,47,.12);color:var(--mb-primary)}
+.tag.done{background:rgba(91,143,58,.15);color:var(--mb-success)}
+
+/* picking */
+.pick{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);overflow:hidden}
+.pick-h{padding:20px 24px;background:var(--mb-text);color:var(--mb-surface);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+.pick-h .l{display:flex;align-items:center;gap:14px}
+.pick-h .l .av{width:46px;height:46px;border-radius:12px;background:var(--mb-primary);display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:600;font-size:22px}
+.pick-h h3{font-family:var(--display);font-weight:500;font-size:24px;margin:0;letter-spacing:-.015em}
+.pick-h h3 em{font-style:italic;color:var(--mb-accent)}
+.pick-h .sub{font-size:12px;opacity:.7;font-family:var(--mono);margin-top:2px}
+.pick-h .r{display:flex;gap:8px}
+.pick-scan{padding:16px 24px;background:var(--mb-bg);border-bottom:1px solid var(--mb-line);display:flex;align-items:center;gap:14px}
+.pick-scan input{flex:1;padding:12px 18px;border-radius:99px;border:1px solid var(--mb-line);background:#fff;font-family:var(--mono);font-size:14px;letter-spacing:.04em}
+.pick-scan input:focus{outline:none;border-color:var(--mb-primary)}
+.zone-h{padding:12px 24px;background:rgba(79,107,47,.08);font-family:var(--display);font-size:14px;font-style:italic;color:var(--mb-primary);font-weight:500;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:center}
+.zone-h .ct{font-family:var(--mono);font-style:normal;font-size:11px;font-weight:600;color:var(--mb-muted);text-transform:uppercase;letter-spacing:.1em}
+.line{padding:14px 24px;border-bottom:1px dashed var(--mb-line);display:grid;grid-template-columns:auto 1fr auto auto;gap:16px;align-items:center}
+.line:last-child{border-bottom:none}
+.line.done{opacity:.55;background:rgba(91,143,58,.04)}
+.line.done .nm{text-decoration:line-through}
+.line.issue{background:rgba(158,59,35,.05);border-left:3px solid var(--mb-danger);padding-left:21px}
+.check{width:28px;height:28px;border-radius:50%;border:2px solid var(--mb-line);background:#fff;cursor:pointer;display:grid;place-items:center;font-size:14px;color:#fff;transition:all .15s}
+.check:hover{border-color:var(--mb-primary)}
+.check.on{background:var(--mb-success);border-color:var(--mb-success)}
+.line .nm{font-size:14px;font-weight:600}
+.line .hh{font-size:12px;color:var(--mb-muted);display:flex;gap:10px;flex-wrap:wrap}
+.line .hh code{font-family:var(--mono);background:var(--mb-bg);padding:1px 6px;border-radius:4px}
+.line .q{font-family:var(--display);font-size:20px;font-weight:500;letter-spacing:-.01em;text-align:right;min-width:60px}
+.line .q em{font-style:italic;font-size:14px;color:var(--mb-muted);font-weight:400}
+.line .actions{display:flex;gap:6px}
+.act-btn{width:28px;height:28px;border-radius:50%;background:var(--mb-bg);color:var(--mb-muted);border:1px solid var(--mb-line);display:grid;place-items:center;font-size:13px;cursor:pointer;font-family:var(--display);font-style:italic;font-weight:600}
+.act-btn:hover{background:var(--mb-text);color:#fff;border-color:var(--mb-text)}
+.act-btn.danger:hover{background:var(--mb-danger);border-color:var(--mb-danger)}
+
+.subs{padding:14px 24px;background:#fff8e8;border-top:1px dashed #e8d49e;font-size:13px;color:#5c4413;display:flex;gap:14px;align-items:center}
+.subs strong{color:#3a2c08}
+
+.pick-foot{padding:18px 24px;background:var(--mb-bg);border-top:1px solid var(--mb-line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+.pick-foot .stat{display:flex;gap:18px}
+.pick-foot .stat div{font-size:12px;color:var(--mb-muted)}
+.pick-foot .stat strong{font-family:var(--display);font-size:22px;font-weight:500;display:block;color:var(--mb-text);letter-spacing:-.015em}
+.pick-foot .stat strong em{font-style:italic;color:var(--mb-primary)}
+</style>
+</head>
+<body>
+<a class="crumb" href="index.html">← roles</a>
+
+<aside class="side">
+  <div class="brand">
+    <div class="brand-mark">m</div>
+    <div><strong style="color:var(--mb-surface)">macabeo<em>.</em></strong><small>operación</small></div>
+  </div>
+  <a class="s-link on" href="#"><span class="ic">◐</span>Cola de pedidos<span class="num">14</span></a>
+  <a class="s-link" href="#"><span class="ic">◑</span>Sustituciones<span class="num">3</span></a>
+  <a class="s-link" href="#"><span class="ic">◓</span>Incidencias</a>
+  <a class="s-link" href="#"><span class="ic">◔</span>Cerrados hoy<span class="num">22</span></a>
+  <div class="s-title">Turno</div>
+  <a class="s-link" href="#"><span class="ic">◌</span>Mi jornada</a>
+  <a class="s-link" href="#"><span class="ic">◧</span>Imprimir lista</a>
+  <div class="s-foot">
+    <div class="av">A</div>
+    <div><div class="nm">Antía Recouso</div><div class="ro">Gestora de pedidos</div></div>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="top">
+    <div>
+      <div class="eb">Turno · jueves 21 may · 16:00–20:00</div>
+      <h1>14 pedidos para <em>preparar</em> antes de las 18:00.</h1>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost">Imprimir lista</button>
+      <button class="btn btn-primary">Cerrar lote</button>
+    </div>
+  </header>
+
+  <div class="progress">
+    <div class="info">9 de 14 pedidos <em>completados</em><div class="h">Ritmo: 1 pedido cada 8 min · ETA 17:48</div></div>
+    <div class="track"><div class="fill"></div></div>
+    <div class="stats"><div><strong>62<em>%</em></strong>preparado</div><div><strong>3</strong>incidencias</div><div><strong>2</strong>sustituciones</div></div>
+  </div>
+
+  <div class="gridb">
+    <aside class="queue">
+      <div class="queue-h"><h3>Cola de <em>preparación</em></h3><span style="font-size:11px;color:var(--mb-muted);font-weight:600">14 pedidos</span></div>
+      <div class="queue-list">
+        <div class="q-item act">
+          <div class="id-row"><code>P-2026-0142</code><span class="tag prog">En curso</span></div>
+          <div class="nm">Marta Vilar · Socia #042</div>
+          <div class="meta"><span>7 líneas</span><span>38,40 €</span><span>local · 18:00</span></div>
+        </div>
+        <div class="q-item">
+          <div class="id-row"><code>P-2026-0141</code><span class="tag todo">Pendiente</span></div>
+          <div class="nm">Iria Carballo · puntual</div>
+          <div class="meta"><span>4 líneas</span><span>21,40 €</span><span>local · 18:00</span></div>
+        </div>
+        <div class="q-item">
+          <div class="id-row"><code>P-2026-0143</code><span class="tag todo">Pendiente</span></div>
+          <div class="nm">Brais Lema · Socio #018</div>
+          <div class="meta"><span>11 líneas</span><span>62,80 €</span><span>domicilio</span></div>
+        </div>
+        <div class="q-item">
+          <div class="id-row"><code>P-2026-0144</code><span class="tag todo">Pendiente</span></div>
+          <div class="nm">Sabela Riveiro · Socia #073</div>
+          <div class="meta"><span>6 líneas</span><span>34,20 €</span><span>local · 19:00</span></div>
+        </div>
+        <div class="q-item">
+          <div class="id-row"><code>P-2026-0145</code><span class="tag done">Listo</span></div>
+          <div class="nm">Noa Ferreiro · Socia #112</div>
+          <div class="meta"><span>3 líneas</span><span>14,80 €</span><span>local · 18:00</span></div>
+        </div>
+        <div class="q-item">
+          <div class="id-row"><code>P-2026-0146</code><span class="tag todo">Pendiente</span></div>
+          <div class="nm">Xosé Tovar · Socio #156</div>
+          <div class="meta"><span>9 líneas</span><span>48,60 €</span><span>local · 19:00</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="pick">
+      <div class="pick-h">
+        <div class="l">
+          <div class="av">M</div>
+          <div><h3>Marta Vilar · <em>P-2026-0142</em></h3><div class="sub">7 líneas · 38,40 € · recogida local jue 18:00–20:00</div></div>
+        </div>
+        <div class="r">
+          <button class="btn btn-ghost" style="border-color:rgba(255,255,255,.25);color:#fff">Llamar</button>
+          <button class="btn btn-accent">Cerrar pedido →</button>
+        </div>
+      </div>
+      <div class="pick-scan">
+        <span style="font-family:var(--display);font-style:italic;font-size:20px;color:var(--mb-primary)">⛒</span>
+        <input placeholder="Escanea código de barras o introduce SKU…" value="">
+        <span style="font-size:11px;color:var(--mb-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Lector conectado</span>
+      </div>
+
+      <div class="zone-h">Zona A · Frescos<span class="ct">2 líneas</span></div>
+      <div class="line done">
+        <button class="check on">✓</button>
+        <div>
+          <div class="nm">Tomate kumato</div>
+          <div class="hh"><code>FR-TKM-01</code><span>A-2-3</span><span>Horta da Lúa</span><span>Lote L26-0518</span></div>
+        </div>
+        <div class="q">2 <em>× 500g</em></div>
+        <div class="actions"><button class="act-btn">↻</button><button class="act-btn danger">!</button></div>
+      </div>
+      <div class="line done">
+        <button class="check on">✓</button>
+        <div>
+          <div class="nm">Lechuga roble</div>
+          <div class="hh"><code>FR-LRO-02</code><span>A-2-1</span><span>Horta da Lúa</span></div>
+        </div>
+        <div class="q">3 <em>uds</em></div>
+        <div class="actions"><button class="act-btn">↻</button><button class="act-btn danger">!</button></div>
+      </div>
+
+      <div class="zone-h">Zona B · Lácteo<span class="ct">2 líneas</span></div>
+      <div class="line done">
+        <button class="check on">✓</button>
+        <div>
+          <div class="nm">Queso curado nuevo</div>
+          <div class="hh"><code>LC-QCN-04</code><span>B-1-2</span><span>Granxa Meixón</span><span>Lote 26-0511 · cad 12/07</span></div>
+        </div>
+        <div class="q">1 <em>× 300g</em></div>
+        <div class="actions"><button class="act-btn">↻</button><button class="act-btn danger">!</button></div>
+      </div>
+      <div class="line issue">
+        <button class="check">!</button>
+        <div>
+          <div class="nm">Yogur natural · <span style="color:var(--mb-danger);font-weight:700;font-size:11px;text-transform:uppercase">incidencia</span></div>
+          <div class="hh">Solo quedan 2 unidades, pedido 4 · sustituto sugerido: <strong>Yogur de cabra (Meixón)</strong></div>
+        </div>
+        <div class="q">2 <em>de 4</em></div>
+        <div class="actions"><button class="act-btn">↻</button><button class="act-btn danger">!</button></div>
+      </div>
+      <div class="subs">
+        <span style="font-family:var(--display);font-style:italic;font-size:22px;color:#8a6717">!</span>
+        <div>
+          <strong>Sustitución propuesta:</strong> 2 yogures de cabra de Meixón (+0,40 € en total).
+          La socia tiene preferencia <em>"avisar antes de sustituir"</em> — se enviará SMS automático al confirmar.
+        </div>
+        <button class="btn btn-primary">Notificar y sustituir</button>
+      </div>
+
+      <div class="zone-h">Zona C · Granel<span class="ct">1 línea</span></div>
+      <div class="line">
+        <button class="check"></button>
+        <div>
+          <div class="nm">Garbanzo castellano · granel</div>
+          <div class="hh"><code>GR-GBC-09</code><span>C-3-1</span><span>Salgueiro Cereais</span><span>Pesar 600g (tolerancia ±5%)</span></div>
+        </div>
+        <div class="q">600 <em>g</em></div>
+        <div class="actions"><button class="act-btn">↻</button><button class="act-btn danger">!</button></div>
+      </div>
+
+      <div class="zone-h">Zona D · Despensa & panadería<span class="ct">2 líneas</span></div>
+      <div class="line">
+        <button class="check"></button>
+        <div>
+          <div class="nm">Pan caaveiro</div>
+          <div class="hh"><code>PN-CAV-12</code><span>D-1-1</span><span>Forno O Marqués</span></div>
+        </div>
+        <div class="q">2 <em>× 500g</em></div>
+        <div class="actions"><button class="act-btn">↻</button><button class="act-btn danger">!</button></div>
+      </div>
+      <div class="line">
+        <button class="check"></button>
+        <div>
+          <div class="nm">Sidra natural</div>
+          <div class="hh"><code>BV-SID-18</code><span>D-4-3</span><span>Llagar Asturia</span></div>
+        </div>
+        <div class="q">1 <em>× 75cl</em></div>
+        <div class="actions"><button class="act-btn">↻</button><button class="act-btn danger">!</button></div>
+      </div>
+
+      <div class="pick-foot">
+        <div class="stat">
+          <div><strong>5<em>/7</em></strong>líneas</div>
+          <div><strong>1</strong>incidencia</div>
+          <div><strong>≈3 min</strong>restantes</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost">Pausar</button>
+          <button class="btn btn-accent">Cerrar y etiquetar →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+document.querySelectorAll(".check").forEach(c=>c.addEventListener("click",()=>{
+  if(c.classList.contains("on"))return;
+  c.classList.add("on");c.textContent="✓";c.closest(".line").classList.add("done");
+}));
+</script>
+</body>
+</html>

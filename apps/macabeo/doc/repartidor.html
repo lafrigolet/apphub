@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Macabeo · Reparto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Manrope:wght@300..800&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --mb-primary:#4F6B2F;--mb-primary-soft:#A6B89A;--mb-accent:#C76E4A;
+  --mb-bg:#F5F1E8;--mb-surface:#FBF9F3;--mb-text:#2B2218;--mb-muted:#7A6F5C;
+  --mb-success:#5B8F3A;--mb-warning:#D5A021;--mb-danger:#9E3B23;
+  --mb-line:rgba(43,34,24,.12);--r-md:12px;--r-lg:20px;
+  --display:"Fraunces",ui-serif,Georgia,serif;--body:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:var(--body);background:var(--mb-bg);color:var(--mb-text);line-height:1.5;min-height:100vh;display:flex}
+.crumb{position:fixed;top:18px;right:24px;z-index:30;font-size:12px;letter-spacing:.06em;color:var(--mb-muted);text-decoration:none;background:var(--mb-surface);border:1px solid var(--mb-line);padding:6px 12px;border-radius:99px}
+
+.side{width:240px;flex-shrink:0;background:var(--mb-text);color:var(--mb-surface);min-height:100vh;display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 22px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:18px}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:var(--mb-accent);color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-style:italic;font-size:20px}
+.brand strong{font-family:var(--display);font-weight:500;font-size:19px;letter-spacing:-.02em}
+.brand strong em{font-style:italic;color:var(--mb-accent);font-weight:400}
+.brand small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mb-primary-soft);font-weight:600;margin-top:2px}
+.s-title{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.4);padding:0 12px;margin:14px 0 6px}
+.s-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;font-weight:500}
+.s-link:hover{background:rgba(255,255,255,.05);color:#fff}
+.s-link.on{background:var(--mb-primary);color:#fff}
+.s-link .ic{width:18px;height:18px;display:grid;place-items:center;font-style:italic;font-family:var(--display);font-size:14px;opacity:.8}
+.s-link .num{margin-left:auto;background:rgba(255,255,255,.1);font-size:10px;padding:2px 6px;border-radius:99px;font-family:var(--mono);font-weight:600}
+.s-link.on .num{background:rgba(0,0,0,.2)}
+.s-foot{margin-top:auto;padding:14px 12px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px}
+.s-foot .av{width:34px;height:34px;border-radius:50%;background:var(--mb-warning);color:#3a2c08;display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:600;font-size:14px}
+.s-foot .nm{font-size:13px;font-weight:600}.s-foot .ro{font-size:11px;opacity:.6}
+
+.main{flex:1;min-width:0;padding:24px 32px 60px}
+@media(max-width:900px){.side{display:none}.main{padding:20px}.crumb{display:none}}
+
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+.top .eb{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--mb-muted);font-weight:700;margin-bottom:4px}
+.top h1{font-family:var(--display);font-weight:300;font-size:clamp(28px,3.2vw,40px);letter-spacing:-.025em;margin:0;line-height:1.05}
+.top h1 em{font-style:italic;color:var(--mb-primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:99px;font-weight:600;font-size:13px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--mb-primary);color:#fff}.btn-ghost{background:transparent;border-color:var(--mb-line)}.btn-accent{background:var(--mb-accent);color:#fff}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:16px}
+.kpi .l{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mb-muted);font-weight:700;margin-bottom:6px}
+.kpi .v{font-family:var(--display);font-size:30px;font-weight:500;line-height:1;letter-spacing:-.02em}
+.kpi .v em{font-style:italic;color:var(--mb-primary);font-size:18px;font-weight:400}
+.kpi.dark{background:var(--mb-text);color:#fff;border-color:transparent}
+.kpi.dark .l{color:rgba(255,255,255,.6)}
+.kpi.dark .v em{color:var(--mb-accent)}
+
+.split{display:grid;grid-template-columns:1fr 1.1fr;gap:20px;margin-bottom:22px}
+@media(max-width:1100px){.split{grid-template-columns:1fr}}
+.panel{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);overflow:hidden}
+.panel-h{padding:16px 20px;border-bottom:1px solid var(--mb-line);display:flex;justify-content:space-between;align-items:center}
+.panel-h h3{font-family:var(--display);font-weight:500;font-size:18px;margin:0;letter-spacing:-.015em}
+.panel-h h3 em{font-style:italic;color:var(--mb-primary)}
+
+/* map mock */
+.map{aspect-ratio:1/1;position:relative;background:#e6dfc8 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><pattern id='g' width='40' height='40' patternUnits='userSpaceOnUse'><path d='M0 0L40 0M0 0L0 40' stroke='%23a89e7d' stroke-width='.5' opacity='.4'/></pattern></defs><rect width='400' height='400' fill='url(%23g)'/><path d='M60 80 Q120 100 180 140 T340 220' stroke='%237A6F5C' stroke-width='3' fill='none' opacity='.5'/><path d='M40 320 Q140 280 220 260 T380 200' stroke='%237A6F5C' stroke-width='2' fill='none' opacity='.4'/><path d='M200 40 L200 380' stroke='%237A6F5C' stroke-width='2' fill='none' opacity='.35'/><circle cx='180' cy='120' r='40' fill='%23A6B89A' opacity='.3'/><circle cx='320' cy='280' r='30' fill='%23A6B89A' opacity='.3'/><path d='M100 380 Q150 350 200 360 T380 320' stroke='%23A6B89A' stroke-width='1' fill='none' opacity='.4'/></svg>") center/cover}
+.mp-pin{position:absolute;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--mb-text);color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:14px;font-style:italic;box-shadow:0 6px 14px -4px rgba(0,0,0,.4);cursor:pointer}
+.mp-pin span{transform:rotate(45deg)}
+.mp-pin.done{background:var(--mb-success)}
+.mp-pin.cur{background:var(--mb-accent);width:44px;height:44px;font-size:18px;animation:pulse 1.8s ease-in-out infinite}
+.mp-pin.iss{background:var(--mb-danger)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(199,110,74,.5),0 6px 14px -4px rgba(0,0,0,.4)}50%{box-shadow:0 0 0 14px rgba(199,110,74,0),0 6px 14px -4px rgba(0,0,0,.4)}}
+.mp-route{position:absolute;inset:0;pointer-events:none}
+
+.mp-l{position:absolute;bottom:16px;left:16px;background:rgba(43,34,24,.92);color:#fff;padding:12px 16px;border-radius:14px;backdrop-filter:blur(8px);font-size:12px;line-height:1.4}
+.mp-l strong{font-family:var(--display);font-size:16px;font-weight:500;display:block;letter-spacing:-.01em}
+.mp-l em{font-style:italic;color:var(--mb-accent)}
+
+/* route list */
+.route{max-height:540px;overflow-y:auto}
+.stop{padding:14px 20px;border-bottom:1px dashed var(--mb-line);display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;position:relative}
+.stop:last-child{border-bottom:none}
+.stop:hover{background:var(--mb-bg)}
+.stop.cur{background:rgba(199,110,74,.06);border-left:3px solid var(--mb-accent);padding-left:17px}
+.stop-n{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:600;color:#fff;font-size:14px;flex-shrink:0}
+.stop-n.todo{background:var(--mb-muted)}
+.stop-n.cur{background:var(--mb-accent)}
+.stop-n.done{background:var(--mb-success)}
+.stop-n.iss{background:var(--mb-danger)}
+.stop .nm{font-weight:600;font-size:14px}
+.stop .ad{font-size:12px;color:var(--mb-muted);margin-top:2px}
+.stop .mm{display:flex;gap:10px;font-size:11px;margin-top:4px}
+.stop .mm span{font-family:var(--mono);color:var(--mb-muted);display:inline-flex;align-items:center;gap:3px}
+.stop-t{font-family:var(--display);font-size:15px;font-weight:500;letter-spacing:-.01em;text-align:right}
+.stop-t em{font-style:italic;font-size:11px;color:var(--mb-muted);display:block;font-weight:400}
+
+.tag{font-size:9px;padding:2px 7px;border-radius:99px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-left:6px}
+.tag.todo{background:var(--mb-line);color:var(--mb-muted)}
+.tag.cur{background:rgba(199,110,74,.18);color:var(--mb-accent)}
+.tag.done{background:rgba(91,143,58,.15);color:var(--mb-success)}
+.tag.iss{background:rgba(158,59,35,.15);color:var(--mb-danger)}
+
+/* current */
+.cur-panel{background:linear-gradient(135deg,#3d5524,var(--mb-primary));color:#fff;border-radius:var(--r-lg);padding:24px;position:relative;overflow:hidden;margin-bottom:22px}
+.cur-panel::before{content:"";position:absolute;inset:auto -60px -60px auto;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(199,110,74,.3),transparent 60%)}
+.cur-panel .eb{font-size:11px;text-transform:uppercase;letter-spacing:.16em;opacity:.7;margin-bottom:6px;position:relative}
+.cur-panel h2{font-family:var(--display);font-weight:300;font-size:30px;letter-spacing:-.02em;margin:0 0 4px;position:relative}
+.cur-panel h2 em{font-style:italic;color:var(--mb-accent)}
+.cur-panel .ad{font-size:14px;opacity:.85;margin-bottom:18px;position:relative}
+.cur-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;position:relative}
+@media(max-width:700px){.cur-grid{grid-template-columns:repeat(2,1fr)}}
+.cur-cell{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px 12px}
+.cur-cell .l{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.cur-cell .v{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:-.01em;margin-top:2px}
+.cur-cell .v em{font-style:italic;color:var(--mb-accent)}
+.cur-acts{display:flex;gap:8px;flex-wrap:wrap;position:relative}
+.cur-acts .btn{border-color:rgba(255,255,255,.25);color:#fff}
+.cur-acts .btn.acc{background:var(--mb-accent);border-color:var(--mb-accent)}
+.cur-acts .btn.danger{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
+
+/* signature */
+.sig-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.sig-row{grid-template-columns:1fr}}
+.sig-box{background:var(--mb-bg);border:1.5px dashed var(--mb-line);border-radius:var(--r-md);height:140px;display:grid;place-items:center;text-align:center;color:var(--mb-muted);font-size:13px}
+.sig-box strong{display:block;font-family:var(--display);font-size:18px;color:var(--mb-text);font-weight:500;font-style:italic;margin-bottom:4px}
+</style>
+</head>
+<body>
+<a class="crumb" href="index.html">← roles</a>
+
+<aside class="side">
+  <div class="brand">
+    <div class="brand-mark">m</div>
+    <div><strong style="color:var(--mb-surface)">macabeo<em>.</em></strong><small>reparto</small></div>
+  </div>
+  <a class="s-link on" href="#"><span class="ic">◐</span>Ruta de hoy<span class="num">9</span></a>
+  <a class="s-link" href="#"><span class="ic">◑</span>Próximas rutas</a>
+  <a class="s-link" href="#"><span class="ic">◓</span>Incidencias<span class="num">1</span></a>
+  <a class="s-link" href="#"><span class="ic">◧</span>Mi vehículo</a>
+  <div class="s-title">Histórico</div>
+  <a class="s-link" href="#"><span class="ic">◌</span>Esta semana</a>
+  <a class="s-link" href="#"><span class="ic">◍</span>Resumen mensual</a>
+  <div class="s-foot">
+    <div class="av">D</div>
+    <div><div class="nm">Diego Mariño</div><div class="ro">Reparto</div></div>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="top">
+    <div>
+      <div class="eb">Ruta jueves 21 may · salida 17:30</div>
+      <h1>9 entregas, <em>42 km</em> de ruta optimizada.</h1>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost">Cambiar a vista lista</button>
+      <button class="btn btn-primary">Iniciar ruta →</button>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi dark"><div class="l">Avance</div><div class="v">4 <em>/ 9 paradas</em></div></div>
+    <div class="kpi"><div class="l">Km recorridos</div><div class="v">18,2 <em>/ 42</em></div></div>
+    <div class="kpi"><div class="l">Tiempo</div><div class="v">1h 12<em>min</em></div></div>
+    <div class="kpi"><div class="l">Próxima</div><div class="v">Brais <em>· 6min</em></div></div>
+  </section>
+
+  <div class="cur-panel">
+    <div class="eb">parada en curso · #4</div>
+    <h2>Brais <em>Lema</em></h2>
+    <div class="ad">📍 Rúa Travesa 22, 4ºB · 15660 Cambre · timbre "Lema-Souto"</div>
+    <div class="cur-grid">
+      <div class="cur-cell"><div class="l">Pedido</div><div class="v">P-2026-<em>0140</em></div></div>
+      <div class="cur-cell"><div class="l">Bultos</div><div class="v">3 <em>cajas</em></div></div>
+      <div class="cur-cell"><div class="l">Importe</div><div class="v">62,80 <em>€</em></div></div>
+      <div class="cur-cell"><div class="l">Pago</div><div class="v"><em>cobrado</em></div></div>
+    </div>
+    <div class="cur-acts">
+      <button class="btn acc">✓ Marcar como entregada</button>
+      <button class="btn">📞 Llamar a la socia</button>
+      <button class="btn">🗺 Abrir en mapas</button>
+      <button class="btn danger">! Reportar incidencia</button>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Mapa <em>de la ruta</em></h3>
+        <span style="font-size:11px;color:var(--mb-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;font-weight:600">trayecto optimizado · −18%</span>
+      </div>
+      <div class="map">
+        <svg class="mp-route" viewBox="0 0 400 400" preserveAspectRatio="none">
+          <path d="M50 360 Q90 320 130 280 T220 200 T320 130 T360 60" stroke="#4F6B2F" stroke-width="3" stroke-dasharray="6 4" fill="none" opacity=".5"/>
+        </svg>
+        <div class="mp-pin done" style="left:8%;top:84%"><span>1</span></div>
+        <div class="mp-pin done" style="left:24%;top:66%"><span>2</span></div>
+        <div class="mp-pin done" style="left:36%;top:48%"><span>3</span></div>
+        <div class="mp-pin cur" style="left:48%;top:38%"><span>4</span></div>
+        <div class="mp-pin" style="left:56%;top:32%"><span>5</span></div>
+        <div class="mp-pin iss" style="left:68%;top:24%"><span>6</span></div>
+        <div class="mp-pin" style="left:76%;top:18%"><span>7</span></div>
+        <div class="mp-pin" style="left:82%;top:12%"><span>8</span></div>
+        <div class="mp-pin" style="left:88%;top:6%"><span>9</span></div>
+        <div class="mp-l">
+          <em>Próxima</em>
+          <strong>Sabela Riveiro · #5</strong>
+          1,2 km · 6 min
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Hoja de <em>ruta</em></h3>
+        <span style="font-size:11px;color:var(--mb-muted);font-weight:600">9 paradas · 42 km</span>
+      </div>
+      <div class="route">
+        <div class="stop"><div class="stop-n done">1</div><div><div class="nm">Marta Vilar <span class="tag done">entregada</span></div><div class="ad">Rúa do Forno 14, 1ºA · Cambre</div><div class="mm"><span>P-0138</span><span>2 cajas</span><span>17:34</span></div></div><div class="stop-t">38,40 €<em>cobrado</em></div></div>
+        <div class="stop"><div class="stop-n done">2</div><div><div class="nm">Iria Carballo <span class="tag done">entregada</span></div><div class="ad">Av. da Coruña 88 · Cambre</div><div class="mm"><span>P-0141</span><span>1 caja</span><span>17:48</span></div></div><div class="stop-t">21,40 €<em>cobrado</em></div></div>
+        <div class="stop"><div class="stop-n done">3</div><div><div class="nm">Xosé Tovar <span class="tag done">entregada</span></div><div class="ad">Praza do Concello 4 · Cambre</div><div class="mm"><span>P-0146</span><span>2 cajas</span><span>18:02</span></div></div><div class="stop-t">48,60 €<em>cobrado</em></div></div>
+        <div class="stop cur"><div class="stop-n cur">4</div><div><div class="nm">Brais Lema <span class="tag cur">en curso</span></div><div class="ad">Rúa Travesa 22, 4ºB · Cambre</div><div class="mm"><span>P-0140</span><span>3 cajas</span><span>llegada 18:14</span></div></div><div class="stop-t">62,80 €<em>cobrado</em></div></div>
+        <div class="stop"><div class="stop-n todo">5</div><div><div class="nm">Sabela Riveiro <span class="tag todo">pendiente</span></div><div class="ad">Camiño da Igrexa 6 · O Temple</div><div class="mm"><span>P-0144</span><span>1 caja</span><span>ETA 18:22</span></div></div><div class="stop-t">34,20 €<em>tarjeta</em></div></div>
+        <div class="stop"><div class="stop-n iss">6</div><div><div class="nm">Noa Ferreiro <span class="tag iss">ausente — 1er intento</span></div><div class="ad">Rúa Nova 12, 2ºD · Cecebre</div><div class="mm"><span>P-0145</span><span>1 caja</span><span>—</span></div></div><div class="stop-t">14,80 €<em>cobrado</em></div></div>
+        <div class="stop"><div class="stop-n todo">7</div><div><div class="nm">Antía Pose <span class="tag todo">pendiente</span></div><div class="ad">Lugar de Carral 14 · Carral</div><div class="mm"><span>P-0147</span><span>2 cajas</span><span>ETA 18:48</span></div></div><div class="stop-t">42,80 €<em>tarjeta</em></div></div>
+        <div class="stop"><div class="stop-n todo">8</div><div><div class="nm">Mario Sande <span class="tag todo">pendiente</span></div><div class="ad">Estrada do Mosteiro 2 · Sigrás</div><div class="mm"><span>P-0148</span><span>1 caja</span><span>ETA 19:02</span></div></div><div class="stop-t">22,40 €<em>bizum</em></div></div>
+        <div class="stop"><div class="stop-n todo">9</div><div><div class="nm">Lucía Otero <span class="tag todo">pendiente</span></div><div class="ad">Rúa do Mar 8 · Pravio</div><div class="mm"><span>P-0149</span><span>1 caja</span><span>ETA 19:18</span></div></div><div class="stop-t">28,60 €<em>cobrado</em></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Prueba de <em>entrega</em></h3><span style="font-size:11px;color:var(--mb-muted);font-weight:600">se adjuntará al pedido P-0140</span></div>
+    <div style="padding:20px">
+      <div class="sig-row">
+        <div class="sig-box">
+          <div>
+            <strong>Firma</strong>
+            Toca y firma con el dedo
+          </div>
+        </div>
+        <div class="sig-box">
+          <div>
+            <strong>Foto del paquete</strong>
+            📷 capturar
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost">Saltar</button>
+        <button class="btn btn-accent">✓ Confirmar entrega</button>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Macabeo · Portal de productora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Manrope:wght@300..800&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --mb-primary:#4F6B2F;--mb-primary-soft:#A6B89A;--mb-accent:#C76E4A;
+  --mb-bg:#F5F1E8;--mb-surface:#FBF9F3;--mb-text:#2B2218;--mb-muted:#7A6F5C;
+  --mb-success:#5B8F3A;--mb-warning:#D5A021;--mb-danger:#9E3B23;
+  --mb-line:rgba(43,34,24,.12);--r-md:12px;--r-lg:20px;
+  /* tono mostaza/cálido para portal externo */
+  --ext-tint:#F0E4C7;--ext-tint-deep:#E1CC93;
+  --display:"Fraunces",ui-serif,Georgia,serif;--body:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:var(--body);background:var(--ext-tint);color:var(--mb-text);line-height:1.5;min-height:100vh;
+  background-image:radial-gradient(900px 500px at 90% -10%,rgba(213,160,33,.18),transparent 60%),radial-gradient(700px 400px at -10% 110%,rgba(199,110,74,.1),transparent 60%);
+}
+.crumb{position:fixed;top:18px;right:24px;z-index:30;font-size:12px;letter-spacing:.06em;color:var(--mb-muted);text-decoration:none;background:var(--mb-surface);border:1px solid var(--mb-line);padding:6px 12px;border-radius:99px}
+
+.topbar{position:sticky;top:0;z-index:20;background:rgba(240,228,199,.85);backdrop-filter:blur(14px);border-bottom:1px solid rgba(43,34,24,.12)}
+.tb-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px 28px;gap:24px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit}
+.brand-mark{width:36px;height:36px;border-radius:10px;background:var(--mb-text);color:var(--mb-surface);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-style:italic;font-size:22px}
+.brand strong{font-family:var(--display);font-weight:500;font-size:22px;letter-spacing:-.02em}
+.brand strong em{font-style:italic;color:var(--mb-accent);font-weight:400}
+.brand small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#8a6717;font-weight:700;margin-top:1px}
+.ext-tag{padding:5px 12px;border-radius:99px;background:var(--mb-text);color:var(--mb-surface);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;display:inline-flex;align-items:center;gap:6px}
+.ext-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--mb-warning)}
+.nav{display:flex;gap:6px}
+.nav a{padding:8px 14px;border-radius:99px;text-decoration:none;color:var(--mb-text);font-size:14px;font-weight:500}
+.nav a:hover{background:rgba(255,255,255,.4)}
+.nav a.active{background:var(--mb-text);color:#fff}
+.user{display:flex;align-items:center;gap:10px}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--mb-text);color:var(--mb-warning);display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:600;font-size:16px}
+@media(max-width:900px){.nav{display:none}.crumb{display:none}}
+
+.wrap{max-width:1280px;margin:0 auto;padding:36px 28px 80px}
+
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:32px;flex-wrap:wrap}
+.top .eb{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--mb-muted);font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.top .eb::before{content:"";width:24px;height:1px;background:var(--mb-muted)}
+.top h1{font-family:var(--display);font-weight:300;font-size:clamp(32px,4vw,46px);letter-spacing:-.025em;margin:0;line-height:1.05}
+.top h1 em{font-style:italic;color:var(--mb-primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:99px;font-weight:600;font-size:14px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--mb-primary);color:#fff}.btn-ghost{background:transparent;border-color:rgba(43,34,24,.18);color:var(--mb-text)}.btn-accent{background:var(--mb-accent);color:#fff}.btn-dark{background:var(--mb-text);color:#fff}
+
+.alert{background:rgba(199,110,74,.08);border:1px solid rgba(199,110,74,.25);border-left:4px solid var(--mb-accent);border-radius:var(--r-md);padding:14px 18px;margin-bottom:24px;display:flex;align-items:center;gap:14px}
+.alert .ic{width:32px;height:32px;border-radius:8px;background:var(--mb-accent);color:#fff;display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:700;flex-shrink:0}
+.alert .t{font-weight:600;font-size:14px}
+.alert .h{font-size:12px;color:var(--mb-muted);margin-top:2px}
+.alert a{margin-left:auto;font-size:12px;color:var(--mb-accent);text-decoration:none;font-weight:700;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:18px}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mb-muted);font-weight:600;margin-bottom:8px}
+.kpi .v{font-family:var(--display);font-size:32px;font-weight:500;line-height:1;letter-spacing:-.025em}
+.kpi .v em{font-style:italic;color:var(--mb-primary);font-size:20px;font-weight:400}
+.kpi .h{font-size:11px;color:var(--mb-muted);margin-top:6px;font-family:var(--mono)}
+.kpi.dark{background:var(--mb-text);color:#fff;border:none}
+.kpi.dark .l{color:rgba(255,255,255,.6)}
+.kpi.dark .v em{color:var(--mb-warning)}
+
+/* split */
+.split{display:grid;grid-template-columns:1.4fr 1fr;gap:22px;margin-bottom:24px}
+@media(max-width:1100px){.split{grid-template-columns:1fr}}
+.panel{background:var(--mb-surface);border:1px solid var(--mb-line);border-radius:var(--r-lg);padding:22px}
+.panel-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.panel-h h3{font-family:var(--display);font-weight:500;font-size:20px;margin:0;letter-spacing:-.015em}
+.panel-h h3 em{font-style:italic;color:var(--mb-primary)}
+
+/* pending orders */
+.po{background:var(--mb-bg);border-radius:var(--r-md);padding:18px;margin-bottom:12px;border-left:4px solid var(--mb-warning)}
+.po.confirmed{border-color:var(--mb-success);opacity:.85}
+.po-h{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.po-h code{font-family:var(--mono);font-size:11px;color:var(--mb-muted);font-weight:600;display:block;margin-bottom:4px}
+.po-h .nm{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:-.01em}
+.po-h .nm em{font-style:italic;color:var(--mb-primary)}
+.po-h .when{font-size:12px;color:var(--mb-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em}
+.po-lines{background:var(--mb-surface);border-radius:8px;padding:8px 14px;margin:10px 0}
+.po-line{display:grid;grid-template-columns:1fr auto auto;gap:14px;padding:6px 0;font-size:13px;border-bottom:1px dashed var(--mb-line)}
+.po-line:last-child{border-bottom:none}
+.po-line .ln{font-weight:600}
+.po-line .qy{font-family:var(--mono);color:var(--mb-muted);font-size:12px}
+.po-line .pr{font-family:var(--display);font-weight:500;font-size:15px}
+.po-foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:10px}
+.po-foot .tot{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:-.01em}
+.po-foot .tot em{font-style:italic;color:var(--mb-muted);font-size:11px;font-weight:400;text-transform:uppercase;letter-spacing:.06em;font-family:var(--body);margin-right:6px}
+.po-actions{display:flex;gap:8px;flex-wrap:wrap}
+.mini{font-size:11px;padding:6px 12px;border-radius:99px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid var(--mb-line);background:#fff;text-transform:uppercase;letter-spacing:.05em}
+.mini.acc{background:var(--mb-primary);color:#fff;border-color:var(--mb-primary)}
+.mini.alt{background:var(--mb-warning);color:#3a2c08;border-color:var(--mb-warning)}
+.mini.dark{background:var(--mb-text);color:#fff;border-color:var(--mb-text)}
+
+/* certificates */
+.cert-list{display:flex;flex-direction:column;gap:8px}
+.cert-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px;border-radius:var(--r-md);background:var(--mb-bg);border-left:3px solid}
+.cert-row.ok{border-color:var(--mb-success)}
+.cert-row.warn{border-color:var(--mb-warning)}
+.cert-row.exp{border-color:var(--mb-danger)}
+.cert-row .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-family:var(--display);font-style:italic;font-weight:700;font-size:18px}
+.cert-row.ok .ic{background:rgba(91,143,58,.18);color:var(--mb-success)}
+.cert-row.warn .ic{background:rgba(213,160,33,.2);color:#8a6717}
+.cert-row.exp .ic{background:rgba(158,59,35,.15);color:var(--mb-danger)}
+.cert-row .nm{font-weight:600;font-size:13px}
+.cert-row .hh{font-size:11px;color:var(--mb-muted);font-family:var(--mono);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.cert-row .st{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.cert-row.ok .st{color:var(--mb-success)}.cert-row.warn .st{color:#8a6717}.cert-row.exp .st{color:var(--mb-danger)}
+
+/* upload */
+.upload-area{border:2px dashed var(--mb-line);border-radius:var(--r-md);padding:32px;text-align:center;background:var(--mb-bg);cursor:pointer;transition:all .2s;margin-top:14px}
+.upload-area:hover{border-color:var(--mb-primary);background:rgba(79,107,47,.04)}
+.upload-area strong{display:block;font-family:var(--display);font-size:20px;color:var(--mb-text);font-weight:500;letter-spacing:-.015em;margin-bottom:6px}
+.upload-area span{font-size:13px;color:var(--mb-muted)}
+.upload-list{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.up-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--mb-bg);border-radius:8px;font-size:13px}
+.up-row .doc{width:30px;height:34px;background:var(--mb-text);color:var(--mb-warning);border-radius:4px;display:grid;place-items:center;font-size:10px;font-weight:700;font-family:var(--mono)}
+.up-row .nm{flex:1;font-weight:600}
+.up-row .sz{font-size:11px;color:var(--mb-muted);font-family:var(--mono)}
+
+/* history */
+.hist{width:100%;border-collapse:collapse;font-size:13px;margin-top:14px}
+.hist th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mb-muted);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--mb-line)}
+.hist td{padding:11px 10px;border-bottom:1px dashed var(--mb-line)}
+.hist tr:hover td{background:var(--mb-bg)}
+.hist code{font-family:var(--mono);font-size:11px;color:var(--mb-muted)}
+.tag{font-size:10px;padding:3px 8px;border-radius:99px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.tag.ok{background:rgba(91,143,58,.15);color:var(--mb-success)}
+.tag.paid{background:rgba(79,107,47,.12);color:var(--mb-primary)}
+.tag.pend{background:rgba(213,160,33,.18);color:#8a6717}
+</style>
+</head>
+<body>
+<a class="crumb" href="index.html">← roles</a>
+
+<header class="topbar">
+  <div class="tb-inner">
+    <div style="display:flex;align-items:center;gap:14px">
+      <a href="#" class="brand"><span class="brand-mark">m</span><div><strong>macabeo<em>.</em></strong><small>portal de productoras</small></div></a>
+      <span class="ext-tag">acceso externo</span>
+    </div>
+    <nav class="nav">
+      <a href="#" class="active">Pedidos</a>
+      <a href="#">Catálogo</a>
+      <a href="#">Documentación</a>
+      <a href="#">Facturación</a>
+    </nav>
+    <div class="user">
+      <span style="font-size:13px;font-weight:600">Granxa Meixón</span>
+      <div class="avatar">M</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eb">Granxa Meixón S.L. · proveedora desde 2019</div>
+      <h1>3 pedidos <em>por confirmar</em>,<br>certificado vence en 18 días.</h1>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost">Descargar histórico</button>
+      <button class="btn btn-primary">+ Subir albarán</button>
+    </div>
+  </header>
+
+  <div class="alert">
+    <div class="ic">!</div>
+    <div>
+      <div class="t">Tu certificado CRAEGA caduca el 8 de junio (18 días)</div>
+      <div class="h">Sube la renovación antes de esa fecha para mantener tu producto activo en el catálogo.</div>
+    </div>
+    <a href="#">Subir renovación →</a>
+  </div>
+
+  <section class="kpis">
+    <div class="kpi dark">
+      <div class="l">Volumen 2026</div>
+      <div class="v">6.420 <em>€</em></div>
+      <div class="h" style="opacity:.7">36 pedidos · YTD</div>
+    </div>
+    <div class="kpi">
+      <div class="l">Por confirmar</div>
+      <div class="v">3 <em>pedidos</em></div>
+      <div class="h">312 € pendientes</div>
+    </div>
+    <div class="kpi">
+      <div class="l">Próxima factura</div>
+      <div class="v">28/05</div>
+      <div class="h">vencimiento 30 días</div>
+    </div>
+    <div class="kpi">
+      <div class="l">Valoración interna</div>
+      <div class="v">4,3 <em>/ 5</em></div>
+      <div class="h">2 retrasos en abril</div>
+    </div>
+  </section>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Pedidos <em>recibidos</em></h3>
+        <span style="font-size:11px;color:var(--mb-muted);font-weight:600">3 por confirmar · 5 confirmados</span>
+      </div>
+
+      <div class="po">
+        <div class="po-h">
+          <div>
+            <code>OC-026-078</code>
+            <div class="nm">Macabeo S.Coop.G · <em>Cambre</em></div>
+          </div>
+          <div class="when">recibido lun 18 may · entrega solicitada vie 23 may</div>
+        </div>
+        <div class="po-lines">
+          <div class="po-line"><div class="ln">Queso curado nuevo</div><div class="qy">12 uds × 300g</div><div class="pr">156,00 €</div></div>
+          <div class="po-line"><div class="ln">Yogur natural</div><div class="qy">120 uds × 125g</div><div class="pr">102,00 €</div></div>
+          <div class="po-line"><div class="ln">Mantequilla curada</div><div class="qy">8 uds × 250g</div><div class="pr">54,00 €</div></div>
+        </div>
+        <div class="po-foot">
+          <div class="tot"><em>Total</em>312,00 €</div>
+          <div class="po-actions">
+            <button class="mini">Proponer cambio</button>
+            <button class="mini alt">Aplazar fecha</button>
+            <button class="mini acc">✓ Confirmar pedido</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="po">
+        <div class="po-h">
+          <div>
+            <code>OC-026-072</code>
+            <div class="nm">Macabeo · <em>entrega mar 27</em></div>
+          </div>
+          <div class="when">recibido vie 15 may</div>
+        </div>
+        <div class="po-lines">
+          <div class="po-line"><div class="ln">Yogur de cabra</div><div class="qy">60 uds × 125g</div><div class="pr">90,00 €</div></div>
+          <div class="po-line"><div class="ln">Queso fresco</div><div class="qy">14 uds × 200g</div><div class="pr">96,00 €</div></div>
+        </div>
+        <div class="po-foot">
+          <div class="tot"><em>Total</em>186,00 €</div>
+          <div class="po-actions">
+            <button class="mini">Detalle</button>
+            <button class="mini acc">✓ Confirmar pedido</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="po confirmed">
+        <div class="po-h">
+          <div>
+            <code>OC-026-065</code>
+            <div class="nm">Macabeo · <em>entregado</em></div>
+          </div>
+          <div class="when">conformado lun 18 may</div>
+        </div>
+        <div class="po-foot">
+          <div class="tot"><em>Total</em>184,40 €</div>
+          <div class="po-actions">
+            <button class="mini">Ver albarán</button>
+            <button class="mini dark">Subir factura</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel" style="margin-bottom:20px">
+        <div class="panel-h"><h3>Mis <em>certificados</em></h3></div>
+        <div class="cert-list">
+          <div class="cert-row warn">
+            <div class="ic">!</div>
+            <div><div class="nm">CRAEGA · ecológico</div><div class="hh">Nº G-2147 · vence 08/06/2026</div></div>
+            <span class="st">18 días</span>
+          </div>
+          <div class="cert-row ok">
+            <div class="ic">✓</div>
+            <div><div class="nm">Bienestar animal · AENOR</div><div class="hh">Nº BA-0894 · vence 14/02/2027</div></div>
+            <span class="st">vigente</span>
+          </div>
+          <div class="cert-row ok">
+            <div class="ic">✓</div>
+            <div><div class="nm">Registro sanitario lácteo</div><div class="hh">RGSEAA · 15.30148/C</div></div>
+            <span class="st">vigente</span>
+          </div>
+          <div class="cert-row exp">
+            <div class="ic">×</div>
+            <div><div class="nm">Análisis aguas pozo 2025</div><div class="hh">Caducado el 02/03/2026</div></div>
+            <span class="st">caducado</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Subir <em>documentación</em></h3></div>
+        <div class="upload-area">
+          <strong>📎 Arrastra o selecciona archivo</strong>
+          <span>PDF, JPG, PNG hasta 8 MB · albarán, factura o certificado</span>
+        </div>
+        <div class="upload-list">
+          <div class="up-row">
+            <div class="doc">PDF</div>
+            <div><div class="nm">Albarán OC-026-065</div><div style="font-size:11px;color:var(--mb-muted)">subido el 18/05</div></div>
+            <div class="sz">412 KB</div>
+          </div>
+          <div class="up-row">
+            <div class="doc">PDF</div>
+            <div><div class="nm">Análisis lactosa abril</div><div style="font-size:11px;color:var(--mb-muted)">subido el 02/05</div></div>
+            <div class="sz">1,2 MB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h">
+      <h3>Histórico <em>de pedidos</em></h3>
+      <a href="#" style="font-size:12px;color:var(--mb-primary);text-decoration:none;font-weight:700">Exportar CSV →</a>
+    </div>
+    <table class="hist">
+      <thead><tr><th>OC</th><th>Fecha</th><th>Líneas</th><th>Importe</th><th>Estado</th><th>Factura</th><th>Pago</th></tr></thead>
+      <tbody>
+        <tr><td><code>OC-026-072</code></td><td>15/05/2026</td><td>2</td><td>186,00 €</td><td><span class="tag pend">A confirmar</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>OC-026-078</code></td><td>18/05/2026</td><td>3</td><td>312,00 €</td><td><span class="tag pend">A confirmar</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>OC-026-065</code></td><td>02/05/2026</td><td>4</td><td>184,40 €</td><td><span class="tag ok">Entregado</span></td><td><code>F-26-0142</code></td><td><span class="tag paid">Pagado 12/05</span></td></tr>
+        <tr><td><code>OC-026-051</code></td><td>18/04/2026</td><td>3</td><td>248,80 €</td><td><span class="tag ok">Entregado</span></td><td><code>F-26-0118</code></td><td><span class="tag paid">Pagado 30/04</span></td></tr>
+        <tr><td><code>OC-026-038</code></td><td>04/04/2026</td><td>5</td><td>342,60 €</td><td><span class="tag ok">Entregado</span></td><td><code>F-26-0094</code></td><td><span class="tag paid">Pagado 16/04</span></td></tr>
+        <tr><td><code>OC-026-022</code></td><td>21/03/2026</td><td>4</td><td>198,40 €</td><td><span class="tag ok">Entregado</span></td><td><code>F-26-0068</code></td><td><span class="tag paid">Pagado 02/04</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

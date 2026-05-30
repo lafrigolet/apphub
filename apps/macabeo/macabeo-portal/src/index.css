@@ -1,0 +1,34 @@
+/* Macabeo — shared design tokens + base reset.
+   Every role prototype shared this identical :root block and base body
+   styles; per-view bespoke CSS lives in each view's *.module.css. */
+:root {
+  --mb-primary:#4F6B2F;
+  --mb-primary-soft:#A6B89A;
+  --mb-accent:#C76E4A;
+  --mb-bg:#F5F1E8;
+  --mb-surface:#FBF9F3;
+  --mb-text:#2B2218;
+  --mb-muted:#7A6F5C;
+  --mb-success:#5B8F3A;
+  --mb-warning:#D5A021;
+  --mb-danger:#9E3B23;
+  --mb-line:rgba(43,34,24,.12);
+  --mb-line-soft:rgba(43,34,24,.06);
+  --r-sm:6px;
+  --r-md:12px;
+  --r-lg:20px;
+  --r-xl:28px;
+  --display:"Fraunces",ui-serif,Georgia,serif;
+  --body:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+
+* { box-sizing:border-box; }
+html, body { margin:0; padding:0; }
+body {
+  font-family:var(--body);
+  background:var(--mb-bg);
+  color:var(--mb-text);
+  line-height:1.55;
+  min-height:100vh;
+}

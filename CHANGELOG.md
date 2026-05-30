@@ -7,6 +7,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`apps/macabeo` portal multi-rol (importa · full split)** — economato
+  ecológico con 11 roles. Se importaron los 11 prototipos HTML de
+  `apps/macabeo/doc/` (índice selector + invitado/socio/cliente
+  front-office + administrador/gestor-pedidos/almacén/comprador/cajero/
+  repartidor/proveedor/tesorero back-office) a la estructura React
+  canónica con **preservación 1:1**. Decisión de scope tomada con el
+  usuario (full multi-role split) y de estilado (**CSS Modules por vista**
+  para evitar colisión de nombres de clase y cero deriva visual).
+  - Router (`react-router-dom`) en `App.jsx`: `/` = selector de rol,
+    `/invitado /socio /cliente /admin /gestor-pedidos /almacen /comprador
+    /cajero /repartidor /proveedor /tesorero`.
+  - Fundación compartida: `index.css` (tokens `:root` `--mb-*` + reset
+    base + fuentes Fraunces/Manrope/JetBrains en `index.html`),
+    `components/RoleCrumb` (breadcrumb "← roles"), `lib/api.js` +
+    `lib/tenant.js` (scaffolds para `/opendragon-implementa`),
+    `hooks/index.js` (`useCountdown`, `useToast`), `data/*` (mock por rol,
+    sin JSX).
+  - Cada vista = `views/<rol>/<Comp>.jsx` + `<Comp>.module.css` con el CSS
+    bespoke del prototipo verbatim; interacciones del prototipo (filtros,
+    carrito, countdown, TPV add-to-ticket, picking, toggles de estado)
+    portadas a estado React.
+  - **Sin backend aún**: los únicos "forms" del front-office público son
+    CTAs de registro/login → diferido a `/opendragon-implementa` (auth,
+    role-gating, wiring de inquiries/pedidos). Sin schema `app_macabeo`
+    todavía (decisión de ADR 013 la toma `/opendragon-implementa`).
 - **`apps/js-electric` CRM-lite iteración 1** — discriminación de leads
   por canal (contacto vs presupuesto) + captura de simulación solar como
   metadata. Cero microservicios nuevos: todo REUSE de

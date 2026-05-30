@@ -1,0 +1,15 @@
+.crumb {
+  position:fixed;
+  top:18px;
+  right:24px;
+  z-index:30;
+  font-size:12px;
+  letter-spacing:.06em;
+  color:var(--mb-muted);
+  text-decoration:none;
+  background:var(--mb-surface);
+  border:1px solid var(--mb-line);
+  padding:6px 12px;
+  border-radius:99px;
+}
+@media(max-width:900px){ .crumb{ display:none; } }
