@@ -47,15 +47,15 @@ export async function lastHuella(client) {
 export async function insertRegistro(client, r) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.registros
-       (app_id, tenant_id, sub_tenant_id, numero, num_serie, tipo, tipo_factura, modalidad,
+       (app_id, tenant_id, sub_tenant_id, numero, num_serie, tipo, tipo_factura,
         cliente_nombre, cliente_nif, fecha_expedicion, importe_total, cuota_total, total_display,
         estado_remision, huella, huella_anterior, qr_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      RETURNING numero, num_serie, cliente_nombre, cliente_nif, fecha_expedicion,
                total_display, estado_remision, huella, huella_anterior`,
     [
       r.appId, r.tenantId, r.subTenantId ?? null, r.numero, r.numSerie, r.tipo ?? 'alta',
-      r.tipoFactura ?? 'F1', r.modalidad ?? 'VERIFACTU', r.clienteNombre ?? null, r.clienteNif ?? null,
+      r.tipoFactura ?? 'F1', r.clienteNombre ?? null, r.clienteNif ?? null,
       r.fechaExpedicion ?? null, r.importeTotal ?? null, r.cuotaTotal ?? null, r.totalDisplay ?? null,
       r.estadoRemision ?? 'pendiente', r.huella ?? null, r.huellaAnterior ?? null, r.qrUrl ?? null,
     ],

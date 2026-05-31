@@ -5,7 +5,7 @@ import { calcularHuella } from './huella.js'
 // ⚠️ NO es la validación contra el XSD oficial (E2, requiere los XSD de la
 // AEAT no descargables automáticamente). Comprueba campos obligatorios,
 // coherencia básica de importes y, si el registro declara huella, la recalcula
-// y compara. Útil como pre-chequeo antes de firmar/remitir.
+// y compara. Útil como pre-chequeo antes de remitir.
 
 const REQUERIDOS = ['idEmisor', 'numSerie', 'fechaExpedicion', 'importeTotal']
 

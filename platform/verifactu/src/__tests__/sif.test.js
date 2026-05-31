@@ -55,4 +55,10 @@ describe('construirEvento', () => {
   it('encadena: distinta huella anterior → distinta huella', () => {
     expect(construirEvento(args, 'A').huella).not.toBe(construirEvento(args, 'B').huella)
   })
+
+  it('tipo fuera del catálogo: tone azul por defecto + descripcion = tipo', () => {
+    const ev = construirEvento({ tipoEvento: 'OTRO', obligadoNif: 'X', generadoEn: '2027-01-01T00:00:00Z' }, null)
+    expect(ev.tone).toBe('azul')
+    expect(ev.descripcion).toBe('OTRO')
+  })
 })

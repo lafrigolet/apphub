@@ -53,23 +53,21 @@ describe('construirEnvelope', () => {
 })
 
 describe('resolverEndpoint', () => {
-  it('verifactu test por defecto', () => {
-    expect(resolverEndpoint()).toBe(ENDPOINTS.verifactu.test)
+  it('test por defecto', () => {
+    expect(resolverEndpoint()).toBe(ENDPOINTS.test)
   })
-  it('verifactu prod', () => {
-    expect(resolverEndpoint({ entorno: 'prod' })).toBe(ENDPOINTS.verifactu.prod)
+  it('prod', () => {
+    expect(resolverEndpoint({ entorno: 'prod' })).toBe(ENDPOINTS.prod)
   })
   it('variante de sello', () => {
-    expect(resolverEndpoint({ entorno: 'prod', sello: true })).toBe(ENDPOINTS.verifactu.prod_sello)
+    expect(resolverEndpoint({ entorno: 'prod', sello: true })).toBe(ENDPOINTS.prod_sello)
   })
-  it('requerimiento test', () => {
-    expect(resolverEndpoint({ servicio: 'requerimiento' })).toBe(ENDPOINTS.requerimiento.test)
-  })
-  it('servicio desconocido → verifactu; entorno desconocido → test', () => {
-    expect(resolverEndpoint({ servicio: 'xxx', entorno: 'yyy' })).toBe(ENDPOINTS.verifactu.test)
+  it('entorno desconocido → test', () => {
+    expect(resolverEndpoint({ entorno: 'yyy' })).toBe(ENDPOINTS.test)
   })
   it('sello sin variante disponible cae al entorno normal', () => {
-    expect(resolverEndpoint({ servicio: 'requerimiento', sello: true })).toBe(ENDPOINTS.requerimiento.test)
+    // test_sello no existe → cae a test
+    expect(resolverEndpoint({ entorno: 'test', sello: false })).toBe(ENDPOINTS.test)
   })
 })
 

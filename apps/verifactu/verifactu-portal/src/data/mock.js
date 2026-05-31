@@ -47,7 +47,6 @@ export const devEsquemas = [
   { kind: 'text', badge: 'XSD', title: 'Diseños de registro', meta: 'SuministroLR · v? (verificar)', action: 'descargar' },
   { kind: 'text', badge: 'WSDL', title: 'Servicios web', meta: 'RegFactuSistemaFacturacion', action: 'descargar' },
   { kind: 'chain', title: 'Algoritmo de huella', meta: 'SHA-256 · orden de campos', action: 'doc' },
-  { kind: 'lock', title: 'Firma XAdES', meta: 'registros + eventos', action: 'doc' },
 ]
 
 export const devDeclaracion = [
@@ -55,5 +54,5 @@ export const devDeclaracion = [
   { label: 'NIF', value: 'B87654321', mono: true },
   { label: 'Nombre del SIF', value: 'FacturaNode', mono: true },
   { label: 'Versión', value: '1.0 · inst. 0001', mono: true },
-  { label: 'Modalidades', value: 'VERI·FACTU + No verificable', mono: false },
+  { label: 'Modalidad', value: 'VERI·FACTU', mono: false },
 ]

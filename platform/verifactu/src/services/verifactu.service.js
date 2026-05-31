@@ -65,7 +65,7 @@ export function listEventos(scope) {
 }
 
 // Registra un evento del SIF con huella encadenada (RegistroEvento · F2).
-// La firma del evento (NO_VERIFACTU) y los hooks automáticos (F3) son futuro.
+// Los hooks automáticos (F3) son futuro.
 export function crearEvento(scope, { tipoEvento, descripcion }) {
   return tx(scope, async (c) => {
     const cfg = await repo.getConfig(c)

@@ -9,6 +9,12 @@ de la AEAT (RD 1007/2023, RD 254/2025, Orden HAC/1177/2024).
 > los documentos oficiales están indexados en
 > [`verifactu-documentacion-tecnica.md`](./verifactu-documentacion-tecnica.md).
 
+> 🟦 **Modalidad: SOLO VERI·FACTU.** La modalidad **NO_VERI·FACTU** (no verificable:
+> sin remisión en tiempo real + firma XAdES obligatoria por registro) se ha
+> **descartado** de la plataforma. Por eso no hay firma electrónica de registros
+> (bloque C eliminado) ni columna `modalidad`; la integridad la dan la huella
+> encadenada + la remisión a la AEAT.
+
 ## Leyenda
 
 - `[x]` hecho en el skeleton actual
@@ -16,7 +22,7 @@ de la AEAT (RD 1007/2023, RD 254/2025, Orden HAC/1177/2024).
 - `[ ]` pendiente
 
 > ⚠️ **Verificar contra fuente oficial**: todo lo marcado *(verificar)* —orden de
-> campos de la huella, perfil XAdES, WSDL/XSD, parámetros del QR, catálogo de
+> campos de la huella, WSDL/XSD, parámetros del QR, catálogo de
 > eventos y de errores, plazos— debe contrastarse con la documentación vigente de
 > la Sede Electrónica de la AEAT antes de dar por buena la implementación. Cualquier
 > desviación en la huella, el orden de campos o el formato rompe la verificación y
@@ -27,7 +33,7 @@ de la AEAT (RD 1007/2023, RD 254/2025, Orden HAC/1177/2024).
 | Bloque | Estado |
 |---|---|
 | Skeleton (modelo + RLS + endpoints + portal-reads + seed) | ✅ |
-| Huella / QR / firma / SOAP / validación XSD (conformidad) | ⬜ |
+| Huella / QR / SOAP / validación XSD (conformidad) | ⬜ |
 
 ---
 
@@ -54,8 +60,8 @@ Ficheros: `platform/verifactu/src/lib/huella.js`, `src/services/verifactu.servic
   `RegistroAnterior` ✅; **falta** lock optimista por `(emisor, serie)` e idempotencia
   por `(NIF emisor + serie + número + tipo)`.
 - [ ] **A7** Series y numeración por emisor.
-- [ ] **A8** Soporte de modalidad `VERIFACTU` vs `NO_VERIFACTU` (firma obligatoria
-  en la segunda; remisión en la primera).
+- ~~**A8** Soporte de modalidad VERIFACTU vs NO_VERIFACTU~~ — **descartado**: la
+  plataforma opera solo en VERI·FACTU (columna `modalidad` eliminada, migración 0006).
 - [ ] **A9** Inmutabilidad / append-only; las correcciones se modelan con
   anulación/sustitución, nunca con UPDATE/DELETE del registro.
 - [x] **A10** NIF y nombre del **obligado emisor** en `config`
@@ -84,21 +90,14 @@ Ficheros nuevos: `src/lib/qr.js`, `src/lib/cotejo.js`. Portal:
 - [ ] **B8** Cotejo real contra la Sede Electrónica de la AEAT (servicio externo) —
   futuro.
 
-## C. Firma electrónica XAdES (modalidad NO_VERIFACTU)
+## C. Firma electrónica XAdES — ~~ELIMINADO~~
 
-Ficheros: `src/lib/cert.js`, `src/lib/firma.js` (SCAFFOLD · inerte sin cert real).
-
-- [~] **C1** Carga de PKCS#12 (`cert.js:cargarP12`, `node-forge`) + generador
-  autofirmado de dev (`generarP12Autofirmado`). **Falta** custodia en vault/HSM (C6).
-- [~] **C2** Firmante **XMLDSIG enveloped** RSA-SHA256 + **exclusive c14n**
-  (`firma.js:firmarXml`, `xml-crypto`) — base de XAdES. **Faltan** las propiedades
-  cualificadas **XAdES-EPES** (SignedProperties: SigningTime, cert digest, policy)
-  *(verificar perfil oficial)*.
-- [ ] **C3** Política de firma (policy identifier) — *(verificar spec oficial)*.
-- [~] **C4** `firmarXml` firma cualquier XML; **falta** integrarlo con el modelo de
-  RegistroAlta/Anulacion/Evento (depende de A1) y de eventos (F2).
-- [x] **C5** Verificación de firma (`firma.js:verificarXml`) — detecta manipulación.
-- [ ] **C6** Custodia y rotación del certificado en vault/HSM.
+**Descartado**: la firma XAdES de registros es exclusiva de la modalidad
+**NO_VERI·FACTU**, que no se usa. En VERI·FACTU la integridad la dan la huella
+encadenada + la remisión, y la firma del registro **no es exigible**. Se eliminaron
+`src/lib/firma.js`, `src/lib/cert.js`, sus tests y las deps `node-forge`/`xml-crypto`.
+*(El mTLS de la remisión [D2] usa el PKCS#12 directamente como `pfx`, no requiere
+estos módulos.)*
 
 ## D. Remisión SOAP a la AEAT (modalidad VERIFACTU)
 
@@ -147,9 +146,10 @@ Tabla `eventos`; `src/lib/sif.js` (identidad SIF + catálogo).
 - [x] **F1** Catálogo de eventos (`sif.js:EVENTOS_CATALOGO`: ARRANQUE, RESTAURACION,
   EXPORTACION, ANOMALIA, LOGIN) + identidad del SIF (`SIF_IDENTITY`). *(verificar
   catálogo obligatorio contra Orden HAC/1177/2024.)*
-- [~] **F2** `RegistroEvento` con huella encadenada (`sif.js:construirEvento` +
+- [x] **F2** `RegistroEvento` con huella encadenada (`sif.js:construirEvento` +
   `service.crearEvento` + `POST /v1/verifactu/eventos`, migración `0005` añade
-  `huella`/`huella_anterior`). **Falta** la **firma** del evento (NO_VERIFACTU, C4).
+  `huella`/`huella_anterior`). *(En VERI·FACTU el evento no se firma — la integridad
+  la da la huella encadenada.)*
 - [ ] **F3** Hooks que generan eventos automáticamente (arranque del SIF, exportación,
   detección de discontinuidad/anomalía, restauración de copia).
 
@@ -160,7 +160,7 @@ Tabla `eventos`; `src/lib/sif.js` (identidad SIF + catálogo).
   (`lib/cadena.js:verificarEnlace` + `GET /v1/verifactu/cadena/verificar`); migración
   `0004` enlaza el seed demo. **Faltan** el recálculo de cada huella (requiere A1) y
   ejecutarla como **job periódico** en `platform-scheduler`.
-- [ ] **G3** Exportación a requerimiento de la AEAT (formato + firma).
+- [ ] **G3** Exportación a requerimiento de la AEAT (formato oficial).
 - [ ] **G4** Retención durante el plazo legal *(verificar plazo)*.
 - [ ] **G5** Generación de un evento de **anomalía** ante manipulación detectada.
 
@@ -236,9 +236,7 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
   100 % cobertura): orden de parámetros, formatos, URL-encoding, base test/prod,
   roundtrip parse, QR data URI/EC level. **Falta** cubrir la lógica de `cotejar`
   (verificada/no_consta) — irá por integración (M9).
-- [x] **M4** Unit **firma/cert** (`cert.test.js` + `firma.test.js`, cert autofirmado
-  de test): carga p12, firma enveloped, verifica, detecta manipulación. (XMLDSIG;
-  propiedades XAdES-EPES pendientes con C2/C3.)
+- ~~**M4** Unit firma/cert~~ — **eliminado** junto con el bloque C (NO_VERI·FACTU).
 - [x] **M5** Unit **envelope SOAP** + parseo (`soap-envelope.test.js`: cabecera,
   representante, guard 1000, Correcto/ParcialmenteCorrecto/sin-líneas; `remision.test.js`:
   gate sin cert + transport inyectado).
@@ -267,11 +265,11 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
 
 ## N. Infraestructura / despliegue / dependencias
 
-- [~] **N1** Deps añadidas a `platform/verifactu/package.json`: `qrcode`,
-  `node-forge`, `xml-crypto`, `xmlbuilder2`, `fast-xml-parser`. El `Dockerfile` de
-  platform-core copia el módulo entero (sin cambio); las deps entran por el lockfile
-  al reconstruir. **Falta** `libxmljs2` (validación XSD, E2). (Se descartó `xadesjs` a
-  favor de `xml-crypto` para el scaffold.)
+- [~] **N1** Deps en `platform/verifactu/package.json`: `qrcode`, `xmlbuilder2`,
+  `fast-xml-parser`. El `Dockerfile` de platform-core copia el módulo entero (sin
+  cambio); las deps entran por el lockfile al reconstruir. **Falta** `libxmljs2`
+  (validación XSD, E2). *(Se eliminaron `node-forge`/`xml-crypto` al descartar la firma
+  XAdES — bloque C.)*
 - [ ] **N2** Variables de entorno / secretos: `CERT_PATH`/`CERT_PASS` por tenant
   (vault), endpoints AEAT (test/prod), entorno activo. Añadir a `.env.example`.
 - [ ] **N3** Jobs en `platform-scheduler`: verificación periódica de la cadena,

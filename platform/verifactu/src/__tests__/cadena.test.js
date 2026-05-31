@@ -36,4 +36,10 @@ describe('verificarEnlace', () => {
   it('cadena vacía → ok, total 0', () => {
     expect(verificarEnlace()).toEqual({ ok: true, total: 0, rotos: [] })
   })
+
+  it('tolera registros sin numero/huellaAnterior (defaults)', () => {
+    const r = verificarEnlace([{ huella: 'A' }, { huella: 'B', huellaAnterior: 'A' }])
+    expect(r.ok).toBe(true)
+    expect(r.total).toBe(2)
+  })
 })

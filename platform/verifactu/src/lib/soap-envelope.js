@@ -10,24 +10,18 @@ import { XMLParser } from 'fast-xml-parser'
 
 export const MAX_REGISTROS = 1000 // máx registros por remisión (verificar límite oficial)
 
-// Endpoints del servicio web (verificar). www10/prewww10 = certificado de sello.
+// Endpoints del servicio web VerifactuSOAP (verificar). www10/prewww10 =
+// certificado de sello.
 export const ENDPOINTS = {
-  verifactu: {
-    test: 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
-    test_sello: 'https://prewww10.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
-    prod: 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
-    prod_sello: 'https://www10.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
-  },
-  requerimiento: {
-    test: 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/RequerimientoSOAP',
-    prod: 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/RequerimientoSOAP',
-  },
+  test: 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
+  test_sello: 'https://prewww10.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
+  prod: 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
+  prod_sello: 'https://www10.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
 }
 
-export function resolverEndpoint({ servicio = 'verifactu', entorno = 'test', sello = false } = {}) {
-  const grupo = ENDPOINTS[servicio] ?? ENDPOINTS.verifactu
-  const clave = sello && grupo[`${entorno}_sello`] ? `${entorno}_sello` : entorno
-  return grupo[clave] ?? grupo.test
+export function resolverEndpoint({ entorno = 'test', sello = false } = {}) {
+  const clave = sello && ENDPOINTS[`${entorno}_sello`] ? `${entorno}_sello` : entorno
+  return ENDPOINTS[clave] ?? ENDPOINTS.test
 }
 
 const NS = {

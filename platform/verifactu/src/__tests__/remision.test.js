@@ -25,11 +25,11 @@ describe('remitir (gated)', () => {
       { envelopeXml: '<soap/>', pfx: Buffer.from('p12'), passphrase: 'pw' },
       { transport },
     )
-    expect(out.endpoint).toBe(ENDPOINTS.verifactu.test)
+    expect(out.endpoint).toBe(ENDPOINTS.test)
     expect(out.status).toBe(200)
     expect(out.respuesta.estadoEnvio).toBe('Correcto')
     expect(out.respuesta.csv).toBe('CSV-OK')
-    expect(calls[0].url).toBe(ENDPOINTS.verifactu.test)
+    expect(calls[0].url).toBe(ENDPOINTS.test)
     expect(calls[0].opts).toMatchObject({ passphrase: 'pw' })
   })
 
@@ -39,6 +39,6 @@ describe('remitir (gated)', () => {
       { envelopeXml: '<x/>', pfx: Buffer.from('p'), entorno: 'prod', sello: true },
       { transport },
     )
-    expect(out.endpoint).toBe(ENDPOINTS.verifactu.prod_sello)
+    expect(out.endpoint).toBe(ENDPOINTS.prod_sello)
   })
 })

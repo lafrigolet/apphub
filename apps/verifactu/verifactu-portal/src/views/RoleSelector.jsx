@@ -60,7 +60,6 @@ export default function RoleSelector() {
           </p>
           <div className="reveal mt-7 flex flex-wrap gap-x-7 gap-y-2 text-sm text-slate-500" style={{ animationDelay: '.28s' }}>
             <span className="flex items-center gap-2 font-mono text-xs"><svg className="w-4 h-4 text-azul-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="9" /></svg>SHA-256 encadenado</span>
-            <span className="flex items-center gap-2 font-mono text-xs"><svg className="w-4 h-4 text-azul-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="10" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>Firma XAdES</span>
             <span className="flex items-center gap-2 font-mono text-xs"><svg className="w-4 h-4 text-azul-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h7v7h-7z" /></svg>QR de cotejo</span>
           </div>
         </div>

@@ -34,7 +34,6 @@ Los ficheros reales (PDF / XSD / WSDL / ZIP) se descargan dentro de estas págin
 | WSDL de los servicios web | <https://www.agenciatributaria.es/AEAT.desarrolladores/Desarrolladores/_menu_/Documentacion/Sistemas_Informaticos_de_Facturacion_y_Sistemas_VERI_FACTU/WSDL_de_los_servicios_web/WSDL_de_los_servicios_web.html> |
 | Esquemas (XSD) | <https://www.agenciatributaria.es/AEAT.desarrolladores/Desarrolladores/_menu_/Documentacion/Sistemas_Informaticos_de_Facturacion_y_Sistemas_VERI_FACTU/Esquemas_de_los_servicios_web/Esquemas_de_los_servicios_web.html> |
 | Documento de validaciones y errores | <https://www.agenciatributaria.es/AEAT.desarrolladores/Desarrolladores/_menu_/Documentacion/Sistemas_Informaticos_de_Facturacion_y_Sistemas_VERI_FACTU/Validaciones_y_errores/Validaciones_y_errores.html> |
-| Especificaciones técnicas de la firma electrónica de los registros de facturación y de evento | <https://www.agenciatributaria.es/AEAT.desarrolladores/Desarrolladores/_menu_/Documentacion/Sistemas_Informaticos_de_Facturacion_y_Sistemas_VERI_FACTU/Especificaciones_tecnicas_para_generacion_de_la_firma_electronica_de_los_registros_de_facturacion/Especificaciones_tecnicas_para_generacion_de_la_firma_electronica_de_los_registros_de_facturacion.html> |
 
 ---
 
@@ -59,7 +58,6 @@ Cada entrada del índice tiene su propia subpágina en la Sede; útil si algún 
 | Documento de validaciones y errores | <https://sede.agenciatributaria.gob.es/Sede/iva/sistemas-informaticos-facturacion-verifactu/informacion-tecnica/documento-validaciones-errores.html> |
 | Especificaciones de remisión voluntaria | <https://sede.agenciatributaria.gob.es/Sede/iva/sistemas-informaticos-facturacion-verifactu/informacion-tecnica/especificaciones-servicios-remision-voluntaria-registros-validaciones.html> |
 | Algoritmo de huella / hash | <https://sede.agenciatributaria.gob.es/Sede/iva/sistemas-informaticos-facturacion-verifactu/informacion-tecnica/algoritmo-calculo-codificacion-huella-hash.html> |
-| Firma electrónica de registros y evento | <https://sede.agenciatributaria.gob.es/Sede/iva/sistemas-informaticos-facturacion-verifactu/informacion-tecnica/especificaciones-tecnicas-firma-electronica-registros-evento.html> |
 | Características del QR y servicio de cotejo | <https://sede.agenciatributaria.gob.es/Sede/iva/sistemas-informaticos-facturacion-verifactu/informacion-tecnica/caracteristicas-qr-especificaciones-servicio-cotejo-factura.html> |
 | Ejemplos de declaraciones responsables | <https://sede.agenciatributaria.gob.es/Sede/iva/sistemas-informaticos-facturacion-verifactu/informacion-tecnica/ejemplo-declaracion-responsable.html> |
 
@@ -67,6 +65,6 @@ Cada entrada del índice tiene su propia subpágina en la Sede; útil si algún 
 
 ### Notas de vigencia
 
-- Páginas con última actualización indicada: índice, QR, firma y declaraciones responsables → **26/03/2026**; resto de subpáginas → **02/02/2026**.
+- Páginas con última actualización indicada: índice, QR y declaraciones responsables → **26/03/2026**; resto de subpáginas → **02/02/2026**.
 - La declaración responsable estaba en versión **v0.5.1** en el momento de la consulta.
 - El orden de campos de la huella, los XSD y el WSDL se revisan periódicamente: confirma número de versión y fecha en la cabecera de cada documento antes de implementar.
