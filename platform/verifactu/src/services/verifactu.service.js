@@ -1,5 +1,7 @@
 import { withTenantTransaction } from '../lib/db.js'
 import { calcularHuella, TIPO_HUELLA } from '../lib/huella.js'
+import { buildCotejoUrl, parseCotejoUrl } from '../lib/cotejo.js'
+import { generarQrDataUri } from '../lib/qr.js'
 import * as repo from '../repositories/verifactu.repository.js'
 
 // ISO-8601 con huso (la huella exige FechaHoraHusoGenRegistro con offset).
@@ -82,8 +84,14 @@ export function crearRegistro(scope, input) {
       huellaAnterior,
     )
     void TIPO_HUELLA // TipoHuella=01 (SHA-256) — se persistirá con el modelo XSD completo (A1)
+    const qrUrl = buildCotejoUrl({
+      nif: cfg?.nif_obligado ?? input.clienteNif,
+      numSerie,
+      fecha: input.fechaExpedicion,
+      importe: input.importeTotal,
+    })
     const row = await repo.insertRegistro(c, {
-      ...scope, ...input, numero, numSerie, huella, huellaAnterior,
+      ...scope, ...input, numero, numSerie, huella, huellaAnterior, qrUrl,
     })
     return {
       serie: row.num_serie, cliente: row.cliente_nombre, fecha: row.fecha_expedicion,
@@ -169,20 +177,57 @@ export function listCotejos(scope) {
   })
 }
 
-// POST cotejar — STUB: la verificación real consulta la Sede AEAT.
-// TODO(fuente-oficial): llamar al servicio de cotejo de la AEAT con los
-// parámetros del QR. Aquí registramos un cotejo "verificada" determinista.
+// GET QR de un registro (por num_serie, o el último). Compone la URL de cotejo
+// y genera el QR como data URI. La URL/QR son autoritativos (recalculados),
+// independientes del qr_url persistido.
+export function getQr(scope, numSerie) {
+  return tx(scope, async (c) => {
+    const cfg = await repo.getConfig(c)
+    const row = numSerie ? await repo.findByNumSerie(c, numSerie) : await repo.latestRegistro(c)
+    if (!row) return null
+    const url = buildCotejoUrl({
+      nif: cfg?.nif_obligado ?? row.cliente_nif,
+      numSerie: row.num_serie,
+      fecha: row.fecha_expedicion,
+      importe: row.importe_total ?? row.total_display,
+    })
+    const dataUri = await generarQrDataUri(url)
+    return { numSerie: row.num_serie, url, dataUri }
+  })
+}
+
+// POST cotejar — verificación REAL contra la cadena local del SIF (no contra la
+// Sede AEAT, que sería el servicio externo de cotejo — ver TODO B8). Acepta una
+// URL de cotejo (la parsea) o nifEmisor+numSerie directos. `verificada` si el
+// registro consta en la cadena, `no_consta` si no.
 export function cotejar(scope, input) {
   return tx(scope, async (c) => {
-    const row = await repo.insertCotejo(c, {
+    let { nifEmisor, numSerie } = input
+    if (input.url) {
+      const p = parseCotejoUrl(input.url)
+      numSerie = p.numSerie ?? numSerie
+      nifEmisor = p.nif ?? nifEmisor
+    }
+    const cfg = await repo.getConfig(c)
+    const row = numSerie ? await repo.findByNumSerie(c, numSerie) : null
+    const verificada = !!row
+    const inserted = await repo.insertCotejo(c, {
       ...scope,
-      nifEmisor: input.nifEmisor, numSerie: input.numSerie,
-      resultado: 'verificada', label: 'Verificada', tone: 'ok', tsDisplay: 'ahora',
+      nifEmisor: nifEmisor ?? cfg?.nif_obligado ?? null,
+      numSerie: numSerie ?? null,
+      resultado: verificada ? 'verificada' : 'no_consta',
+      label: verificada ? 'Verificada' : 'No consta',
+      tone: verificada ? 'ok' : 'rose',
+      tsDisplay: 'ahora',
     })
     return {
-      verificada: true,
-      emisor: { nombre: 'Ejemplo S.L.', nif: row.nif_emisor },
-      numSerie: row.num_serie,
+      verificada,
+      resultado: inserted.resultado,
+      numSerie: inserted.num_serie,
+      emisor: verificada
+        ? { nombre: cfg?.nombre_obligado ?? 'Obligado', nif: cfg?.nif_obligado ?? nifEmisor }
+        : null,
+      importe: row?.total_display ?? null,
     }
   })
 }

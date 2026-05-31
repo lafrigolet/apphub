@@ -68,23 +68,19 @@ Ficheros: `platform/verifactu/src/lib/huella.js`, `src/services/verifactu.servic
 Ficheros nuevos: `src/lib/qr.js`, `src/lib/cotejo.js`. Portal:
 `apps/verifactu/verifactu-portal/src/views/{emisor,receptor}/`.
 
-- [ ] **B1** Builder de la **URL de cotejo** *(verificar)*: base test
-  `https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR`, prod
-  `https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR`; parámetros en
-  orden `nif, numserie, fecha, importe`; fecha `DD-MM-AAAA`; importe con punto
-  decimal; URL-encoding estándar.
-- [ ] **B2** Generación del **QR** (dep `qrcode`): nivel de corrección de errores
-  **M** *(verificar tamaño/módulos/versión)*.
-- [ ] **B3** Persistir `qr_url` por registro al crearlo + leyenda "VERI·FACTU".
-- [ ] **B4** Endpoint `GET /v1/verifactu/registros/:id/qr` → `{ url, dataUri }`.
-- [ ] **B5** Portal Emisor (sección QR): reemplazar el SVG y la URL hardcoded por el
-  QR y la URL reales del registro seleccionado.
-- [ ] **B6** Receptor: parseo de la URL de cotejo pegada (extraer `nif/numserie/
-  fecha/importe`) en vez de valores fijos.
-- [~] **B7** `cotejar`: hoy devuelve siempre `verificada` con emisor hardcoded.
-  Pasar a verificación real contra la cadena local: `verificada` si existe el
-  registro `(nif, numserie)` y la huella concuerda, `no_consta` si no. Devolver
-  emisor/importe reales de la fila. *(El cotejo real consulta la Sede AEAT — ver B8.)*
+- [x] **B1** Builder de la **URL de cotejo** (`lib/cotejo.js:buildCotejoUrl`)
+  *(verificar)*: base test/prod, orden `nif, numserie, fecha, importe`, URL-encoding.
+  `nif` = obligado (de config). + `parseCotejoUrl`.
+- [x] **B2** Generación del **QR** (`lib/qr.js`, dep `qrcode`, EC level M, data URI PNG)
+  *(verificar tamaño/módulos)*.
+- [x] **B3** Persistir `qr_url` por registro al crearlo (`crearRegistro`).
+- [x] **B4** Endpoint `GET /v1/verifactu/qr?…&numSerie=` → `{ numSerie, url, dataUri }`
+  (recalcula la URL/QR; `numSerie` omitido → último registro).
+- [x] **B5** Portal Emisor (sección QR): QR (`<img>`) y URL reales del registro.
+- [x] **B6** Receptor: input de URL controlado + `parseCotejoUrl` en el backend.
+- [x] **B7** `cotejar` real contra la cadena local: `verificada` (emisor/importe
+  reales) si consta `(numserie)`, `no_consta` si no. *(El cotejo contra la Sede AEAT
+  es B8.)*
 - [ ] **B8** Cotejo real contra la Sede Electrónica de la AEAT (servicio externo) —
   futuro.
 
@@ -228,8 +224,10 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
   de cadena (orden/separador), reglas de formato (trim, campo vacío, mayúsculas),
   alta/anulación/evento, primer registro vs encadenado, cambio de huella al cambiar un
   campo. **Falta** el vector oficial AEAT (digest esperado) → `it.todo`.
-- [ ] **M3** Unit **QR / URL de cotejo**: orden de parámetros, formatos de fecha/
-  importe, URL-encoding, base test/prod, nivel de corrección del QR.
+- [~] **M3** Unit **QR / URL de cotejo** (`__tests__/cotejo.test.js` + `qr.test.js`,
+  100 % cobertura): orden de parámetros, formatos, URL-encoding, base test/prod,
+  roundtrip parse, QR data URI/EC level. **Falta** cubrir la lógica de `cotejar`
+  (verificada/no_consta) — irá por integración (M9).
 - [ ] **M4** Unit **firma XAdES** con fixture de certificado de test.
 - [ ] **M5** Unit **envelope SOAP** + parseo de respuesta (fixtures XML
   Correcto/AceptadoConErrores/Incorrecto).

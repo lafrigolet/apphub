@@ -22,6 +22,7 @@ export default function Emisor() {
   const [remisiones, setRemisiones] = useState([])
   const [cadena, setCadena] = useState([])
   const [eventos, setEventos] = useState([])
+  const [qr, setQr] = useState(null)
 
   useEffect(() => {
     const qs = scopeQS()
@@ -29,6 +30,7 @@ export default function Emisor() {
     api.get(`/api/verifactu/remisiones?${qs}`).then(setRemisiones).catch(() => {})
     api.get(`/api/verifactu/cadena?${qs}`).then(setCadena).catch(() => {})
     api.get(`/api/verifactu/eventos?${qs}`).then(setEventos).catch(() => {})
+    api.get(`/api/verifactu/qr?${qs}`).then(setQr).catch(() => {})
   }, [])
 
   return (
@@ -160,14 +162,16 @@ export default function Emisor() {
             <div className="grid md:grid-cols-2 gap-4 mt-6">
               <div className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center">
                 <div className="p-4 bg-white border border-slate-200 rounded-xl">
-                  <svg width="150" height="150" viewBox="0 0 29 29" shapeRendering="crispEdges"><rect width="29" height="29" fill="#fff" /><g fill="#0b1220"><rect x="0" y="0" width="7" height="7" /><rect x="2" y="2" width="3" height="3" fill="#fff" /><rect x="22" y="0" width="7" height="7" /><rect x="24" y="2" width="3" height="3" fill="#fff" /><rect x="0" y="22" width="7" height="7" /><rect x="2" y="24" width="3" height="3" fill="#fff" /><rect x="9" y="1" width="1" height="1" /><rect x="11" y="0" width="1" height="2" /><rect x="13" y="1" width="2" height="1" /><rect x="16" y="0" width="1" height="1" /><rect x="18" y="1" width="2" height="1" /><rect x="9" y="9" width="2" height="2" /><rect x="13" y="9" width="1" height="3" /><rect x="16" y="10" width="2" height="1" /><rect x="20" y="9" width="1" height="2" /><rect x="23" y="10" width="2" height="2" /><rect x="26" y="9" width="1" height="3" /><rect x="9" y="13" width="3" height="1" /><rect x="15" y="14" width="2" height="2" /><rect x="19" y="13" width="1" height="2" /><rect x="22" y="14" width="2" height="1" /><rect x="25" y="13" width="2" height="2" /><rect x="9" y="18" width="2" height="1" /><rect x="12" y="17" width="1" height="2" /><rect x="15" y="18" width="2" height="2" /><rect x="18" y="17" width="2" height="1" /><rect x="21" y="18" width="1" height="2" /><rect x="24" y="17" width="2" height="2" /><rect x="27" y="18" width="1" height="2" /><rect x="9" y="22" width="1" height="3" /><rect x="11" y="23" width="2" height="1" /><rect x="14" y="22" width="1" height="2" /><rect x="16" y="24" width="2" height="1" /><rect x="19" y="22" width="2" height="2" /><rect x="23" y="23" width="1" height="3" /><rect x="26" y="22" width="2" height="1" /></g></svg>
+                  {qr?.dataUri
+                    ? <img src={qr.dataUri} width="150" height="150" alt="Código QR de cotejo" />
+                    : <div className="w-[150px] h-[150px] grid place-items-center text-xs text-slate-300 font-mono">QR…</div>}
                 </div>
                 <span className="pill bg-azul-50 text-azul-600 mt-4">VERI·FACTU</span>
-                <p className="text-xs text-slate-400 mt-2 font-mono">Factura 2027-A/000128</p>
+                <p className="text-xs text-slate-400 mt-2 font-mono">Factura {qr?.numSerie ?? '—'}</p>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-6">
                 <h3 className="font-600 text-sm">URL de cotejo</h3>
-                <div className="mt-2 p-3 rounded-xl bg-slate-900 text-azul-200 font-mono text-xs break-all leading-relaxed">https://sede.agenciatributaria.gob.es/.../cotejo?nif=B12345678&numserie=2027-A/000128&fecha=02-01-2027&importe=121.00</div>
+                <div className="mt-2 p-3 rounded-xl bg-slate-900 text-azul-200 font-mono text-xs break-all leading-relaxed">{qr?.url ?? '…'}</div>
                 <p className="text-[11px] text-slate-400 font-mono mt-2">El dominio, parámetros y orden exactos se toman de «Características del QR» (verificar contra fuente oficial).</p>
                 <div className="mt-5 space-y-3 text-sm">
                   <div className="flex justify-between border-b border-slate-100 pb-2"><span className="text-slate-400">NIF emisor</span><span className="font-mono">B12345678</span></div>

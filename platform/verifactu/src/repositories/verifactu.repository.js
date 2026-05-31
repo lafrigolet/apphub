@@ -18,6 +18,25 @@ export async function maxNumero(client) {
   return rows[0].max
 }
 
+const REGISTRO_COLS = `numero, num_serie, cliente_nombre, cliente_nif, fecha_expedicion,
+  importe_total, total_display, estado_remision, huella, huella_anterior, qr_url`
+
+export async function findByNumSerie(client, numSerie) {
+  const { rows } = await client.query(
+    `SELECT ${REGISTRO_COLS} FROM ${SCHEMA}.registros WHERE num_serie = $1 LIMIT 1`,
+    [numSerie],
+  )
+  return rows[0] ?? null
+}
+
+export async function latestRegistro(client) {
+  const { rows } = await client.query(
+    `SELECT ${REGISTRO_COLS} FROM ${SCHEMA}.registros
+      ORDER BY numero DESC NULLS LAST, created_at DESC LIMIT 1`,
+  )
+  return rows[0] ?? null
+}
+
 export async function lastHuella(client) {
   const { rows } = await client.query(
     `SELECT huella FROM ${SCHEMA}.registros ORDER BY numero DESC NULLS LAST, created_at DESC LIMIT 1`,

@@ -31,6 +31,15 @@ export async function publicRoutes(fastify) {
   fastify.get('/eventos', { config: { public: true }, schema: { tags: T, summary: 'Eventos del SIF / auditoría', querystring: scopeQuery } },
     async (req) => service.listEventos(scope(req.query)))
 
+  const qrQuery = scopeQuery.extend({ numSerie: z.string().max(64).optional() })
+  fastify.get('/qr', { config: { public: true }, schema: { tags: T, summary: 'QR + URL de cotejo de un registro', querystring: qrQuery } },
+    async (req, reply) => {
+      const q = qrQuery.parse(req.query ?? {})
+      const out = await service.getQr(scope(q), q.numSerie)
+      if (!out) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Sin registros' } })
+      return out
+    })
+
   const registroBody = scopeQuery.extend({
     numSerie:       z.string().max(64).optional(),
     clienteNombre:  z.string().max(256).optional(),
