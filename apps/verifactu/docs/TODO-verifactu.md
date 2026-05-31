@@ -247,8 +247,11 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
   resultados.
 - [ ] **M8** Unit **services**: `crearRegistro` encadena la huella; `cotejar`
   verificada/no_consta; `validar`; `patchConfig`.
-- [ ] **M9** Integration: migraciones + seed; cada endpoint GET/POST/PATCH; **
-  aislamiento cross-tenant** (un tenant no ve datos de otro).
+- [x] **M9** Integration (`src/__tests__/integration/`, 15 tests contra Postgres
+  :5433 vía `test:integration`/`integration-or-skip`): migraciones (schema + 7 tablas
+  + RLS forzada + idempotencia), registros + huella encadenada, **aislamiento
+  cross-tenant** (registros/clientes/config/cotejo: un tenant no ve datos de otro),
+  eventos encadenados, QR, validar, health.
 - [ ] **M10** Integration: flujo emisión → huella → QR → (remisión mock con fixture de
   respuesta de la AEAT).
 - [ ] **M11** E2E **opt-in** contra `preportal.aeat.es` (requiere certificado; skip
