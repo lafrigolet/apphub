@@ -213,6 +213,17 @@
       "restart_policy": "rolling"
     },
     {
+      "name": "verifactu-portal",
+      "dockerfile": "apps/verifactu/verifactu-portal/Dockerfile",
+      "paths": [
+        "apps/verifactu/verifactu-portal/**",
+        "packages/sdk-js/**",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ],
+      "restart_policy": "rolling"
+    },
+    {
       "name": "nginx",
       "dockerfile": "infra/nginx/Dockerfile",
       "paths": [

@@ -574,6 +574,26 @@ services:
       - ./apps/macabeo/macabeo-portal/tailwind.config.js:/app/apps/macabeo/macabeo-portal/tailwind.config.js:ro
       - ./apps/macabeo/macabeo-portal/postcss.config.js:/app/apps/macabeo/macabeo-portal/postcss.config.js:ro
 
+  # ── Verifactu (frontend 5182) ─────────────────────────────────
+  verifactu-portal:
+    build:
+      context: .
+      dockerfile: apps/verifactu/verifactu-portal/Dockerfile
+      target: development
+    restart: unless-stopped
+    networks: [edge]
+    ports:
+      - '5182:5182'
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://verifactu.hulkstein.local:8080
+    volumes:
+      - ./apps/verifactu/verifactu-portal/src:/app/apps/verifactu/verifactu-portal/src:ro
+      - ./apps/verifactu/verifactu-portal/vite.config.js:/app/apps/verifactu/verifactu-portal/vite.config.js:ro
+      - ./apps/verifactu/verifactu-portal/index.html:/app/apps/verifactu/verifactu-portal/index.html:ro
+      - ./apps/verifactu/verifactu-portal/tailwind.config.js:/app/apps/verifactu/verifactu-portal/tailwind.config.js:ro
+      - ./apps/verifactu/verifactu-portal/postcss.config.js:/app/apps/verifactu/verifactu-portal/postcss.config.js:ro
+
   # ── Gateway ────────────────────────────────────────────────────
   # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
   # server blocks from a Redis hash and reloads nginx within ~2s of any
@@ -618,6 +638,7 @@ services:
       aulavera-server:         { condition: service_started }
       js-electric-portal:      { condition: service_started }
       macabeo-portal:          { condition: service_started }
+      verifactu-portal:        { condition: service_started }
 
 volumes:
   postgres_data:

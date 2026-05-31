@@ -7,6 +7,7 @@ packages:
   - 'apps/aulavera/*'          # aulavera-portal
   - 'apps/js-electric/*'       # js-electric-portal
   - 'apps/macabeo/*'           # macabeo-portal
+  - 'apps/verifactu/*'         # verifactu-portal
   - 'apps/__app-template__/*'   # template (never deployed)
   - 'platform/*'                # shared platform services
   - 'packages/*'                # eslint-config, sdk-js, platform-sdk, tsconfig
