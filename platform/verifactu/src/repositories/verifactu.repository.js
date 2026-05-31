@@ -102,7 +102,8 @@ export async function listCertificados(client) {
 // ── Config (control de flujo) ─────────────────────────────────────────
 export async function getConfig(client) {
   const { rows } = await client.query(
-    `SELECT tiempo_espera_envio, max_registros_lote, reintentos, dlq_enabled
+    `SELECT tiempo_espera_envio, max_registros_lote, reintentos, dlq_enabled,
+            nif_obligado, nombre_obligado
        FROM ${SCHEMA}.config LIMIT 1`,
   )
   return rows[0] ?? null

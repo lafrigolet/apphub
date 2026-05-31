@@ -1,6 +1,10 @@
 import { withTenantTransaction } from '../lib/db.js'
-import { calcularHuella } from '../lib/huella.js'
+import { calcularHuella, TIPO_HUELLA } from '../lib/huella.js'
 import * as repo from '../repositories/verifactu.repository.js'
+
+// ISO-8601 con huso (la huella exige FechaHoraHusoGenRegistro con offset).
+// new Date().toISOString() devuelve 'Z' (=+00:00), huso válido. (verificar)
+const ahoraIso = () => new Date().toISOString()
 
 // Etiqueta de las "remisiones recientes" del resumen (distinta de la tabla).
 const REMISION_LABEL = { ok: 'Aceptada', warn: 'Con advertencia', err: 'Rechazada' }
@@ -55,16 +59,29 @@ export function listEventos(scope) {
   })
 }
 
-// POST nueva factura — calcula la huella encadenada (STUB, ver lib/huella.js).
+// POST nueva factura — calcula la huella encadenada conforme al algoritmo
+// AEAT (ver lib/huella.js · VERIFICAR orden de campos contra fuente oficial).
+// El IDEmisorFactura es el NIF del OBLIGADO (de config), no el del cliente.
 export function crearRegistro(scope, input) {
   return tx(scope, async (c) => {
     const numero = (await repo.maxNumero(c)) + 1
-    const huellaAnterior = await repo.lastHuella(c)
+    const huellaAnterior = await repo.lastHuella(c) // null → PrimerRegistro de la cadena
     const numSerie = input.numSerie ?? `2027-A/${String(numero).padStart(6, '0')}`
+    const cfg = await repo.getConfig(c)
     const huella = calcularHuella(
-      { ...input, numSerie, generadoEn: new Date().toISOString() },
+      {
+        tipo:            input.tipo ?? 'alta',
+        idEmisor:        cfg?.nif_obligado ?? input.clienteNif,
+        numSerie,
+        fechaExpedicion: input.fechaExpedicion,
+        tipoFactura:     input.tipoFactura ?? 'F1',
+        cuotaTotal:      input.cuotaTotal,
+        importeTotal:    input.importeTotal,
+        generadoEn:      ahoraIso(),
+      },
       huellaAnterior,
     )
+    void TIPO_HUELLA // TipoHuella=01 (SHA-256) — se persistirá con el modelo XSD completo (A1)
     const row = await repo.insertRegistro(c, {
       ...scope, ...input, numero, numSerie, huella, huellaAnterior,
     })
@@ -123,6 +140,8 @@ export function getConfig(scope) {
       maxRegistrosLote: row.max_registros_lote,
       reintentos: row.reintentos,
       dlqEnabled: row.dlq_enabled,
+      nifObligado: row.nif_obligado ?? null,
+      nombreObligado: row.nombre_obligado ?? null,
     }
   })
 }

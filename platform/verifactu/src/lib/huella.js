@@ -1,31 +1,89 @@
 import { createHash } from 'node:crypto'
 
-// ⚠️ STUB — orden/formato de campos NO oficial.
+// Huella (hash) encadenada de los registros VERI·FACTU.
 //
-// El cálculo real de la huella debe replicar EXACTAMENTE el documento
-// "Algoritmo de cálculo de la huella o hash" de la AEAT: el subconjunto de
-// campos, su orden, separador, tratamiento de mayúsculas y formato de
-// importes/fechas. Cualquier desviación rompe la verificación y la AEAT
-// rechaza el registro. Hasta tener esa fuente oficial esto produce una
-// huella DETERMINISTA pero NO conforme, suficiente para encadenar la demo.
-//
-// TODO(fuente-oficial): sustituir composeCadena() por el orden real.
+// ⚠️ VERIFICAR CONTRA FUENTE OFICIAL — el orden EXACTO de campos, los nombres
+// de clave, el tratamiento de importes/fechas y el separador deben replicar el
+// documento "Algoritmo de cálculo de codificación de la huella o hash" de la
+// AEAT. El orden de abajo se reconstruyó de la página AEAT + el ejemplo oficial
+// + resúmenes de terceros; debe blindarse con el VECTOR DE TEST OFICIAL
+// (digest esperado) antes de producción. Cualquier desviación rompe la
+// verificación y la AEAT rechaza el registro.
 // https://sede.agenciatributaria.gob.es/.../algoritmo-calculo-codificacion-huella-hash.html
-function composeCadena(registro, huellaAnterior) {
-  // Estructura ILUSTRATIVA — ver aviso arriba.
-  return [
-    `IDEmisorFactura=${registro.clienteNif ?? ''}`,
-    `NumSerieFactura=${registro.numSerie ?? ''}`,
-    `FechaExpedicionFactura=${registro.fechaExpedicion ?? ''}`,
-    `TipoFactura=${registro.tipoFactura ?? ''}`,
-    `CuotaTotal=${registro.cuotaTotal ?? ''}`,
-    `ImporteTotal=${registro.importeTotal ?? ''}`,
-    `Huella anterior=${huellaAnterior ?? ''}`,
-    `FechaHoraHusoGenRegistro=${registro.generadoEn ?? ''}`,
-  ].join('&')
+
+export const TIPO_HUELLA = '01' // 01 = SHA-256
+
+// Reglas de formato oficiales:
+//  - valor recortado de espacios (trim)
+//  - campo vacío/ausente → se incluye igualmente como `clave=`
+//  - pares `clave=valor` unidos por `&`
+//  - SHA-256 sobre la cadena en UTF-8, salida hex en MAYÚSCULAS
+function val(v) {
+  if (v === null || v === undefined) return ''
+  return String(v).trim()
 }
 
-export function calcularHuella(registro, huellaAnterior) {
-  const cadena = composeCadena(registro, huellaAnterior)
+function compose(pairs) {
+  return pairs.map(([k, v]) => `${k}=${val(v)}`).join('&')
+}
+
+function sha256Upper(cadena) {
   return createHash('sha256').update(cadena, 'utf8').digest('hex').toUpperCase()
+}
+
+// ── RegistroAlta ──────────────────────────────────────────────────────
+export function cadenaAlta(r, huellaAnterior) {
+  return compose([
+    ['IDEmisorFactura',          r.idEmisor],
+    ['NumSerieFactura',          r.numSerie],
+    ['FechaExpedicionFactura',   r.fechaExpedicion],
+    ['TipoFactura',              r.tipoFactura],
+    ['CuotaTotal',               r.cuotaTotal],
+    ['ImporteTotal',             r.importeTotal],
+    ['Huella',                   huellaAnterior], // huella del registro anterior (vacía en el primer registro)
+    ['FechaHoraHusoGenRegistro', r.generadoEn],
+  ])
+}
+export function huellaAlta(r, huellaAnterior) {
+  return sha256Upper(cadenaAlta(r, huellaAnterior))
+}
+
+// ── RegistroAnulacion ─────────────────────────────────────────────────
+export function cadenaAnulacion(r, huellaAnterior) {
+  return compose([
+    ['IDEmisorFacturaAnulada',        r.idEmisor],
+    ['NumSerieFacturaAnulada',        r.numSerie],
+    ['FechaExpedicionFacturaAnulada', r.fechaExpedicion],
+    ['Huella',                        huellaAnterior],
+    ['FechaHoraHusoGenRegistro',      r.generadoEn],
+  ])
+}
+export function huellaAnulacion(r, huellaAnterior) {
+  return sha256Upper(cadenaAnulacion(r, huellaAnterior))
+}
+
+// ── RegistroEvento ────────────────────────────────────────────────────
+// ⚠️ Las claves del evento son especialmente inciertas (SistemaInformatico vs
+// ObligadoEmision comparten "NIF" en la fuente) — VERIFICAR antes de usar.
+export function cadenaEvento(e, huellaAnterior) {
+  return compose([
+    ['NIF',                    e.sifNif],
+    ['ID',                     e.sifId],
+    ['IdSistemaInformatico',   e.idSistemaInformatico],
+    ['Version',                e.version],
+    ['NumeroInstalacion',      e.numeroInstalacion],
+    ['NIFObligado',            e.nifObligado],
+    ['TipoEvento',             e.tipoEvento],
+    ['HuellaEvento',           huellaAnterior],
+    ['FechaHoraHusoGenEvento', e.generadoEn],
+  ])
+}
+export function huellaEvento(e, huellaAnterior) {
+  return sha256Upper(cadenaEvento(e, huellaAnterior))
+}
+
+// Dispatcher usado por el servicio. `registro.tipo` ∈ {alta, anulacion}.
+export function calcularHuella(registro, huellaAnterior) {
+  if (registro.tipo === 'anulacion') return huellaAnulacion(registro, huellaAnterior)
+  return huellaAlta(registro, huellaAnterior)
 }

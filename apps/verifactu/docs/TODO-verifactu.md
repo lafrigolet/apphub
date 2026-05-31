@@ -42,30 +42,26 @@ Ficheros: `platform/verifactu/src/lib/huella.js`, `src/services/verifactu.servic
   (`TipoImpositivo`, `BaseImponible`, `CuotaRepercutida`…), `Encadenamiento`,
   `SistemaInformatico`, `FechaHoraHusoGenRegistro`, `TipoHuella`, `Huella`,
   `Signature`. Hoy el modelo está simplificado.
-- [~] **A2** Huella **RegistroAlta** — orden oficial *(verificar)*:
-  `IDEmisorFactura, NumSerieFactura, FechaExpedicionFactura, TipoFactura, CuotaTotal,
-  ImporteTotal, Huella=<anterior>, FechaHoraHusoGenRegistro`, pares `clave=valor`
-  unidos por `&`. Hoy el stub usa `cliente_nif` como emisor (incorrecto, ver A10).
-- [ ] **A3** Huella **RegistroAnulacion**: `IDEmisorFacturaAnulada,
-  NumSerieFacturaAnulada, FechaExpedicionFacturaAnulada, Huella, FechaHoraHusoGenRegistro`.
-- [ ] **A4** Huella **RegistroEvento**: `NIF(SistemaInformatico), ID,
-  IdSistemaInformatico, Version, NumeroInstalacion, NIF(ObligadoEmision), TipoEvento,
-  HuellaEvento(anterior), FechaHoraHusoGenEvento`.
-- [~] **A5** Reglas de formato de la huella: recorte de espacios en los valores,
-  campo vacío incluido como `clave=`, codificación UTF-8, algoritmo SHA-256, salida
-  en **hexadecimal MAYÚSCULAS**, `TipoHuella=01`, timestamp ISO-8601 con huso
-  (`2027-01-02T10:15:30+01:00`).
-- [ ] **A6** Encadenamiento: `PrimerRegistro` (primer registro de la cadena) vs
-  `RegistroAnterior`; lock optimista por `(emisor, serie)`; idempotencia por
-  `(NIF emisor + serie + número + tipo)`.
+- [x] **A2** Huella **RegistroAlta** — orden oficial *(verificar)* en
+  `lib/huella.js:cadenaAlta`; pares `clave=valor` unidos por `&`. Cableada en
+  `service.crearRegistro` usando el NIF del obligado (A10). Tests: `__tests__/huella.test.js`.
+- [x] **A3** Huella **RegistroAnulacion** (`cadenaAnulacion`/`huellaAnulacion`) *(verificar)*.
+- [x] **A4** Huella **RegistroEvento** (`cadenaEvento`/`huellaEvento`) *(verificar —
+  claves del evento especialmente inciertas)*.
+- [x] **A5** Reglas de formato: trim de valores, campo vacío como `clave=`, UTF-8,
+  SHA-256, salida **hex MAYÚSCULAS**, `TIPO_HUELLA='01'`, timestamp ISO-8601 con huso.
+- [~] **A6** Encadenamiento: `PrimerRegistro` (huella anterior vacía) vs
+  `RegistroAnterior` ✅; **falta** lock optimista por `(emisor, serie)` e idempotencia
+  por `(NIF emisor + serie + número + tipo)`.
 - [ ] **A7** Series y numeración por emisor.
 - [ ] **A8** Soporte de modalidad `VERIFACTU` vs `NO_VERIFACTU` (firma obligatoria
   en la segunda; remisión en la primera).
 - [ ] **A9** Inmutabilidad / append-only; las correcciones se modelan con
   anulación/sustitución, nunca con UPDATE/DELETE del registro.
-- [ ] **A10** NIF y nombre del **obligado emisor** en `config` (o `SistemaInformatico`)
-  y usarlos como `IDEmisorFactura` en la huella, en el QR y en la cabecera SOAP. Hoy
-  no existe y el stub toma el NIF del cliente.
+- [x] **A10** NIF y nombre del **obligado emisor** en `config`
+  (`nif_obligado`/`nombre_obligado`, migración `0003_obligado_huella.sql`); usado como
+  `IDEmisorFactura` en la huella. Pendiente reutilizarlo en el QR (B1) y en la cabecera
+  SOAP (D1).
 
 ## B. QR y servicio de cotejo
 
@@ -225,11 +221,13 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
 `platform/verifactu/vitest.integration.config.js`. Patrón de referencia ya existente:
 `platform/inquiries` y `platform/leads` (+ `scripts/integration-or-skip.mjs`).
 
-- [ ] **M1** Config de cobertura con **thresholds ≥95 %** (statements/branches/
-  functions/lines) y gate en CI; objetivo 100 %.
-- [ ] **M2** Unit **huella**: vector(es) del **ejemplo oficial** para alta/anulación/
-  evento; reglas de formato (trim, campo vacío, mayúsculas); primer registro vs
-  encadenado; cambio de huella al cambiar un campo.
+- [~] **M1** Config de cobertura `vitest.config.js` con **thresholds ≥95 %** (hoy 100 %
+  sobre `src/lib/huella.js`); el `include` se amplía conforme entran M7/M8. Falta gate
+  en CI.
+- [~] **M2** Unit **huella** (`__tests__/huella.test.js`, 100 % cobertura): composición
+  de cadena (orden/separador), reglas de formato (trim, campo vacío, mayúsculas),
+  alta/anulación/evento, primer registro vs encadenado, cambio de huella al cambiar un
+  campo. **Falta** el vector oficial AEAT (digest esperado) → `it.todo`.
 - [ ] **M3** Unit **QR / URL de cotejo**: orden de parámetros, formatos de fecha/
   importe, URL-encoding, base test/prod, nivel de corrección del QR.
 - [ ] **M4** Unit **firma XAdES** con fixture de certificado de test.
