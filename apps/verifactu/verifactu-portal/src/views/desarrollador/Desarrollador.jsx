@@ -24,13 +24,38 @@ function EsquemaIcon({ e }) {
   return <div className="h-11 w-11 rounded-xl bg-azul-50 grid place-items-center text-azul-600"><svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="10" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg></div>
 }
 
+const REGISTRO_MUESTRA = JSON.stringify({
+  idEmisor: 'B12345678',
+  numSerie: '2027-A/000128',
+  fechaExpedicion: '02-01-2027',
+  tipoFactura: 'F1',
+  cuotaTotal: '21.00',
+  importeTotal: '121.00',
+}, null, 2)
+
+const CHECK_COLOR = { ok: 'text-emerald-700', warn: 'text-amber-600', error: 'text-rose-600' }
+
 export default function Desarrollador() {
   const [active, go] = useSection('pruebas')
-  const [vres, setVres] = useState('idle') // idle | validating | done
+  const [vres, setVres] = useState('idle') // idle | validating | done | parse-error
+  const [vinput, setVinput] = useState(REGISTRO_MUESTRA)
+  const [vchecks, setVchecks] = useState([])
 
   const validar = async () => {
+    let registro
+    try {
+      registro = JSON.parse(vinput)
+    } catch {
+      setVres('parse-error')
+      return
+    }
     setVres('validating')
-    try { await api.post('/api/verifactu/validar', {}) } catch { /* stub: ignora error */ }
+    try {
+      const r = await api.post('/api/verifactu/validar', { registro })
+      setVchecks(r.checks ?? [])
+    } catch {
+      setVchecks([{ level: 'error', mensaje: 'No se pudo validar (error de red)' }])
+    }
     setVres('done')
   }
 
@@ -89,23 +114,27 @@ export default function Desarrollador() {
           {/* VALIDADOR */}
           <section data-section className={show(active, 'validador')}>
             <h1 className="font-display font-700 text-2xl">Validador de registros</h1>
-            <p className="text-slate-500 mt-1 text-sm">Comprueba un XML contra el XSD oficial antes de remitirlo.</p>
+            <p className="text-slate-500 mt-1 text-sm">Validación estructural + integridad de huella del registro (no es la validación XSD oficial — verificar fuente AEAT).</p>
             <div className="grid lg:grid-cols-2 gap-4 mt-6">
               <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                <div className="flex items-center justify-between mb-3"><h3 className="font-600 text-sm">XML de entrada</h3><button onClick={validar} className="text-xs bg-azul-500 text-white px-3 py-1.5 rounded-lg font-600">Validar</button></div>
-                <div className="code"><span className="tk">&lt;RegistroAlta&gt;</span><br />&nbsp;&nbsp;<span className="tk">&lt;IDVersion&gt;</span>1.0<span className="tk">&lt;/IDVersion&gt;</span><br />&nbsp;&nbsp;<span className="tk">&lt;IDFactura&gt;</span> … <span className="tk">&lt;/IDFactura&gt;</span><br />&nbsp;&nbsp;<span className="tk">&lt;Huella&gt;</span>9B2E7C4A…<span className="tk">&lt;/Huella&gt;</span><br /><span className="tk">&lt;/RegistroAlta&gt;</span></div>
+                <div className="flex items-center justify-between mb-3"><h3 className="font-600 text-sm">Registro (JSON)</h3><button onClick={validar} className="text-xs bg-azul-500 text-white px-3 py-1.5 rounded-lg font-600">Validar</button></div>
+                <textarea value={vinput} onChange={(e) => setVinput(e.target.value)} spellCheck={false} rows={9} className="code w-full resize-y" style={{ width: '100%' }} />
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-5">
                 <h3 className="font-600 text-sm mb-3">Resultado</h3>
-                {vres === 'idle' && <div className="text-sm text-slate-400 font-mono">Pulsa «Validar» para comprobar contra el XSD.</div>}
-                {vres === 'validating' && <div className="text-sm font-mono"><span className="text-slate-400">Validando contra XSD…</span></div>}
+                {vres === 'idle' && <div className="text-sm text-slate-400 font-mono">Pulsa «Validar» para comprobar el registro.</div>}
+                {vres === 'parse-error' && <div className="text-sm font-mono text-rose-600">JSON inválido — revisa la sintaxis.</div>}
+                {vres === 'validating' && <div className="text-sm font-mono text-slate-400">Validando…</div>}
                 {vres === 'done' && (
-                  <div className="text-sm font-mono">
-                    <div className="space-y-2">
-                      <div className="pill bg-emerald-50 text-emerald-600">XSD OK</div>
-                      <div className="text-emerald-700">✓ Estructura conforme al esquema</div>
-                      <div className="text-amber-600">⚠ Recordatorio: la huella debe calcularse con el orden de campos oficial</div>
+                  <div className="text-sm font-mono space-y-2">
+                    <div className={`pill ${vchecks.some((c) => c.level === 'error') ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {vchecks.some((c) => c.level === 'error') ? 'NO conforme' : 'Conforme'}
                     </div>
+                    {vchecks.map((c, i) => (
+                      <div key={i} className={CHECK_COLOR[c.level] ?? 'text-slate-500'}>
+                        {c.level === 'ok' ? '✓' : c.level === 'warn' ? '⚠' : '✕'} {c.mensaje}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

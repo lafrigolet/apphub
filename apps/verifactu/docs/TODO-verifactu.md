@@ -204,7 +204,9 @@ Ficheros: `apps/verifactu/verifactu-portal/src/views/*`.
 - [ ] **K3** QR dinámico (sustituir el SVG y la URL hardcoded del Emisor).
 - [ ] **K4** "Nueva factura": modal/formulario real → `POST /registros`.
 - [ ] **K5** "Añadir cliente": formulario real → `POST /clientes`.
-- [ ] **K6** Validador: input XML real (textarea) → `POST /validar`.
+- [x] **K6** Validador: textarea de registro (JSON) editable → `POST /validar` →
+  render dinámico de los checks reales (ok/warn/error). *(Input JSON, no XML — la
+  validación backend es estructural sobre el registro, E6, no XSD.)*
 - [ ] **K7** Receptor: inputs de URL/datos reales → cotejo.
 - [ ] **K8** Estados de carga/vacío/error coherentes en todas las vistas.
 - [ ] **K9** Login/activación cuando exista auth.
@@ -256,8 +258,10 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
   respuesta de la AEAT).
 - [ ] **M11** E2E **opt-in** contra `preportal.aeat.es` (requiere certificado; skip
   automático en CI sin cert, estilo `integration-or-skip`).
-- [ ] **M12** Tests de portal (Vitest + Testing Library): cada vista renderiza, maneja
-  loading/empty/error y dispara los POST/PATCH correctos (con `fetch` mockeado).
+- [~] **M12** Tests de portal (Vitest + Testing Library + jsdom): infra montada
+  (`vitest.config.js`, `src/test/setup.js`) + tests de `RoleSelector` (render
+  data-driven + enlaces) y `Receptor` (api mockeada: carga historial, cotejo
+  verificada/no_consta). **Faltan** Emisor/Asesoría/Administrador/Desarrollador.
 - [ ] **M13** Reporte de cobertura combinado (unit + integration) ≥95 %; documentar y
   justificar cualquier hueco no cubierto.
 
