@@ -72,6 +72,25 @@ export async function listEventos(client) {
   return rows
 }
 
+export async function lastHuellaEvento(client) {
+  const { rows } = await client.query(
+    `SELECT huella FROM ${SCHEMA}.eventos WHERE huella IS NOT NULL
+      ORDER BY ocurrido_en DESC, created_at DESC LIMIT 1`,
+  )
+  return rows[0]?.huella ?? null
+}
+
+export async function insertEvento(client, e) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.eventos
+       (app_id, tenant_id, sub_tenant_id, tag, tone, descripcion, ts_display, huella, huella_anterior)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING tag, tone, descripcion, ts_display, huella`,
+    [e.appId, e.tenantId, e.subTenantId ?? null, e.tag, e.tone, e.descripcion, e.tsDisplay ?? null, e.huella, e.huellaAnterior ?? null],
+  )
+  return rows[0]
+}
+
 // ── Lotes ─────────────────────────────────────────────────────────────
 export async function listLotes(client) {
   const { rows } = await client.query(

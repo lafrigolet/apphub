@@ -4,6 +4,7 @@ import { buildCotejoUrl, parseCotejoUrl } from '../lib/cotejo.js'
 import { generarQrDataUri } from '../lib/qr.js'
 import { validarRegistro } from '../lib/validacion.js'
 import { verificarEnlace } from '../lib/cadena.js'
+import { construirEvento } from '../lib/sif.js'
 import * as repo from '../repositories/verifactu.repository.js'
 
 // ISO-8601 con huso (la huella exige FechaHoraHusoGenRegistro con offset).
@@ -60,6 +61,21 @@ export function listEventos(scope) {
   return tx(scope, async (c) => {
     const rows = await repo.listEventos(c)
     return rows.map((e) => ({ tag: e.tag, tone: e.tone, text: e.descripcion, ts: e.ts_display }))
+  })
+}
+
+// Registra un evento del SIF con huella encadenada (RegistroEvento · F2).
+// La firma del evento (NO_VERIFACTU) y los hooks automáticos (F3) son futuro.
+export function crearEvento(scope, { tipoEvento, descripcion }) {
+  return tx(scope, async (c) => {
+    const cfg = await repo.getConfig(c)
+    const huellaAnterior = await repo.lastHuellaEvento(c)
+    const ev = construirEvento(
+      { tipoEvento, descripcion, obligadoNif: cfg?.nif_obligado, generadoEn: ahoraIso() },
+      huellaAnterior,
+    )
+    const row = await repo.insertEvento(c, { ...scope, ...ev, tsDisplay: 'ahora' })
+    return { tag: row.tag, tone: row.tone, text: row.descripcion, ts: row.ts_display, huella: row.huella }
   })
 }
 

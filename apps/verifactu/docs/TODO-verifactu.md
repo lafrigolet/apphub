@@ -142,12 +142,14 @@ Fichero: `src/services/verifactu.service.js` (`validar`, hoy stub) + `src/lib/`.
 
 ## F. Eventos del SIF
 
-Tabla `eventos`; fichero nuevo `src/lib/eventos.js`.
+Tabla `eventos`; `src/lib/sif.js` (identidad SIF + catálogo).
 
-- [ ] **F1** Catálogo de eventos obligatorios *(verificar contra Orden HAC/1177/2024)*:
-  arranque, restauración, detección de anomalías, exportación, etc.
-- [ ] **F2** Generación de `RegistroEvento` con huella encadenada y firma (en
-  NO_VERIFACTU).
+- [x] **F1** Catálogo de eventos (`sif.js:EVENTOS_CATALOGO`: ARRANQUE, RESTAURACION,
+  EXPORTACION, ANOMALIA, LOGIN) + identidad del SIF (`SIF_IDENTITY`). *(verificar
+  catálogo obligatorio contra Orden HAC/1177/2024.)*
+- [~] **F2** `RegistroEvento` con huella encadenada (`sif.js:construirEvento` +
+  `service.crearEvento` + `POST /v1/verifactu/eventos`, migración `0005` añade
+  `huella`/`huella_anterior`). **Falta** la **firma** del evento (NO_VERIFACTU, C4).
 - [ ] **F3** Hooks que generan eventos automáticamente (arranque del SIF, exportación,
   detección de discontinuidad/anomalía, restauración de copia).
 

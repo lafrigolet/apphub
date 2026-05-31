@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import * as service from '../services/verifactu.service.js'
+import { EVENTOS_CATALOGO } from '../lib/sif.js'
 
 // Scope público: el portal aún no tiene login, así que (appId, tenantId)
 // viajan en query (GET) o body (POST/PATCH), igual que el POST público de
@@ -33,6 +34,17 @@ export async function publicRoutes(fastify) {
 
   fastify.get('/eventos', { config: { public: true }, schema: { tags: T, summary: 'Eventos del SIF / auditoría', querystring: scopeQuery } },
     async (req) => service.listEventos(scope(req.query)))
+
+  const eventoBody = scopeQuery.extend({
+    tipoEvento:  z.enum([...EVENTOS_CATALOGO.map((e) => e.tipo)]),
+    descripcion: z.string().max(256).optional(),
+  })
+  fastify.post('/eventos', { config: { public: true }, schema: { tags: T, summary: 'Registrar evento del SIF (huella encadenada)', body: eventoBody } },
+    async (req, reply) => {
+      const b = eventoBody.parse(req.body ?? {})
+      reply.code(201)
+      return service.crearEvento(scope(b), b)
+    })
 
   const qrQuery = scopeQuery.extend({ numSerie: z.string().max(64).optional() })
   fastify.get('/qr', { config: { public: true }, schema: { tags: T, summary: 'QR + URL de cotejo de un registro', querystring: qrQuery } },
