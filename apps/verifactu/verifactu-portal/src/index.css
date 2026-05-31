@@ -1,3 +1,57 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Base ──────────────────────────────────────────────────────────────
+   Common page background shared by every prototype: light canvas + a
+   dotted grid. The two views that layer an extra radial glow on top
+   (RoleSelector, Receptor) add it via an inline style on their wrapper. */
+@layer base {
+  body {
+    background-color: #f7f9fc;
+    background-image: radial-gradient(#dde6f3 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
+
+@layer components {
+  /* Role selector cards (index.html) */
+  .reveal { opacity: 0; transform: translateY(14px); animation: rise .7s cubic-bezier(.2, .7, .3, 1) forwards; }
+  .card-role { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+  .card-role:hover { transform: translateY(-6px); box-shadow: 0 24px 50px -22px rgba(37, 99, 235, .45); border-color: #2563eb; }
+  .card-role:hover .arrow { transform: translateX(4px); }
+  .arrow { transition: transform .25s ease; }
+  .grid-line {
+    background-image:
+      linear-gradient(90deg, rgba(37, 99, 235, .07) 1px, transparent 1px),
+      linear-gradient(rgba(37, 99, 235, .07) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* Dashboard sidebar nav (emisor / asesoria / administrador / desarrollador) */
+  .nav-item { transition: all .18s ease; }
+  .nav-item.active { background: #2563eb; color: #fff; box-shadow: 0 10px 24px -12px rgba(37, 99, 235, .7); }
+  .nav-item:not(.active):hover { background: #eef4ff; color: #1d4ed8; }
+
+  /* Section fade on switch */
+  [data-section] { animation: fade .35s ease; }
+
+  /* Pill badge — used across every role */
+  .pill { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; }
+
+  /* Toggle switch (administrador · control de flujo) */
+  .toggle { width: 42px; height: 24px; border-radius: 999px; background: #2563eb; position: relative; cursor: pointer; }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 21px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; }
+  .toggle.off { background: #cbd5e1; }
+  .toggle.off::after { left: 3px; }
+
+  /* Code block + syntax tokens (desarrollador) */
+  .code { background: #0b1220; color: #cdd9f5; border-radius: 14px; padding: 16px; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.7; overflow: auto; }
+  .tk { color: #7aa2ff; }
+  .tg { color: #5ad19b; }
+  .tc { color: #5b6b8c; }
+}
+
+@keyframes rise { to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes scan { 0% { top: 0; } 100% { top: 100%; } }

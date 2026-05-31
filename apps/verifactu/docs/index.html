@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VERI·FACTU · Portal de gestión</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['Sora', 'sans-serif'],
+        sans: ['"IBM Plex Sans"', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'monospace'],
+      },
+      colors: {
+        azul: {50:'#eef4ff',100:'#d9e6ff',200:'#b3ccff',300:'#84a9ff',400:'#4f7dff',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',800:'#1e3a8a',900:'#172554'},
+        tinta: '#0b1220'
+      }
+    }
+  }
+}
+</script>
+<style>
+  body{
+    background-color:#f7f9fc;
+    background-image:
+      radial-gradient(circle at 50% -10%, rgba(37,99,235,.12), transparent 55%),
+      radial-gradient(#d7e2f2 1px, transparent 1px);
+    background-size: auto, 24px 24px;
+  }
+  .reveal{opacity:0;transform:translateY(14px);animation:rise .7s cubic-bezier(.2,.7,.3,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .card-role{transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease}
+  .card-role:hover{transform:translateY(-6px);box-shadow:0 24px 50px -22px rgba(37,99,235,.45);border-color:#2563eb}
+  .card-role:hover .arrow{transform:translateX(4px)}
+  .arrow{transition:transform .25s ease}
+  .grid-line{background-image:linear-gradient(90deg,rgba(37,99,235,.07) 1px,transparent 1px),linear-gradient(rgba(37,99,235,.07) 1px,transparent 1px);background-size:48px 48px}
+</style>
+</head>
+<body class="font-sans text-tinta min-h-screen antialiased">
+
+<!-- NAV -->
+<header class="sticky top-0 z-40 backdrop-blur-md bg-white/70 border-b border-slate-200">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="h-8 w-8 rounded-lg bg-azul-500 grid place-items-center shadow-lg shadow-azul-500/30">
+        <svg class="w-4.5 h-4.5 text-white" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l4 4L19 6"/></svg>
+      </div>
+      <span class="font-display font-700 tracking-tight text-[17px]">VERI<span class="text-azul-500">·</span>FACTU</span>
+      <span class="ml-2 text-[11px] font-mono px-2 py-0.5 rounded-full bg-azul-50 text-azul-600 border border-azul-100">portal</span>
+    </div>
+    <div class="hidden sm:flex items-center gap-6 text-sm text-slate-500">
+      <span class="font-mono text-xs">v1.0</span>
+      <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>Servicios AEAT · operativo</span>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="relative overflow-hidden">
+  <div class="absolute inset-0 grid-line opacity-60 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
+  <div class="relative max-w-7xl mx-auto px-6 pt-16 pb-10">
+    <div class="reveal" style="animation-delay:.05s">
+      <span class="inline-flex items-center gap-2 text-xs font-mono px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-600 shadow-sm">
+        <span class="h-1.5 w-1.5 rounded-full bg-azul-500"></span>Sistema de facturación verificable · AEAT
+      </span>
+    </div>
+    <h1 class="reveal font-display font-800 tracking-tight text-4xl sm:text-5xl lg:text-[56px] leading-[1.05] mt-5 max-w-3xl" style="animation-delay:.12s">
+      Gestiona tus <span class="text-azul-500">VeriFactu</span><br>desde un único panel.
+    </h1>
+    <p class="reveal mt-5 text-slate-600 text-lg max-w-2xl leading-relaxed" style="animation-delay:.2s">
+      Emisión, encadenamiento por huella, firma, remisión a la Sede Electrónica y cotejo. Elige tu rol para acceder al espacio de trabajo correspondiente.
+    </p>
+    <div class="reveal mt-7 flex flex-wrap gap-x-7 gap-y-2 text-sm text-slate-500" style="animation-delay:.28s">
+      <span class="flex items-center gap-2 font-mono text-xs"><svg class="w-4 h-4 text-azul-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>SHA-256 encadenado</span>
+      <span class="flex items-center gap-2 font-mono text-xs"><svg class="w-4 h-4 text-azul-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Firma XAdES</span>
+      <span class="flex items-center gap-2 font-mono text-xs"><svg class="w-4 h-4 text-azul-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h7v7h-7z"/></svg>QR de cotejo</span>
+    </div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<main class="max-w-7xl mx-auto px-6 pb-24">
+  <div class="flex items-end justify-between mb-6 reveal" style="animation-delay:.3s">
+    <h2 class="font-display font-700 text-lg">Selecciona tu rol</h2>
+    <span class="text-xs font-mono text-slate-400">5 espacios de trabajo</span>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+    <!-- EMISOR -->
+    <a href="emisor.html" class="card-role reveal group bg-white border border-slate-200 rounded-2xl p-6 flex flex-col" style="animation-delay:.34s">
+      <div class="flex items-start justify-between">
+        <div class="h-11 w-11 rounded-xl bg-azul-50 border border-azul-100 grid place-items-center text-azul-600">
+          <svg class="w-5.5 h-5.5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg>
+        </div>
+        <span class="text-[10px] font-mono uppercase tracking-wider text-azul-600 bg-azul-50 px-2 py-1 rounded-md">Principal</span>
+      </div>
+      <h3 class="font-display font-700 text-lg mt-4">Emisor / Obligado</h3>
+      <p class="text-sm text-slate-500 mt-1.5 leading-relaxed flex-1">Emite facturas, consulta el estado de remisión y verifica la integridad de tu cadena de registros.</p>
+      <ul class="mt-4 space-y-1.5 text-xs text-slate-500 font-mono">
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Emisión y anulación</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Estado de envíos AEAT</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Cadena de huellas + QR</li>
+      </ul>
+      <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-600 text-azul-600">Entrar <svg class="arrow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <!-- ASESORIA -->
+    <a href="asesoria.html" class="card-role reveal group bg-white border border-slate-200 rounded-2xl p-6 flex flex-col" style="animation-delay:.40s">
+      <div class="flex items-start justify-between">
+        <div class="h-11 w-11 rounded-xl bg-azul-50 border border-azul-100 grid place-items-center text-azul-600">
+          <svg class="w-5.5 h-5.5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-md">Multi-NIF</span>
+      </div>
+      <h3 class="font-display font-700 text-lg mt-4">Asesoría / Representante</h3>
+      <p class="text-sm text-slate-500 mt-1.5 leading-relaxed flex-1">Gestiona la facturación de tu cartera de clientes y remite en su nombre mediante apoderamiento.</p>
+      <ul class="mt-4 space-y-1.5 text-xs text-slate-500 font-mono">
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Cartera de clientes</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Remisiones por lote</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Representación de terceros</li>
+      </ul>
+      <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-600 text-azul-600">Entrar <svg class="arrow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <!-- DESARROLLADOR -->
+    <a href="desarrollador.html" class="card-role reveal group bg-white border border-slate-200 rounded-2xl p-6 flex flex-col" style="animation-delay:.46s">
+      <div class="flex items-start justify-between">
+        <div class="h-11 w-11 rounded-xl bg-azul-50 border border-azul-100 grid place-items-center text-azul-600">
+          <svg class="w-5.5 h-5.5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+        </div>
+        <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-md">SIF</span>
+      </div>
+      <h3 class="font-display font-700 text-lg mt-4">Desarrollador / Fabricante</h3>
+      <p class="text-sm text-slate-500 mt-1.5 leading-relaxed flex-1">Valida tu integración en el entorno de pruebas, gestiona esquemas y la declaración responsable.</p>
+      <ul class="mt-4 space-y-1.5 text-xs text-slate-500 font-mono">
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Portal de pruebas</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Esquemas XSD / WSDL</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Declaración responsable</li>
+      </ul>
+      <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-600 text-azul-600">Entrar <svg class="arrow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <!-- ADMINISTRADOR -->
+    <a href="administrador.html" class="card-role reveal group bg-white border border-slate-200 rounded-2xl p-6 flex flex-col" style="animation-delay:.52s">
+      <div class="flex items-start justify-between">
+        <div class="h-11 w-11 rounded-xl bg-azul-50 border border-azul-100 grid place-items-center text-azul-600">
+          <svg class="w-5.5 h-5.5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1l9 4v6c0 5-3.8 9.4-9 11-5.2-1.6-9-6-9-11V5z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-md">Sistema</span>
+      </div>
+      <h3 class="font-display font-700 text-lg mt-4">Administrador</h3>
+      <p class="text-sm text-slate-500 mt-1.5 leading-relaxed flex-1">Configura certificados, usuarios, control de flujo de la AEAT y revisa la auditoría de eventos del SIF.</p>
+      <ul class="mt-4 space-y-1.5 text-xs text-slate-500 font-mono">
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Certificados y mTLS</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Usuarios y permisos</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Auditoría / eventos</li>
+      </ul>
+      <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-600 text-azul-600">Entrar <svg class="arrow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <!-- RECEPTOR -->
+    <a href="receptor.html" class="card-role reveal group bg-white border border-slate-200 rounded-2xl p-6 flex flex-col" style="animation-delay:.58s">
+      <div class="flex items-start justify-between">
+        <div class="h-11 w-11 rounded-xl bg-azul-50 border border-azul-100 grid place-items-center text-azul-600">
+          <svg class="w-5.5 h-5.5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM21 14v7M17 21h4"/></svg>
+        </div>
+        <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-md">Cotejo</span>
+      </div>
+      <h3 class="font-display font-700 text-lg mt-4">Receptor</h3>
+      <p class="text-sm text-slate-500 mt-1.5 leading-relaxed flex-1">Verifica la autenticidad de una factura recibida escaneando su QR o introduciendo la URL de cotejo.</p>
+      <ul class="mt-4 space-y-1.5 text-xs text-slate-500 font-mono">
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Verificación por QR</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Cotejo en sede AEAT</li>
+        <li class="flex gap-2"><span class="text-azul-500">›</span>Historial de comprobaciones</li>
+      </ul>
+      <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-600 text-azul-600">Entrar <svg class="arrow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <!-- INFO CARD -->
+    <div class="reveal rounded-2xl p-6 flex flex-col justify-between bg-azul-600 text-white relative overflow-hidden" style="animation-delay:.64s">
+      <div class="absolute inset-0 grid-line opacity-30"></div>
+      <div class="relative">
+        <span class="text-[10px] font-mono uppercase tracking-wider bg-white/15 px-2 py-1 rounded-md">Nota</span>
+        <h3 class="font-display font-700 text-lg mt-4 leading-snug">VeriFactu no se homologa.</h3>
+        <p class="text-sm text-azul-100 mt-2 leading-relaxed">La conformidad se acredita mediante <b class="text-white">declaración responsable</b> del fabricante. La validación técnica se realiza en el portal de pruebas externas de la AEAT.</p>
+      </div>
+      <div class="relative mt-5 font-mono text-xs text-azul-100 border-t border-white/15 pt-4">
+        preportal.aeat.es
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="border-t border-slate-200 bg-white/60">
+  <div class="max-w-7xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 font-mono">
+    <span>VERI·FACTU · interfaz de demostración · datos simulados</span>
+    <span>RD 1007/2023 · RD 254/2025 · Orden HAC/1177/2024</span>
+  </div>
+</footer>
+
+</body>
+</html>

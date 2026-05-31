@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desarrollador · VERI·FACTU</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>tailwind.config={theme:{extend:{fontFamily:{display:['Sora','sans-serif'],sans:['"IBM Plex Sans"','sans-serif'],mono:['"IBM Plex Mono"','monospace']},colors:{azul:{50:'#eef4ff',100:'#d9e6ff',200:'#b3ccff',300:'#84a9ff',400:'#4f7dff',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',800:'#1e3a8a',900:'#172554'},tinta:'#0b1220'}}}}</script>
+<style>
+  body{background:#f7f9fc;background-image:radial-gradient(#dde6f3 1px,transparent 1px);background-size:24px 24px}
+  .nav-item{transition:all .18s ease}.nav-item.active{background:#2563eb;color:#fff;box-shadow:0 10px 24px -12px rgba(37,99,235,.7)}.nav-item:not(.active):hover{background:#eef4ff;color:#1d4ed8}
+  [data-section]{animation:fade .35s ease}@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+  .code{background:#0b1220;color:#cdd9f5;border-radius:14px;padding:16px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.7;overflow:auto}
+  .tk{color:#7aa2ff}.tg{color:#5ad19b}.tc{color:#5b6b8c}
+</style>
+</head>
+<body class="font-sans text-tinta antialiased">
+<div class="flex min-h-screen">
+  <aside class="hidden lg:flex w-64 flex-col bg-white border-r border-slate-200 sticky top-0 h-screen">
+    <div class="h-16 flex items-center gap-2.5 px-5 border-b border-slate-200"><div class="h-8 w-8 rounded-lg bg-azul-500 grid place-items-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg></div><span class="font-display font-700 tracking-tight">VERI<span class="text-azul-500">·</span>FACTU</span></div>
+    <nav class="flex-1 p-3 space-y-1 text-sm font-500">
+      <button onclick="go('pruebas',this)" class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2v6l-5 9a2 2 0 002 3h12a2 2 0 002-3l-5-9V2"/><path d="M7 2h10"/></svg>Entorno de pruebas</button>
+      <button onclick="go('esquemas',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>Esquemas &amp; WSDL</button>
+      <button onclick="go('validador',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Validador</button>
+      <button onclick="go('declaracion',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>Declaración resp.</button>
+    </nav>
+    <a href="index.html" class="m-3 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-slate-100"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Cambiar de rol</a>
+  </aside>
+  <div class="flex-1 flex flex-col min-w-0">
+    <header class="h-16 bg-white/80 backdrop-blur border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-30">
+      <div class="flex items-center gap-3"><span class="lg:hidden font-display font-700">VERI·FACTU</span><span class="pill bg-azul-50 text-azul-600 border border-azul-100">Desarrollador / Fabricante</span></div>
+      <span class="hidden sm:flex pill bg-slate-900 text-azul-200 font-mono">SIF · FacturaNode v1.0</span>
+    </header>
+    <main class="p-6 max-w-6xl w-full mx-auto">
+
+      <section data-section id="pruebas">
+        <h1 class="font-display font-700 text-2xl">Entorno de pruebas externas</h1>
+        <p class="text-slate-500 mt-1 text-sm">Valida tu integración sin efectos fiscales. No constituye homologación.</p>
+        <div class="grid md:grid-cols-3 gap-4 mt-6">
+          <div class="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="flex items-center justify-between"><h3 class="font-600">Conexión sandbox</h3><span class="pill bg-emerald-50 text-emerald-600"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Conectado</span></div>
+            <div class="mt-4 code"><span class="tc"># endpoint de pruebas</span><br>POST <span class="tg">https://preportal.aeat.es</span>/...<br><span class="tk">Content-Type</span>: application/soap+xml<br><span class="tk">Client-Cert</span>: <span class="tg">SIF_test.p12</span> <span class="tc">(mTLS)</span></div>
+            <p class="text-[11px] text-slate-400 font-mono mt-3">URL y requisitos de certificado de test: verificar en el portal de desarrolladores AEAT.</p>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between">
+            <div><div class="text-xs font-mono text-slate-400 uppercase">Tests superados</div><div class="font-display font-800 text-4xl mt-2">47<span class="text-lg text-slate-300">/52</span></div></div>
+            <div class="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-azul-500 rounded-full" style="width:90%"></div></div>
+          </div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl mt-4 divide-y divide-slate-100">
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-emerald-50 text-emerald-600">PASS</span><span class="text-sm flex-1">Alta de factura F1 con desglose IVA 21%</span><span class="font-mono text-xs text-slate-400">200 · Correcto</span></div>
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-emerald-50 text-emerald-600">PASS</span><span class="text-sm flex-1">Encadenamiento huella SHA-256</span><span class="font-mono text-xs text-slate-400">match vector oficial</span></div>
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-emerald-50 text-emerald-600">PASS</span><span class="text-sm flex-1">Anulación de registro previo</span><span class="font-mono text-xs text-slate-400">200 · Correcto</span></div>
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-rose-50 text-rose-600">FAIL</span><span class="text-sm flex-1">Control de flujo: respeto de TiempoEsperaEnvio</span><span class="font-mono text-xs text-slate-400">envío anticipado</span></div>
+        </div>
+      </section>
+
+      <section data-section id="esquemas" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Esquemas &amp; WSDL</h1>
+        <p class="text-slate-500 mt-1 text-sm">Artefactos técnicos publicados por la AEAT. Versión vigente a verificar contra fuente oficial.</p>
+        <div class="grid sm:grid-cols-2 gap-4 mt-6">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 flex items-center gap-4"><div class="h-11 w-11 rounded-xl bg-azul-50 grid place-items-center text-azul-600 font-mono font-700 text-xs">XSD</div><div class="flex-1"><div class="font-600 text-sm">Diseños de registro</div><div class="text-xs text-slate-400 font-mono">SuministroLR · v? (verificar)</div></div><span class="pill bg-slate-100 text-slate-500">descargar</span></div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 flex items-center gap-4"><div class="h-11 w-11 rounded-xl bg-azul-50 grid place-items-center text-azul-600 font-mono font-700 text-[10px]">WSDL</div><div class="flex-1"><div class="font-600 text-sm">Servicios web</div><div class="text-xs text-slate-400 font-mono">RegFactuSistemaFacturacion</div></div><span class="pill bg-slate-100 text-slate-500">descargar</span></div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 flex items-center gap-4"><div class="h-11 w-11 rounded-xl bg-azul-50 grid place-items-center text-azul-600"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1"/></svg></div><div class="flex-1"><div class="font-600 text-sm">Algoritmo de huella</div><div class="text-xs text-slate-400 font-mono">SHA-256 · orden de campos</div></div><span class="pill bg-slate-100 text-slate-500">doc</span></div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 flex items-center gap-4"><div class="h-11 w-11 rounded-xl bg-azul-50 grid place-items-center text-azul-600"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><div class="flex-1"><div class="font-600 text-sm">Firma XAdES</div><div class="text-xs text-slate-400 font-mono">registros + eventos</div></div><span class="pill bg-slate-100 text-slate-500">doc</span></div>
+        </div>
+      </section>
+
+      <section data-section id="validador" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Validador de registros</h1>
+        <p class="text-slate-500 mt-1 text-sm">Comprueba un XML contra el XSD oficial antes de remitirlo.</p>
+        <div class="grid lg:grid-cols-2 gap-4 mt-6">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5"><div class="flex items-center justify-between mb-3"><h3 class="font-600 text-sm">XML de entrada</h3><button onclick="validar()" class="text-xs bg-azul-500 text-white px-3 py-1.5 rounded-lg font-600">Validar</button></div>
+            <div class="code" id="inxml"><span class="tk">&lt;RegistroAlta&gt;</span><br>&nbsp;&nbsp;<span class="tk">&lt;IDVersion&gt;</span>1.0<span class="tk">&lt;/IDVersion&gt;</span><br>&nbsp;&nbsp;<span class="tk">&lt;IDFactura&gt;</span> … <span class="tk">&lt;/IDFactura&gt;</span><br>&nbsp;&nbsp;<span class="tk">&lt;Huella&gt;</span>9B2E7C4A…<span class="tk">&lt;/Huella&gt;</span><br><span class="tk">&lt;/RegistroAlta&gt;</span></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5"><h3 class="font-600 text-sm mb-3">Resultado</h3><div id="vres" class="text-sm text-slate-400 font-mono">Pulsa «Validar» para comprobar contra el XSD.</div></div>
+        </div>
+      </section>
+
+      <section data-section id="declaracion" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Declaración responsable</h1>
+        <p class="text-slate-500 mt-1 text-sm">VeriFactu no se homologa: el fabricante declara la conformidad del SIF con el RRSIF.</p>
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 mt-6 max-w-2xl">
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">Productor del software</span><span class="font-600">MI SIF S.L.</span></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">NIF</span><span class="font-mono">B87654321</span></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">Nombre del SIF</span><span class="font-mono">FacturaNode</span></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">Versión</span><span class="font-mono">1.0 · inst. 0001</span></div>
+            <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">Modalidades</span><span class="font-600">VERI·FACTU + No verificable</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Conformidad RD 1007/2023</span><span class="pill bg-emerald-50 text-emerald-600">Declarada</span></div>
+          </div>
+          <div class="mt-5 p-4 rounded-xl bg-azul-50 border border-azul-100 text-xs text-azul-800 font-mono">Contenido exacto: verificar contra la Orden HAC/1177/2024 y los ejemplos oficiales de declaración responsable.</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script>
+  function go(id, el){document.querySelectorAll('[data-section]').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});}
+  function validar(){const r=document.getElementById('vres');r.innerHTML='<span class="text-slate-400">Validando contra XSD…</span>';setTimeout(()=>{r.innerHTML='<div class="space-y-2"><div class="pill bg-emerald-50 text-emerald-600">XSD OK</div><div class="text-emerald-700">✓ Estructura conforme al esquema</div><div class="text-amber-600">⚠ Recordatorio: la huella debe calcularse con el orden de campos oficial</div></div>';},650);}
+</script>
+</body>
+</html>

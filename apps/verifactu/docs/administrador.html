@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administrador · VERI·FACTU</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>tailwind.config={theme:{extend:{fontFamily:{display:['Sora','sans-serif'],sans:['"IBM Plex Sans"','sans-serif'],mono:['"IBM Plex Mono"','monospace']},colors:{azul:{50:'#eef4ff',100:'#d9e6ff',200:'#b3ccff',300:'#84a9ff',400:'#4f7dff',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',800:'#1e3a8a',900:'#172554'},tinta:'#0b1220'}}}}</script>
+<style>
+  body{background:#f7f9fc;background-image:radial-gradient(#dde6f3 1px,transparent 1px);background-size:24px 24px}
+  .nav-item{transition:all .18s ease}.nav-item.active{background:#2563eb;color:#fff;box-shadow:0 10px 24px -12px rgba(37,99,235,.7)}.nav-item:not(.active):hover{background:#eef4ff;color:#1d4ed8}
+  [data-section]{animation:fade .35s ease}@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+  .toggle{width:42px;height:24px;border-radius:999px;background:#2563eb;position:relative;cursor:pointer}
+  .toggle::after{content:'';position:absolute;top:3px;left:21px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+  .toggle.off{background:#cbd5e1}.toggle.off::after{left:3px}
+</style>
+</head>
+<body class="font-sans text-tinta antialiased">
+<div class="flex min-h-screen">
+  <aside class="hidden lg:flex w-64 flex-col bg-white border-r border-slate-200 sticky top-0 h-screen">
+    <div class="h-16 flex items-center gap-2.5 px-5 border-b border-slate-200"><div class="h-8 w-8 rounded-lg bg-azul-500 grid place-items-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg></div><span class="font-display font-700 tracking-tight">VERI<span class="text-azul-500">·</span>FACTU</span></div>
+    <nav class="flex-1 p-3 space-y-1 text-sm font-500">
+      <button onclick="go('certificados',this)" class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1l9 4v6c0 5-3.8 9.4-9 11-5.2-1.6-9-6-9-11V5z"/><path d="M9 12l2 2 4-4"/></svg>Certificados</button>
+      <button onclick="go('usuarios',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuarios y permisos</button>
+      <button onclick="go('flujo',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Control de flujo</button>
+      <button onclick="go('auditoria',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h2M8 17h2M14 13h2M14 17h2"/></svg>Auditoría / Eventos</button>
+    </nav>
+    <a href="index.html" class="m-3 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-slate-100"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Cambiar de rol</a>
+  </aside>
+  <div class="flex-1 flex flex-col min-w-0">
+    <header class="h-16 bg-white/80 backdrop-blur border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-30">
+      <div class="flex items-center gap-3"><span class="lg:hidden font-display font-700">VERI·FACTU</span><span class="pill bg-azul-50 text-azul-600 border border-azul-100">Administrador</span></div>
+      <span class="hidden sm:flex pill bg-emerald-50 text-emerald-600"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Sistema operativo</span>
+    </header>
+    <main class="p-6 max-w-6xl w-full mx-auto">
+
+      <section data-section id="certificados">
+        <h1 class="font-display font-700 text-2xl">Certificados</h1>
+        <p class="text-slate-500 mt-1 text-sm">Certificados electrónicos para la autenticación mTLS frente a la AEAT. Custodia segura, nunca en repositorio.</p>
+        <div class="grid md:grid-cols-3 gap-4 mt-6">
+          <div class="md:col-span-2 bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100">
+            <div class="p-5 flex items-center gap-4"><div class="h-10 w-10 rounded-xl bg-emerald-50 grid place-items-center text-emerald-600"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1l9 4v6c0 5-3.8 9.4-9 11-5.2-1.6-9-6-9-11V5z"/></svg></div><div class="flex-1"><div class="font-600 text-sm">Certificado del obligado · B12345678</div><div class="font-mono text-xs text-slate-400">PKCS#12 · caduca 14-09-2027</div></div><span class="pill bg-emerald-50 text-emerald-600">Vigente</span></div>
+            <div class="p-5 flex items-center gap-4"><div class="h-10 w-10 rounded-xl bg-emerald-50 grid place-items-center text-emerald-600"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1l9 4v6c0 5-3.8 9.4-9 11-5.2-1.6-9-6-9-11V5z"/></svg></div><div class="flex-1"><div class="font-600 text-sm">Certificado de representante</div><div class="font-mono text-xs text-slate-400">PKCS#12 · caduca 02-03-2027</div></div><span class="pill bg-amber-50 text-amber-600">Caduca pronto</span></div>
+            <div class="p-5 flex items-center gap-4"><div class="h-10 w-10 rounded-xl bg-slate-100 grid place-items-center text-slate-500"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1l9 4v6c0 5-3.8 9.4-9 11-5.2-1.6-9-6-9-11V5z"/></svg></div><div class="flex-1"><div class="font-600 text-sm">Certificado de pruebas (test)</div><div class="font-mono text-xs text-slate-400">solo preportal.aeat.es</div></div><span class="pill bg-slate-100 text-slate-500">Sandbox</span></div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col">
+            <h3 class="font-600 text-sm">Almacén seguro</h3>
+            <p class="text-xs text-slate-500 mt-2 leading-relaxed flex-1">Las claves privadas residen en vault/HSM. Acceso por mínimo privilegio y rotación programada.</p>
+            <div class="mt-4 flex items-center justify-between text-sm"><span class="text-slate-400">Vault</span><span class="pill bg-emerald-50 text-emerald-600">Sellado</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section data-section id="usuarios" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Usuarios y permisos</h1>
+        <p class="text-slate-500 mt-1 text-sm">Control de acceso por rol al sistema de facturación.</p>
+        <div class="bg-white border border-slate-200 rounded-2xl mt-6 overflow-hidden">
+          <table class="w-full text-sm"><thead class="bg-slate-50 text-slate-400 text-xs font-mono uppercase"><tr><th class="text-left font-500 px-5 py-3">Usuario</th><th class="text-left font-500 px-5 py-3">Rol</th><th class="text-left font-500 px-5 py-3">Acceso</th><th class="text-left font-500 px-5 py-3">Estado</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50"><td class="px-5 py-3 flex items-center gap-2"><span class="h-7 w-7 rounded-full bg-azul-100 grid place-items-center text-azul-700 text-xs font-700">EJ</span>admin@ejemplo.es</td><td class="px-5 py-3"><span class="pill bg-azul-50 text-azul-600">Administrador</span></td><td class="px-5 py-3 text-slate-500 font-mono text-xs">total</td><td class="px-5 py-3"><span class="pill bg-emerald-50 text-emerald-600">Activo</span></td></tr>
+            <tr class="hover:bg-slate-50"><td class="px-5 py-3 flex items-center gap-2"><span class="h-7 w-7 rounded-full bg-slate-100 grid place-items-center text-slate-600 text-xs font-700">MF</span>maria@ejemplo.es</td><td class="px-5 py-3"><span class="pill bg-slate-100 text-slate-600">Emisor</span></td><td class="px-5 py-3 text-slate-500 font-mono text-xs">facturación</td><td class="px-5 py-3"><span class="pill bg-emerald-50 text-emerald-600">Activo</span></td></tr>
+            <tr class="hover:bg-slate-50"><td class="px-5 py-3 flex items-center gap-2"><span class="h-7 w-7 rounded-full bg-slate-100 grid place-items-center text-slate-600 text-xs font-700">GA</span>gestoria@asesor.es</td><td class="px-5 py-3"><span class="pill bg-slate-100 text-slate-600">Representante</span></td><td class="px-5 py-3 text-slate-500 font-mono text-xs">multi-NIF</td><td class="px-5 py-3"><span class="pill bg-emerald-50 text-emerald-600">Activo</span></td></tr>
+          </tbody></table>
+        </div>
+      </section>
+
+      <section data-section id="flujo" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Control de flujo</h1>
+        <p class="text-slate-500 mt-1 text-sm">Parámetros de remisión a la AEAT. Los valores se ajustan dinámicamente con la respuesta del servicio.</p>
+        <div class="grid md:grid-cols-2 gap-4 mt-6">
+          <div class="bg-white border border-slate-200 rounded-2xl p-6">
+            <h3 class="font-600 text-sm mb-4">Parámetros de envío</h3>
+            <div class="space-y-4">
+              <div class="flex items-center justify-between"><div><div class="text-sm font-600">Tiempo de espera entre envíos</div><div class="text-xs text-slate-400 font-mono">TiempoEsperaEnvio</div></div><span class="font-mono font-700 text-azul-600">60 s</span></div>
+              <div class="flex items-center justify-between"><div><div class="text-sm font-600">Máx. registros por remisión</div><div class="text-xs text-slate-400 font-mono">verificar límite oficial</div></div><span class="font-mono font-700 text-azul-600">1.000</span></div>
+              <div class="flex items-center justify-between"><div><div class="text-sm font-600">Reintentos con backoff</div><div class="text-xs text-slate-400 font-mono">errores no admisibles</div></div><span class="font-mono font-700 text-azul-600">3</span></div>
+              <div class="flex items-center justify-between"><div><div class="text-sm font-600">Cola dead-letter</div></div><div class="toggle" onclick="this.classList.toggle('off')"></div></div>
+            </div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-6">
+            <h3 class="font-600 text-sm mb-4">Estado de la cola</h3>
+            <div class="space-y-3">
+              <div><div class="flex justify-between text-xs mb-1"><span class="text-slate-400">Pendientes</span><span class="font-mono">312</span></div><div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-azul-500" style="width:31%"></div></div></div>
+              <div><div class="flex justify-between text-xs mb-1"><span class="text-slate-400">En proceso</span><span class="font-mono">120</span></div><div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-azul-400" style="width:12%"></div></div></div>
+              <div><div class="flex justify-between text-xs mb-1"><span class="text-slate-400">DLQ (revisar)</span><span class="font-mono text-rose-500">4</span></div><div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-full bg-rose-400" style="width:4%"></div></div></div>
+            </div>
+            <div class="mt-5 p-3 rounded-xl bg-azul-50 border border-azul-100 text-xs text-azul-800 font-mono">No enviar antes del TiempoEsperaEnvio devuelto por la AEAT.</div>
+          </div>
+        </div>
+      </section>
+
+      <section data-section id="auditoria" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Auditoría / Eventos</h1>
+        <p class="text-slate-500 mt-1 text-sm">Traza inalterable de eventos del SIF y accesos. Soporte para exportación a requerimiento de la AEAT.</p>
+        <div class="bg-white border border-slate-200 rounded-2xl mt-6 divide-y divide-slate-100 font-mono text-xs">
+          <div class="flex items-center gap-3 p-4"><span class="text-slate-400">02-01 08:00:11</span><span class="pill bg-azul-50 text-azul-600">ARRANQUE</span><span class="text-slate-600 flex-1">SIF iniciado · inst. 0001</span></div>
+          <div class="flex items-center gap-3 p-4"><span class="text-slate-400">02-01 08:02:40</span><span class="pill bg-slate-100 text-slate-600">LOGIN</span><span class="text-slate-600 flex-1">admin@ejemplo.es · mTLS</span></div>
+          <div class="flex items-center gap-3 p-4"><span class="text-slate-400">02-01 09:14:52</span><span class="pill bg-emerald-50 text-emerald-600">EXPORT</span><span class="text-slate-600 flex-1">Exportación de registros (1.452)</span></div>
+          <div class="flex items-center gap-3 p-4"><span class="text-slate-400">02-01 11:02:30</span><span class="pill bg-amber-50 text-amber-600">ANOMALÍA</span><span class="text-slate-600 flex-1">Discontinuidad temporal detectada</span></div>
+          <div class="flex items-center gap-3 p-4"><span class="text-slate-400">02-01 12:40:08</span><span class="pill bg-azul-50 text-azul-600">RESTORE</span><span class="text-slate-600 flex-1">Restauración verificada · cadena íntegra</span></div>
+        </div>
+        <p class="text-[11px] text-slate-400 font-mono mt-3">Catálogo de eventos obligatorios: verificar contra la Orden HAC/1177/2024.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script>function go(id, el){document.querySelectorAll('[data-section]').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});}</script>
+</body>
+</html>

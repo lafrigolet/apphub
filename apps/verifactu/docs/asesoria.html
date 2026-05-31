@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asesoría · VERI·FACTU</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>tailwind.config={theme:{extend:{fontFamily:{display:['Sora','sans-serif'],sans:['"IBM Plex Sans"','sans-serif'],mono:['"IBM Plex Mono"','monospace']},colors:{azul:{50:'#eef4ff',100:'#d9e6ff',200:'#b3ccff',300:'#84a9ff',400:'#4f7dff',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',800:'#1e3a8a',900:'#172554'},tinta:'#0b1220'}}}}</script>
+<style>
+  body{background:#f7f9fc;background-image:radial-gradient(#dde6f3 1px,transparent 1px);background-size:24px 24px}
+  .nav-item{transition:all .18s ease}.nav-item.active{background:#2563eb;color:#fff;box-shadow:0 10px 24px -12px rgba(37,99,235,.7)}.nav-item:not(.active):hover{background:#eef4ff;color:#1d4ed8}
+  [data-section]{animation:fade .35s ease}@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+</style>
+</head>
+<body class="font-sans text-tinta antialiased">
+<div class="flex min-h-screen">
+  <aside class="hidden lg:flex w-64 flex-col bg-white border-r border-slate-200 sticky top-0 h-screen">
+    <div class="h-16 flex items-center gap-2.5 px-5 border-b border-slate-200"><div class="h-8 w-8 rounded-lg bg-azul-500 grid place-items-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg></div><span class="font-display font-700 tracking-tight">VERI<span class="text-azul-500">·</span>FACTU</span></div>
+    <nav class="flex-1 p-3 space-y-1 text-sm font-500">
+      <button onclick="go('cartera',this)" class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg>Cartera de clientes</button>
+      <button onclick="go('remisiones',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>Remisiones</button>
+      <button onclick="go('representacion',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Representación</button>
+      <button onclick="go('incidencias',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Incidencias</button>
+    </nav>
+    <a href="index.html" class="m-3 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-slate-100"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Cambiar de rol</a>
+  </aside>
+  <div class="flex-1 flex flex-col min-w-0">
+    <header class="h-16 bg-white/80 backdrop-blur border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-30">
+      <div class="flex items-center gap-3"><span class="lg:hidden font-display font-700">VERI·FACTU</span><span class="pill bg-azul-50 text-azul-600 border border-azul-100">Asesoría / Representante</span></div>
+      <div class="flex items-center gap-4"><span class="hidden sm:flex pill bg-slate-100 text-slate-600 font-mono">14 clientes activos</span><div class="h-8 w-8 rounded-full bg-azul-100 grid place-items-center text-azul-700 text-xs font-700">GA</div></div>
+    </header>
+    <main class="p-6 max-w-6xl w-full mx-auto">
+
+      <section data-section id="cartera">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div><h1 class="font-display font-700 text-2xl">Cartera de clientes</h1><p class="text-slate-500 mt-1 text-sm">Obligados tributarios que gestionas. Selecciona uno para operar en su nombre.</p></div>
+          <button class="bg-azul-500 hover:bg-azul-600 text-white text-sm font-600 px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-azul-500/25"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Añadir cliente</button>
+        </div>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6" id="clientes"></div>
+      </section>
+
+      <section data-section id="remisiones" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Remisiones por lote</h1>
+        <p class="text-slate-500 mt-1 text-sm">Envíos agrupados a la AEAT respetando el control de flujo (espera y máximo de registros por remisión).</p>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5"><div class="text-xs font-mono text-slate-400 uppercase">En cola</div><div class="font-display font-800 text-3xl mt-2">312</div></div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5"><div class="text-xs font-mono text-slate-400 uppercase">Lote actual</div><div class="font-display font-800 text-3xl mt-2">1.000</div><div class="text-xs text-slate-400 mt-1">máx/remisión*</div></div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5"><div class="text-xs font-mono text-slate-400 uppercase">Próximo envío</div><div class="font-display font-800 text-3xl mt-2">58<span class="text-base">s</span></div><div class="text-xs text-slate-400 mt-1">TiempoEsperaEnvio</div></div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5"><div class="text-xs font-mono text-slate-400 uppercase">Aceptación</div><div class="font-display font-800 text-3xl mt-2 text-emerald-500">98%</div></div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl mt-4 p-5">
+          <h3 class="font-600 mb-4">Lotes recientes</h3>
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"><div class="flex items-center gap-3"><span class="font-mono text-xs text-slate-400">LOTE-2027-0042</span><span class="text-sm">847 registros · 9 NIF</span></div><span class="pill bg-emerald-50 text-emerald-600">Completado</span></div>
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"><div class="flex items-center gap-3"><span class="font-mono text-xs text-slate-400">LOTE-2027-0043</span><span class="text-sm">312 registros · 4 NIF</span></div><span class="pill bg-azul-50 text-azul-600"><span class="h-1.5 w-1.5 rounded-full bg-azul-500 animate-pulse"></span>Enviando</span></div>
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"><div class="flex items-center gap-3"><span class="font-mono text-xs text-slate-400">LOTE-2027-0041</span><span class="text-sm">1.000 registros · 11 NIF</span></div><span class="pill bg-amber-50 text-amber-600">5 advertencias</span></div>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono mt-4">*Límites de lote y tiempo de espera: verificar contra «Especificaciones de remisión voluntaria» (AEAT).</p>
+        </div>
+      </section>
+
+      <section data-section id="representacion" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Representación de terceros</h1>
+        <p class="text-slate-500 mt-1 text-sm">Apoderamientos para el envío de registros en nombre de los obligados (Resolución de 18-dic-2024).</p>
+        <div class="bg-white border border-slate-200 rounded-2xl mt-6 overflow-hidden">
+          <table class="w-full text-sm"><thead class="bg-slate-50 text-slate-400 text-xs font-mono uppercase"><tr><th class="text-left font-500 px-5 py-3">Representado</th><th class="text-left font-500 px-5 py-3">NIF</th><th class="text-left font-500 px-5 py-3">Documento</th><th class="text-left font-500 px-5 py-3">Vigencia</th><th class="text-left font-500 px-5 py-3">Estado</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50"><td class="px-5 py-3">Cliente Norte S.A.</td><td class="px-5 py-3 font-mono text-xs">A28000001</td><td class="px-5 py-3 font-mono text-xs">REPR-0012</td><td class="px-5 py-3 text-slate-500">hasta 31-12-2027</td><td class="px-5 py-3"><span class="pill bg-emerald-50 text-emerald-600">Vigente</span></td></tr>
+            <tr class="hover:bg-slate-50"><td class="px-5 py-3">Servicios Beta</td><td class="px-5 py-3 font-mono text-xs">B33000002</td><td class="px-5 py-3 font-mono text-xs">REPR-0019</td><td class="px-5 py-3 text-slate-500">hasta 30-06-2027</td><td class="px-5 py-3"><span class="pill bg-emerald-50 text-emerald-600">Vigente</span></td></tr>
+            <tr class="hover:bg-slate-50"><td class="px-5 py-3">Distribuciones Sur</td><td class="px-5 py-3 font-mono text-xs">B41000003</td><td class="px-5 py-3 font-mono text-xs">—</td><td class="px-5 py-3 text-slate-500">—</td><td class="px-5 py-3"><span class="pill bg-amber-50 text-amber-600">Pendiente</span></td></tr>
+          </tbody></table>
+        </div>
+      </section>
+
+      <section data-section id="incidencias" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Incidencias</h1>
+        <p class="text-slate-500 mt-1 text-sm">Registros rechazados o con advertencia que requieren tu atención.</p>
+        <div class="space-y-3 mt-6">
+          <div class="bg-white border border-rose-200 rounded-2xl p-5 flex gap-4"><div class="h-10 w-10 rounded-xl bg-rose-50 grid place-items-center text-rose-500 shrink-0"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div><div class="flex-1"><div class="flex items-center gap-2 flex-wrap"><span class="font-mono text-xs text-slate-400">B41000003 · 2027-A/000126</span><span class="pill bg-rose-50 text-rose-600">No admisible</span></div><p class="text-sm mt-1">Falta campo obligatorio en el desglose. El registro no se ha incorporado: requiere corrección y reenvío.</p></div></div>
+          <div class="bg-white border border-amber-200 rounded-2xl p-5 flex gap-4"><div class="h-10 w-10 rounded-xl bg-amber-50 grid place-items-center text-amber-500 shrink-0"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div><div class="flex-1"><div class="flex items-center gap-2 flex-wrap"><span class="font-mono text-xs text-slate-400">B33000002 · 2027-A/000127</span><span class="pill bg-amber-50 text-amber-600">Admisible</span></div><p class="text-sm mt-1">Aceptada con advertencia: posible incoherencia menor en importes. No requiere reenvío.</p></div></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script>
+  function go(id, el){document.querySelectorAll('[data-section]').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});}
+  const cl=[['Cliente Norte S.A.','A28000001',128,'ok'],['Servicios Beta','B33000002',64,'warn'],['Distribuciones Sur','B41000003',22,'err'],['Logística Oeste','B46000004',311,'ok'],['Comercial Levante','B03000005',97,'ok'],['Talleres Centro','B45000006',45,'ok']];
+  const st={ok:'<span class="pill bg-emerald-50 text-emerald-600">Al día</span>',warn:'<span class="pill bg-amber-50 text-amber-600">Advertencias</span>',err:'<span class="pill bg-rose-50 text-rose-600">Incidencia</span>'};
+  document.getElementById('clientes').innerHTML=cl.map(c=>`<div class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-azul-300 hover:shadow-lg hover:shadow-azul-500/10 transition cursor-pointer">
+    <div class="flex items-start justify-between"><div class="h-10 w-10 rounded-xl bg-azul-50 grid place-items-center text-azul-700 font-700 text-sm">${c[0].split(' ').map(w=>w[0]).slice(0,2).join('')}</div>${st[c[3]]}</div>
+    <h3 class="font-600 mt-3">${c[0]}</h3><p class="font-mono text-xs text-slate-400 mt-0.5">${c[1]}</p>
+    <div class="mt-4 flex items-center justify-between text-sm"><span class="text-slate-400 text-xs">Facturas mes</span><span class="font-mono font-600">${c[2]}</span></div></div>`).join('');
+</script>
+</body>
+</html>

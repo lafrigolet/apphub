@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emisor · VERI·FACTU</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+tailwind.config={theme:{extend:{fontFamily:{display:['Sora','sans-serif'],sans:['"IBM Plex Sans"','sans-serif'],mono:['"IBM Plex Mono"','monospace']},colors:{azul:{50:'#eef4ff',100:'#d9e6ff',200:'#b3ccff',300:'#84a9ff',400:'#4f7dff',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',800:'#1e3a8a',900:'#172554'},tinta:'#0b1220'}}}}
+</script>
+<style>
+  body{background:#f7f9fc;background-image:radial-gradient(#dde6f3 1px,transparent 1px);background-size:24px 24px}
+  .nav-item{transition:all .18s ease}
+  .nav-item.active{background:#2563eb;color:#fff;box-shadow:0 10px 24px -12px rgba(37,99,235,.7)}
+  .nav-item:not(.active):hover{background:#eef4ff;color:#1d4ed8}
+  [data-section]{animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+</style>
+</head>
+<body class="font-sans text-tinta antialiased">
+<div class="flex min-h-screen">
+
+  <!-- SIDEBAR -->
+  <aside class="hidden lg:flex w-64 flex-col bg-white border-r border-slate-200 sticky top-0 h-screen">
+    <div class="h-16 flex items-center gap-2.5 px-5 border-b border-slate-200">
+      <div class="h-8 w-8 rounded-lg bg-azul-500 grid place-items-center"><svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg></div>
+      <span class="font-display font-700 tracking-tight">VERI<span class="text-azul-500">·</span>FACTU</span>
+    </div>
+    <nav class="flex-1 p-3 space-y-1 text-sm font-500">
+      <button onclick="go('resumen',this)" class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Resumen</button>
+      <button onclick="go('facturas',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>Facturas</button>
+      <button onclick="go('cadena',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1"/><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/></svg>Cadena / Integridad</button>
+      <button onclick="go('qr',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/></svg>QR &amp; Cotejo</button>
+      <button onclick="go('eventos',this)" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left"><svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>Eventos</button>
+    </nav>
+    <a href="index.html" class="m-3 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-slate-100"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Cambiar de rol</a>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="flex-1 flex flex-col min-w-0">
+    <header class="h-16 bg-white/80 backdrop-blur border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-30">
+      <div class="flex items-center gap-3">
+        <span class="lg:hidden font-display font-700">VERI·FACTU</span>
+        <span class="pill bg-azul-50 text-azul-600 border border-azul-100">Emisor / Obligado</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="hidden sm:flex pill bg-emerald-50 text-emerald-600"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Modalidad VERI·FACTU</span>
+        <div class="flex items-center gap-2.5">
+          <div class="h-8 w-8 rounded-full bg-azul-100 grid place-items-center text-azul-700 text-xs font-700">EJ</div>
+          <div class="hidden sm:block leading-tight">
+            <div class="text-sm font-600">Ejemplo S.L.</div>
+            <div class="text-[11px] font-mono text-slate-400">B12345678</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="p-6 max-w-6xl w-full mx-auto">
+
+      <!-- RESUMEN -->
+      <section data-section id="resumen">
+        <h1 class="font-display font-700 text-2xl">Buenas tardes, Ejemplo S.L.</h1>
+        <p class="text-slate-500 mt-1 text-sm">Resumen de tu actividad de facturación verificable.</p>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Emitidas (mes)</div>
+            <div class="font-display font-800 text-3xl mt-2">128</div>
+            <div class="text-xs text-emerald-600 mt-1">+12% vs anterior</div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Remitidas OK</div>
+            <div class="font-display font-800 text-3xl mt-2">124</div>
+            <div class="text-xs text-slate-400 mt-1">96,9% aceptadas</div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Con advertencia</div>
+            <div class="font-display font-800 text-3xl mt-2 text-amber-500">3</div>
+            <div class="text-xs text-slate-400 mt-1">errores admisibles</div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Rechazadas</div>
+            <div class="font-display font-800 text-3xl mt-2 text-rose-500">1</div>
+            <div class="text-xs text-slate-400 mt-1">requiere corrección</div>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-4 mt-4">
+          <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-600">Remisiones recientes</h3>
+              <button onclick="go('facturas',document.querySelectorAll('.nav-item')[1])" class="text-xs text-azul-600 font-600">Ver todas →</button>
+            </div>
+            <div class="space-y-2.5">
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex items-center gap-3"><span class="font-mono text-xs text-slate-400">2027-A/000128</span><span class="text-sm">Cliente Norte S.A.</span></div>
+                <span class="pill bg-emerald-50 text-emerald-600">Aceptada</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex items-center gap-3"><span class="font-mono text-xs text-slate-400">2027-A/000127</span><span class="text-sm">Servicios Beta</span></div>
+                <span class="pill bg-amber-50 text-amber-600">Con advertencia</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex items-center gap-3"><span class="font-mono text-xs text-slate-400">2027-A/000126</span><span class="text-sm">Distribuciones Sur</span></div>
+                <span class="pill bg-rose-50 text-rose-600">Rechazada</span>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col">
+            <h3 class="font-600 mb-3">Integridad de la cadena</h3>
+            <div class="flex-1 grid place-items-center py-2">
+              <div class="relative h-28 w-28">
+                <svg class="h-28 w-28 -rotate-90" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.5" fill="none" stroke="#e2e8f0" stroke-width="3"/><circle cx="18" cy="18" r="15.5" fill="none" stroke="#2563eb" stroke-width="3" stroke-dasharray="97 100" stroke-linecap="round"/></svg>
+                <div class="absolute inset-0 grid place-items-center"><div class="text-center"><div class="font-display font-800 text-xl">OK</div><div class="text-[10px] font-mono text-slate-400">verificada</div></div></div>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400 text-center font-mono">128/128 registros encadenados</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FACTURAS -->
+      <section data-section id="facturas" class="hidden">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div><h1 class="font-display font-700 text-2xl">Facturas</h1><p class="text-slate-500 mt-1 text-sm">Registros de alta y anulación remitidos.</p></div>
+          <button class="bg-azul-500 hover:bg-azul-600 text-white text-sm font-600 px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-azul-500/25"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Nueva factura</button>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl mt-6 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-400 text-xs font-mono uppercase tracking-wider">
+                <tr><th class="text-left font-500 px-5 py-3">Serie/Número</th><th class="text-left font-500 px-5 py-3">Cliente</th><th class="text-left font-500 px-5 py-3">Fecha</th><th class="text-right font-500 px-5 py-3">Total</th><th class="text-left font-500 px-5 py-3">Estado</th><th class="text-left font-500 px-5 py-3">Huella</th></tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100" id="tbf"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- CADENA -->
+      <section data-section id="cadena" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Cadena / Integridad</h1>
+        <p class="text-slate-500 mt-1 text-sm">Encadenamiento de registros mediante huella SHA-256. Cada registro enlaza con el anterior.</p>
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 mt-6">
+          <div class="space-y-0">
+            <div class="flex gap-4">
+              <div class="flex flex-col items-center"><div class="h-9 w-9 rounded-full bg-azul-500 text-white grid place-items-center text-xs font-700">128</div><div class="w-px flex-1 bg-azul-200"></div></div>
+              <div class="pb-6 flex-1"><div class="flex items-center gap-2"><span class="font-mono text-sm">2027-A/000128</span><span class="pill bg-emerald-50 text-emerald-600">verificado</span></div><div class="font-mono text-xs text-slate-400 mt-1 break-all">huella: 9B2E7C4A…FF12</div><div class="font-mono text-xs text-slate-300 break-all">anterior: 3C9F0AB1…A1</div></div>
+            </div>
+            <div class="flex gap-4">
+              <div class="flex flex-col items-center"><div class="h-9 w-9 rounded-full bg-azul-100 text-azul-700 grid place-items-center text-xs font-700">127</div><div class="w-px flex-1 bg-azul-200"></div></div>
+              <div class="pb-6 flex-1"><div class="flex items-center gap-2"><span class="font-mono text-sm">2027-A/000127</span><span class="pill bg-emerald-50 text-emerald-600">verificado</span></div><div class="font-mono text-xs text-slate-400 mt-1 break-all">huella: 3C9F0AB1…A1</div><div class="font-mono text-xs text-slate-300 break-all">anterior: 77AD22E9…0C</div></div>
+            </div>
+            <div class="flex gap-4">
+              <div class="flex flex-col items-center"><div class="h-9 w-9 rounded-full bg-azul-100 text-azul-700 grid place-items-center text-xs font-700">126</div></div>
+              <div class="flex-1"><div class="flex items-center gap-2"><span class="font-mono text-sm">2027-A/000126</span><span class="pill bg-emerald-50 text-emerald-600">verificado</span></div><div class="font-mono text-xs text-slate-400 mt-1 break-all">huella: 77AD22E9…0C</div></div>
+            </div>
+          </div>
+          <div class="mt-6 p-4 rounded-xl bg-azul-50 border border-azul-100 text-sm text-azul-800 flex gap-3">
+            <svg class="w-5 h-5 shrink-0 mt-0.5 text-azul-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+            <div><b>Cadena íntegra.</b> El orden de campos y el formato de cálculo de la huella deben replicar el documento oficial de algoritmo de hash de la AEAT. <span class="text-azul-600 font-mono text-xs">(verificar contra fuente oficial)</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- QR -->
+      <section data-section id="qr" class="hidden">
+        <h1 class="font-display font-700 text-2xl">QR &amp; Cotejo</h1>
+        <p class="text-slate-500 mt-1 text-sm">Código QR y URL de cotejo que se incorporan a la factura para su verificación en la Sede Electrónica.</p>
+        <div class="grid md:grid-cols-2 gap-4 mt-6">
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <div class="p-4 bg-white border border-slate-200 rounded-xl">
+              <svg width="150" height="150" viewBox="0 0 29 29" shape-rendering="crispEdges"><rect width="29" height="29" fill="#fff"/><g fill="#0b1220"><rect x="0" y="0" width="7" height="7"/><rect x="2" y="2" width="3" height="3" fill="#fff"/><rect x="22" y="0" width="7" height="7"/><rect x="24" y="2" width="3" height="3" fill="#fff"/><rect x="0" y="22" width="7" height="7"/><rect x="2" y="24" width="3" height="3" fill="#fff"/><rect x="9" y="1" width="1" height="1"/><rect x="11" y="0" width="1" height="2"/><rect x="13" y="1" width="2" height="1"/><rect x="16" y="0" width="1" height="1"/><rect x="18" y="1" width="2" height="1"/><rect x="9" y="9" width="2" height="2"/><rect x="13" y="9" width="1" height="3"/><rect x="16" y="10" width="2" height="1"/><rect x="20" y="9" width="1" height="2"/><rect x="23" y="10" width="2" height="2"/><rect x="26" y="9" width="1" height="3"/><rect x="9" y="13" width="3" height="1"/><rect x="15" y="14" width="2" height="2"/><rect x="19" y="13" width="1" height="2"/><rect x="22" y="14" width="2" height="1"/><rect x="25" y="13" width="2" height="2"/><rect x="9" y="18" width="2" height="1"/><rect x="12" y="17" width="1" height="2"/><rect x="15" y="18" width="2" height="2"/><rect x="18" y="17" width="2" height="1"/><rect x="21" y="18" width="1" height="2"/><rect x="24" y="17" width="2" height="2"/><rect x="27" y="18" width="1" height="2"/><rect x="9" y="22" width="1" height="3"/><rect x="11" y="23" width="2" height="1"/><rect x="14" y="22" width="1" height="2"/><rect x="16" y="24" width="2" height="1"/><rect x="19" y="22" width="2" height="2"/><rect x="23" y="23" width="1" height="3"/><rect x="26" y="22" width="2" height="1"/></g></svg>
+            </div>
+            <span class="pill bg-azul-50 text-azul-600 mt-4">VERI·FACTU</span>
+            <p class="text-xs text-slate-400 mt-2 font-mono">Factura 2027-A/000128</p>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-6">
+            <h3 class="font-600 text-sm">URL de cotejo</h3>
+            <div class="mt-2 p-3 rounded-xl bg-slate-900 text-azul-200 font-mono text-xs break-all leading-relaxed">https://sede.agenciatributaria.gob.es/.../cotejo?nif=B12345678&numserie=2027-A/000128&fecha=02-01-2027&importe=121.00</div>
+            <p class="text-[11px] text-slate-400 font-mono mt-2">El dominio, parámetros y orden exactos se toman de «Características del QR» (verificar contra fuente oficial).</p>
+            <div class="mt-5 space-y-3 text-sm">
+              <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">NIF emisor</span><span class="font-mono">B12345678</span></div>
+              <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">Nº factura</span><span class="font-mono">2027-A/000128</span></div>
+              <div class="flex justify-between border-b border-slate-100 pb-2"><span class="text-slate-400">Importe</span><span class="font-mono">121,00 €</span></div>
+              <div class="flex justify-between"><span class="text-slate-400">Estado cotejo</span><span class="pill bg-emerald-50 text-emerald-600">Cotejable</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EVENTOS -->
+      <section data-section id="eventos" class="hidden">
+        <h1 class="font-display font-700 text-2xl">Eventos del sistema</h1>
+        <p class="text-slate-500 mt-1 text-sm">Registro de eventos del SIF exigido por el reglamento (catálogo a verificar contra la Orden HAC/1177/2024).</p>
+        <div class="bg-white border border-slate-200 rounded-2xl mt-6 divide-y divide-slate-100">
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-azul-50 text-azul-600">ARRANQUE</span><span class="text-sm flex-1">Inicio del sistema informático de facturación</span><span class="font-mono text-xs text-slate-400">02-01-2027 08:00:11</span></div>
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-emerald-50 text-emerald-600">EXPORTACIÓN</span><span class="text-sm flex-1">Exportación de registros solicitada</span><span class="font-mono text-xs text-slate-400">02-01-2027 09:14:52</span></div>
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-amber-50 text-amber-600">ANOMALÍA</span><span class="text-sm flex-1">Detección de discontinuidad temporal (resuelta)</span><span class="font-mono text-xs text-slate-400">02-01-2027 11:02:30</span></div>
+          <div class="flex items-center gap-4 p-4"><span class="pill bg-azul-50 text-azul-600">RESTAURACIÓN</span><span class="text-sm flex-1">Restauración de copia de seguridad verificada</span><span class="font-mono text-xs text-slate-400">02-01-2027 12:40:08</span></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  function go(id, el){
+    document.querySelectorAll('[data-section]').forEach(s=>s.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    if(el && el.classList.contains('nav-item')) el.classList.add('active');
+    else { // sync sidebar when navigating programmatically
+      const map={resumen:0,facturas:1,cadena:2,qr:3,eventos:4};
+      document.querySelectorAll('.nav-item')[map[id]]?.classList.add('active');
+    }
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  // mock facturas
+  const data=[
+    ['2027-A/000128','Cliente Norte S.A.','02-01-2027','121,00 €','ok','9B2E7C4A…FF'],
+    ['2027-A/000127','Servicios Beta','02-01-2027','847,55 €','warn','3C9F0AB1…A1'],
+    ['2027-A/000126','Distribuciones Sur','01-01-2027','1.452,00 €','err','77AD22E9…0C'],
+    ['2027-A/000125','Logística Oeste','01-01-2027','318,20 €','ok','55BC91D4…7E'],
+    ['2027-A/000124','Comercial Levante','31-12-2026','990,00 €','ok','12FE88A0…3B'],
+  ];
+  const badge={ok:'<span class="pill bg-emerald-50 text-emerald-600">Aceptada</span>',warn:'<span class="pill bg-amber-50 text-amber-600">Advertencia</span>',err:'<span class="pill bg-rose-50 text-rose-600">Rechazada</span>'};
+  document.getElementById('tbf').innerHTML=data.map(r=>`<tr class="hover:bg-slate-50">
+    <td class="px-5 py-3 font-mono text-xs">${r[0]}</td><td class="px-5 py-3">${r[1]}</td>
+    <td class="px-5 py-3 text-slate-500 font-mono text-xs">${r[2]}</td><td class="px-5 py-3 text-right font-mono">${r[3]}</td>
+    <td class="px-5 py-3">${badge[r[4]]}</td><td class="px-5 py-3 font-mono text-xs text-slate-400">${r[5]}</td></tr>`).join('');
+</script>
+</body>
+</html>
