@@ -48,6 +48,9 @@ CREATE SCHEMA IF NOT EXISTS platform_donations;
 -- platform-core inquiries module schema (per-tenant contact form)
 CREATE SCHEMA IF NOT EXISTS platform_inquiries;
 
+-- platform-core verifactu module schema (SIF / facturación verificable AEAT)
+CREATE SCHEMA IF NOT EXISTS platform_verifactu;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -157,6 +160,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_inquiries') THEN
     CREATE ROLE svc_platform_inquiries LOGIN PASSWORD 'platform_inquiries_secret';
   END IF;
+
+  -- platform-core verifactu module role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_verifactu') THEN
+    CREATE ROLE svc_platform_verifactu LOGIN PASSWORD 'platform_verifactu_secret';
+  END IF;
 END
 $$;
 
@@ -204,6 +212,9 @@ GRANT USAGE ON SCHEMA platform_leads                TO svc_platform_leads;
 
 -- USAGE grants (platform-core inquiries module)
 GRANT USAGE ON SCHEMA platform_inquiries            TO svc_platform_inquiries;
+
+-- USAGE grants (platform-core verifactu module)
+GRANT USAGE ON SCHEMA platform_verifactu            TO svc_platform_verifactu;
 
 -- USAGE grants (platform-core donations module)
 GRANT USAGE ON SCHEMA platform_donations            TO svc_platform_donations;
@@ -310,6 +321,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_inquiries
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_inquiries;
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_inquiries
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_inquiries;
+
+-- DML default privs (platform-core verifactu)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_verifactu
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_verifactu;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_verifactu
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_verifactu;
 
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth

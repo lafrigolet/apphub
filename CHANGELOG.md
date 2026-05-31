@@ -7,6 +7,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`apps/verifactu` — portal multi-rol + módulo platform `verifactu`
+  (bootstrap → importa → implementa).** App de facturación verificable
+  (AEAT VERI\*FACTU).
+  - **Portal** (`apps/verifactu/verifactu-portal`, puerto 5182): 5 roles
+    (emisor/asesoría/desarrollador/administrador/receptor) importados 1:1
+    de los prototipos `docs/*.html` a estructura React canónica
+    (RoleSelector + router + `data/` + `components/` + `lib/` + `hooks/`),
+    estilado Tailwind.
+  - **Módulo platform `platform/verifactu`** (en `platform-core`, schema
+    `platform_verifactu`, rol `svc_platform_verifactu`): registros + cadena
+    de huellas + eventos SIF + lotes de remisión + cartera/representación +
+    certificados + control de flujo + cotejo. RLS por `(app_id, tenant_id)`.
+    Endpoints portal-facing públicos scopeados por query/body (sin login
+    aún). Las 5 vistas leen datos reales vía API + seed demo.
+  - **Skeleton realista**: huella (SHA-256), firma XAdES, SOAP de remisión
+    y QR van como **stubs marcados `TODO: fuente-oficial AEAT`** — el orden
+    de campos de la huella, el perfil XAdES, el WSDL y los parámetros del QR
+    dependen de specs oficiales aún no disponibles.
 - **`apps/macabeo` portal multi-rol (importa · full split)** — economato
   ecológico con 11 roles. Se importaron los 11 prototipos HTML de
   `apps/macabeo/doc/` (índice selector + invitado/socio/cliente

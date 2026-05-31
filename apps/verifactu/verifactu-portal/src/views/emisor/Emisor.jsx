@@ -1,9 +1,10 @@
+import { useState, useEffect } from 'react'
 import Sidebar from '../../components/Sidebar.jsx'
 import { Wordmark, IconPlus } from '../../components/icons.jsx'
 import { useSection } from '../../hooks/index.js'
-import {
-  pillTone, emisorEstadoLabel, emisorFacturas, emisorRemisiones, emisorCadena, emisorEventos,
-} from '../../data/mock.js'
+import { api } from '../../lib/api.js'
+import { scopeQS } from '../../lib/tenant.js'
+import { pillTone, emisorEstadoLabel } from '../../data/mock.js'
 
 const navItems = [
   { id: 'resumen', label: 'Resumen', icon: <svg className="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="9" /><rect x="14" y="3" width="7" height="5" /><rect x="14" y="12" width="7" height="9" /><rect x="3" y="16" width="7" height="5" /></svg> },
@@ -17,6 +18,18 @@ const show = (active, id) => `${active === id ? '' : 'hidden'}`
 
 export default function Emisor() {
   const [active, go] = useSection('resumen')
+  const [facturas, setFacturas] = useState([])
+  const [remisiones, setRemisiones] = useState([])
+  const [cadena, setCadena] = useState([])
+  const [eventos, setEventos] = useState([])
+
+  useEffect(() => {
+    const qs = scopeQS()
+    api.get(`/api/verifactu/registros?${qs}`).then(setFacturas).catch(() => {})
+    api.get(`/api/verifactu/remisiones?${qs}`).then(setRemisiones).catch(() => {})
+    api.get(`/api/verifactu/cadena?${qs}`).then(setCadena).catch(() => {})
+    api.get(`/api/verifactu/eventos?${qs}`).then(setEventos).catch(() => {})
+  }, [])
 
   return (
     <div className="flex min-h-screen font-sans text-tinta antialiased">
@@ -60,7 +73,7 @@ export default function Emisor() {
                   <button onClick={() => go('facturas')} className="text-xs text-azul-600 font-600">Ver todas →</button>
                 </div>
                 <div className="space-y-2.5">
-                  {emisorRemisiones.map((r) => (
+                  {remisiones.map((r) => (
                     <div key={r.serie} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <div className="flex items-center gap-3"><span className="font-mono text-xs text-slate-400">{r.serie}</span><span className="text-sm">{r.cliente}</span></div>
                       <span className={`pill ${pillTone[r.tone]}`}>{r.label}</span>
@@ -94,7 +107,7 @@ export default function Emisor() {
                     <tr><th className="text-left font-500 px-5 py-3">Serie/Número</th><th className="text-left font-500 px-5 py-3">Cliente</th><th className="text-left font-500 px-5 py-3">Fecha</th><th className="text-right font-500 px-5 py-3">Total</th><th className="text-left font-500 px-5 py-3">Estado</th><th className="text-left font-500 px-5 py-3">Huella</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {emisorFacturas.map((f) => (
+                    {facturas.map((f) => (
                       <tr key={f.serie} className="hover:bg-slate-50">
                         <td className="px-5 py-3 font-mono text-xs">{f.serie}</td>
                         <td className="px-5 py-3">{f.cliente}</td>
@@ -116,8 +129,8 @@ export default function Emisor() {
             <p className="text-slate-500 mt-1 text-sm">Encadenamiento de registros mediante huella SHA-256. Cada registro enlaza con el anterior.</p>
             <div className="bg-white border border-slate-200 rounded-2xl p-6 mt-6">
               <div className="space-y-0">
-                {emisorCadena.map((c, i) => {
-                  const last = i === emisorCadena.length - 1
+                {cadena.map((c, i) => {
+                  const last = i === cadena.length - 1
                   return (
                     <div key={c.n} className="flex gap-4">
                       <div className="flex flex-col items-center">
@@ -171,7 +184,7 @@ export default function Emisor() {
             <h1 className="font-display font-700 text-2xl">Eventos del sistema</h1>
             <p className="text-slate-500 mt-1 text-sm">Registro de eventos del SIF exigido por el reglamento (catálogo a verificar contra la Orden HAC/1177/2024).</p>
             <div className="bg-white border border-slate-200 rounded-2xl mt-6 divide-y divide-slate-100">
-              {emisorEventos.map((e) => (
+              {eventos.map((e) => (
                 <div key={e.ts} className="flex items-center gap-4 p-4"><span className={`pill ${pillTone[e.tone]}`}>{e.tag}</span><span className="text-sm flex-1">{e.text}</span><span className="font-mono text-xs text-slate-400">{e.ts}</span></div>
               ))}
             </div>

@@ -1,9 +1,10 @@
+import { useState, useEffect } from 'react'
 import Sidebar from '../../components/Sidebar.jsx'
 import { Wordmark, IconPlus } from '../../components/icons.jsx'
 import { useSection } from '../../hooks/index.js'
-import {
-  pillTone, asesoriaEstadoLabel, asesoriaClientes, asesoriaLotes, asesoriaRepresentacion, asesoriaIncidencias,
-} from '../../data/mock.js'
+import { api } from '../../lib/api.js'
+import { scopeQS } from '../../lib/tenant.js'
+import { pillTone, asesoriaEstadoLabel, asesoriaIncidencias } from '../../data/mock.js'
 
 const navItems = [
   { id: 'cartera', label: 'Cartera de clientes', icon: <svg className="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /></svg> },
@@ -17,6 +18,16 @@ const initials = (name) => name.split(' ').map((w) => w[0]).slice(0, 2).join('')
 
 export default function Asesoria() {
   const [active, go] = useSection('cartera')
+  const [clientes, setClientes] = useState([])
+  const [lotes, setLotes] = useState([])
+  const [representacion, setRepresentacion] = useState([])
+
+  useEffect(() => {
+    const qs = scopeQS()
+    api.get(`/api/verifactu/clientes?${qs}`).then(setClientes).catch(() => {})
+    api.get(`/api/verifactu/lotes?${qs}`).then(setLotes).catch(() => {})
+    api.get(`/api/verifactu/representacion?${qs}`).then(setRepresentacion).catch(() => {})
+  }, [])
 
   return (
     <div className="flex min-h-screen font-sans text-tinta antialiased">
@@ -43,7 +54,7 @@ export default function Asesoria() {
               <button className="bg-azul-500 hover:bg-azul-600 text-white text-sm font-600 px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-azul-500/25"><IconPlus />Añadir cliente</button>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-              {asesoriaClientes.map((c) => (
+              {clientes.map((c) => (
                 <div key={c.nif} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-azul-300 hover:shadow-lg hover:shadow-azul-500/10 transition cursor-pointer">
                   <div className="flex items-start justify-between">
                     <div className="h-10 w-10 rounded-xl bg-azul-50 grid place-items-center text-azul-700 font-700 text-sm">{initials(c.nombre)}</div>
@@ -70,7 +81,7 @@ export default function Asesoria() {
             <div className="bg-white border border-slate-200 rounded-2xl mt-4 p-5">
               <h3 className="font-600 mb-4">Lotes recientes</h3>
               <div className="space-y-2.5">
-                {asesoriaLotes.map((l) => (
+                {lotes.map((l) => (
                   <div key={l.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <div className="flex items-center gap-3"><span className="font-mono text-xs text-slate-400">{l.id}</span><span className="text-sm">{l.info}</span></div>
                     <span className={`pill ${pillTone[l.tone]}`}>{l.pulse && <span className="h-1.5 w-1.5 rounded-full bg-azul-500 animate-pulse" />}{l.label}</span>
@@ -89,7 +100,7 @@ export default function Asesoria() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-400 text-xs font-mono uppercase"><tr><th className="text-left font-500 px-5 py-3">Representado</th><th className="text-left font-500 px-5 py-3">NIF</th><th className="text-left font-500 px-5 py-3">Documento</th><th className="text-left font-500 px-5 py-3">Vigencia</th><th className="text-left font-500 px-5 py-3">Estado</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
-                  {asesoriaRepresentacion.map((r) => (
+                  {representacion.map((r) => (
                     <tr key={r.nif} className="hover:bg-slate-50">
                       <td className="px-5 py-3">{r.representado}</td>
                       <td className="px-5 py-3 font-mono text-xs">{r.nif}</td>

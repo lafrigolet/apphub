@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import Sidebar from '../../components/Sidebar.jsx'
 import { Wordmark } from '../../components/icons.jsx'
 import { useSection } from '../../hooks/index.js'
+import { api } from '../../lib/api.js'
 import { pillTone, devTests, devEsquemas, devDeclaracion } from '../../data/mock.js'
 
 const navItems = [
@@ -26,13 +27,11 @@ function EsquemaIcon({ e }) {
 export default function Desarrollador() {
   const [active, go] = useSection('pruebas')
   const [vres, setVres] = useState('idle') // idle | validating | done
-  const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
 
-  const validar = () => {
+  const validar = async () => {
     setVres('validating')
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => setVres('done'), 650)
+    try { await api.post('/api/verifactu/validar', {}) } catch { /* stub: ignora error */ }
+    setVres('done')
   }
 
   return (

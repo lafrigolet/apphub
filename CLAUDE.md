@@ -383,6 +383,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Leads (landing contact form, lead CRM) | `platform/leads` | `platform_leads` | `svc_platform_leads` | ✅ Implemented |
 | Donations (one-shot + recurring + fiscal Ley 49/2002 + AEAT 182) | `platform/donations` | `platform_donations` | `svc_platform_donations` | ✅ Implemented |
 | Inquiries (per-tenant contact form, email-only V1) | `platform/inquiries` | `platform_inquiries` | `svc_platform_inquiries` | ✅ Implemented |
+| Verifactu (SIF / facturación verificable AEAT: registros, cadena de huellas, eventos, remisiones, cotejo) | `platform/verifactu` | `platform_verifactu` | `svc_platform_verifactu` | 🔧 Skeleton (huella/firma/SOAP/QR stubbed — specs AEAT pendientes) |
 
 ### platform-marketplace (port 3100) — marketplace transactions
 

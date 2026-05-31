@@ -31,6 +31,7 @@ const moduleDescriptors = [
   { name: 'leads',         package: '@apphub/platform-leads',         databaseUrl: env.DATABASE_URL_LEADS,         schema: 'platform_leads'         },
   { name: 'donations',     package: '@apphub/platform-donations',     databaseUrl: env.DATABASE_URL_DONATIONS,     schema: 'platform_donations'     },
   { name: 'inquiries',     package: '@apphub/platform-inquiries',     databaseUrl: env.DATABASE_URL_INQUIRIES,     schema: 'platform_inquiries'     },
+  { name: 'verifactu',     package: '@apphub/platform-verifactu',     databaseUrl: env.DATABASE_URL_VERIFACTU,     schema: 'platform_verifactu'     },
 ]
 
 async function loadModule(descriptor) {

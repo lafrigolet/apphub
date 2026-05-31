@@ -1,18 +1,36 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { LogoMark, Wordmark, IconBack } from '../../components/icons.jsx'
+import { api } from '../../lib/api.js'
+import { scopeQS, APP_ID, DEMO_TENANT_ID } from '../../lib/tenant.js'
+import { pillTone } from '../../data/mock.js'
 
-// Single-page verifier (receptor.html). `cotejar()` reveals the result card
-// and scrolls it into view, matching the prototype.
+// Single-page verifier (receptor.html). `cotejar()` records a cotejo via the
+// API (STUB verification), reveals the result card and refreshes the history.
 export default function Receptor() {
   const [shown, setShown] = useState(false)
+  const [cotejos, setCotejos] = useState([])
   const resultRef = useRef(null)
+
+  const loadHistorial = () =>
+    api.get(`/api/verifactu/cotejos?${scopeQS()}`).then(setCotejos).catch(() => {})
+
+  useEffect(() => { loadHistorial() }, [])
 
   useEffect(() => {
     if (shown) resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [shown])
 
-  const cotejar = () => setShown(true)
+  const cotejar = async () => {
+    try {
+      await api.post('/api/verifactu/cotejo', {
+        appId: APP_ID, tenantId: DEMO_TENANT_ID,
+        nifEmisor: 'B12345678', numSerie: '2027-A/000128',
+      })
+      await loadHistorial()
+    } catch { /* stub: ignora error */ }
+    setShown(true)
+  }
 
   return (
     <div className="font-sans text-tinta antialiased min-h-screen">
@@ -81,9 +99,9 @@ export default function Receptor() {
         <div className="mt-10 reveal" style={{ animationDelay: '.24s' }}>
           <h3 className="font-600 text-sm mb-3">Comprobaciones recientes</h3>
           <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100">
-            <div className="flex items-center gap-4 p-4"><span className="pill bg-emerald-50 text-emerald-600">Verificada</span><span className="text-sm flex-1 font-mono text-slate-500">B12345678 · 2027-A/000128</span><span className="text-xs font-mono text-slate-400">hace 2 min</span></div>
-            <div className="flex items-center gap-4 p-4"><span className="pill bg-emerald-50 text-emerald-600">Verificada</span><span className="text-sm flex-1 font-mono text-slate-500">A28000001 · 2027-B/004410</span><span className="text-xs font-mono text-slate-400">ayer</span></div>
-            <div className="flex items-center gap-4 p-4"><span className="pill bg-rose-50 text-rose-600">No consta</span><span className="text-sm flex-1 font-mono text-slate-500">B99999999 · 2027-X/000001</span><span className="text-xs font-mono text-slate-400">12-04</span></div>
+            {cotejos.map((c, i) => (
+              <div key={`${c.ref}-${i}`} className="flex items-center gap-4 p-4"><span className={`pill ${pillTone[c.tone] ?? pillTone.ok}`}>{c.label}</span><span className="text-sm flex-1 font-mono text-slate-500">{c.ref}</span><span className="text-xs font-mono text-slate-400">{c.ts}</span></div>
+            ))}
           </div>
         </div>
       </main>

@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '../../components/Sidebar.jsx'
 import { Wordmark } from '../../components/icons.jsx'
 import { useSection } from '../../hooks/index.js'
-import { pillTone, adminCertificados, adminUsuarios, adminAuditoria } from '../../data/mock.js'
+import { api } from '../../lib/api.js'
+import { scopeQS, APP_ID, DEMO_TENANT_ID } from '../../lib/tenant.js'
+import { pillTone, adminUsuarios } from '../../data/mock.js'
 
 const navItems = [
   { id: 'certificados', label: 'Certificados', icon: <svg className="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1l9 4v6c0 5-3.8 9.4-9 11-5.2-1.6-9-6-9-11V5z" /><path d="M9 12l2 2 4-4" /></svg> },
@@ -18,7 +20,23 @@ const Shield = ({ className }) => (
 
 export default function Administrador() {
   const [active, go] = useSection('certificados')
+  const [certificados, setCertificados] = useState([])
+  const [auditoria, setAuditoria] = useState([])
+  const [config, setConfig] = useState(null)
   const [dlq, setDlq] = useState(true)
+
+  useEffect(() => {
+    const qs = scopeQS()
+    api.get(`/api/verifactu/certificados?${qs}`).then(setCertificados).catch(() => {})
+    api.get(`/api/verifactu/eventos?${qs}`).then(setAuditoria).catch(() => {})
+    api.get(`/api/verifactu/config?${qs}`).then((c) => { setConfig(c); setDlq(c.dlqEnabled) }).catch(() => {})
+  }, [])
+
+  const toggleDlq = () => {
+    const next = !dlq
+    setDlq(next)
+    api.patch('/api/verifactu/config', { appId: APP_ID, tenantId: DEMO_TENANT_ID, dlqEnabled: next }).catch(() => {})
+  }
 
   return (
     <div className="flex min-h-screen font-sans text-tinta antialiased">
@@ -41,7 +59,7 @@ export default function Administrador() {
             <p className="text-slate-500 mt-1 text-sm">Certificados electrónicos para la autenticación mTLS frente a la AEAT. Custodia segura, nunca en repositorio.</p>
             <div className="grid md:grid-cols-3 gap-4 mt-6">
               <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100">
-                {adminCertificados.map((c) => (
+                {certificados.map((c) => (
                   <div key={c.nombre} className="p-5 flex items-center gap-4">
                     <div className={`h-10 w-10 rounded-xl grid place-items-center ${c.iconTone === 'emerald' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}><Shield className="w-5 h-5" /></div>
                     <div className="flex-1"><div className="font-600 text-sm">{c.nombre}</div><div className="font-mono text-xs text-slate-400">{c.meta}</div></div>
@@ -86,10 +104,10 @@ export default function Administrador() {
               <div className="bg-white border border-slate-200 rounded-2xl p-6">
                 <h3 className="font-600 text-sm mb-4">Parámetros de envío</h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Tiempo de espera entre envíos</div><div className="text-xs text-slate-400 font-mono">TiempoEsperaEnvio</div></div><span className="font-mono font-700 text-azul-600">60 s</span></div>
-                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Máx. registros por remisión</div><div className="text-xs text-slate-400 font-mono">verificar límite oficial</div></div><span className="font-mono font-700 text-azul-600">1.000</span></div>
-                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Reintentos con backoff</div><div className="text-xs text-slate-400 font-mono">errores no admisibles</div></div><span className="font-mono font-700 text-azul-600">3</span></div>
-                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Cola dead-letter</div></div><div className={`toggle ${dlq ? '' : 'off'}`} onClick={() => setDlq((v) => !v)} /></div>
+                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Tiempo de espera entre envíos</div><div className="text-xs text-slate-400 font-mono">TiempoEsperaEnvio</div></div><span className="font-mono font-700 text-azul-600">{config?.tiempoEsperaEnvio ?? 60} s</span></div>
+                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Máx. registros por remisión</div><div className="text-xs text-slate-400 font-mono">verificar límite oficial</div></div><span className="font-mono font-700 text-azul-600">{(config?.maxRegistrosLote ?? 1000).toLocaleString('es-ES')}</span></div>
+                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Reintentos con backoff</div><div className="text-xs text-slate-400 font-mono">errores no admisibles</div></div><span className="font-mono font-700 text-azul-600">{config?.reintentos ?? 3}</span></div>
+                  <div className="flex items-center justify-between"><div><div className="text-sm font-600">Cola dead-letter</div></div><div className={`toggle ${dlq ? '' : 'off'}`} onClick={toggleDlq} /></div>
                 </div>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-6">
@@ -109,7 +127,7 @@ export default function Administrador() {
             <h1 className="font-display font-700 text-2xl">Auditoría / Eventos</h1>
             <p className="text-slate-500 mt-1 text-sm">Traza inalterable de eventos del SIF y accesos. Soporte para exportación a requerimiento de la AEAT.</p>
             <div className="bg-white border border-slate-200 rounded-2xl mt-6 divide-y divide-slate-100 font-mono text-xs">
-              {adminAuditoria.map((a) => (
+              {auditoria.map((a) => (
                 <div key={a.ts + a.tag} className="flex items-center gap-3 p-4"><span className="text-slate-400">{a.ts}</span><span className={`pill ${pillTone[a.tone] ?? 'bg-slate-100 text-slate-600'}`}>{a.tag}</span><span className="text-slate-600 flex-1">{a.text}</span></div>
               ))}
             </div>
