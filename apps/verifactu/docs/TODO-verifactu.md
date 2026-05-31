@@ -86,40 +86,39 @@ Ficheros nuevos: `src/lib/qr.js`, `src/lib/cotejo.js`. Portal:
 
 ## C. Firma electrónica XAdES (modalidad NO_VERIFACTU)
 
-Fichero nuevo: `src/lib/firma.js` (inerte sin certificado configurado).
+Ficheros: `src/lib/cert.js`, `src/lib/firma.js` (SCAFFOLD · inerte sin cert real).
 
-- [ ] **C1** Carga de PKCS#12 (`.p12`/`.pfx`) desde vault/HSM (`node-forge` / `pem`);
-  **nunca** en el repositorio ni en variables de entorno en claro en producción.
-- [ ] **C2** Firmante **XAdES Enveloped**, perfil **XAdES-EPES** *(verificar)*,
-  digest/firma SHA-256, canonicalización c14n (`xadesjs` + `@peculiar/xmldsigjs`).
-- [ ] **C3** Política de firma (policy identifier) — *(verificar contra la spec
-  oficial de firma)*.
-- [ ] **C4** Firma de `RegistroAlta`/`RegistroAnulacion` y de `RegistroEvento`.
-- [ ] **C5** Verificación de firma (validación de la cadena del certificado).
+- [~] **C1** Carga de PKCS#12 (`cert.js:cargarP12`, `node-forge`) + generador
+  autofirmado de dev (`generarP12Autofirmado`). **Falta** custodia en vault/HSM (C6).
+- [~] **C2** Firmante **XMLDSIG enveloped** RSA-SHA256 + **exclusive c14n**
+  (`firma.js:firmarXml`, `xml-crypto`) — base de XAdES. **Faltan** las propiedades
+  cualificadas **XAdES-EPES** (SignedProperties: SigningTime, cert digest, policy)
+  *(verificar perfil oficial)*.
+- [ ] **C3** Política de firma (policy identifier) — *(verificar spec oficial)*.
+- [~] **C4** `firmarXml` firma cualquier XML; **falta** integrarlo con el modelo de
+  RegistroAlta/Anulacion/Evento (depende de A1) y de eventos (F2).
+- [x] **C5** Verificación de firma (`firma.js:verificarXml`) — detecta manipulación.
 - [ ] **C6** Custodia y rotación del certificado en vault/HSM.
 
 ## D. Remisión SOAP a la AEAT (modalidad VERIFACTU)
 
-Ficheros nuevos: `src/lib/remision.js`, `src/lib/soap-envelope.js` (inerte sin cert).
+Ficheros: `src/lib/soap-envelope.js`, `src/lib/remision.js` (SCAFFOLD · gated sin cert).
 
-- [ ] **D1** Envelope SOAP: `Cabecera` (`ObligadoEmision` NIF/Nombre + `Representante`
-  opcional) + lista `RegistroFactura` (máx **1000** registros por remisión)
-  *(verificar límite)*.
-- [ ] **D2** Cliente HTTPS con **mTLS** (`https.Agent` con `pfx` + passphrase) o `soap`.
-- [ ] **D3** Endpoints configurables test/prod *(verificar)*: Verifactu
-  `…/ws/SistemaFacturacion/VerifactuSOAP` (prewww1/www1, variantes de sello
-  prewww10/www10); Requerimiento `…/RequerimientoSOAP`.
-- [ ] **D4** Operaciones `RegFactuSistemaFacturacion` (alta/anulación) y
+- [~] **D1** Envelope SOAP (`soap-envelope.js:construirEnvelope`): `Cabecera`
+  (`ObligadoEmision` + `Representante` opcional) + lista `RegistroFactura`, guarda de
+  máx **1000**. Estructura/namespaces **ilustrativos** *(verificar WSDL/XSD)*.
+- [~] **D2** Cliente HTTPS con **mTLS** (`remision.js`, `https.Agent` + pfx), **gated**:
+  sin cert lanza error claro. **Falta** envío real verificado contra preportal (M11).
+- [x] **D3** Endpoints test/prod + variantes de sello configurables
+  (`ENDPOINTS`/`resolverEndpoint`) *(verificar URLs)*.
+- [~] **D4** `RegFactuSistemaFacturacion` (alta/anulación) en el envelope; **falta**
   `ConsultaFactuSistemaFacturacion`.
-- [ ] **D5** Parseo de respuesta: `EstadoEnvio`, `EstadoRegistro` por línea, `CSV`,
-  `TiempoEsperaEnvio`, `MinimoRegistrosEnvio`/`MinutosEsperaEnvio`.
-- [ ] **D6** Control de flujo dinámico: respetar `TiempoEsperaEnvio` devuelto;
-  rate-limit; agrupación en lotes acotada al máximo.
-- [ ] **D7** Idempotencia: no reenviar registros ya aceptados (clave = huella);
-  evitar el error 3000 (duplicado) al reintentar `AceptadoConErrores`.
-- [ ] **D8** Cola + reintentos con backoff + dead-letter (Redis / `platform-scheduler`).
-- [ ] **D9** Persistir estado por registro + CSV; alimentar `lotes` y el estado de
-  cola reales.
+- [~] **D5** Parseo de respuesta (`parseRespuesta`): `EstadoEnvio`, `EstadoRegistro`
+  por línea, `CSV`, `TiempoEsperaEnvio`. **Falta** `MinimoRegistrosEnvio`/`MinutosEsperaEnvio`.
+- [ ] **D6** Control de flujo dinámico (respetar `TiempoEsperaEnvio`; rate-limit; batching).
+- [ ] **D7** Idempotencia (clave = huella; evitar error 3000 duplicado).
+- [ ] **D8** Cola + reintentos backoff + DLQ (Redis / `platform-scheduler`).
+- [ ] **D9** Persistir estado por registro + CSV; alimentar `lotes`/estado de cola.
 
 ## E. Validación XSD / generación de XML
 
@@ -228,9 +227,12 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
   100 % cobertura): orden de parámetros, formatos, URL-encoding, base test/prod,
   roundtrip parse, QR data URI/EC level. **Falta** cubrir la lógica de `cotejar`
   (verificada/no_consta) — irá por integración (M9).
-- [ ] **M4** Unit **firma XAdES** con fixture de certificado de test.
-- [ ] **M5** Unit **envelope SOAP** + parseo de respuesta (fixtures XML
-  Correcto/AceptadoConErrores/Incorrecto).
+- [x] **M4** Unit **firma/cert** (`cert.test.js` + `firma.test.js`, cert autofirmado
+  de test): carga p12, firma enveloped, verifica, detecta manipulación. (XMLDSIG;
+  propiedades XAdES-EPES pendientes con C2/C3.)
+- [x] **M5** Unit **envelope SOAP** + parseo (`soap-envelope.test.js`: cabecera,
+  representante, guard 1000, Correcto/ParcialmenteCorrecto/sin-líneas; `remision.test.js`:
+  gate sin cert + transport inyectado).
 - [ ] **M6** Unit **validación** (fixtures XSD válido/inválido + reglas de negocio).
 - [ ] **M7** Unit **repositorios**: scoping/RLS, `COALESCE` de config, orden de
   resultados.
@@ -249,9 +251,11 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
 
 ## N. Infraestructura / despliegue / dependencias
 
-- [ ] **N1** Dependencias nuevas en `platform/verifactu/package.json` + COPY del
-  módulo en `platform/core/Dockerfile`: `qrcode`, `node-forge`, `xadesjs`,
-  `@peculiar/xmldsigjs`, `xmlbuilder2`, `fast-xml-parser` (ya en el lock), `libxmljs2`.
+- [~] **N1** Deps añadidas a `platform/verifactu/package.json`: `qrcode`,
+  `node-forge`, `xml-crypto`, `xmlbuilder2`, `fast-xml-parser`. El `Dockerfile` de
+  platform-core copia el módulo entero (sin cambio); las deps entran por el lockfile
+  al reconstruir. **Falta** `libxmljs2` (validación XSD, E2). (Se descartó `xadesjs` a
+  favor de `xml-crypto` para el scaffold.)
 - [ ] **N2** Variables de entorno / secretos: `CERT_PATH`/`CERT_PASS` por tenant
   (vault), endpoints AEAT (test/prod), entorno activo. Añadir a `.env.example`.
 - [ ] **N3** Jobs en `platform-scheduler`: verificación periódica de la cadena,
