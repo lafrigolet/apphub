@@ -258,10 +258,10 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
   respuesta de la AEAT).
 - [ ] **M11** E2E **opt-in** contra `preportal.aeat.es` (requiere certificado; skip
   automático en CI sin cert, estilo `integration-or-skip`).
-- [~] **M12** Tests de portal (Vitest + Testing Library + jsdom): infra montada
-  (`vitest.config.js`, `src/test/setup.js`) + tests de `RoleSelector` (render
-  data-driven + enlaces) y `Receptor` (api mockeada: carga historial, cotejo
-  verificada/no_consta). **Faltan** Emisor/Asesoría/Administrador/Desarrollador.
+- [x] **M12** Tests de portal (Vitest + Testing Library + jsdom): las **6 vistas**
+  cubiertas (RoleSelector data-driven; Receptor cotejo verificada/no_consta con api
+  mockeada; Emisor/Asesoría/Administrador/Desarrollador smoke + consumo de API). 10
+  tests. *(Profundizar loading/empty/error queda como mejora.)*
 - [ ] **M13** Reporte de cobertura combinado (unit + integration) ≥95 %; documentar y
   justificar cualquier hueco no cubierto.
 
