@@ -105,19 +105,33 @@ cmd_init() {
 
 cmd_watch() {
   last=""
+  reconciled=0   # have we done the one guaranteed post-start reload yet?
   log "watch: polling $CONF_KEY every ${POLL_INTERVAL}s"
   while true; do
     if ping_redis; then
       cur=$(config_hash)
-      if [ "$cur" != "$last" ]; then
-        if [ -n "$last" ]; then
-          log "watch: change detected (hash $last → $cur), re-rendering"
+      # Act when the config changed OR we still owe the one post-start
+      # reconcile reload. Skips the per-poll nginx -t once steady-state.
+      if [ "$cur" != "$last" ] || [ "$reconciled" = "0" ]; then
+        if [ "$cur" != "$last" ]; then
+          if [ -n "$last" ]; then
+            log "watch: change detected (hash $last → $cur), re-rendering"
+          fi
+          render
         fi
-        render
         if nginx -t 2>/tmp/nginx-test.err; then
-          # First iteration: nginx may not be running yet; reload only after start.
-          if [ -f /run/nginx.pid ] && [ -n "$last" ]; then
-            nginx -s reload && log "watch: nginx reloaded"
+          if [ -f /run/nginx.pid ]; then
+            # First reload after nginx is up reconciles its loaded config with
+            # what init rendered — closes the init→exec startup race where a
+            # freshly seeded server block could be on disk but absent from the
+            # running worker set (would otherwise serve the default_server 444
+            # until a manual reload). After that, reload only on real changes.
+            if [ "$reconciled" = "0" ]; then
+              nginx -s reload && log "watch: startup reconcile reload"
+              reconciled=1
+            elif [ "$cur" != "$last" ] && [ -n "$last" ]; then
+              nginx -s reload && log "watch: nginx reloaded"
+            fi
           fi
           last="$cur"
         else
