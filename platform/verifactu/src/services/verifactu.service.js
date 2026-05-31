@@ -2,6 +2,8 @@ import { withTenantTransaction } from '../lib/db.js'
 import { calcularHuella, TIPO_HUELLA } from '../lib/huella.js'
 import { buildCotejoUrl, parseCotejoUrl } from '../lib/cotejo.js'
 import { generarQrDataUri } from '../lib/qr.js'
+import { validarRegistro } from '../lib/validacion.js'
+import { verificarEnlace } from '../lib/cadena.js'
 import * as repo from '../repositories/verifactu.repository.js'
 
 // ISO-8601 con huso (la huella exige FechaHoraHusoGenRegistro con offset).
@@ -233,14 +235,31 @@ export function cotejar(scope, input) {
 }
 
 // ── Desarrollador ─────────────────────────────────────────────────────
-// POST validar — STUB: validación real contra el XSD oficial (libxmljs2).
-// TODO(fuente-oficial): cargar el XSD vigente de la AEAT y validar.
-export function validar() {
-  return {
-    ok: true,
-    checks: [
-      { level: 'ok', text: '✓ Estructura conforme al esquema' },
-      { level: 'warn', text: '⚠ Recordatorio: la huella debe calcularse con el orden de campos oficial' },
-    ],
+// Verificación de integridad de la cadena (enlace de huellas) del tenant.
+export function verificarCadena(scope) {
+  return tx(scope, async (c) => {
+    const rows = await repo.listRegistros(c, { limit: 1000 })
+    const registros = rows.map((r) => ({
+      numero: r.numero, huella: r.huella, huellaAnterior: r.huella_anterior,
+    }))
+    return verificarEnlace(registros)
+  })
+}
+
+// Registro de muestra autoconsistente (para el validador cuando no se aporta uno).
+function muestraRegistro() {
+  const r = {
+    idEmisor: 'B12345678', numSerie: '2027-A/000128', fechaExpedicion: '02-01-2027',
+    tipoFactura: 'F1', cuotaTotal: '21.00', importeTotal: '121.00',
+    generadoEn: '2027-01-02T10:15:30+01:00',
   }
+  r.huella = calcularHuella(r, null)
+  return r
+}
+
+// POST validar — validación ESTRUCTURAL + integridad de huella (no XSD oficial,
+// ver lib/validacion.js · E2 pendiente). Valida el `registro` aportado o una
+// muestra autoconsistente.
+export function validar(input = {}) {
+  return validarRegistro(input.registro ?? muestraRegistro())
 }

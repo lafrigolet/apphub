@@ -128,14 +128,17 @@ Fichero: `src/services/verifactu.service.js` (`validar`, hoy stub) + `src/lib/`.
   del portal de desarrolladores no permite acceso automatizado).
 - [ ] **E2** Validación del XML contra el XSD (`libxmljs2`); fallar el build de CI si
   no valida.
-- [ ] **E3** Validación de negocio: campos obligatorios, coherencia de importes
-  (base/cuota), enumeraciones (`TipoFactura` F1/F2/R1…, `TipoRectificativa`).
+- [~] **E3** Validación de negocio (`lib/validacion.js`): campos obligatorios +
+  coherencia de importes (cuota ≤ importe) ✅. **Faltan** enumeraciones
+  (`TipoFactura` F1/F2/R1…, `TipoRectificativa`) y reglas de desglose.
 - [ ] **E4** Catálogo de errores **admisibles** vs **no admisibles** (documento de
   validaciones y errores — *no extraído aún de la fuente oficial*).
 - [ ] **E5** Generación de XML conforme al XSD desde el modelo interno (`xmlbuilder2`).
-- [~] **E6** Interino: `validar` hace comprobación de buena-formación + presencia de
-  campos obligatorios + recálculo de huella/encadenamiento, **claramente marcado como
-  NO validación XSD oficial**.
+- [x] **E6** `validar` (`service.validar` → `lib/validacion.js:validarRegistro`):
+  campos obligatorios + coherencia de importes + recálculo de huella, sobre el
+  registro aportado o una muestra. **NO es validación XSD oficial** (E2). Verificado:
+  `POST /v1/verifactu/validar` devuelve checks reales. *(Falta wire del input en el
+  portal — K6.)*
 
 ## F. Eventos del SIF
 
@@ -151,8 +154,10 @@ Tabla `eventos`; fichero nuevo `src/lib/eventos.js`.
 ## G. Conservación / inalterabilidad
 
 - [ ] **G1** Almacenamiento append-only / WORM de los registros.
-- [ ] **G2** Verificación periódica de la integridad de la cadena de huellas (job en
-  `platform-scheduler`).
+- [~] **G2** Verificación de integridad del **enlace** de la cadena
+  (`lib/cadena.js:verificarEnlace` + `GET /v1/verifactu/cadena/verificar`); migración
+  `0004` enlaza el seed demo. **Faltan** el recálculo de cada huella (requiere A1) y
+  ejecutarla como **job periódico** en `platform-scheduler`.
 - [ ] **G3** Exportación a requerimiento de la AEAT (formato + firma).
 - [ ] **G4** Retención durante el plazo legal *(verificar plazo)*.
 - [ ] **G5** Generación de un evento de **anomalía** ante manipulación detectada.
@@ -233,7 +238,9 @@ Ficheros: `platform/verifactu/src/__tests__/`, `platform/verifactu/vitest.config
 - [x] **M5** Unit **envelope SOAP** + parseo (`soap-envelope.test.js`: cabecera,
   representante, guard 1000, Correcto/ParcialmenteCorrecto/sin-líneas; `remision.test.js`:
   gate sin cert + transport inyectado).
-- [ ] **M6** Unit **validación** (fixtures XSD válido/inválido + reglas de negocio).
+- [~] **M6** Unit **validación + cadena** (`validacion.test.js`, `cadena.test.js`,
+  100 % líneas): campos obligatorios, coherencia importes, recálculo huella, enlace de
+  cadena (ok/roto/primer registro/vacía). **Faltan** fixtures XSD oficiales (E2).
 - [ ] **M7** Unit **repositorios**: scoping/RLS, `COALESCE` de config, orden de
   resultados.
 - [ ] **M8** Unit **services**: `crearRegistro` encadena la huella; `cotejar`

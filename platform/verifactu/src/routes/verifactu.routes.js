@@ -28,6 +28,9 @@ export async function publicRoutes(fastify) {
   fastify.get('/cadena', { config: { public: true }, schema: { tags: T, summary: 'Cadena de huellas (últimos registros)', querystring: scopeQuery } },
     async (req) => service.listCadena(scope(req.query)))
 
+  fastify.get('/cadena/verificar', { config: { public: true }, schema: { tags: T, summary: 'Verifica el enlace de la cadena de huellas', querystring: scopeQuery } },
+    async (req) => service.verificarCadena(scope(req.query)))
+
   fastify.get('/eventos', { config: { public: true }, schema: { tags: T, summary: 'Eventos del SIF / auditoría', querystring: scopeQuery } },
     async (req) => service.listEventos(scope(req.query)))
 
@@ -115,6 +118,6 @@ export async function publicRoutes(fastify) {
     })
 
   // ── Desarrollador ───────────────────────────────────────────────────
-  fastify.post('/validar', { config: { public: true }, schema: { tags: T, summary: 'Validar XML contra XSD (STUB)' } },
-    async () => service.validar())
+  fastify.post('/validar', { config: { public: true }, schema: { tags: T, summary: 'Validar registro (estructural + integridad de huella)' } },
+    async (req) => service.validar(req.body ?? {}))
 }
