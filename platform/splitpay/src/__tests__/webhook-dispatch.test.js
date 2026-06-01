@@ -50,7 +50,8 @@ vi.mock('../services/connect-account.service.js', () => ({
   syncAccountFromStripe: vi.fn(),
 }))
 
-import { handleWebhookEvent } from '../services/webhook.service.js'
+import { handleWebhookEvent, constructWebhookEvent } from '../services/webhook.service.js'
+import { getWebhookSecret } from '../lib/stripe.js'
 import { pool } from '../lib/db.js'
 import { logger } from '../lib/logger.js'
 import * as paymentRepo from '../repositories/payment.repository.js'
@@ -238,6 +239,130 @@ describe('invoice.paid', () => {
       }),
     })
   })
+
+  it('appId desde invoice.metadata; subscription/customer objetos; session sin metadata; sin period_*', async () => {
+    // Cubre: línea 214 subscription?.id, 219 appId pre-resuelto desde invoice.metadata,
+    // 229 sess.metadata ?? {} (falsy), 230 appId || ... (skip), 240 customer?.id ?? null,
+    // 243/244 period_start/end ausentes → null.
+    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+      rows: [{ tenant_id: 't7', sub_tenant_id: 'st1', metadata: null }],
+    })))
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'invoice.paid',
+      data: { object: {
+        id: 'in_9', subscription: { id: 'sub_obj' },
+        metadata: { app_id: 'aikikan' },
+        customer: { id: 'cus_obj' },
+        amount_paid: 1000, currency: 'eur',
+      } },
+    })
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', {
+      type: 'splitpay.invoice.paid',
+      payload: expect.objectContaining({
+        invoiceId: 'in_9', subscriptionId: 'sub_obj', tenantId: 't7',
+        customerId: 'cus_obj', periodStart: null, periodEnd: null,
+      }),
+    })
+  })
+
+  it('customer null → customerId null (rama ?? null)', async () => {
+    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+      rows: [{ tenant_id: 't1', sub_tenant_id: null, metadata: { app_id: 'aikikan' } }],
+    })))
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'invoice.paid',
+      data: { object: {
+        id: 'in_10', subscription: 'sub_x', customer: null,
+        amount_paid: 1, currency: 'eur',
+      } },
+    })
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', expect.objectContaining({
+      payload: expect.objectContaining({ customerId: null }),
+    }))
+  })
+})
+
+describe('invoice.payment_failed', () => {
+  it('sin subscription → no emit', async () => {
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'invoice.payment_failed',
+      data: { object: { id: 'in_1' } },
+    })
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+
+  it('lookup checkout_sessions + emit splitpay.invoice.payment_failed', async () => {
+    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+      rows: [{ app_id: 'aikikan', tenant_id: 't1', metadata: { app_id: 'aikikan' } }],
+    })))
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'invoice.payment_failed',
+      data: { object: { id: 'in_1', subscription: 'sub_xyz', amount_due: 5000, currency: 'eur' } },
+    })
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', {
+      type: 'splitpay.invoice.payment_failed',
+      payload: expect.objectContaining({ invoiceId: 'in_1', subscriptionId: 'sub_xyz', amount: 5000, tenantId: 't1' }),
+    })
+  })
+
+  it('subscription como objeto expandido → extrae .id; sin row en DB', async () => {
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'invoice.payment_failed',
+      data: { object: { id: 'in_2', subscription: { id: 'sub_obj' }, metadata: { app_id: 'aikikan' }, amount_due: 100, currency: 'eur' } },
+    })
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', expect.objectContaining({
+      type: 'splitpay.invoice.payment_failed',
+    }))
+  })
+
+  it('appId desde subscription_details.metadata.app_id (rama OR media); appId ya resuelto + rows → no sobrescribe', async () => {
+    // invoice.metadata?.app_id ausente, pero subscription_details.metadata.app_id presente:
+    // ejercita el 2º operando del `||` en la línea 254. Además rows[0] existe y
+    // appId ya está resuelto → línea 264 `appId || ...` por el lado truthy.
+    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+      rows: [{ app_id: 'otra', tenant_id: 't9', metadata: { app_id: 'otra' } }],
+    })))
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'invoice.payment_failed',
+      data: { object: {
+        id: 'in_3', subscription: 'sub_z',
+        subscription_details: { metadata: { app_id: 'aikikan' } },
+        amount_due: 200, currency: 'eur',
+      } },
+    })
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', expect.objectContaining({
+      type: 'splitpay.invoice.payment_failed',
+      payload: expect.objectContaining({ tenantId: 't9' }),
+    }))
+  })
+
+  it('sin app_id en ningún sitio + rows sin metadata.app_id → appId null', async () => {
+    // invoice sin metadata ni subscription_details; rows[0] sin metadata.app_id:
+    // línea 264 cae al `|| null`. emit con appId null no publica (warn).
+    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+      rows: [{ tenant_id: 't1', metadata: {} }],
+    })))
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'invoice.payment_failed',
+      data: { object: { id: 'in_4', subscription: 'sub_w', amount_due: 50, currency: 'eur' } },
+    })
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('emit — publish error tolerante', () => {
+  it('publish lanza → logger.error sin propagar', async () => {
+    publishMock.mockRejectedValueOnce(new Error('redis down'))
+    checkoutRepo.markCompleted.mockResolvedValue({
+      id: 'sess-uuid', stripe_session_id: 'cs_x', mode: 'payment',
+      metadata: { app_id: 'aikikan' },
+    })
+    await expect(handleWebhookEvent({
+      id: 'evt_1', type: 'checkout.session.completed',
+      data: { object: { id: 'cs_x' } },
+    })).resolves.toBeUndefined()
+    expect(logger.error).toHaveBeenCalled()
+  })
 })
 
 // ── subscription state changes ──────────────────────────────────────
@@ -273,6 +398,99 @@ describe('customer.subscription.updated / deleted', () => {
     expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', expect.objectContaining({
       type: 'splitpay.subscription.deleted',
     }))
+  })
+
+  it('sub sin metadata.app_id → appId desde rows; sin current_period_end ni cancel_at_period_end', async () => {
+    // sub.metadata?.app_id ausente (línea 280 → null) y appId se resuelve desde
+    // rows[0].metadata.app_id (línea 290 lado derecho). Además sin
+    // current_period_end (línea 302 → null) ni cancel_at_period_end (303 → false).
+    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+      rows: [{ tenant_id: 't5', metadata: { app_id: 'aikikan' } }],
+    })))
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_q', status: 'active' } },
+    })
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', expect.objectContaining({
+      type: 'splitpay.subscription.updated',
+      payload: expect.objectContaining({
+        currentPeriodEnd: null, cancelAtPeriodEnd: false, tenantId: 't5',
+      }),
+    }))
+  })
+
+  it('sub sin app_id en ningún sitio (rows sin metadata.app_id) → appId null, no emit', async () => {
+    // línea 290 cae al `|| null`: ni sub.metadata ni rows[0].metadata aportan app_id.
+    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+      rows: [{ tenant_id: 't1', metadata: {} }],
+    })))
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_n', status: 'canceled' } },
+    })
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+})
+
+// ── disputes ─────────────────────────────────────────────────────────
+
+describe('charge.dispute.created', () => {
+  it('INSERT en payments.disputes con ON CONFLICT DO NOTHING + warn', async () => {
+    const c = mkClient()
+    pool.connect.mockResolvedValueOnce(c)
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'charge.dispute.created',
+      data: { object: {
+        id: 'dp_1', charge: 'ch_1', amount: 5000, currency: 'eur',
+        reason: 'fraudulent', status: 'needs_response',
+        evidence_details: { due_by: 1700000000 },
+      } },
+    })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO payments\.disputes/)
+    expect(params).toEqual(['dp_1', 'ch_1', 5000, 'eur', 'fraudulent', 'needs_response', 1700000000])
+    expect(logger.warn).toHaveBeenCalled()
+  })
+
+  it('sin evidence_details.due_by → null', async () => {
+    const c = mkClient()
+    pool.connect.mockResolvedValueOnce(c)
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'charge.dispute.created',
+      data: { object: { id: 'dp_2', charge: 'ch_2', amount: 1, currency: 'eur', reason: 'x', status: 'open' } },
+    })
+    expect(c.query.mock.calls[0][1][6]).toBeNull()
+  })
+})
+
+describe('charge.dispute.closed', () => {
+  it('UPDATE status de la disputa', async () => {
+    const c = mkClient()
+    pool.connect.mockResolvedValueOnce(c)
+    await handleWebhookEvent({
+      id: 'evt_1', type: 'charge.dispute.closed',
+      data: { object: { id: 'dp_1', status: 'won' } },
+    })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/UPDATE payments\.disputes SET status/)
+    expect(params).toEqual(['won', 'dp_1'])
+  })
+})
+
+// ── constructWebhookEvent — secret resolution ───────────────────────
+
+describe('constructWebhookEvent', () => {
+  it('secret resuelto → delega a stripe.webhooks.constructEvent', async () => {
+    getWebhookSecret.mockResolvedValueOnce('whsec_x')
+    const payload = JSON.stringify({ id: 'evt_9', type: 'x' })
+    const ev = await constructWebhookEvent(payload, 'sig')
+    expect(stripeWebhooksMock.constructEvent).toHaveBeenCalledWith(payload, 'sig', 'whsec_x')
+    expect(ev.id).toBe('evt_9')
+  })
+
+  it('sin secret → throw "webhook secret not configured"', async () => {
+    getWebhookSecret.mockResolvedValueOnce(null)
+    await expect(constructWebhookEvent('{}', 'sig')).rejects.toThrow(/webhook secret not configured/)
   })
 })
 

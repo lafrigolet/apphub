@@ -126,4 +126,18 @@ describe('parseRespuesta', () => {
     expect(r.estadoEnvio).toBeNull()
     expect(r.lineas).toEqual([])
   })
+
+  it('RespuestaLinea sin NumSerieFactura ni EstadoRegistro → numSerie/estado null', () => {
+    // Ni IDFactura.NumSerieFactura ni NumSerieFactura plano → línea 81 cae al
+    // `?? null`. Sin EstadoRegistro → línea 82 cae al `?? null`. La línea
+    // contiene un campo cualquiera para que no sea filtrada por Boolean.
+    const xml = `<Body><RespuestaRegFactuSistemaFacturacion>
+      <EstadoEnvio>Correcto</EstadoEnvio>
+      <RespuestaLinea><CodigoErrorRegistro>3000</CodigoErrorRegistro></RespuestaLinea>
+    </RespuestaRegFactuSistemaFacturacion></Body>`
+    const r = parseRespuesta(xml)
+    expect(r.lineas[0].numSerie).toBeNull()
+    expect(r.lineas[0].estado).toBeNull()
+    expect(r.lineas[0].codigoError).toBe(3000)
+  })
 })

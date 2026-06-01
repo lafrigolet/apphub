@@ -1,6 +1,7 @@
 import { pool, withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import * as repo from '../repositories/messaging.repository.js'
+import { redactPii } from '../lib/redact.js'
 import { ForbiddenError, NotFoundError } from '../utils/errors.js'
 
 function ensureThreadAccess(thread, ctx) {
@@ -43,7 +44,10 @@ export async function postMessage(ctx, threadId, body, attachments) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     const thread = await repo.findThreadById(c, ctx.appId, ctx.tenantId, threadId)
     ensureThreadAccess(thread, ctx)
-    const message = await repo.insertMessage(c, ctx.appId, ctx.tenantId, threadId, ctx.userId, body, attachments ?? [])
+    // Anti-disintermediation: enmascara emails/teléfonos antes de persistir,
+    // para que el cuerpo almacenado (y servido) no filtre datos de contacto.
+    const safeBody = redactPii(body)
+    const message = await repo.insertMessage(c, ctx.appId, ctx.tenantId, threadId, ctx.userId, safeBody, attachments ?? [])
     const recipientUserId = thread.buyer_user_id === ctx.userId ? thread.vendor_user_id : thread.buyer_user_id
     await publish({
       type: 'message.created',

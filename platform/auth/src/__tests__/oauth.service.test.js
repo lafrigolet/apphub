@@ -266,4 +266,84 @@ describe('loginWithFacebook — verify', () => {
       loginWithFacebook({ appId: APP, tenantId: TENANT, accessToken: 'tok' }),
     ).rejects.toMatchObject({ code: 'INVALID_OAUTH_TOKEN' })
   })
+
+  it('profile sin email/name/picture → defaults a null (?? null) y avatar nested undefined', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ data: { is_valid: true } }) })
+      // id presente pero email/name/picture ausentes → ?? null en las 3 ramas
+      .mockResolvedValueOnce({ json: async () => ({ id: 'fb-uid' }) })
+
+    oauthRepo.findConnectionByProvider.mockResolvedValue(null)
+    // email es null → findByEmailForOAuth NO se llama (rama email?: false)
+    oauthRepo.createUserWithOAuth.mockResolvedValue({
+      id: 'new-user-uuid', app_id: APP, tenant_id: TENANT,
+      email: null, role: 'user', pending_approval: false,
+    })
+
+    const r = await loginWithFacebook({ appId: APP, tenantId: TENANT, accessToken: 'good' })
+    expect(r.userId).toBe('new-user-uuid')
+    // email nulo → no se intenta link por email
+    expect(oauthRepo.findByEmailForOAuth).not.toHaveBeenCalled()
+    expect(oauthRepo.createUserWithOAuth).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ email: null, name: null, avatarUrl: null }),
+    )
+  })
+
+  it('picture sin .data → avatarUrl null (rama ?.data del optional chaining)', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ data: { is_valid: true } }) })
+      // picture presente pero sin .data → picture?.data?.url ?? null
+      .mockResolvedValueOnce({ json: async () => ({ id: 'fb-uid', email: 'e@x', name: 'N', picture: {} }) })
+
+    oauthRepo.findConnectionByProvider.mockResolvedValue(null)
+    oauthRepo.findByEmailForOAuth.mockResolvedValue(null)
+    oauthRepo.createUserWithOAuth.mockResolvedValue({
+      id: 'new-user-uuid', app_id: APP, tenant_id: TENANT,
+      email: 'e@x', role: 'user', pending_approval: false,
+    })
+
+    await loginWithFacebook({ appId: APP, tenantId: TENANT, accessToken: 'good' })
+    expect(oauthRepo.createUserWithOAuth).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ avatarUrl: null }),
+    )
+  })
+
+  it('user nuevo + tenant requiere approval → publica auth.signup.requested con name=null', async () => {
+    tenantRequiresApproval.mockResolvedValue(true)
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ data: { is_valid: true } }) })
+      .mockResolvedValueOnce({ json: async () => ({ id: 'fb-uid' }) })  // sin name
+
+    oauthRepo.findConnectionByProvider.mockResolvedValue(null)
+    oauthRepo.createUserWithOAuth.mockResolvedValue({
+      id: 'new-user-uuid', app_id: APP, tenant_id: TENANT,
+      email: null, role: 'user', pending_approval: true,
+    })
+
+    await expect(loginWithFacebook({ appId: APP, tenantId: TENANT, accessToken: 'good' }))
+      .rejects.toMatchObject({ code: 'PENDING_APPROVAL', statusCode: 403 })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'auth.signup.requested',
+      payload: expect.objectContaining({ displayName: null }),
+    }))
+  })
+})
+
+// resolveProviderConfig: rama de fallback a env de Facebook (DB null, env
+// con FACEBOOK_APP_ID + FACEBOOK_APP_SECRET ambos presentes).
+describe('loginWithFacebook — fallback a env config', () => {
+  it('usa FACEBOOK_APP_ID/SECRET del env cuando la DB no tiene row', async () => {
+    providersRepo.getProviderConfig.mockResolvedValue(null)
+    // debug_token falla → llegamos al verify usando appToken construido de env
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ data: { is_valid: false } }) })
+    await expect(loginWithFacebook({ appId: APP, tenantId: TENANT, accessToken: 'x' }))
+      .rejects.toMatchObject({ code: 'INVALID_OAUTH_TOKEN', statusCode: 401 })
+    // El appToken usó las credenciales del env
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('access_token=env-fb-app|env-fb-secret'),
+    )
+  })
 })

@@ -153,6 +153,37 @@ describe('changeStatus FSM', () => {
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'order.delivered' }))
   })
 
+  it('hydrates buyer email from platform_auth.users into the published payload', async () => {
+    repo.findOrderById.mockResolvedValue({ id: ORDER_ID, status: 'pending', total_cents: 1000, buyer_user_id: USER_ID })
+    repo.updateStatus.mockResolvedValue({ id: ORDER_ID, status: 'paid' })
+    repo.recordStatusChange.mockResolvedValue()
+    repo.findItemsByOrderId.mockResolvedValue([])
+    // client.query for the auth lookup returns an email
+    withTenantTransaction.mockImplementationOnce(async (_p, _a, _t, _s, fn) =>
+      fn({ query: vi.fn().mockResolvedValue({ rows: [{ email: 'buyer@x.com' }] }), release: vi.fn() }),
+    )
+    await service.changeStatus(ctx, ORDER_ID, 'paid')
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ buyerEmail: 'buyer@x.com' }),
+    }))
+  })
+
+  it('swallows buyer-email lookup failure and still publishes (buyerEmail null)', async () => {
+    repo.findOrderById.mockResolvedValue({ id: ORDER_ID, status: 'pending', total_cents: 1000, buyer_user_id: USER_ID })
+    repo.updateStatus.mockResolvedValue({ id: ORDER_ID, status: 'paid' })
+    repo.recordStatusChange.mockResolvedValue()
+    repo.findItemsByOrderId.mockResolvedValue([])
+    // client.query rejects (auth not deployed / RLS) → catch path
+    withTenantTransaction.mockImplementationOnce(async (_p, _a, _t, _s, fn) =>
+      fn({ query: vi.fn().mockRejectedValue(new Error('no grant')), release: vi.fn() }),
+    )
+    const res = await service.changeStatus(ctx, ORDER_ID, 'paid')
+    expect(res).toEqual({ id: ORDER_ID, status: 'paid' })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ buyerEmail: null }),
+    }))
+  })
+
   it('rejects invalid transition pending → delivered', async () => {
     repo.findOrderById.mockResolvedValue({ id: ORDER_ID, status: 'pending' })
     await expect(service.changeStatus(ctx, ORDER_ID, 'delivered')).rejects.toThrow(ConflictError)
@@ -160,6 +191,11 @@ describe('changeStatus FSM', () => {
 
   it('rejects from terminal state cancelled', async () => {
     repo.findOrderById.mockResolvedValue({ id: ORDER_ID, status: 'cancelled' })
+    await expect(service.changeStatus(ctx, ORDER_ID, 'paid')).rejects.toThrow(ConflictError)
+  })
+
+  it('rejects from an unknown source status (TRANSITIONS[from] undefined → false)', async () => {
+    repo.findOrderById.mockResolvedValue({ id: ORDER_ID, status: 'mystery' })
     await expect(service.changeStatus(ctx, ORDER_ID, 'paid')).rejects.toThrow(ConflictError)
   })
 

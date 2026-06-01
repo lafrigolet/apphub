@@ -236,4 +236,11 @@ describe('createRefund — split reversals proporcionales (regla CLAUDE.md #6)',
     expect(stripeMock.refunds.create).toHaveBeenCalledTimes(1)
     expect(stripeMock.transfers.createReversal).not.toHaveBeenCalled()
   })
+
+  it('stripe.refunds.create falla → StripeError "Failed to create refund"', async () => {
+    stripeMock.refunds.create.mockRejectedValueOnce(new Error('Stripe refund down'))
+    await expect(
+      createRefund(ctx, { paymentId: 'p1', idempotencyKey: 'idem-8' }),
+    ).rejects.toThrow(/Failed to create refund/)
+  })
 })

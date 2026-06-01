@@ -20,8 +20,6 @@ const HORIZON_DAYS = 30
 
 const DAY_MAP = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 }
 
-function pad2(n) { return n < 10 ? '0' + n : '' + n }
-
 function* recurrenceInstances(rrule, startsOn, endsOn, count) {
   const freq      = rrule.freq ?? 'weekly'
   const interval  = Number(rrule.interval ?? 1)

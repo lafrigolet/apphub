@@ -57,6 +57,15 @@ describe('createReservation', () => {
   })
 })
 
+describe('listReservations', () => {
+  it('delegates to repo with opts under tenant scope', async () => {
+    repo.listReservations.mockResolvedValue([{ id: RES_ID }])
+    const out = await service.listReservations(ctx, { status: 'confirmed' })
+    expect(repo.listReservations).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, { status: 'confirmed' })
+    expect(out).toEqual([{ id: RES_ID }])
+  })
+})
+
 describe('getReservation', () => {
   it('throws NotFoundError when missing', async () => {
     repo.findReservationById.mockResolvedValue(null)

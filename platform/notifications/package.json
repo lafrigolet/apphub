@@ -13,6 +13,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:integration": "node ../../scripts/integration-or-skip.mjs",
     "db:migrate": "node src/lib/migrate.js",
     "clean": "rm -rf coverage"
@@ -33,5 +34,8 @@
     "uuid": "^10.0.0",
     "resend": "^4.0.0"
   },
-  "devDependencies": { "vitest": "^2.0.0" }
+  "devDependencies": {
+    "vitest": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0"
+  }
 }

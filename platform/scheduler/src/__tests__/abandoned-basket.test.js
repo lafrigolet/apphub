@@ -207,3 +207,36 @@ describe('publish basket.abandoned', () => {
     expect(logger.info).not.toHaveBeenCalled()
   })
 })
+
+describe('ramas adicionales (cobertura de branches)', () => {
+  const KEY = 'basket:aikikan:t1:u1'
+  const idleOld = { [KEY]: 86400 }
+
+  it('basket con items NO-array → itemCount 0 → skip (rama ": 0" del ternario)', async () => {
+    const redis = makeRedis({ keys: { [KEY]: JSON.stringify({ total: 10 }) }, idle: idleOld })
+    const publish = vi.fn()
+    await job.run({ redis, publish, logger: mkLogger() })
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('hidrata buyerEmail desde platform_auth.users (rows[0].email presente)', async () => {
+    const redis = makeRedis({ keys: { [KEY]: JSON.stringify({ items: [{ sku: 'x' }] }) }, idle: idleOld })
+    const publish = vi.fn()
+    const db = { query: vi.fn(async () => ({ rows: [{ email: 'buyer@x.com' }] })) }
+    await job.run({ redis, publish, logger: mkLogger(), db })
+    expect(db.query).toHaveBeenCalled()
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ buyerEmail: 'buyer@x.com' }),
+    }))
+  })
+
+  it('rows vacío → buyerEmail null (rama "?? null")', async () => {
+    const redis = makeRedis({ keys: { [KEY]: JSON.stringify({ items: [{ sku: 'x' }] }) }, idle: idleOld })
+    const publish = vi.fn()
+    const db = { query: vi.fn(async () => ({ rows: [] })) }
+    await job.run({ redis, publish, logger: mkLogger(), db })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ buyerEmail: null }),
+    }))
+  })
+})

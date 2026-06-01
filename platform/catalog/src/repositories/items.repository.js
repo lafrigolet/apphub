@@ -9,6 +9,24 @@ export async function findAll(client, { activeOnly = true } = {}) {
   return rows
 }
 
+// Búsqueda por texto sobre nombre/descripción. ILIKE (case-insensitive) —
+// portable sin extensiones; cuando se cablee pg_trgm para fuzziness basta
+// cambiar el operador aquí. El término se parametriza (anti-injection) y se
+// envuelve en comodines.
+export async function searchItems(client, { q, activeOnly = true } = {}) {
+  const term = `%${q ?? ''}%`
+  const { rows } = await client.query(
+    `SELECT id, app_id, tenant_id, sub_tenant_id, name, description,
+            price_cents, currency, category, metadata, active, status, version_number, published_at, created_at, updated_at
+     FROM platform_catalog.items
+     WHERE (name ILIKE $1 OR description ILIKE $1)
+       ${activeOnly ? 'AND active = true' : ''}
+     ORDER BY created_at`,
+    [term],
+  )
+  return rows
+}
+
 export async function findById(client, id) {
   const { rows } = await client.query(
     `SELECT id, app_id, tenant_id, sub_tenant_id, name, description,

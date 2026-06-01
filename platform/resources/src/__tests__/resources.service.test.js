@@ -61,6 +61,13 @@ describe('resources CRUD', () => {
     await expect(service.getResource(ctx, RES_ID)).rejects.toThrow(NotFoundError)
   })
 
+  it('listResources delegates with opts', async () => {
+    repo.listByTenant.mockResolvedValue([{ id: RES_ID }])
+    const out = await service.listResources(ctx, { kind: 'room', onlyActive: true })
+    expect(repo.listByTenant).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, { kind: 'room', onlyActive: true })
+    expect(out).toEqual([{ id: RES_ID }])
+  })
+
   it('listResourcesForService delegates', async () => {
     repo.listForService.mockResolvedValue([])
     await service.listResourcesForService(ctx, SVC_ID)
@@ -90,6 +97,18 @@ describe('work hours', () => {
       expect.anything(), APP_ID, TENANT_ID,
       expect.objectContaining({ resourceId: RES_ID, dayOfWeek: 1 }),
     )
+  })
+
+  it('listWorkHours delegates', async () => {
+    repo.listWorkHours.mockResolvedValue([{ id: 'wh1' }])
+    const out = await service.listWorkHours(ctx, RES_ID)
+    expect(repo.listWorkHours).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, RES_ID)
+    expect(out).toEqual([{ id: 'wh1' }])
+  })
+
+  it('deleteWorkHour resolves when row deleted', async () => {
+    repo.deleteWorkHours.mockResolvedValue(true)
+    await expect(service.deleteWorkHour(ctx, 'wh1')).resolves.toBeUndefined()
   })
 
   it('deleteWorkHour throws NotFoundError when missing', async () => {

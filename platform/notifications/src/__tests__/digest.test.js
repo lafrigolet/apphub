@@ -78,6 +78,14 @@ describe('shouldDigest — whitelist', () => {
     configRepoMock.getValue.mockResolvedValue(null)
     expect(await shouldDigest('booking.confirmed')).toBe(false)
   })
+
+  it('segunda llamada usa la caché (no re-consulta el repo)', async () => {
+    configRepoMock.getValue.mockResolvedValue('daily')
+    expect(await shouldDigest('booking.confirmed')).toBe(true)
+    // Sin invalidar: la 2ª llamada cae en la rama de caché (Date.now < expiresAt).
+    expect(await shouldDigest('payout.paid')).toBe(true)
+    expect(configRepoMock.getValue).toHaveBeenCalledTimes(1)
+  })
 })
 
 // ── enqueueDigest ───────────────────────────────────────────────────
@@ -219,6 +227,21 @@ describe('flushAll', () => {
     const r = await flushAll({ send, logger: log })
     expect(log.error).toHaveBeenCalled()
     expect(r).toEqual({ usersFlushed: 0, eventsSent: 0 })
+  })
+
+  it('evento sin locale → locale ?? "es" (subject ES); evento sin payload → summarize payload ?? {}', async () => {
+    fakeRedis.scan.mockResolvedValue(['0', ['nd:digest:u1']])
+    fakeRedis.rename.mockResolvedValue('OK')
+    fakeRedis.lrange.mockResolvedValue([
+      // Sin campo locale → events[0].locale ?? 'es' ; sin payload → summarize p ?? {}
+      JSON.stringify({ to: 'a@b.com', eventType: 'booking.confirmed' }),
+    ])
+    const send = vi.fn().mockResolvedValue()
+    const r = await flushAll({ send })
+    expect(r).toEqual({ usersFlushed: 1, eventsSent: 1 })
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      subject: expect.stringContaining('resumen de AppHub'),
+    }))
   })
 
   it('lista vacía (después de rename) → continue, no send', async () => {

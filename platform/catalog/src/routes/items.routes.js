@@ -36,10 +36,12 @@ const csvTags     = ['catalog · csv']
 
 export async function itemsRoutes(fastify) {
   fastify.get('/v1/items', {
-    schema: { tags, summary: 'List catalog items' },
+    schema: { tags, summary: 'List catalog items (con ?q= busca por nombre/descripción)' },
   }, async (req) => {
     const { appId, tenantId, subTenantId } = req.identity
     const activeOnly = req.query.activeOnly !== 'false'
+    const q = (req.query.q ?? '').trim()
+    if (q) return itemsService.searchItems({ appId, tenantId, subTenantId, q, activeOnly })
     return itemsService.listItems({ appId, tenantId, subTenantId, activeOnly })
   })
 

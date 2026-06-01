@@ -62,6 +62,16 @@ describe('createMenu', () => {
   })
 })
 
+// ── listMenus ───────────────────────────────────────────────────────────────
+describe('listMenus', () => {
+  it('delegates to repository with tenant scope', async () => {
+    repo.listMenus.mockResolvedValue([{ id: MENU_ID }])
+    const result = await service.listMenus(ctx)
+    expect(repo.listMenus).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID)
+    expect(result).toEqual([{ id: MENU_ID }])
+  })
+})
+
 // ── getMenu ─────────────────────────────────────────────────────────────────
 describe('getMenu', () => {
   it('returns menu with categories and items', async () => {

@@ -11,6 +11,12 @@ const envSchema = z.object({
   LOG_LEVEL:                 z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
   ALLOWED_ORIGINS:           z.string().optional(),
 
+  // Global rate limit (per IP). Defaults to a conservative 30/min for
+  // production; dev/CI stacks raise RATE_LIMIT_MAX so parallel integration
+  // suites hammering one platform-core don't trip the limiter.
+  RATE_LIMIT_MAX:            z.coerce.number().default(30),
+  RATE_LIMIT_TIME_WINDOW:    z.string().default('1 minute'),
+
   // Per-module DATABASE_URLs — one Pool per module, each bound to its dedicated role.
   DATABASE_URL_AUTH:           z.string().url(),
   DATABASE_URL_NOTIFICATIONS:  z.string().url(),

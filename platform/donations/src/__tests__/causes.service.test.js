@@ -44,6 +44,25 @@ describe('listAllCauses', () => {
   it('rechaza al donante (no es admin)', async () => {
     await expect(service.listAllCauses(donor)).rejects.toMatchObject({ statusCode: 403 })
   })
+  it('sin userId → Forbidden', async () => {
+    await expect(service.listAllCauses({})).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+describe('getCauseById', () => {
+  it('rechaza al donante', async () => {
+    await expect(service.getCauseById(donor, 'c1')).rejects.toMatchObject({ statusCode: 403 })
+  })
+  it('admin: row existente → devuelve la causa', async () => {
+    repo.findById.mockResolvedValue({ id: 'c1', name: 'Becas' })
+    const r = await service.getCauseById(admin, 'c1')
+    expect(r).toEqual({ id: 'c1', name: 'Becas' })
+    expect(repo.findById).toHaveBeenCalledWith(stubClient, 'c1')
+  })
+  it('admin: no existe → NotFound', async () => {
+    repo.findById.mockResolvedValue(null)
+    await expect(service.getCauseById(admin, 'ghost')).rejects.toMatchObject({ statusCode: 404 })
+  })
 })
 
 describe('createCause — código único por tenant', () => {
@@ -71,6 +90,11 @@ describe('updateCause', () => {
   it('404 si no existe', async () => {
     repo.update.mockResolvedValueOnce(null)
     await expect(service.updateCause(admin, 'no', { name: 'X' })).rejects.toMatchObject({ statusCode: 404 })
+  })
+  it('devuelve la causa actualizada cuando existe', async () => {
+    repo.update.mockResolvedValueOnce({ id: 'c1', name: 'Nuevo' })
+    const r = await service.updateCause(admin, 'c1', { name: 'Nuevo' })
+    expect(r).toEqual({ id: 'c1', name: 'Nuevo' })
   })
 })
 

@@ -214,6 +214,28 @@ describe('jsonLd', () => {
     expect(r.name).toBe('sku-1')
   })
 
+  it('reviews presentes → root.review mapea cada uno (con y sin title)', async () => {
+    repo.aggregate.mockResolvedValue({ count: 2, average: 4.5 })
+    repo.listByTarget.mockResolvedValue([
+      { rating: 5, title: 'Great', body: 'Loved it'.repeat(200), created_at: '2026-05-01T10:00:00Z' },
+      { rating: 3, title: null, body: null, created_at: '2026-05-02T10:00:00Z' },
+    ])
+    const r = await jsonLd(ctx(), { targetType: 'product', targetId: 's' })
+    expect(r.review).toHaveLength(2)
+    expect(r.review[0]).toMatchObject({
+      '@type': 'Review',
+      reviewRating: { '@type': 'Rating', ratingValue: 5, bestRating: 5, worstRating: 1 },
+      author: { '@type': 'Person', name: 'Verified buyer' },
+      name: 'Great',
+      datePublished: '2026-05-01',
+    })
+    // body excerpt capped at 1000 chars
+    expect(r.review[0].reviewBody.length).toBeLessThanOrEqual(1000)
+    // second review had no title → name omitted; null body → empty excerpt
+    expect(r.review[1].name).toBeUndefined()
+    expect(r.review[1].reviewBody).toBe('')
+  })
+
   it('limit = 10 hard-coded en el lookup (anti volcado de TODA la BD)', async () => {
     repo.aggregate.mockResolvedValue({ count: 0, average: 0 })
     repo.listByTarget.mockResolvedValue([])

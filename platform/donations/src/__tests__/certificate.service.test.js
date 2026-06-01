@@ -25,7 +25,7 @@ vi.mock('../templates/Certificate.js', () => ({ Certificate: () => null }))
 const { publishSpy } = vi.hoisted(() => ({ publishSpy: vi.fn() }))
 vi.mock('@apphub/platform-sdk/redis', () => ({ publish: publishSpy }))
 
-import { generateAnnualCertificates } from '../services/certificate.service.js'
+import { generateAnnualCertificates, listCertificates } from '../services/certificate.service.js'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -80,6 +80,25 @@ describe('generateAnnualCertificates', () => {
     await expect(generateAnnualCertificates(admin, { year: 'X' })).rejects.toMatchObject({ statusCode: 422 })
   })
 
+  it('rechaza si no hay identity (sin userId → Forbidden)', async () => {
+    await expect(generateAnnualCertificates(null, { year: 2026 })).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('resolveEntity: legal_name y display_name vacíos + cif null → fallbacks', async () => {
+    stubClient.query.mockImplementation(async (sql, params) => {
+      if (/FROM platform_tenants\.tenants/i.test(sql)) {
+        // legal_name '' → display_name '' → 'Entidad sin nombre'; cif null → ''
+        return { rows: [{ legal_name: '', display_name: '', cif: null, address: null }] }
+      }
+      if (/FROM platform_donations\.donations/i.test(sql)) {
+        return { rows: [] }   // sin donaciones → no PDFs, pero resolveEntity ya corrió
+      }
+      return { rows: [] }
+    })
+    const out = await generateAnnualCertificates(admin, { year: 2026 })
+    expect(out).toEqual([])
+  })
+
   it('agrupa donaciones por NIF y genera 1 PDF por donante (no 1 por donación)', async () => {
     const out = await generateAnnualCertificates(admin, { year: 2026 })
     // 3 donaciones, 2 NIFs distintos → 2 certificados
@@ -110,6 +129,24 @@ describe('generateAnnualCertificates', () => {
     expect(publishSpy).not.toHaveBeenCalled()
   })
 
+  it('storage upload fallido → AppError 502 (STORAGE_UPLOAD_FAILED)', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false, status: 500,
+      text: async () => 'boom',
+    })
+    await expect(generateAnnualCertificates(admin, { year: 2026 }))
+      .rejects.toMatchObject({ statusCode: 502, code: 'STORAGE_UPLOAD_FAILED' })
+  })
+
+  it('uploadPdf: usa json.id como fallback cuando no hay data.id', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'flat_obj_id' }),
+    })
+    const out = await generateAnnualCertificates(admin, { year: 2026 })
+    expect(out).toHaveLength(2)
+  })
+
   it('filtra por donorNif cuando se pasa (genera solo 1 cert)', async () => {
     stubClient.query.mockImplementationOnce(async () => ({
       rows: [{ legal_name: 'X', display_name: 'X', cif: 'G-1', address: null }],
@@ -124,5 +161,35 @@ describe('generateAnnualCertificates', () => {
     const out = await generateAnnualCertificates(admin, { year: 2026, donorNif: 'X1234567L' })
     expect(out).toHaveLength(1)
     expect(out[0].donorNif).toBe('X1234567L')
+  })
+})
+
+describe('listCertificates', () => {
+  it('rechaza si no es admin (403)', async () => {
+    await expect(listCertificates(donor, {})).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('sin year → sin WHERE; ORDER BY fiscal_year DESC', async () => {
+    stubClient.query.mockResolvedValueOnce({ rows: [{ id: 'c1' }] })
+    const out = await listCertificates(admin, {})
+    expect(out).toEqual([{ id: 'c1' }])
+    const [sql, params] = stubClient.query.mock.calls[0]
+    expect(sql).toMatch(/FROM platform_donations\.fiscal_certificates/)
+    expect(sql).not.toMatch(/WHERE/)
+    expect(sql).toMatch(/ORDER BY fiscal_year DESC, donor_nif/)
+    expect(params).toEqual([])
+  })
+
+  it('con year → WHERE fiscal_year=$1', async () => {
+    stubClient.query.mockResolvedValueOnce({ rows: [] })
+    await listCertificates(admin, { year: 2025 })
+    const [sql, params] = stubClient.query.mock.calls[0]
+    expect(sql).toMatch(/WHERE fiscal_year = \$1/)
+    expect(params).toEqual([2025])
+  })
+
+  it('sin args → no crash', async () => {
+    stubClient.query.mockResolvedValueOnce({ rows: [] })
+    expect(await listCertificates(admin)).toEqual([])
   })
 })

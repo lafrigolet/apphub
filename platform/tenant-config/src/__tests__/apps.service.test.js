@@ -126,6 +126,11 @@ describe('setAppStatus', () => {
 })
 
 describe('setAppSplitpayEnabled', () => {
+  it('happy: retorna la app actualizada', async () => {
+    repo.updateSplitpayEnabled.mockResolvedValue({ app_id: 'aikikan', splitpay_enabled: true })
+    const r = await setAppSplitpayEnabled('aikikan', true)
+    expect(r.splitpay_enabled).toBe(true)
+  })
   it('null → NotFoundError 404', async () => {
     repo.updateSplitpayEnabled.mockResolvedValue(null)
     await expect(setAppSplitpayEnabled('ghost', true)).rejects.toMatchObject({ statusCode: 404 })

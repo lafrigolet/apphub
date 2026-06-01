@@ -143,6 +143,35 @@ describe('createCheckout — flujo recurring_monthly', () => {
   })
 })
 
+describe('createCheckout — formas de respuesta de splitpay', () => {
+  it('session plano sin .data → usa json directo y session.id como sessionId', async () => {
+    donRepo.insert.mockResolvedValue({ id: 'd-flat' })
+    donRepo.attachSession.mockResolvedValue({ id: 'd-flat' })
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      // json SIN .data → rama `?? json`; sin stripeSessionId/sessionId → rama `?? session.id`
+      json: async () => ({ id: 'cs_flat_1', url: 'https://stripe.test/flat' }),
+    })
+
+    const r = await service.createCheckout(baseInput)
+
+    expect(donRepo.attachSession).toHaveBeenCalledWith(stubClient, 'd-flat', 'cs_flat_1')
+    expect(r).toEqual({ sessionUrl: 'https://stripe.test/flat', donationId: 'd-flat' })
+  })
+
+  it('usa session.stripeSessionId con preferencia sobre sessionId/id', async () => {
+    donRepo.insert.mockResolvedValue({ id: 'd-strp' })
+    donRepo.attachSession.mockResolvedValue({ id: 'd-strp' })
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { stripeSessionId: 'cs_strp_1', sessionId: 'ignored', id: 'ignored2', url: 'u' } }),
+    })
+
+    await service.createCheckout(baseInput)
+    expect(donRepo.attachSession).toHaveBeenCalledWith(stubClient, 'd-strp', 'cs_strp_1')
+  })
+})
+
 describe('createCheckout — error de splitpay', () => {
   it('propaga SPLITPAY_ERROR cuando splitpay devuelve 4xx', async () => {
     donRepo.insert.mockResolvedValue({ id: 'd-4' })
@@ -154,6 +183,20 @@ describe('createCheckout — error de splitpay', () => {
     await expect(service.createCheckout(baseInput)).rejects.toMatchObject({
       code: 'STRIPE_VALIDATION',
       statusCode: 422,
+    })
+  })
+
+  it('usa fallbacks SPLITPAY_ERROR / mensaje genérico cuando el json no trae error', async () => {
+    donRepo.insert.mockResolvedValue({ id: 'd-4b' })
+    fetchSpy.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({}),   // sin .error → ramas `?? 'SPLITPAY_ERROR'` y `?? 'No se pudo...'`
+    })
+    await expect(service.createCheckout(baseInput)).rejects.toMatchObject({
+      code: 'SPLITPAY_ERROR',
+      statusCode: 400,
+      message: 'No se pudo crear la sesión de pago',
     })
   })
 
@@ -277,5 +320,98 @@ describe('getDonation — autorización', () => {
         'd-9',
       ),
     ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('donación inexistente → NotFound', async () => {
+    donRepo.findById.mockResolvedValue(null)
+    await expect(
+      service.getDonation({ userId: 'u1', role: 'admin', appId: APP, tenantId: TENANT }, 'ghost'),
+    ).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('sin userId → Forbidden', async () => {
+    await expect(service.getDonation({}, 'd-9')).rejects.toMatchObject({ statusCode: 403 })
+  })
+})
+
+// ── refund — ramas restantes ────────────────────────────────────────────
+
+describe('refund — guards adicionales', () => {
+  const admin = { userId: 'u1', role: 'admin', appId: APP, tenantId: TENANT }
+
+  it('donación inexistente → NotFound', async () => {
+    donRepo.findById.mockResolvedValue(null)
+    await expect(service.refund(admin, 'ghost', { idempotencyKey: 'k' }))
+      .rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('sin stripe_payment_intent_id → Conflict', async () => {
+    donRepo.findById.mockResolvedValue({ id: 'd', status: 'paid', stripe_payment_intent_id: null })
+    await expect(service.refund(admin, 'd', { idempotencyKey: 'k' }))
+      .rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('splitpay refund error → propaga AppError con status del response', async () => {
+    donRepo.findById.mockResolvedValue({
+      id: 'd', status: 'paid', stripe_payment_intent_id: 'pi_x', cause_id: null, amount_cents: 100,
+    })
+    fetchSpy.mockResolvedValue({
+      ok: false, status: 422,
+      json: async () => ({ error: { code: 'REFUND_DENIED', message: 'nope' } }),
+    })
+    await expect(service.refund(admin, 'd', { idempotencyKey: 'k' }))
+      .rejects.toMatchObject({ statusCode: 422, code: 'REFUND_DENIED' })
+  })
+
+  it('splitpay error con json malformado → fallback REFUND_ERROR', async () => {
+    donRepo.findById.mockResolvedValue({
+      id: 'd', status: 'paid', stripe_payment_intent_id: 'pi_x', cause_id: null, amount_cents: 100,
+    })
+    fetchSpy.mockResolvedValue({
+      ok: false, status: 500,
+      json: async () => { throw new Error('bad json') },
+    })
+    await expect(service.refund(admin, 'd', { idempotencyKey: 'k' }))
+      .rejects.toMatchObject({ statusCode: 500, code: 'REFUND_ERROR' })
+  })
+})
+
+// ── lecturas simples ────────────────────────────────────────────────────
+
+describe('listMyDonations / listMySubscriptions / listAdminDonations', () => {
+  const user  = { userId: 'u1', role: 'user',  appId: APP, tenantId: TENANT }
+  const admin = { userId: 'a1', role: 'admin', appId: APP, tenantId: TENANT }
+
+  it('listMyDonations sin userId → Forbidden', async () => {
+    await expect(service.listMyDonations({})).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('listMyDonations delega a repo.listForDonor', async () => {
+    donRepo.listForDonor.mockResolvedValue([{ id: 'd1' }])
+    const r = await service.listMyDonations(user)
+    expect(r).toEqual([{ id: 'd1' }])
+    expect(donRepo.listForDonor).toHaveBeenCalledWith(stubClient, 'u1')
+  })
+
+  it('listMySubscriptions sin userId → Forbidden', async () => {
+    await expect(service.listMySubscriptions({})).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('listMySubscriptions delega a subsRepo.listForDonor', async () => {
+    const { listForDonor } = await import('../repositories/donation-subscriptions.repository.js')
+    listForDonor.mockResolvedValue([{ id: 's1' }])
+    const r = await service.listMySubscriptions(user)
+    expect(r).toEqual([{ id: 's1' }])
+  })
+
+  it('listAdminDonations rechaza al user normal', async () => {
+    await expect(service.listAdminDonations(user, {})).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('listAdminDonations admin → repo.listAdmin con filtros', async () => {
+    donRepo.listAdmin.mockResolvedValue([{ id: 'd1' }])
+    const r = await service.listAdminDonations(admin, { status: 'paid' })
+    expect(r).toEqual([{ id: 'd1' }])
+    expect(donRepo.listAdmin).toHaveBeenCalledWith(stubClient, { status: 'paid' })
   })
 })

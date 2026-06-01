@@ -9,6 +9,7 @@
     "dev": "node --watch src/bootstrap.js",
     "start": "node src/bootstrap.js",
     "test:unit": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.js --passWithNoTests",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src",
     "clean": "rm -rf coverage"

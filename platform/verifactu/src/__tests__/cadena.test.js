@@ -42,4 +42,15 @@ describe('verificarEnlace', () => {
     expect(r.ok).toBe(true)
     expect(r.total).toBe(2)
   })
+
+  it('registro previo sin huella (undefined) → anterior cae a null (rama ?? null)', () => {
+    // El 1er registro no tiene `huella`; el 2º declara huellaAnterior null →
+    // `orden[i-1].huella ?? null` resuelve a null y enlaza (null === null).
+    const r = verificarEnlace([
+      { numero: 1, huellaAnterior: null },
+      { numero: 2, huella: 'B', huellaAnterior: null },
+    ])
+    expect(r.ok).toBe(true)
+    expect(r.total).toBe(2)
+  })
 })

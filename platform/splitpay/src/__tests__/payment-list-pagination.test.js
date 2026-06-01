@@ -136,4 +136,14 @@ describe('listPayments — cursor pagination', () => {
     const r = await listPayments(ctx, 20)
     expect(r).toEqual({ data: [], cursor: null, hasMore: false })
   })
+
+  it('hasMore=true pero último row del slice sin id → cursor cae a null (?? null)', async () => {
+    // limit 2, repo devuelve 3 rows; el 2º (último del slice) sin `id`:
+    // ejercita el lado `?? null` del operador en `data[len-1]?.id ?? null`.
+    paymentRepo.listPayments.mockResolvedValue([{ id: 'p0' }, {}, { id: 'p2' }])
+    const r = await listPayments(ctx, 2)
+    expect(r.hasMore).toBe(true)
+    expect(r.data).toHaveLength(2)
+    expect(r.cursor).toBeNull()
+  })
 })

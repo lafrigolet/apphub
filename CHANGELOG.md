@@ -7,6 +7,46 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Cobertura de tests ≥95% en cada microservicio de `platform/`.** Se añadió
+  una config de cobertura compartida (`vitest.coverage.mjs`: v8, mide
+  services/routes/repositories/libs con lógica; excluye plumbing —
+  `server.js`/`index.js`/`lib/{env,logger,db,redis,migrate}.js`/`plugins/`/
+  `*.config.js`) y se cableó en los 36 módulos (incl. `test:coverage` +
+  `@vitest/coverage-v8` en los que faltaban; los orquestadores
+  appointments/marketplace/restaurant miden `server.js` como core). Tras
+  añadir tests unitarios (repositorios SQL-shape, rutas vía invocación directa
+  de handlers para las ramas `?? {}`, y casos de rama en services), **los 36
+  módulos quedan ≥95% en Statements, Branches, Functions y Lines** según
+  `pnpm test:coverage` (37/37 tareas verdes). Único cambio de fuente:
+  eliminación de la función muerta `pad2` en el job de recurrencia del
+  scheduler.
+- **Cobertura de tests (TODO-test.md).** Implementados los tests pendientes
+  que cubren código existente, más 3 features pequeñas que el inventario de
+  tests anticipaba (cada una con su test):
+  - `platform/leads` — publica evento `lead.created` en `platform.events`
+    tras crear un lead (nuevo `lib/redis.js` con `configureRedis`, publish
+    post-commit que no propaga fallos). Lo consume `notifications`.
+  - `platform/messaging` — redacción de PII (`lib/redact.js`) aplicada en
+    `postMessage` antes de persistir: emails y teléfonos (≥9 dígitos) se
+    enmascaran (anti-disintermediation).
+  - `platform/catalog` — búsqueda por texto: `items.repository.searchItems`
+    (ILIKE sobre nombre/descripción, parametrizado) + `items.service.searchItems`
+    + `GET /v1/items?q=`.
+  - Tests nuevos: módulos platform (inquiries, verifactu, marketplace/restaurant/
+    appointments server, tenant-config nginx render, scheduler advisory-lock/
+    missed-tick, core OpenAPI + schema-isolation integration), `@splitpay/sdk-js`
+    (client + contract), y arneses RTL nuevos en aulavera/aikikan/console/
+    splitpay/portal con tests de vistas. Aulavera-server `migrations`.
+  - **`packages/contract-tests`** (paquete nuevo) — cross-cutting/infra:
+    contratos file-based (CI workflows, postgres-init, nginx sidecar +
+    ejecución funcional con `sh`, runbook, registro de eventos zod) que siempre
+    corren, e integration guardado (postgres-roles, RLS smoke, tenant
+    lifecycle, OpenAPI snapshot vs `openapi-paths.snapshot.json`) que pasa
+    contra el stack vivo y se SKIPea si la DB/core no son accesibles.
+  - **E2E Playwright** (`packages/contract-tests/e2e/`) — specs por subdominio
+    (aulavera, aikikan magic-link, console config, cross-app cuota) + config,
+    detrás del script `test:e2e` (fuera del pipeline por defecto; requiere
+    `playwright install`).
 - **`apps/verifactu` — portal multi-rol + módulo platform `verifactu`
   (bootstrap → importa → implementa).** App de facturación verificable
   (AEAT VERI\*FACTU).

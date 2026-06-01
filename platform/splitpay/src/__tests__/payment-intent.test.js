@@ -278,6 +278,28 @@ describe('createAdditionalTransfers', () => {
     )
   })
 
+  it('recipient adicional con amount <= 0 → continue (no crea transfer)', async () => {
+    // a1 al 100% absorbe todo el neto; a2 y a3 quedan en 0 → la guarda
+    // `recipientAmount.amount <= 0` salta ambos (línea 121).
+    paymentRepo.findPaymentByStripeId.mockResolvedValue({
+      id: 'pay-1', splitRuleId: 'rule-1', amount: 10000, platformFee: 1000,
+      currency: 'eur', tenantId: 't1',
+    })
+    fakeClient.query.mockResolvedValue({
+      rows: [{
+        recipients: JSON.stringify([
+          { accountId: 'a1', label: 'A', percentage: 100 },
+          { accountId: 'a2', label: 'B', percentage: 0 },
+          { accountId: 'a3', label: 'C', percentage: 0 },
+        ]),
+        platform_fee_percent: '10',
+      }],
+    })
+    stripeMock.transfers.create.mockResolvedValue({ id: 'tr_x' })
+    await createAdditionalTransfers('pi_xyz', 'ch_xyz')
+    expect(stripeMock.transfers.create).not.toHaveBeenCalled()
+  })
+
   it('error en 1 transfer → log.error pero CONTINÚA con los demás', async () => {
     paymentRepo.findPaymentByStripeId.mockResolvedValue({
       id: 'pay-1', splitRuleId: 'rule-1', amount: 10000, platformFee: 1000,

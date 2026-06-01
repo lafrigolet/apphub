@@ -98,6 +98,11 @@ describe('updateSplitpayEnabled', () => {
     await repo.updateSplitpayEnabled(c, 'aikikan', true)
     expect(c.query.mock.calls[0][1]).toEqual(['aikikan', true])
   })
+
+  it('app inexistente → rows=[] → null', async () => {
+    const c = mockClient([])
+    expect(await repo.updateSplitpayEnabled(c, 'ghost', true)).toBeNull()
+  })
 })
 
 describe('updateEnabledModules', () => {
@@ -111,5 +116,10 @@ describe('updateEnabledModules', () => {
     const c = mockClient([{ enabled_modules: [] }])
     await repo.updateEnabledModules(c, 'aikikan', [])
     expect(c.query.mock.calls[0][1]).toEqual(['aikikan', []])
+  })
+
+  it('app inexistente → rows=[] → null', async () => {
+    const c = mockClient([])
+    expect(await repo.updateEnabledModules(c, 'ghost', [])).toBeNull()
   })
 })

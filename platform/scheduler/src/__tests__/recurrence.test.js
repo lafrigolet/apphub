@@ -240,3 +240,47 @@ describe('INSERT shape — verificación', () => {
     expect(bookingInsert.sql).toMatch(/'recurrence'/)
   })
 })
+
+describe('ramas adicionales (cobertura)', () => {
+  it('rrule sin freq/interval/time → defaults (weekly, 1, "00:00")', async () => {
+    const db = makeDb([{
+      id: 'rec-d', app_id: 'a', tenant_id: 't',
+      rrule: { byday: ['MO'] }, // sin freq/interval/time/duration → defaults
+      starts_on: '2026-01-01', ends_on: null, count: 2,
+    }])
+    const r = await job.run({ db, logger: mkLogger() })
+    expect(r.rowsAffected).toBeGreaterThan(0)
+  })
+
+  it('freq daily con count → rama daily + break por count (línea 54)', async () => {
+    const db = makeDb([{
+      id: 'rec-day', app_id: 'a', tenant_id: 't',
+      rrule: { freq: 'daily', interval: 1, time: '10:00', duration_minutes: 30 },
+      starts_on: '2026-01-01', ends_on: null, count: 2,
+    }])
+    const r = await job.run({ db, logger: mkLogger() })
+    expect(r.rowsAffected).toBe(2) // count=2 limita
+  })
+
+  it('seed con notes/metadata presentes → ramas truthy de `?? null` / `?? {}` (línea 104)', async () => {
+    const seed = {
+      service_id: 'svc-1', client_user_id: 'u1', client_name: 'Ana',
+      client_email: 'a@b.com', client_phone: '+34',
+      notes: 'cliente VIP', metadata: { tier: 'gold' }, source: 'portal',
+    }
+    const db = {
+      query: vi.fn(async (sql, params) => {
+        if (sql.includes('FROM platform_bookings.recurrences')) {
+          return { rows: [{ id: 'rec-n', app_id: 'a', tenant_id: 't', rrule: { freq: 'daily', interval: 1, time: '10:00' }, starts_on: '2026-01-01', ends_on: null, count: 1 }] }
+        }
+        if (sql.includes('LIMIT 1') && sql.includes('client_user_id')) return { rows: [seed] }
+        if (sql.includes('starts_at=$4')) return { rows: [] }
+        return { rows: [] }
+      }),
+    }
+    const r = await job.run({ db, logger: mkLogger() })
+    expect(r.rowsAffected).toBe(1)
+    const insert = db.query.mock.calls.find(([sql]) => /INSERT INTO platform_bookings\.bookings/.test(sql))
+    expect(insert[1]).toContain('cliente VIP')
+  })
+})

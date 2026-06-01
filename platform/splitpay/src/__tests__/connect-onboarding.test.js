@@ -44,7 +44,7 @@ vi.mock('../lib/stripe.js', () => ({
 vi.mock('../repositories/connect-account.repository.js')
 
 import {
-  createConnectAccount, refreshOnboardingLink, syncAccountFromStripe,
+  createConnectAccount, refreshOnboardingLink, syncAccountFromStripe, listConnectAccounts,
 } from '../services/connect-account.service.js'
 import { withTenant, pool } from '../lib/db.js'
 import * as repo from '../repositories/connect-account.repository.js'
@@ -143,6 +143,20 @@ describe('refreshOnboardingLink', () => {
       type: 'account_onboarding',
     })
     expect(r.onboardingUrl).toBe('https://stripe.com/new-link')
+  })
+})
+
+// ── listConnectAccounts ──────────────────────────────────────────────
+
+describe('listConnectAccounts', () => {
+  it('delega a repo dentro del pool y libera client', async () => {
+    const fakeClient = { query: vi.fn(), release: vi.fn() }
+    pool.connect.mockResolvedValueOnce(fakeClient)
+    repo.listConnectAccounts.mockResolvedValue([{ id: 'a1' }])
+    const r = await listConnectAccounts(ctx)
+    expect(r).toEqual([{ id: 'a1' }])
+    expect(repo.listConnectAccounts).toHaveBeenCalledWith(fakeClient, ctx)
+    expect(fakeClient.release).toHaveBeenCalled()
   })
 })
 

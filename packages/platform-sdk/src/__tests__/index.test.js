@@ -13,7 +13,7 @@ describe('public surface', () => {
     // app-guard
     'appGuard', 'requireRole',
     // db
-    'createPool', 'setTenantContext', 'withTenantTransaction', 'withTransaction',
+    'createPool', 'setTenantContext', 'withTenantTransaction', 'withTransaction', 'ensureModuleRole',
     // errors
     'AppError', 'ValidationError', 'NotFoundError', 'UnauthorizedError',
     'ForbiddenError', 'ConflictError', 'AppMismatchError',

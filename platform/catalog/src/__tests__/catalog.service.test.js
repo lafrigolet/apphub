@@ -23,7 +23,7 @@ vi.mock('../lib/db.js', () => ({ pool: {}, withTenantTransaction: vi.fn() }))
 vi.mock('../repositories/items.repository.js')
 
 import {
-  getItem, updateItem, deleteItem, setItemStatus, exportCsv, importCsv,
+  listItems, getItem, createItem, updateItem, deleteItem, setItemStatus, exportCsv, importCsv,
 } from '../services/items.service.js'
 import { withTenantTransaction } from '../lib/db.js'
 import * as repo from '../repositories/items.repository.js'
@@ -39,9 +39,46 @@ beforeEach(() => {
   withTenantTransaction.mockImplementation(async (_p, _a, _t, _s, fn) => fn({}))
 })
 
+// ── happy-path delegations ───────────────────────────────────────────
+
+describe('happy paths', () => {
+  it('listItems delega a repo.findAll con activeOnly', async () => {
+    repo.findAll.mockResolvedValue([{ id: 'i1' }])
+    const r = await listItems({ ...ctx, activeOnly: true })
+    expect(r).toEqual([{ id: 'i1' }])
+    expect(repo.findAll).toHaveBeenCalledWith(expect.anything(), { activeOnly: true })
+  })
+
+  it('createItem delega a repo.create con scope + fields', async () => {
+    repo.create.mockResolvedValue({ id: 'i1', name: 'Jarra' })
+    const r = await createItem({ ...ctx, name: 'Jarra', priceCents: 1500, currency: 'eur' })
+    expect(r).toEqual({ id: 'i1', name: 'Jarra' })
+    expect(repo.create).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      appId: ctx.appId, tenantId: ctx.tenantId, name: 'Jarra', priceCents: 1500,
+    }))
+  })
+
+  it('updateItem happy → devuelve item actualizado', async () => {
+    repo.update.mockResolvedValue({ id: 'i1', name: 'New' })
+    const r = await updateItem({ ...ctx, id: 'i1', name: 'New' })
+    expect(r).toEqual({ id: 'i1', name: 'New' })
+    expect(repo.update).toHaveBeenCalledWith(expect.anything(), 'i1', { name: 'New' })
+  })
+
+  it('deleteItem happy → resuelve sin error', async () => {
+    repo.remove.mockResolvedValue(true)
+    await expect(deleteItem({ ...ctx, id: 'i1' })).resolves.toBeUndefined()
+  })
+})
+
 // ── NotFound 404 ─────────────────────────────────────────────────────
 
 describe('NotFoundError 404', () => {
+  it('getItem: existe → devuelve el item (rama no-404)', async () => {
+    repo.findById.mockResolvedValue({ id: 'i1', name: 'Jarra' })
+    const r = await getItem({ ...ctx, id: 'i1' })
+    expect(r).toEqual({ id: 'i1', name: 'Jarra' })
+  })
   it('getItem: null → 404', async () => {
     repo.findById.mockResolvedValue(null)
     await expect(getItem({ ...ctx, id: 'ghost' })).rejects.toMatchObject({ statusCode: 404 })
@@ -87,6 +124,15 @@ describe('setItemStatus', () => {
     repo.setStatus.mockResolvedValue({ id: 'i1', status: 'published' })
     await setItemStatus({ ...ctx, id: 'i1', status: 'published', actorUserId: 'u' })
     expect(repo.publishVersion).toHaveBeenCalledWith(expect.anything(), 'i1', 4, expect.any(Object), 'u')
+  })
+
+  it('publish con version_number nullish → usa default 1 (?? 1)', async () => {
+    repo.findById
+      .mockResolvedValueOnce({ id: 'i1', status: 'draft', published_at: null })  // sin version_number
+      .mockResolvedValueOnce({ id: 'i1', status: 'published', version_number: 1 })
+    repo.setStatus.mockResolvedValue({ id: 'i1', status: 'published' })
+    await setItemStatus({ ...ctx, id: 'i1', status: 'published', actorUserId: 'u' })
+    expect(repo.publishVersion).toHaveBeenCalledWith(expect.anything(), 'i1', 1, expect.any(Object), 'u')
   })
 
   it('transition published → archived NO llama publishVersion', async () => {
@@ -172,11 +218,42 @@ describe('importCsv', () => {
     expect(r).toMatchObject({ rowsTotal: 2, inserted: 1, errors: 1 })
   })
 
+  it('CSV con CRLF (\\r\\n) — ignora el \\r al parsear', async () => {
+    repo.create.mockResolvedValue({ id: 'i1' })
+    const csv = 'name,price_cents\r\nJarra,500\r\n'
+    const r = await importCsv({ ...ctx, csv })
+    expect(r).toMatchObject({ rowsTotal: 1, inserted: 1 })
+    expect(repo.create).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      name: 'Jarra', priceCents: 500,
+    }))
+  })
+
   it('CSV con comillas dobladas + coma embebida se parsea correctamente', async () => {
     const csv = 'name,price_cents\n"Té, con ""azúcar""",250'
     await importCsv({ ...ctx, csv })
     expect(repo.create).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       name: 'Té, con "azúcar"', priceCents: 250,
     }))
+  })
+
+  it('CSV con TODAS las columnas opcionales (description/category/active) → ramas truthy', async () => {
+    repo.create.mockResolvedValue({ id: 'i1' })
+    const csv = 'name,description,price_cents,currency,category,active\nJarra,Una jarra,500,USD,menaje,false'
+    const r = await importCsv({ ...ctx, csv })
+    expect(r).toMatchObject({ rowsTotal: 1, inserted: 1 })
+    expect(repo.create).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      name: 'Jarra', description: 'Una jarra', priceCents: 500,
+      currency: 'usd', category: 'menaje', active: false,
+    }))
+  })
+
+  it('CSV con fila final de una sola columna NO vacía → la conserva (parseCsv filter)', async () => {
+    // 'orphan' es una fila de 1 sola celda no vacía → pasa el filtro
+    // (r.length===1 && r[0]!==''), se trata como data row y falla la
+    // conversión (sin price) → cuenta como error, no aborta el batch.
+    const csv = 'name,price_cents\nJarra,500\norphan'
+    repo.create.mockResolvedValue({ id: 'i1' })
+    const r = await importCsv({ ...ctx, csv })
+    expect(r.rowsTotal).toBe(2)
   })
 })

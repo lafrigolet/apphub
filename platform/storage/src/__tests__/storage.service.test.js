@@ -144,6 +144,14 @@ describe('finalize', () => {
     await expect(service.finalize(ctx, OBJ_ID)).rejects.toThrow(/not yet visible/)
   })
 
+  it('rethrows non-404 errors from headObject (e.g. 500)', async () => {
+    repo.findById.mockResolvedValue({ id: OBJ_ID, status: 'pending', bucket: 'apphub', key: 'k' })
+    sdkStorage.headObject.mockRejectedValue(Object.assign(new Error('server error'), {
+      $metadata: { httpStatusCode: 500 },
+    }))
+    await expect(service.finalize(ctx, OBJ_ID)).rejects.toThrow(/server error/)
+  })
+
   it('rejects size mismatch', async () => {
     repo.findById.mockResolvedValue({
       id: OBJ_ID, status: 'pending', bucket: 'apphub', key: 'k', size_bytes: 500,

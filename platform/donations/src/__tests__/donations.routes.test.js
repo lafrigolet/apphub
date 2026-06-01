@@ -195,3 +195,44 @@ describe('POST /v1/donations/admin/:id/refund', () => {
     )
   })
 })
+
+// Ramas `?? {}`: fastify valida el schema antes del handler → inalcanzables
+// vía inject. Invocamos los handlers directamente con body/query undefined.
+describe('defaults defensivos (?? {}) — handlers directos', () => {
+  async function publicHandlers() {
+    const routes = []
+    await publicRoutes({ post: (p, o, h) => routes.push({ m: 'post', p, h: h ?? o }) })
+    return routes
+  }
+  async function adminHandlers() {
+    const routes = []
+    await adminRoutes({
+      addHook: () => {},
+      get:  (p, o, h) => routes.push({ m: 'get', p, h: h ?? o }),
+      post: (p, o, h) => routes.push({ m: 'post', p, h: h ?? o }),
+    })
+    return routes
+  }
+
+  it('POST /checkout con req.body undefined → checkoutBody.parse({}) lanza (campos requeridos)', async () => {
+    const [{ h }] = await publicHandlers()
+    await expect(h({ headers: {} }, { code: vi.fn() })).rejects.toBeTruthy()
+  })
+
+  it('GET / admin con req.query undefined → adminListQuery.parse({}) defaults → listAdminDonations', async () => {
+    service.listAdminDonations.mockResolvedValue([])
+    const routes = await adminHandlers()
+    const list = routes.find((r) => r.m === 'get' && r.p === '/')
+    await list.h({})
+    expect(service.listAdminDonations).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ limit: 200, offset: 0 }),
+    )
+  })
+
+  it('POST /:id/refund con req.body undefined → refundBody.parse({}) lanza (idempotencyKey requerido)', async () => {
+    const routes = await adminHandlers()
+    const refund = routes.find((r) => r.m === 'post' && r.p === '/:id/refund')
+    await expect(refund.h({ params: { id: 'd1' } })).rejects.toBeTruthy()
+  })
+})

@@ -84,8 +84,8 @@ export async function start() {
   await app.register(helmet)
   await app.register(cors, { origin: env.ALLOWED_ORIGINS?.split(',') ?? '*' })
   await app.register(rateLimit, {
-    max: 30,
-    timeWindow: '1 minute',
+    max: env.RATE_LIMIT_MAX,
+    timeWindow: env.RATE_LIMIT_TIME_WINDOW,
     errorResponseBuilder: () => ({ error: { code: 'RATE_LIMITED', message: 'Too many requests' } }),
   })
 
@@ -139,6 +139,12 @@ export async function start() {
       if (err.statusCode >= 500) logger.error({ err, code: err.code }, err.message)
       else logger.warn({ code: err.code, message: err.message }, 'Client error')
       return reply.status(err.statusCode).send({ error: { code: err.code, message: err.message, details: err.details } })
+    }
+    // @fastify/rate-limit rejects with statusCode 429 but is not an AppError;
+    // honor it instead of masking it as a generic 500.
+    if (err.statusCode === 429) {
+      logger.warn({ url: req.url }, 'Rate limited')
+      return reply.status(429).send({ error: { code: 'RATE_LIMITED', message: 'Too many requests' } })
     }
     logger.error({ err }, 'Unhandled error')
     return reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } })

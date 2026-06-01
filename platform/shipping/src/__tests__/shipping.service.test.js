@@ -153,6 +153,14 @@ describe('appendEvent', () => {
     repo.findShipmentById.mockResolvedValue(null)
     await expect(service.appendEvent(ctx, SHIP_ID, { code: 'shipped' })).rejects.toThrow(NotFoundError)
   })
+
+  it('evento sin code → rama `?? \'\'` → sin transición de estado', async () => {
+    repo.findShipmentById.mockResolvedValue({ id: SHIP_ID, order_id: ORDER_ID, status: 'in_transit' })
+    repo.insertShipmentEvent.mockResolvedValue({ id: 'ev1' })
+    await service.appendEvent(ctx, SHIP_ID, { description: 'sin code' })
+    expect(repo.updateShipmentStatus).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
+  })
 })
 
 // ── handleEvent — order.paid auto-creates shipment ─────────────────────

@@ -126,4 +126,54 @@ describe('exportModelo182 — formato AEAT', () => {
       statusCode: 412,
     })
   })
+
+  it('usa contactPhone + contactName explícitos en la cabecera', async () => {
+    const out = await exportModelo182(admin, {
+      year: 2026, contactPhone: '912345678', contactName: 'José Asesor',
+    })
+    const header = out.buffer.toString('latin1').split('\r\n')[0]
+    // teléfono en pos 68-76 (idx 67-76)
+    expect(header.slice(67, 76)).toBe('912345678')
+    // nombre de contacto en pos 77-115 (idx 76-115), uppercase, padded
+    expect(header.slice(76, 115)).toMatch(/^JOSÉ ASESOR\s+$/)
+  })
+
+  it('cae a display_name cuando legal_name está vacío', async () => {
+    stubClient.query.mockImplementation(async (sql) => {
+      if (/FROM platform_tenants\.tenants/i.test(sql)) {
+        return { rows: [{ legal_name: '', display_name: 'AulaVera Display', cif: 'G-1', address: '' }] }
+      }
+      if (/FROM platform_donations\.donations/i.test(sql)) {
+        return { rows: [] }   // sin donantes → solo cabecera
+      }
+      return { rows: [] }
+    })
+    const out = await exportModelo182(admin, { year: 2026 })
+    expect(out.count).toBe(0)
+    const header = out.buffer.toString('latin1').split('\r\n')[0]
+    expect(header.slice(17, 57)).toMatch(/^AULAVERA DISPLAY\s+$/)   // razón social pos 18-57
+  })
+
+  it('detalle con donor_name y donor_country null → ramas `?? \'\'` y `?? \'ES\'`', async () => {
+    stubClient.query.mockImplementation(async (sql) => {
+      if (/FROM platform_tenants\.tenants/i.test(sql)) {
+        return { rows: [{ legal_name: 'Fundación X', display_name: 'X', cif: 'G-9', address: '' }] }
+      }
+      if (/FROM platform_donations\.donations/i.test(sql)) {
+        return {
+          rows: [{
+            donor_nif: 'Y0000000X', donor_name: null, donor_address: null,
+            donor_postal_code: null, donor_country: null,
+            total_cents: '1000', count_donations: '1',
+          }],
+        }
+      }
+      return { rows: [] }
+    })
+    const out = await exportModelo182(admin, { year: 2026 })
+    expect(out.count).toBe(1)
+    const detalle = out.buffer.toString('latin1').split('\r\n')[1]
+    // país por defecto 'ES' en pos 77-78 (idx 76-78): tras 1+3+4+9+9+9+40 = idx 75 prov(2)=75-77, país 77-79
+    expect(detalle.slice(77, 79)).toBe('ES')
+  })
 })

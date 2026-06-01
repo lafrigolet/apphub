@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 process.env.MIGRATION_DATABASE_URL  ??= 'postgresql://x:y@localhost:5432/test'
 process.env.REDIS_URL               ??= 'redis://localhost:6379'
 process.env.PLATFORM_JWT_SECRET     ??= 'test_secret_at_least_32_characters_long_ok'
-for (const m of ['AUTH','NOTIFICATIONS','PAYMENTS','TENANT_CONFIG','SPLITPAY','STORAGE','LEADS','DONATIONS']) {
+for (const m of ['AUTH','NOTIFICATIONS','PAYMENTS','TENANT_CONFIG','SPLITPAY','STORAGE','LEADS','DONATIONS','INQUIRIES','VERIFACTU']) {
   process.env[`DATABASE_URL_${m}`]  ??= `postgresql://${m.toLowerCase()}:s@localhost:5432/test`
 }
 process.env.S3_ENDPOINT             ??= 'http://minio:9000'
@@ -15,7 +15,7 @@ process.env.PLATFORM_CORE_PORT      ??= '3000'
 // ── Mocks de TODO lo que server.js importa ───────────────────────────
 // Fastify devuelve un app fake con register/get/setX/listen/close/addHook;
 // cada llamada queda registrada para los asserts.
-const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, createRedisMock, modulesMock } = vi.hoisted(() => {
+const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, ensureModuleRoleMock, createRedisMock, modulesMock } = vi.hoisted(() => {
   const fastifyApp = {
     register: vi.fn().mockResolvedValue(undefined),
     addHook:  vi.fn(),
@@ -50,6 +50,7 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
   const errorsMock = { AppError }
 
   const createPoolMock  = vi.fn(() => ({ on: vi.fn(), end: vi.fn().mockResolvedValue(undefined) }))
+  const ensureModuleRoleMock = vi.fn().mockResolvedValue(undefined)
   const fakeRedis = {
     on:   vi.fn(),
     quit: vi.fn().mockResolvedValue(undefined),
@@ -71,9 +72,11 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
     storage:        mkModule('storage'),
     leads:          mkModule('leads'),
     donations:      mkModule('donations'),
+    inquiries:      mkModule('inquiries'),
+    verifactu:      mkModule('verifactu'),
   }
 
-  return { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, createRedisMock, modulesMock }
+  return { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, ensureModuleRoleMock, createRedisMock, modulesMock }
 })
 
 vi.mock('fastify',                () => ({ default: fastifyFactory }))
@@ -85,7 +88,7 @@ vi.mock('@fastify/swagger-ui',    () => ({ default: swaggerUiMock }))
 vi.mock('fastify-type-provider-zod', () => zodMocks)
 vi.mock('@apphub/platform-sdk/app-guard', () => ({ appGuard: appGuardMock }))
 vi.mock('@apphub/platform-sdk/errors',    () => errorsMock)
-vi.mock('@apphub/platform-sdk/db',        () => ({ createPool: createPoolMock }))
+vi.mock('@apphub/platform-sdk/db',        () => ({ createPool: createPoolMock, ensureModuleRole: ensureModuleRoleMock }))
 vi.mock('@apphub/platform-sdk/redis',     () => ({ createRedis: createRedisMock }))
 vi.mock('@apphub/platform-auth',          () => modulesMock.auth)
 vi.mock('@apphub/platform-notifications', () => modulesMock.notifications)
@@ -95,6 +98,8 @@ vi.mock('@apphub/platform-splitpay',      () => modulesMock.splitpay)
 vi.mock('@apphub/platform-storage',       () => modulesMock.storage)
 vi.mock('@apphub/platform-leads',         () => modulesMock.leads)
 vi.mock('@apphub/platform-donations',     () => modulesMock.donations)
+vi.mock('@apphub/platform-inquiries',     () => modulesMock.inquiries)
+vi.mock('@apphub/platform-verifactu',     () => modulesMock.verifactu)
 
 // ── tests ───────────────────────────────────────────────────────────
 
@@ -130,7 +135,7 @@ afterEach(() => {
 })
 
 describe('start() — boot sequence', () => {
-  it('runMigrations es llamado UNA vez por cada uno de los 8 módulos, en orden', async () => {
+  it('runMigrations es llamado UNA vez por cada uno de los 10 módulos, en orden', async () => {
     const { start } = await import('../server.js')
     await start()
 
@@ -144,7 +149,7 @@ describe('start() — boot sequence', () => {
     const { start } = await import('../server.js')
     await start()
 
-    expect(createPoolMock).toHaveBeenCalledTimes(8)
+    expect(createPoolMock).toHaveBeenCalledTimes(10)
     const urls = createPoolMock.mock.calls.map((c) => c[0])
     expect(urls).toContain(process.env.DATABASE_URL_AUTH)
     expect(urls).toContain(process.env.DATABASE_URL_NOTIFICATIONS)
@@ -173,7 +178,7 @@ describe('start() — boot sequence', () => {
     expect(registerCalls).toContain(appGuardMock)
   })
 
-  it('cada uno de los 8 módulos.register({ app, db, redis, logger }) recibe sus deps', async () => {
+  it('cada uno de los 10 módulos.register({ app, db, redis, logger }) recibe sus deps', async () => {
     const { start } = await import('../server.js')
     await start()
 
@@ -212,7 +217,7 @@ describe('start() — boot sequence', () => {
     expect(r.status).toBe('ok')
     expect(r.service).toBe('platform-core')
     expect(r.modules).toEqual(
-      ['auth','notifications','payments','tenant-config','splitpay','storage','leads','donations'],
+      ['auth','notifications','payments','tenant-config','splitpay','storage','leads','donations','inquiries','verifactu'],
     )
     expect(r.timestamp).toBeTypeOf('string')
   })
@@ -372,6 +377,17 @@ describe('error handler global', () => {
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() }
     handler(err, {}, reply)
     expect(reply.status).toHaveBeenCalledWith(503)
+  })
+
+  it('rechazo de rate-limit (statusCode 429, no AppError) → 429 RATE_LIMITED, no 500', async () => {
+    const { start } = await import('../server.js')
+    await start()
+    const handler = fastifyApp.setErrorHandler.mock.calls[0][0]
+    const err = Object.assign(new Error('Rate limit exceeded'), { statusCode: 429 })
+    const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() }
+    handler(err, { url: '/v1/auth/login' }, reply)
+    expect(reply.status).toHaveBeenCalledWith(429)
+    expect(reply.send.mock.calls[0][0].error.code).toBe('RATE_LIMITED')
   })
 
   it('error desconocido → 500 INTERNAL_ERROR', async () => {

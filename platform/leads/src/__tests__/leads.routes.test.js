@@ -207,3 +207,41 @@ describe('PATCH /v1/leads/admin/:id', () => {
     expect(res.statusCode).toBe(404)
   })
 })
+
+// Ramas `?? {}` de los handlers: inalcanzables por HTTP (fastify valida el
+// body-schema antes del handler), así que invocamos los handlers directamente.
+describe('defaults defensivos (?? {}) — handlers directos', () => {
+  async function publicHandlers() {
+    const routes = []
+    await publicRoutes({ post: (p, o, h) => routes.push({ m: 'post', p, h: h ?? o }) })
+    return routes
+  }
+  async function adminHandlers() {
+    const routes = []
+    await adminRoutes({
+      addHook: () => {},
+      get:   (p, o, h) => routes.push({ m: 'get', p, h: h ?? o }),
+      patch: (p, o, h) => routes.push({ m: 'patch', p, h: h ?? o }),
+    })
+    return routes
+  }
+
+  it('POST / con req.body undefined → req.body ?? {} → la validación zod lanza', async () => {
+    const [{ h }] = await publicHandlers()
+    await expect(h({ headers: {}, ip: '1.1.1.1' }, { code: vi.fn() })).rejects.toBeTruthy()
+  })
+
+  it('GET / (admin) con req.query undefined → req.query ?? {} → listLeads con defaults', async () => {
+    service.listLeads.mockResolvedValue([])
+    const routes = await adminHandlers()
+    const list = routes.find((r) => r.m === 'get' && r.p === '/')
+    await list.h({})
+    expect(service.listLeads).toHaveBeenCalledWith(expect.objectContaining({ limit: 100, offset: 0 }))
+  })
+
+  it('PATCH /:id con req.body undefined → updateBody ?? {} → la validación zod lanza', async () => {
+    const routes = await adminHandlers()
+    const patch = routes.find((r) => r.m === 'patch')
+    await expect(patch.h({ params: { id: 'l1' } }, { code: vi.fn() })).rejects.toBeTruthy()
+  })
+})

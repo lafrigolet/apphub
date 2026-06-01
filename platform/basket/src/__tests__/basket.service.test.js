@@ -162,4 +162,67 @@ describe('saveForLater / moveBackToBasket', () => {
     const r = await listSaved({ appId: APP, tenantId: TENANT, userId: USER })
     expect(r).toEqual({ items: [] })
   })
+
+  it('listSaved con items → devuelve el contenido persistido', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1', 2) })
+    await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    const r = await listSaved({ appId: APP, tenantId: TENANT, userId: USER })
+    expect(r.items[0].itemId).toBe('p1')
+  })
+
+  it('removeSaved con items → filtra el item indicado', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p2') })
+    await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p2' })
+    const r = await removeSaved({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    expect(r.items.map((i) => i.itemId)).toEqual(['p2'])
+  })
+
+  it('moveBackToBasket sin saved key → no-op devuelve basket actual', async () => {
+    const r = await moveBackToBasket({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    expect(r.saved).toEqual({ items: [] })
+  })
+
+  it('moveBackToBasket itemId no presente en saved → no-op', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    const r = await moveBackToBasket({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'ghost' })
+    expect(r.saved.items[0].itemId).toBe('p1')
+  })
+
+  it('removeItem con items → filtra correctamente', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p2') })
+    const r = await removeItem({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    expect(r.items.map((i) => i.itemId)).toEqual(['p2'])
+  })
+
+  // ── Ramas residuales de branch coverage ────────────────────────────────
+
+  it('mergeBaskets: user con items, guest vacío (guestRaw falsy) → conserva user', async () => {
+    // user basket presente, guest basket ausente: ejercita la rama
+    // `guestRaw ? ... : { items: [] }` por el lado falsy.
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    const r = await mergeBaskets({ appId: APP, tenantId: TENANT, userId: USER, guestUserId: GUEST })
+    expect(r.items.map((i) => i.itemId)).toEqual(['p1'])
+  })
+
+  it('mergeBaskets: quantity undefined en ambos lados → Number(||0) fallback', async () => {
+    // Sembramos directamente entradas sin `quantity` para ejercitar los
+    // fallbacks `Number(existing.quantity || 0)` y `Number(g.quantity || 0)`.
+    const userKey  = `basket:${APP}:${TENANT}:${USER}`
+    const guestKey = `basket:${APP}:${TENANT}:${GUEST}`
+    redis.__store.set(userKey,  JSON.stringify({ items: [{ itemId: 'p1', name: 'p1', priceCents: 100 }] }))
+    redis.__store.set(guestKey, JSON.stringify({ items: [{ itemId: 'p1', name: 'p1', priceCents: 100 }] }))
+    const r = await mergeBaskets({ appId: APP, tenantId: TENANT, userId: USER, guestUserId: GUEST })
+    expect(r.items).toHaveLength(1)
+    expect(r.items[0].quantity).toBe(0)
+  })
+
+  it('saveForLater sin basket (raw falsy) → no-op, saved vacío', async () => {
+    const r = await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'ghost' })
+    expect(r.saved).toEqual({ items: [] })
+    expect(r.basket).toEqual({ items: [] })
+  })
 })

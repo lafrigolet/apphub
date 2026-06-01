@@ -18,6 +18,8 @@ const REQUIRED_VARS = {
   DATABASE_URL_STORAGE:        'postgresql://a:b@localhost:5432/test',
   DATABASE_URL_LEADS:          'postgresql://a:b@localhost:5432/test',
   DATABASE_URL_DONATIONS:      'postgresql://a:b@localhost:5432/test',
+  DATABASE_URL_INQUIRIES:      'postgresql://a:b@localhost:5432/test',
+  DATABASE_URL_VERIFACTU:      'postgresql://a:b@localhost:5432/test',
   S3_ENDPOINT:                 'http://minio:9000',
   S3_ACCESS_KEY:               'k',
   S3_SECRET_KEY:               's',
@@ -129,6 +131,17 @@ describe('env — happy path', () => {
 })
 
 describe('env — validación / process.exit', () => {
+  // NB: este test importa el módulo por su ruta canónica (sin query-string)
+  // para que v8 atribuya la cobertura de la rama de fallo (líneas 62-66) al
+  // fichero src/lib/env.js — los imports `?query` cuentan como módulos
+  // distintos y no cubrirían esa rama en el reporte canónico.
+  it('process.exit(1) por la ruta canónica cuando falta una required (cubre la rama de fallo)', async () => {
+    Object.assign(process.env, REQUIRED_VARS)
+    delete process.env.REDIS_URL
+    await expect(import('../lib/env.js')).rejects.toThrow('process.exit(1)')
+    expect(consoleErrorSpy).toHaveBeenCalled()
+  })
+
   it('process.exit(1) cuando falta MIGRATION_DATABASE_URL', async () => {
     Object.assign(process.env, REQUIRED_VARS)
     delete process.env.MIGRATION_DATABASE_URL

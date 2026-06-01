@@ -8,6 +8,15 @@ export async function listItems({ appId, tenantId, subTenantId, activeOnly = tru
   )
 }
 
+// Búsqueda por texto. Si q viene vacío equivale a listItems (mismo conjunto).
+export async function searchItems({ appId, tenantId, subTenantId, q, activeOnly = true }) {
+  const term = (q ?? '').trim()
+  if (!term) return listItems({ appId, tenantId, subTenantId, activeOnly })
+  return withTenantTransaction(pool, appId, tenantId, subTenantId, (client) =>
+    itemsRepo.searchItems(client, { q: term, activeOnly }),
+  )
+}
+
 export async function getItem({ appId, tenantId, subTenantId, id }) {
   const item = await withTenantTransaction(pool, appId, tenantId, subTenantId, (client) =>
     itemsRepo.findById(client, id),

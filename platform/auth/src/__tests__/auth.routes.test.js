@@ -114,6 +114,13 @@ describe('POST /v1/auth/register', () => {
     const res = await app.inject({ method: 'POST', url: '/v1/auth/register', payload: noApp })
     expect(res.statusCode).toBe(422)
   })
+
+  it('error genérico (no AppError/Zod) → 500 INTERNAL_ERROR (rama unhandled del errorHandler)', async () => {
+    authService.register.mockRejectedValue(new Error('db exploded'))
+    const res = await app.inject({ method: 'POST', url: '/v1/auth/register', payload: valid })
+    expect(res.statusCode).toBe(500)
+    expect(res.json().error.code).toBe('INTERNAL_ERROR')
+  })
 })
 
 // ── Login ─────────────────────────────────────────────────────────────────────

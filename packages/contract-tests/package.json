@@ -1,0 +1,17 @@
+{
+  "name": "@apphub/contract-tests",
+  "version": "0.1.0",
+  "description": "Cross-cutting & infra contract tests (CI workflows, postgres init, nginx sidecar, runbooks, event schemas, RLS/role enforcement). File-contract tests always run; integration tests skip gracefully when the stack/DB is unavailable.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:unit": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.js --passWithNoTests",
+    "test:e2e": "playwright test --config e2e/playwright.config.js"
+  },
+  "devDependencies": {
+    "pg": "^8.12.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.23.0"
+  }
+}

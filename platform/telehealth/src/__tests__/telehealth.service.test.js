@@ -194,6 +194,19 @@ describe('handleEvent — booking.confirmed', () => {
     expect(withTenantTransaction).not.toHaveBeenCalled()
   })
 
+  it('ignores booking.confirmed without payload (defaults to {})', async () => {
+    await service.handleEvent({ type: 'booking.confirmed' })
+    expect(withTenantTransaction).not.toHaveBeenCalled()
+  })
+
+  it('ignores booking.confirmed missing required fields', async () => {
+    await service.handleEvent({
+      type: 'booking.confirmed',
+      payload: { appId: APP_ID, tenantId: TENANT_ID }, // no bookingId/serviceId
+    })
+    expect(withTenantTransaction).not.toHaveBeenCalled()
+  })
+
   it('swallows downstream errors', async () => {
     withTenantTransaction.mockImplementation(async () => { throw new Error('boom') })
     await expect(service.handleEvent({

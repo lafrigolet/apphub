@@ -192,6 +192,13 @@ describe('admin endpoints — role gate', () => {
     await expect(getById(adminIdentity, 'ghost')).rejects.toMatchObject({ statusCode: 404 })
   })
 
+  it('getById encontrado con sub_tenant → pasa subTenantId (rama truthy de ?? null)', async () => {
+    inquiriesRepo.findById.mockResolvedValue({ id: 'i-1' })
+    const out = await getById({ ...adminIdentity, subTenantId: 'sub-9' }, 'i-1')
+    expect(out).toEqual({ id: 'i-1' })
+    expect(withTenantTransaction).toHaveBeenCalledWith(APP, TENANT, 'sub-9', expect.any(Function))
+  })
+
   it('listAdmin con identity sin userId → 403', async () => {
     await expect(listAdmin({ role: 'admin' }, {})).rejects.toMatchObject({ statusCode: 403 })
   })

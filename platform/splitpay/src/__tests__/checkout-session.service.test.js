@@ -21,7 +21,8 @@ vi.mock('@apphub/platform-sdk/redis', () => ({ publish: publishMock }))
 vi.mock('../repositories/split-rule.repository.js',       () => splitRuleRepoMock)
 vi.mock('../repositories/checkout-session.repository.js', () => repoMock)
 
-import { createCheckoutSession } from '../services/checkout-session.service.js'
+import { createCheckoutSession, getCheckoutSession } from '../services/checkout-session.service.js'
+import { logger } from '../lib/logger.js'
 
 const ctx  = { appId: 'aulavera', tenantId: 't1', subTenantId: null }
 const STUB = { release: vi.fn(), query: vi.fn() }
@@ -91,6 +92,13 @@ describe('createCheckoutSession — one-shot (mode=payment) sin split', () => {
       stripeSessionId: 'cs_test_123',
     })
   })
+
+  it('ctx.appId ausente → app_id en metadata cae a "" (rama ?? "")', async () => {
+    const ctxNoApp = { tenantId: 't1', subTenantId: null }
+    await createCheckoutSession(ctxNoApp, baseInput)
+    const params = stripeMock.checkout.sessions.create.mock.calls[0][0]
+    expect(params.metadata.app_id).toBe('')
+  })
 })
 
 describe('createCheckoutSession — subscription', () => {
@@ -134,6 +142,38 @@ describe('createCheckoutSession — split rule', () => {
     await expect(
       createCheckoutSession(ctx, { ...baseInput, splitRuleId: 'r-empty' }),
     ).rejects.toMatchObject({ statusCode: 422 })
+  })
+})
+
+describe('createCheckoutSession — Stripe falla', () => {
+  it('stripe.checkout.sessions.create lanza → loguea + re-throw (no persiste)', async () => {
+    stripeMock.checkout.sessions.create.mockRejectedValueOnce(new Error('Stripe boom'))
+    await expect(createCheckoutSession(ctx, baseInput)).rejects.toThrow('Stripe boom')
+    expect(logger.error).toHaveBeenCalled()
+    expect(repoMock.insert).not.toHaveBeenCalled()
+  })
+
+  it('publish falla → logger.warn, pero la creación NO falla', async () => {
+    publishMock.mockRejectedValueOnce(new Error('redis down'))
+    const r = await createCheckoutSession(ctx, baseInput)
+    expect(r.stripeSessionId).toBe('cs_test_123')
+    // El catch en .catch() se ejecuta en microtask — esperamos un tick.
+    await new Promise((res) => setImmediate(res))
+    expect(logger.warn).toHaveBeenCalled()
+  })
+})
+
+describe('getCheckoutSession', () => {
+  it('SELECT por id + tenant, devuelve row', async () => {
+    STUB.query.mockResolvedValueOnce({ rows: [{ id: 's1', tenant_id: 't1' }] })
+    const r = await getCheckoutSession(ctx, 's1')
+    expect(STUB.query.mock.calls[0][1]).toEqual(['s1', 't1'])
+    expect(r.id).toBe('s1')
+  })
+
+  it('sin row → null', async () => {
+    STUB.query.mockResolvedValueOnce({ rows: [] })
+    expect(await getCheckoutSession(ctx, 'nope')).toBeNull()
   })
 })
 
