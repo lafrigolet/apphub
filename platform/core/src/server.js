@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import helmet from '@fastify/helmet'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
+import websocket from '@fastify/websocket'
 import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
 import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from 'fastify-type-provider-zod'
@@ -32,6 +33,7 @@ const moduleDescriptors = [
   { name: 'donations',     package: '@apphub/platform-donations',     databaseUrl: env.DATABASE_URL_DONATIONS,     schema: 'platform_donations'     },
   { name: 'inquiries',     package: '@apphub/platform-inquiries',     databaseUrl: env.DATABASE_URL_INQUIRIES,     schema: 'platform_inquiries'     },
   { name: 'verifactu',     package: '@apphub/platform-verifactu',     databaseUrl: env.DATABASE_URL_VERIFACTU,     schema: 'platform_verifactu'     },
+  { name: 'chat',          package: '@apphub/platform-chat',          databaseUrl: env.DATABASE_URL_CHAT,          schema: 'platform_chat'          },
 ]
 
 async function loadModule(descriptor) {
@@ -88,6 +90,13 @@ export async function start() {
     timeWindow: env.RATE_LIMIT_TIME_WINDOW,
     errorResponseBuilder: () => ({ error: { code: 'RATE_LIMITED', message: 'Too many requests' } }),
   })
+
+  // WebSocket support — the chat module's real-time gateway (GET /v1/chat/ws)
+  // is the only consumer today. Registered once on the root app so any module
+  // can declare `{ websocket: true }` routes. The WS route authenticates the
+  // JWT from the query string itself (browsers can't set Authorization on WS),
+  // so it is marked `config.public` to bypass appGuard's header check.
+  await app.register(websocket)
 
   // OpenAPI: register before modules so their routes are included in the spec.
   // Swagger UI is mounted at /docs (appGuard bypasses /docs/*).

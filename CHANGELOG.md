@@ -7,6 +7,47 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform/chat` — ampliación de features (bloques A+B+C+D).** Sobre el
+  módulo base se añadió: **threads** (sub-respuestas), **forward**, **pins**,
+  **@menciones** ampliadas (`@all`/`@here`, por rol de conversación, y por rol
+  de app `@staff` resolviendo vía HTTP a `platform/auth`), **acuses de
+  entregado** (delivered receipts), **filtros de búsqueda**
+  (conversación/autor/tipo/fecha), **solicitudes de DM** (request/accept/
+  decline), **invitaciones por código + grupos públicos**, **mensajes
+  programados** y **efímeros (TTL)**, **límite de adjuntos por tenant**,
+  **palabras prohibidas** y **baneos de tenant**, **export + métricas** de
+  staff, y soporte tipo helpdesk con **CSAT**, **macros** (respuestas
+  guardadas) y **enrutado por cola**. Nueva migración `0002_features.sql`
+  (columnas + tablas `pinned_messages`/`conversation_invites`/`tenant_bans`/
+  `support_csat`/`support_macros`, todas con RLS forzada). El módulo ahora corre
+  un **consumidor de `platform.events`** para entregar mensajes programados.
+  **`platform-scheduler`**: 4 jobs nuevos (`chat-scheduled-send`,
+  `chat-ephemeral-purge`, `chat-retention-purge`, `chat-support-sla`) + grant
+  cross-schema a `svc_platform_scheduler` (migración `0005`). **`platform/
+  notifications`**: handlers `chat.*` que mandan **push** al destinatario
+  (resoluble por `userId` vía `push_devices`). Tests unitarios (≥95%
+  statements/lines en chat) + integración (threads, pins, invites, entrega
+  programada, baneo). Ver [ADR 014](docs/adr/014-chat-module-and-websocket-gateway.md).
+- **`platform/chat` — módulo de chat entre miembros (platform-core).**
+  Capacidad horizontal nueva (schema `platform_chat`, rol `svc_platform_chat`,
+  registrada en `platform/core/src/server.js`) que da a cualquier app chat
+  **directo (1:1)**, **grupo** y **soporte**. Funcionalidad: conversaciones con
+  dedup de directos, gestión de participantes/roles, mensajes (responder,
+  editar, soft-delete), reacciones, @menciones, adjuntos vía `platform/storage`,
+  marcadores de leído + contadores de no-leídos, búsqueda full-text
+  (`tsvector`), bloqueos + reportes (moderación), redacción PII opcional por
+  tenant (OFF por defecto), y soporte tipo helpdesk (cola + asignación de
+  agente + estado/prioridad). Aislamiento multi-tenant por RLS forzada como el
+  resto de módulos. **Primer gateway WebSocket de la plataforma**
+  (`GET /v1/chat/ws`, `@fastify/websocket`) con fan-out cross-instancia por
+  Redis (`chat:rt:{appId}:{tenantId}`) — entrega navegador-a-navegador; el
+  *envío* sigue por POST REST (ruta de escritura única). Presencia y typing
+  efímeros en Redis. Publica `chat.{conversation.created,message.created,
+  mention.created,support.assigned,message.reported}` en `platform.events`
+  (a integrar en `notifications` como seguimiento). NGINX: `/api/chat/ws` con
+  upgrade headers + timeout largo. Tests unitarios (≥95% statements/lines) +
+  integración (RLS cross-tenant, e2e grupo, dedup directo, soporte, y fan-out
+  real-time end-to-end). Ver [ADR 014](docs/adr/014-chat-module-and-websocket-gateway.md).
 - **Cobertura de tests ≥95% en cada microservicio de `platform/`.** Se añadió
   una config de cobertura compartida (`vitest.coverage.mjs`: v8, mide
   services/routes/repositories/libs con lógica; excluye plumbing —

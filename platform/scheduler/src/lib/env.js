@@ -23,6 +23,10 @@ const envSchema = z.object({
   JOB_STORAGE_ORPHAN_PURGE_ENABLED:           z.coerce.boolean().default(true),
   JOB_STORAGE_RETENTION_PURGE_ENABLED:        z.coerce.boolean().default(true),
   JOB_NOTIFICATION_DIGEST_ENABLED:             z.coerce.boolean().default(true),
+  JOB_CHAT_SCHEDULED_SEND_ENABLED:             z.coerce.boolean().default(true),
+  JOB_CHAT_EPHEMERAL_PURGE_ENABLED:            z.coerce.boolean().default(true),
+  JOB_CHAT_RETENTION_PURGE_ENABLED:            z.coerce.boolean().default(true),
+  JOB_CHAT_SUPPORT_SLA_ENABLED:                z.coerce.boolean().default(true),
 })
 
 const parsed = envSchema.safeParse(process.env)

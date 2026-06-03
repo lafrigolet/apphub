@@ -18,6 +18,7 @@ import { checkRateLimit } from './rate-limit.service.js'
 import { shouldDigest, enqueueDigest } from './digest.service.js'
 import {
   sendBookingReminderPush, sendBookingConfirmedPush, sendReservationReminderPush,
+  sendPushToUser,
 } from './push.service.js'
 
 // Rate-limit gate: skip the send when the per-user/hour or per-user/day cap
@@ -425,6 +426,51 @@ export function startEventConsumer() {
         if (buyerEmail) {
           const { sendOrderRefundedEmail } = await import('./email.service.js')
           await gated(buyerUserId, event.type, 'email', () => sendOrderRefundedEmail(buyerEmail, { orderId, totalCents, currency, locale }))
+        }
+      }
+
+      // ── chat ──────────────────────────────────────────────────────────────
+      // Chat events carry userIds (not emails — auth owns those), so the
+      // resolvable channel is PUSH (tokens looked up per userId in
+      // platform_notifications.push_devices). Offline recipients get a push.
+      if (event.type === 'chat.message.created') {
+        const { appId, tenantId, conversationId, messageId, senderUserId, recipientUserIds } = event.payload ?? {}
+        for (const userId of recipientUserIds ?? []) {
+          if (userId === senderUserId) continue
+          const ctx = { appId, tenantId, subTenantId: null, userId, role: 'system' }
+          await gated(userId, event.type, 'push', () => sendPushToUser(ctx, userId, {
+            title: 'New message', body: '', data: { type: 'chat.message.created', conversationId, messageId },
+          }))
+        }
+      }
+
+      if (event.type === 'chat.mention.created') {
+        const { appId, tenantId, conversationId, messageId, mentionedUserId } = event.payload ?? {}
+        if (mentionedUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: mentionedUserId, role: 'system' }
+          await gated(mentionedUserId, event.type, 'push', () => sendPushToUser(ctx, mentionedUserId, {
+            title: 'You were mentioned', body: '', data: { type: 'chat.mention.created', conversationId, messageId },
+          }))
+        }
+      }
+
+      if (event.type === 'chat.support.assigned') {
+        const { appId, tenantId, conversationId, agentUserId } = event.payload ?? {}
+        if (agentUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: agentUserId, role: 'system' }
+          await gated(agentUserId, event.type, 'push', () => sendPushToUser(ctx, agentUserId, {
+            title: 'Support ticket assigned to you', body: '', data: { type: 'chat.support.assigned', conversationId },
+          }))
+        }
+      }
+
+      if (event.type === 'chat.support.sla_breached') {
+        const { appId, tenantId, conversationId, assignedAgentUserId } = event.payload ?? {}
+        if (assignedAgentUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: assignedAgentUserId, role: 'system' }
+          await gated(assignedAgentUserId, event.type, 'push', () => sendPushToUser(ctx, assignedAgentUserId, {
+            title: 'Support SLA breached', body: '', data: { type: 'chat.support.sla_breached', conversationId },
+          }))
         }
       }
     } catch (err) {

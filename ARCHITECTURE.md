@@ -146,6 +146,9 @@ PostgreSQL instance
 ├── platform_storage              (platform/storage)         role: svc_platform_storage
 ├── platform_leads                (platform/leads)           role: svc_platform_leads
 ├── platform_donations            (platform/donations)       role: svc_platform_donations
+├── platform_inquiries            (platform/inquiries)       role: svc_platform_inquiries
+├── platform_verifactu            (platform/verifactu)       role: svc_platform_verifactu
+├── platform_chat                 (platform/chat)            role: svc_platform_chat
 │
 │ ── platform-marketplace modules ──
 ├── platform_orders               (platform/orders)          role: svc_platform_orders
@@ -201,6 +204,29 @@ Eventos clave emitidos por el dominio dinero:
 |---|---|---|---|
 | `platform/splitpay` | `splitpay.checkout.completed`, `splitpay.invoice.paid`, `splitpay.invoice.payment_failed`, `splitpay.subscription.updated`, `splitpay.subscription.deleted` | webhook Stripe correspondiente | Cada app que cobra (aikikan-server, `platform/donations`, …) |
 | `platform/donations` | `donation.completed`, `donation.recurring.charged`, `donation.recurring.failed`, `donation.recurring.cancelled`, `donation.refunded`, `donation.certificate.ready` | tras reconciliar el webhook de splitpay | `platform/notifications` (emails al donante) + apps suscritas |
+| `platform/chat` | `chat.conversation.created`, `chat.message.created`, `chat.mention.created`, `chat.support.assigned`, `chat.message.reported`, `chat.support.sla_breached` | tras persistir la escritura correspondiente (los dos últimos los emite `platform-scheduler`) | `platform/notifications` (push al destinatario, vía `userId`→`push_devices`) |
+| `platform-scheduler` → `platform/chat` | `chat.scheduled.due` | cuando llega la hora de un mensaje programado | el consumidor de `platform/chat` entrega el mensaje (flip a `sent` + fan-out) |
+
+### Real-time delivery (chat)
+
+`platform/chat` añade el **primer gateway WebSocket** de la plataforma
+(`GET /v1/chat/ws`, vía `@fastify/websocket`). Además del bus de negocio
+`platform.events`, el módulo publica *frames* de tiempo real en
+`chat:rt:{appId}:{tenantId}`; cada instancia de `platform-core` mantiene un
+suscriptor (`psubscribe chat:rt:*`) que reenvía cada frame a los sockets
+conectados localmente cuyo usuario figura en `recipientUserIds`. Así la
+entrega funciona **navegador-a-navegador** incluso con varias réplicas. El
+*envío* de mensajes siempre va por el POST REST (una única ruta de escritura
+auditable); el socket sólo transporta entrega + typing + presencia. Presencia
+y typing son efímeros (claves Redis con TTL). Ver [ADR 014](docs/adr/014-chat-module-and-websocket-gateway.md).
+
+Además del gateway, `platform/chat` corre un **consumidor de `platform.events`**
+(como `notifications`) para los flujos dirigidos por tiempo: `platform-scheduler`
+publica `chat.scheduled.due` y el consumidor del módulo realiza la entrega real
+del mensaje programado (manteniendo la ruta de escritura dentro del módulo). Los
+jobs `chat-ephemeral-purge` y `chat-retention-purge` operan por DELETE/UPDATE
+directo sobre `platform_chat` (rol `svc_platform_scheduler` con grants), y
+`chat-support-sla` marca y publica brechas de SLA de soporte.
 
 ## Idempotency
 

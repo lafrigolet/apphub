@@ -39,7 +39,7 @@ const smsMock = vi.hoisted(() => Object.fromEntries(
 vi.mock('../services/sms.service.js', () => smsMock)
 
 const pushMock = vi.hoisted(() => Object.fromEntries(
-  ['sendBookingReminderPush', 'sendBookingConfirmedPush', 'sendReservationReminderPush']
+  ['sendBookingReminderPush', 'sendBookingConfirmedPush', 'sendReservationReminderPush', 'sendPushToUser']
     .map((n) => [n, vi.fn()]),
 ))
 vi.mock('../services/push.service.js', () => pushMock)
@@ -78,6 +78,31 @@ beforeEach(() => {
 afterEach(() => { delete process.env.PLATFORM_PUBLIC_DOMAIN; delete process.env.STAFF_OPS_EMAIL })
 
 const emit = (event) => capturedMessageHandler('platform.events', JSON.stringify(event))
+
+describe('chat events → push', () => {
+  it('chat.message.created pushes each recipient except sender', async () => {
+    await emit({ type: 'chat.message.created', payload: { appId: 'a', tenantId: 't', conversationId: 'c1', messageId: 'm1', senderUserId: 'me', recipientUserIds: ['me', 'u2'] } })
+    expect(pushMock.sendPushToUser).toHaveBeenCalledTimes(1)
+    expect(pushMock.sendPushToUser).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u2' }), 'u2', expect.objectContaining({ data: expect.objectContaining({ type: 'chat.message.created' }) }),
+    )
+  })
+  it('chat.mention.created pushes the mentioned user', async () => {
+    await emit({ type: 'chat.mention.created', payload: { appId: 'a', tenantId: 't', conversationId: 'c1', messageId: 'm1', mentionedUserId: 'u3' } })
+    expect(pushMock.sendPushToUser).toHaveBeenCalledWith(expect.any(Object), 'u3', expect.objectContaining({ data: expect.objectContaining({ type: 'chat.mention.created' }) }))
+  })
+  it('chat.support.assigned pushes the agent', async () => {
+    await emit({ type: 'chat.support.assigned', payload: { appId: 'a', tenantId: 't', conversationId: 'c1', agentUserId: 'ag1' } })
+    expect(pushMock.sendPushToUser).toHaveBeenCalledWith(expect.any(Object), 'ag1', expect.objectContaining({ data: expect.objectContaining({ type: 'chat.support.assigned' }) }))
+  })
+  it('chat.support.sla_breached pushes the assigned agent when present', async () => {
+    await emit({ type: 'chat.support.sla_breached', payload: { appId: 'a', tenantId: 't', conversationId: 'c1', assignedAgentUserId: 'ag1' } })
+    expect(pushMock.sendPushToUser).toHaveBeenCalledWith(expect.any(Object), 'ag1', expect.objectContaining({ data: expect.objectContaining({ type: 'chat.support.sla_breached' }) }))
+    pushMock.sendPushToUser.mockClear()
+    await emit({ type: 'chat.support.sla_breached', payload: { appId: 'a', tenantId: 't', conversationId: 'c1', assignedAgentUserId: null } })
+    expect(pushMock.sendPushToUser).not.toHaveBeenCalled()
+  })
+})
 
 describe('auth flows', () => {
   it('password_reset con PLATFORM_PUBLIC_DOMAIN → https url', async () => {

@@ -51,6 +51,9 @@ CREATE SCHEMA IF NOT EXISTS platform_inquiries;
 -- platform-core verifactu module schema (SIF / facturación verificable AEAT)
 CREATE SCHEMA IF NOT EXISTS platform_verifactu;
 
+-- platform-core chat module schema (member chat: direct / group / support)
+CREATE SCHEMA IF NOT EXISTS platform_chat;
+
 DO $$
 BEGIN
   -- platform-core roles
@@ -165,6 +168,11 @@ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_verifactu') THEN
     CREATE ROLE svc_platform_verifactu LOGIN PASSWORD 'platform_verifactu_secret';
   END IF;
+
+  -- platform-core chat module role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_chat') THEN
+    CREATE ROLE svc_platform_chat LOGIN PASSWORD 'platform_chat_secret';
+  END IF;
 END
 $$;
 
@@ -215,6 +223,9 @@ GRANT USAGE ON SCHEMA platform_inquiries            TO svc_platform_inquiries;
 
 -- USAGE grants (platform-core verifactu module)
 GRANT USAGE ON SCHEMA platform_verifactu            TO svc_platform_verifactu;
+
+-- USAGE grants (platform-core chat module)
+GRANT USAGE ON SCHEMA platform_chat                 TO svc_platform_chat;
 
 -- USAGE grants (platform-core donations module)
 GRANT USAGE ON SCHEMA platform_donations            TO svc_platform_donations;
@@ -327,6 +338,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_verifactu
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_verifactu;
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_verifactu
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_verifactu;
+
+-- DML default privs (platform-core chat)
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_chat
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_chat;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_chat
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_chat;
 
 -- Sequence default privs (platform-core)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_auth

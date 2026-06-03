@@ -34,6 +34,7 @@ apphub/
 │   ├── leads/                 # Leads module (in platform-core) — schema platform_leads; public contact form + staff CRM
 │   ├── donations/             # Donations module (in platform-core) — schema platform_donations; one-shot + recurring + fiscal (Ley 49/2002, AEAT 182)
 │   ├── inquiries/             # Inquiries module (in platform-core) — schema platform_inquiries; per-tenant contact form (email-only, admin replies from personal inbox)
+│   ├── chat/                  # Chat module (in platform-core) — schema platform_chat; member chat (direct/group/support) + real-time WebSocket gateway
 │   ├── orders/                # Orders module (in platform-marketplace) — schema platform_orders
 │   ├── inventory/             # Inventory module (in platform-marketplace) — schema platform_inventory
 │   ├── reviews/               # Reviews module (in platform-marketplace) — schema platform_reviews
@@ -384,6 +385,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Donations (one-shot + recurring + fiscal Ley 49/2002 + AEAT 182) | `platform/donations` | `platform_donations` | `svc_platform_donations` | ✅ Implemented |
 | Inquiries (per-tenant contact form, email-only V1) | `platform/inquiries` | `platform_inquiries` | `svc_platform_inquiries` | ✅ Implemented |
 | Verifactu (SIF / facturación verificable AEAT: registros, cadena de huellas, eventos, remisiones, cotejo) | `platform/verifactu` | `platform_verifactu` | `svc_platform_verifactu` | 🔧 Skeleton (huella/firma/SOAP/QR stubbed — specs AEAT pendientes) |
+| Chat (member chat: direct 1:1, group, support; real-time WebSocket gateway, presence, typing, reactions, attachments, threads, pins, forward, @mentions incl. roles, DM requests, invites/public groups, scheduled + ephemeral messages, read/delivered receipts, search, moderation/bans, CSAT, macros) | `platform/chat` | `platform_chat` | `svc_platform_chat` | ✅ Implemented |
 
 ### platform-marketplace (port 3100) — marketplace transactions
 
@@ -443,6 +445,10 @@ the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
 | `practitioner-payout-close` | `0 2 * * *` | publish `payout.period_due` per schedule |
 | `dispute-sla` | `*/30 * * * *` | publish `dispute.sla_breached` (>48h no vendor reply) |
 | `basket-abandoned` | `0 * * * *` | publish `basket.abandoned` for idle baskets |
+| `chat-scheduled-send` | `* * * * *` | publish `chat.scheduled.due` for chat messages whose send time arrived |
+| `chat-ephemeral-purge` | `* * * * *` | soft-delete expired ephemeral chat messages |
+| `chat-retention-purge` | `30 3 * * *` | delete chat messages past each tenant's `retention_days` |
+| `chat-support-sla` | `*/15 * * * *` | publish `chat.support.sla_breached` (no agent reply within SLA) |
 
 ### Planned
 

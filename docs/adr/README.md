@@ -19,6 +19,7 @@ a record isn't edited; if the decision changes, a new ADR supersedes it.
 | [011](011-calendar-integrations-deferred.md) | Calendar integrations (Google / Outlook two-way sync) deferred | Deferred |
 | [012](012-tenant-console-multi-host-routing.md) | Tenant Console multi-host routing | Accepted |
 | [013](013-app-architecture-and-schema-naming.md) | App architecture: monolith per app + unified schema naming | Accepted |
+| [014](014-chat-module-and-websocket-gateway.md) | `chat` module + the platform's first WebSocket gateway | Accepted |
 
 ## Writing a new ADR
 

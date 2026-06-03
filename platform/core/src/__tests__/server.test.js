@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 process.env.MIGRATION_DATABASE_URL  ??= 'postgresql://x:y@localhost:5432/test'
 process.env.REDIS_URL               ??= 'redis://localhost:6379'
 process.env.PLATFORM_JWT_SECRET     ??= 'test_secret_at_least_32_characters_long_ok'
-for (const m of ['AUTH','NOTIFICATIONS','PAYMENTS','TENANT_CONFIG','SPLITPAY','STORAGE','LEADS','DONATIONS','INQUIRIES','VERIFACTU']) {
+for (const m of ['AUTH','NOTIFICATIONS','PAYMENTS','TENANT_CONFIG','SPLITPAY','STORAGE','LEADS','DONATIONS','INQUIRIES','VERIFACTU','CHAT']) {
   process.env[`DATABASE_URL_${m}`]  ??= `postgresql://${m.toLowerCase()}:s@localhost:5432/test`
 }
 process.env.S3_ENDPOINT             ??= 'http://minio:9000'
@@ -74,6 +74,7 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
     donations:      mkModule('donations'),
     inquiries:      mkModule('inquiries'),
     verifactu:      mkModule('verifactu'),
+    chat:           mkModule('chat'),
   }
 
   return { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, ensureModuleRoleMock, createRedisMock, modulesMock }
@@ -100,6 +101,8 @@ vi.mock('@apphub/platform-leads',         () => modulesMock.leads)
 vi.mock('@apphub/platform-donations',     () => modulesMock.donations)
 vi.mock('@apphub/platform-inquiries',     () => modulesMock.inquiries)
 vi.mock('@apphub/platform-verifactu',     () => modulesMock.verifactu)
+vi.mock('@apphub/platform-chat',          () => modulesMock.chat)
+vi.mock('@fastify/websocket',             () => ({ default: vi.fn() }))
 
 // ── tests ───────────────────────────────────────────────────────────
 
@@ -149,7 +152,7 @@ describe('start() — boot sequence', () => {
     const { start } = await import('../server.js')
     await start()
 
-    expect(createPoolMock).toHaveBeenCalledTimes(10)
+    expect(createPoolMock).toHaveBeenCalledTimes(11)
     const urls = createPoolMock.mock.calls.map((c) => c[0])
     expect(urls).toContain(process.env.DATABASE_URL_AUTH)
     expect(urls).toContain(process.env.DATABASE_URL_NOTIFICATIONS)
@@ -217,7 +220,7 @@ describe('start() — boot sequence', () => {
     expect(r.status).toBe('ok')
     expect(r.service).toBe('platform-core')
     expect(r.modules).toEqual(
-      ['auth','notifications','payments','tenant-config','splitpay','storage','leads','donations','inquiries','verifactu'],
+      ['auth','notifications','payments','tenant-config','splitpay','storage','leads','donations','inquiries','verifactu','chat'],
     )
     expect(r.timestamp).toBeTypeOf('string')
   })

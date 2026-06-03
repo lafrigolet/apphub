@@ -45,7 +45,7 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
     auth: mkModule('auth'), notifications: mkModule('notifications'), payments: mkModule('payments'),
     tenantConfig: mkModule('tenant-config'), splitpay: mkModule('splitpay'), storage: mkModule('storage'),
     leads: mkModule('leads'), donations: mkModule('donations'), inquiries: mkModule('inquiries'),
-    verifactu: mkModule('verifactu'),
+    verifactu: mkModule('verifactu'), chat: mkModule('chat'),
   }
   return { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, ensureModuleRoleMock, createRedisMock, modulesMock }
 })
@@ -71,6 +71,8 @@ vi.mock('@apphub/platform-leads',         () => modulesMock.leads)
 vi.mock('@apphub/platform-donations',     () => modulesMock.donations)
 vi.mock('@apphub/platform-inquiries',     () => modulesMock.inquiries)
 vi.mock('@apphub/platform-verifactu',     () => modulesMock.verifactu)
+vi.mock('@apphub/platform-chat',          () => modulesMock.chat)
+vi.mock('@fastify/websocket',             () => ({ default: vi.fn() }))
 
 let exitSpy
 beforeEach(() => {

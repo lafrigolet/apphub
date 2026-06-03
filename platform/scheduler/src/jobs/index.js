@@ -10,6 +10,10 @@ import * as basketAbandoned                from './basket-abandoned.job.js'
 import * as storageOrphanPurge              from './storage-orphan-purge.job.js'
 import * as storageRetentionPurge           from './storage-retention-purge.job.js'
 import * as notificationDigest               from './notification-digest.job.js'
+import * as chatScheduledSend                from './chat-scheduled-send.job.js'
+import * as chatEphemeralPurge               from './chat-ephemeral-purge.job.js'
+import * as chatRetentionPurge               from './chat-retention-purge.job.js'
+import * as chatSupportSla                   from './chat-support-sla.job.js'
 
 import { env } from '../lib/env.js'
 
@@ -29,6 +33,10 @@ export const jobs = [
   { mod: storageOrphanPurge,          enabled: env.JOB_STORAGE_ORPHAN_PURGE_ENABLED },
   { mod: storageRetentionPurge,       enabled: env.JOB_STORAGE_RETENTION_PURGE_ENABLED },
   { mod: notificationDigest,           enabled: env.JOB_NOTIFICATION_DIGEST_ENABLED },
+  { mod: chatScheduledSend,            enabled: env.JOB_CHAT_SCHEDULED_SEND_ENABLED },
+  { mod: chatEphemeralPurge,           enabled: env.JOB_CHAT_EPHEMERAL_PURGE_ENABLED },
+  { mod: chatRetentionPurge,           enabled: env.JOB_CHAT_RETENTION_PURGE_ENABLED },
+  { mod: chatSupportSla,               enabled: env.JOB_CHAT_SUPPORT_SLA_ENABLED },
 ].map((j) => ({
   meta:    j.mod.meta,
   run:     j.mod.run,
