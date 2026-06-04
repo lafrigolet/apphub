@@ -43,7 +43,7 @@ function row(labelText, valueText) {
   )
 }
 
-export function Certificate({ entity, donor, fiscalYear, donations, totalCents, generatedAt, certificateId }) {
+export function Certificate({ entity, donor, fiscalYear, donations, totalCents, generatedAt, certificateId, deduction }) {
   return e(Document, null,
     e(Page, { size: 'A4', style: styles.page },
       e(View, { style: styles.header },
@@ -83,6 +83,20 @@ export function Certificate({ entity, donor, fiscalYear, donations, totalCents, 
         ),
         e(Text, { style: styles.total }, `Total donado en ${fiscalYear}: ${eur(totalCents)}`),
       ),
+      deduction
+        ? e(View, { style: styles.section },
+            e(Text, { style: styles.h2 }, 'Deducción estimada en IRPF'),
+            row('Base de deducción', eur(deduction.baseCents)),
+            row(`Primeros ${eur(deduction.firstBracketCents)} al 80 %`,
+                eur(Math.round(deduction.firstBracketCents * 0.8))),
+            deduction.excessCents > 0
+              ? row(`Exceso al ${Math.round(deduction.excessRate * 100)} %`
+                      + (deduction.loyal ? ' (fidelización)' : ''),
+                    eur(Math.round(deduction.excessCents * deduction.excessRate)))
+              : null,
+            e(Text, { style: styles.total }, `Deducción estimada: ${eur(deduction.deductibleCents)}`),
+          )
+        : null,
       e(Text, { style: styles.legal },
         'Los donativos efectuados a esta entidad dan derecho a la deducción en ' +
         'la cuota íntegra del IRPF o del IS en los términos y con los límites ' +

@@ -162,7 +162,7 @@ describe('exportModelo182 — formato AEAT', () => {
       if (/FROM platform_donations\.donations/i.test(sql)) {
         return {
           rows: [{
-            donor_nif: 'Y0000000X', donor_name: null, donor_address: null,
+            donor_nif: 'Y0000000Z', donor_name: null, donor_address: null,
             donor_postal_code: null, donor_country: null,
             total_cents: '1000', count_donations: '1',
           }],
@@ -175,5 +175,51 @@ describe('exportModelo182 — formato AEAT', () => {
     const detalle = out.buffer.toString('latin1').split('\r\n')[1]
     // país por defecto 'ES' en pos 77-78 (idx 76-78): tras 1+3+4+9+9+9+40 = idx 75 prov(2)=75-77, país 77-79
     expect(detalle.slice(77, 79)).toBe('ES')
+  })
+})
+
+describe('exportModelo182 — provincia desde CP', () => {
+  it('calcula el código de provincia (2 chars, idx 75-77) desde donor_postal_code', async () => {
+    stubClient.query.mockImplementation(async (sql) => {
+      if (/FROM platform_tenants\.tenants/i.test(sql)) {
+        return { rows: [{ legal_name: 'F', display_name: 'F', cif: 'G-9', address: '' }] }
+      }
+      if (/FROM platform_donations\.donations/i.test(sql)) {
+        return { rows: [{
+          donor_nif: '12345678Z', donor_name: 'Ana', donor_address: 'Calle',
+          donor_postal_code: '28013', donor_country: 'ES',
+          total_cents: '1000', count_donations: '1',
+        }] }
+      }
+      return { rows: [] }
+    })
+    const out = await exportModelo182(admin, { year: 2026 })
+    const detalle = out.buffer.toString('latin1').split('\r\n')[1]
+    // provincia en idx 75-77 (tras 1+3+4+9+9+9+40 = 75)
+    expect(detalle.slice(75, 77)).toBe('28')
+  })
+})
+
+describe('exportModelo182 — exclusión de NIF inválido', () => {
+  it('omite del fichero los donantes con NIF inválido y los reporta en skipped', async () => {
+    stubClient.query.mockImplementation(async (sql) => {
+      if (/FROM platform_tenants\.tenants/i.test(sql)) {
+        return { rows: [{ legal_name: 'F', display_name: 'F', cif: 'G-9', address: '' }] }
+      }
+      if (/FROM platform_donations\.donations/i.test(sql)) {
+        return { rows: [
+          { donor_nif: '12345678Z', donor_name: 'Ok', donor_address: null,
+            donor_postal_code: null, donor_country: 'ES', total_cents: '1000', count_donations: '1' },
+          { donor_nif: 'BADNIF99', donor_name: 'Malo', donor_address: null,
+            donor_postal_code: null, donor_country: 'ES', total_cents: '2000', count_donations: '1' },
+        ] }
+      }
+      return { rows: [] }
+    })
+    const out = await exportModelo182(admin, { year: 2026 })
+    expect(out.count).toBe(1)              // sólo el válido entra
+    expect(out.totalCents).toBe(1000)
+    expect(out.skipped).toHaveLength(1)
+    expect(out.skipped[0].donorNif).toBe('BADNIF99')
   })
 })

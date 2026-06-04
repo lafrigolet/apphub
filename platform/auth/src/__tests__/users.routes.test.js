@@ -23,8 +23,13 @@ vi.mock('../services/users.service.js', () => ({
   resendInvitation: vi.fn(),
 }))
 
+vi.mock('../services/auth.service.js', () => ({
+  listSessions: vi.fn(),
+}))
+
 import { usersRoutes } from '../routes/users.routes.js'
 import * as usersService from '../services/users.service.js'
+import * as authService from '../services/auth.service.js'
 import { AppError } from '../utils/errors.js'
 
 const TENANT = '22222222-2222-2222-2222-222222222222'
@@ -100,6 +105,21 @@ describe('PATCH /v1/users/me', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(usersService.updateMe).toHaveBeenCalledWith({ displayName: 'New' }, expect.anything())
+  })
+})
+
+describe('GET /v1/users/me/sessions', () => {
+  it('devuelve las sesiones activas del usuario autenticado', async () => {
+    authService.listSessions.mockResolvedValue([{ tokenSuffix: 'abcd1234', ttlSeconds: 1000 }])
+    const res = await app.inject({ method: 'GET', url: '/v1/users/me/sessions', headers: user })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual([{ tokenSuffix: 'abcd1234', ttlSeconds: 1000 }])
+    expect(authService.listSessions).toHaveBeenCalledWith({ appId: 'platform', tenantId: TENANT, userId: UID })
+  })
+
+  it('401 sin Bearer', async () => {
+    const res = await app.inject({ method: 'GET', url: '/v1/users/me/sessions' })
+    expect(res.statusCode).toBe(401)
   })
 })
 

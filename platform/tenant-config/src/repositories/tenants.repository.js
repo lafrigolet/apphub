@@ -2,8 +2,10 @@ const FULL_COLUMNS = `
   id, app_id, display_name, subdomain, status,
   legal_name, cif, country, contact_email, contact_phone, address,
   plan, custom_domain, stripe_status, suspend_reason, archived_at,
+  custom_domain_verified, custom_domain_verify_token, custom_domain_verified_at,
+  enabled_modules_override,
   volume_month_cents, tx_month, balance_cents,
-  default_locale,
+  default_locale, timezone, requires_user_approval,
   subscription_period, subscription_status, subscription_amount_cents,
   subscription_currency, subscription_stripe_price_id,
   subscription_stripe_subscription_id, subscription_stripe_customer_id,
@@ -86,6 +88,12 @@ const ALLOWED_UPDATE_FIELDS = {
   txMonth:           'tx_month',
   balanceCents:      'balance_cents',
   defaultLocale:     'default_locale',
+  timezone:          'timezone',
+  requiresUserApproval: 'requires_user_approval',
+  // Per-tenant override of the app's enabled_modules array (#7). NULL clears
+  // the override (tenant falls back to apps.enabled_modules). The dedicated
+  // PATCH endpoint sets this; it is also writable here for completeness.
+  enabledModulesOverride: 'enabled_modules_override',
   // Campos comerciales de la subscripción del tenant a la plataforma.
   // Los campos `subscription_stripe_*_id` los rellena el subscriber de
   // eventos splitpay (no el endpoint PATCH staff).
@@ -111,6 +119,46 @@ export async function markBootstrapCompleted(client, id) {
      WHERE id = $1
      RETURNING ${FULL_COLUMNS}`,
     [id],
+  )
+  return rows[0] ?? null
+}
+
+// #5 Custom-domain DNS verification. Issue/refresh the challenge token the
+// tenant must publish as a TXT record. Idempotent: callers may regenerate.
+export async function setCustomDomainVerifyToken(client, id, token) {
+  const { rows } = await client.query(
+    `UPDATE platform_tenants.tenants
+     SET custom_domain_verify_token = $2,
+         custom_domain_verified     = FALSE,
+         custom_domain_verified_at  = NULL
+     WHERE id = $1
+     RETURNING ${FULL_COLUMNS}`,
+    [id, token],
+  )
+  return rows[0] ?? null
+}
+
+// Mark the custom domain as verified (write timestamp). Token is kept for audit.
+export async function markCustomDomainVerified(client, id) {
+  const { rows } = await client.query(
+    `UPDATE platform_tenants.tenants
+     SET custom_domain_verified    = TRUE,
+         custom_domain_verified_at = now()
+     WHERE id = $1
+     RETURNING ${FULL_COLUMNS}`,
+    [id],
+  )
+  return rows[0] ?? null
+}
+
+// #7 Set/clear the per-tenant enabled_modules override. Pass null to clear.
+export async function setEnabledModulesOverride(client, id, modules) {
+  const { rows } = await client.query(
+    `UPDATE platform_tenants.tenants
+     SET enabled_modules_override = $2
+     WHERE id = $1
+     RETURNING ${FULL_COLUMNS}`,
+    [id, modules],
   )
   return rows[0] ?? null
 }

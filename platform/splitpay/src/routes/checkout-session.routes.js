@@ -22,21 +22,61 @@ const createBody = z.object({
   splitRuleId:   z.string().uuid().optional(),
   currency:      z.string().length(3).default('eur'),
   metadata:      z.record(z.string(), z.string()).optional(),
+  // Idempotencia de Checkout Sessions (priority #8) — opcional; tenant-scoped.
+  idempotencyKey: z.string().min(1).max(255).optional(),
+})
+
+const listQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 })
 
 export async function checkoutSessionRoutes(fastify) {
   // POST /v1/splitpay/checkout-sessions — crear sesión.
-  fastify.post('/', async (req, reply) => {
-    const body = createBody.parse(req.body ?? {})
-    const result = await service.createCheckoutSession(req.tenant, body)
-    return reply.status(201).send({ data: result })
-  })
+  fastify.post(
+    '/',
+    {
+      schema: {
+        tags: ['checkout-sessions'],
+        summary: 'Create a Stripe Checkout Session (payment or subscription), optionally split',
+        body: createBody,
+      },
+    },
+    async (req, reply) => {
+      const result = await service.createCheckoutSession(req.tenant, req.body)
+      return reply.status(201).send({ data: result })
+    },
+  )
+
+  // GET /v1/splitpay/checkout-sessions — listar sesiones del tenant (priority #6).
+  fastify.get(
+    '/',
+    {
+      schema: {
+        tags: ['checkout-sessions'],
+        summary: 'List the current tenant Checkout Sessions',
+        querystring: listQuery,
+      },
+    },
+    async (req) => {
+      const rows = await service.listCheckoutSessions(req.tenant, req.query.limit)
+      return { data: rows }
+    },
+  )
 
   // GET /v1/splitpay/checkout-sessions/:id
-  fastify.get('/:id', async (req, reply) => {
-    const id = z.string().uuid().parse(req.params.id)
-    const row = await service.getCheckoutSession(req.tenant, id)
-    if (!row) return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Checkout session not found' } })
-    return { data: row }
-  })
+  fastify.get(
+    '/:id',
+    {
+      schema: {
+        tags: ['checkout-sessions'],
+        summary: 'Get a Checkout Session by id',
+        params: z.object({ id: z.string().uuid() }),
+      },
+    },
+    async (req, reply) => {
+      const row = await service.getCheckoutSession(req.tenant, req.params.id)
+      if (!row) return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Checkout session not found' } })
+      return { data: row }
+    },
+  )
 }

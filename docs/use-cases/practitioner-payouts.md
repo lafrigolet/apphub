@@ -25,6 +25,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Comisiones sobre venta de paquetes / bundles (REUSE `platform/packages`) — al activar/canjear una sesión de paquete no se genera accrual.
 - ❌ Activación / desactivación de regla sin borrarla (campo `is_active`).
 - ❌ Copia (duplicate) de regla para modificar rápidamente.
+- ✅ Configuración de retención IRPF por tenant (default) y por practitioner (override) — tabla `withholding_settings`, resolución most-specific (override > default).
 
 ## 2. Devengo (accrual) automático desde bookings
 
@@ -38,15 +39,15 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Devengo desde `platform/pos` — ticket de POS no genera accrual de practitioner (caso peluquería, clínica con cajero aparte).
 - ❌ Devengo desde `platform/packages` — canje de sesión de bono/paquete no genera accrual (aunque sí se realizó el cobro al comprar el paquete).
 - ❌ Devengo desde ventas de producto asociadas a la cita (upsell de productos durante la visita).
-- ❌ Accrual manual desde la interfaz de admin (hoy existe el endpoint `POST /accruals` pero sin guardia de rol).
-- ❌ Accrual de tipo "bonus" o "deducción" (ajuste manual sin booking_id) — necesario para correcciones extraordinarias.
+- ✅ Accrual manual desde la interfaz de admin — endpoint `POST /accruals` ahora protegido por `requireRole`.
+- 🔧 Accrual de tipo `adjustment` / `advance` (ajuste manual sin booking_id) — campo `type` añadido y aceptado por `POST /accruals` con `commission_cents` negativo permitido para ajustes; falta flujo de aprobación doble.
 - ❌ Soporte de `sub_tenant_id` en la búsqueda de regla (multilocal: misma franquicia, diferentes centros con % distintos).
 
 ## 3. Cálculo de comisión
 
 - ✅ Función pura `computeCommission({ grossCents, ratePct, flatFeeCents })` — `%` sobre bruto + fee fija acumulada, redondeo a céntimo entero (Math.round), resultado nunca negativo.
 - ✅ Modelos soportados actualmente: puro variable (solo `rate_pct`), puro fijo (solo `flat_fee_cents`, `rate_pct=0`), mixto (% + flat fee).
-- 🔧 No contempla retenciones IRPF dentro del cálculo — el módulo delega eso al cierre de periodo, pero `closePeriod` tampoco las aplica todavía.
+- ✅ Retención IRPF aplicada en el cierre de periodo (no en `computeCommission`): función pura `applyWithholding(grossCents, withholdingPct)` → `{ withholdingCents, netCents }`, redondeo a céntimo, sin retención si gross ≤ 0.
 - ❌ Tramos de comisión progresivos (tier-based): aplicar % creciente o decreciente según el gross acumulado supere umbrales configurables.
 - ❌ Comisión mínima garantizada (floor) y máxima (cap) por cita o por periodo.
 - ❌ Modelo de comisión negativa / chair-rental: el resultado puede ser negativo (el practitioner debe pagar al tenant), hoy bloqueado por `Math.max(0, …)`.
@@ -60,7 +61,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Cierre disparado por el scheduler vía evento `payout.period_due` (`handleScheduledPayout`).
 - ✅ Resiliencia: error de un cierre no bloquea los siguientes (exception swallowed con log `warn`).
 - ✅ `409 no accruals` del scheduler se loguea como `info`, no como `warn` (comportamiento esperado en practitioners inactivos).
-- 🔧 No se aplica retención IRPF en el cierre — `total_commission_cents` es bruto; no se genera `net_commission_cents` ni `withholding_cents`.
+- ✅ Retención IRPF aplicada en el cierre — `closePeriod` lee `withholding_pct` (override de practitioner > default de tenant vía `resolveWithholdingPct`) y rellena `gross_commission_cents`, `withholding_pct`, `withholding_cents`, `net_commission_cents`. Se incluyen `withholdingCents`/`netCommissionCents` en el payload de `payout.created`.
 - 🔧 El campo `notes` existe en el payout pero no se rellena automáticamente (podría incluir resumen de accruals, periodo, etc.).
 - ❌ Cierre parcial o selectivo (elegir qué accruals incluir en la liquidación, excluyendo algunos).
 - ❌ Ajustes manuales de cierre: añadir bonus, deducciones o anticipos a un payout antes de cerrar o reabrirlo.
@@ -74,9 +75,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Tabla `payout_schedules` con `period` (`weekly/biweekly/monthly`), `anchor_day` (día de semana o día del mes), `next_run_at`, `last_closed_at`, `is_active`.
 - ✅ Índice parcial en `next_run_at WHERE is_active = TRUE` — el scheduler puede hacer un scan eficiente de schedules vencidos.
 - ✅ El scheduler (`platform-scheduler`, job `practitioner-payout-close`, cron `0 2 * * *`) publica `payout.period_due` y el módulo lo consume.
-- 🔧 No existe endpoint REST para CRUD de schedules — el admin no puede crear/editar/pausar un schedule desde la API; requiere acceso directo a la BD.
-- ❌ Creación/edición de schedules desde la consola de administración del tenant.
-- ❌ Pausa/reanudación de un schedule individual (`is_active` existe en BD pero sin endpoint).
+- ✅ Endpoints REST CRUD de schedules — `POST/GET/GET :id/PATCH :id/DELETE :id` bajo `/v1/practitioner-payouts/schedules`, protegidos por `requireRole`.
+- 🔧 Creación/edición de schedules desde la consola de administración del tenant — API disponible; falta la UI.
+- ✅ Pausa/reanudación de un schedule individual vía `PATCH :id { isActive }`.
 - ❌ Notificación al practitioner cuando se genera la liquidación (REUSE `platform/notifications`).
 - ❌ Previsualización de próxima fecha de cierre calculada desde `anchor_day` + `period`.
 - ❌ Schedule ad-hoc (cierre extraordinario fuera del calendario).
@@ -86,7 +87,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `POST /v1/practitioner-payouts/payouts/:id/pay` — transiciona a `paid`, registra `paid_at` y `external_ref`, publica `payout.paid`.
 - ✅ `external_ref` libre: puede almacenar una referencia Stripe, SEPA, transferencia bancaria, etc.
-- 🔧 No hay verificación de que el payout esté en estado `pending` antes de marcarlo `paid` — puede aplicarse a un payout ya `cancelled`.
+- ✅ Verificación de estado `pending` antes de marcar `paid` — `setPayoutStatus` con `expectedStatus='pending'`; un payout ya `paid`/`cancelled` devuelve `409 payout not pending`, inexistente devuelve `404`.
 - ❌ Pago automático vía Stripe Connect Transfer a la cuenta del practitioner (REUSE `platform/splitpay`) — hoy el pago es externo y solo se registra la referencia.
 - ❌ Pago vía SEPA Credit Transfer (Stripe o Adyen) con validación de IBAN del profesional.
 - ❌ Generación de orden de transferencia bancaria (PAIN.001 XML) para pago masivo por lotes.
@@ -96,9 +97,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 7. Retenciones fiscales (IRPF — España)
 
-- ❌ Aplicación automática de retención IRPF (15 % general autónomos, 7 % primer año) sobre el `total_commission_cents` en el cierre de periodo.
-- ❌ Tabla de tipos de retención configurables por tenant (o por practitioner: algunos pueden tener tipo reducido acreditado).
-- ❌ Campos `gross_commission_cents`, `withholding_pct`, `withholding_cents`, `net_commission_cents` en el payout.
+- ✅ Aplicación automática de retención IRPF sobre el `total_commission_cents` en el cierre de periodo (porcentaje configurable; soporta 15 %/7 % o cualquier tipo).
+- ✅ Tabla de tipos de retención configurables por tenant (default) y por practitioner (override) — `withholding_settings`.
+- ✅ Campos `gross_commission_cents`, `withholding_pct`, `withholding_cents`, `net_commission_cents` en el payout.
 - ❌ Declaración modelo 190 (anual) / modelo 111 (trimestral) — exportación de devengos con retención por NIF de profesional para AEAT.
 - ❌ Certificado de retenciones anual por profesional (documento PDF/CSV para el IRPF del practitioner).
 - ❌ Validación de NIF/NIE del practitioner antes de calcular retenciones.
@@ -106,9 +107,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 8. Ajustes manuales (bonus, deducciones, anticipos)
 
-- ❌ Accrual de tipo `adjustment` (sin `booking_id`): para registrar bonus extraordinarios, penalizaciones, correcciones de facturación.
-- ❌ Campo `type` en `accruals` distinguiendo `booking_commission / adjustment / advance / reversal`.
-- ❌ Anticipo (`advance`): accrual negativo que reduce la liquidación del próximo periodo.
+- ✅ Accrual de tipo `adjustment` (sin `booking_id`): para registrar bonus extraordinarios, penalizaciones, correcciones — vía `POST /accruals { type:'adjustment', commissionCents }` (acepta negativos).
+- ✅ Campo `type` en `accruals` distinguiendo `booking_commission / adjustment / advance / reversal`.
+- ✅ Anticipo (`advance`): soportado como accrual con `type='advance'` y commission negativo que reduce la liquidación del próximo periodo (el cierre suma todos los `accrued` del periodo, incluidos los negativos).
 - ❌ Deducción de gastos del practitioner (material, alquiler de cabina) registrada como accrual negativo antes del cierre.
 - ❌ Nota obligatoria (`reason`) para ajustes manuales — auditoría.
 - ❌ Aprobación doble (maker/checker) para ajustes superiores a un umbral configurable.
@@ -116,7 +117,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 9. Generación de extracto / documento de liquidación
 
 - ✅ `GET /v1/practitioner-payouts/payouts/:id/pdf` — extracto PDF textual con cabecera de periodo, `external_ref`, `gross_amount_cents`, `net_amount_cents` y líneas de devengo (fecha, booking_id abreviado, importe, estado).
-- 🔧 `gross_amount_cents` y `net_amount_cents` se referencian en el PDF pero no existen como columnas reales en la tabla `payouts` (solo `total_commission_cents`) — en los tests pasan como campos del mock pero en producción serían `null`.
+- ✅ Columnas reales `gross_commission_cents` / `withholding_pct` / `withholding_cents` / `net_commission_cents` en `payouts`; el PDF las usa (con desglose de retención IRPF) y mantiene fallback a las alias legacy.
 - 🔧 El extracto muestra el UUID del practitioner en lugar del nombre — sin join a `platform_resources`.
 - 🔧 El booking_id se muestra abreviado (8 primeros caracteres) — útil para depuración pero no para el profesional.
 - ❌ Extracto en formato HTML / Excel (XLSX) además de PDF.
@@ -130,9 +131,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 10. Reversión / clawback
 
 - ✅ Reversión de accrual por `booking.cancelled` / `booking.no_show` si el accrual estaba `accrued` — transiciona a `reversed`.
-- 🔧 Sin reversión si el accrual ya fue `paid` (incluido en un payout cerrado) — no hay clawback automático ni alerta.
-- ❌ Clawback: cuando se cancela una cita cuyo accrual ya fue liquidado (`paid`), crear un accrual negativo (`adjustment`) que se descuenta de la siguiente liquidación.
-- ❌ Notificación al admin cuando ocurre una reversión post-liquidación (accrual ya `paid` no puede revertirse).
+- ✅ Clawback automático cuando el accrual ya fue `paid`: al cancelar/no-show una cita liquidada se crea un accrual negativo `type='adjustment'` (gross y commission negativos, `metadata.source_accrual_id`/`source_payout_id`) que se descuenta en el siguiente cierre.
+- ✅ Evento `accrual.reversed` publicado en ambos casos (`mode='reversed'` o `mode='clawback'`) — base para notificar al admin/profesional.
 - ❌ Configuración por tenant de si las cancelaciones tardías (fuera del plazo de cancelación) aplican clawback o no.
 - ❌ Reversión parcial: si la cita fue parcialmente reembolsada, el clawback es proporcional al reembolso.
 - ❌ Registro de motivo de reversión (campo `reversal_reason`).
@@ -183,7 +183,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Publicador: `payout.created` (payload: `appId, tenantId, payoutId, practitionerId, totalCommissionCents`).
 - ✅ Publicador: `payout.paid` (payload: `appId, tenantId, payoutId, externalRef`).
 - ❌ Evento `payout.cancelled` — no se emite cuando un payout pasa a `cancelled`.
-- ❌ Evento `accrual.reversed` — no se emite al revertir un accrual (útil para notificaciones al profesional).
+- ✅ Evento `accrual.reversed` — emitido al revertir (`mode='reversed'`) o hacer clawback (`mode='clawback'`) de un accrual.
 - ❌ Evento `payout.statement_ready` — para triggear el envío del extracto PDF al profesional.
 - ❌ Consumidor de `pos.ticket.closed` — para accrual desde ventas de caja (POS).
 - ❌ Consumidor de `package.session.redeemed` — para accrual desde canje de sesiones de bono.
@@ -199,7 +199,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 17. Interfaz de administración
 
 - ✅ API REST completa para listas, detalle, cierre y marcado de pago (usable desde cualquier frontend).
-- 🔧 Sin guardia de rol explícita en las rutas — `ctxFromRequest` extrae el role del JWT pero las rutas no verifican `requireRole('super_admin', 'staff')`. Cualquier usuario autenticado con token válido puede llamar a los endpoints.
+- ✅ Guardia de rol explícita en todas las rutas — `fastify.addHook('preHandler', requireRole('super_admin','staff','admin','owner'))`; rol no autorizado → `403`. Todas las rutas declaran ahora `schema: { tags, summary, body/querystring/params }`.
 - ❌ Vista de consola de administración (`apps/*/portal`) con tabla de liquidaciones por practitioner, filtros por periodo/estado, botón de cierre y descarga de PDF.
 - ❌ Vista del practitioner (portal propio): historial de devengos y liquidaciones propias, descarga de extracto.
 - ❌ Búsqueda y filtrado por rango de fechas en la lista de payouts (hoy solo filtra por `practitionerId` y `status`).
@@ -212,26 +212,26 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `accruals`: `(app_id, tenant_id, practitioner_id, service_id?, booking_id?, gross_cents, commission_cents, status, payout_id?, occurred_at, metadata)`.
 - ✅ `payouts`: `(app_id, tenant_id, practitioner_id, period_start, period_end, total_commission_cents, currency, status, paid_at, external_ref, notes)`.
 - ✅ `payout_schedules`: `(app_id, tenant_id, practitioner_id, period, anchor_day, next_run_at, last_closed_at, is_active, metadata)`.
-- 🔧 `payouts` no tiene `gross_amount_cents` ni `net_amount_cents` como columnas reales — el PDF los referencia pero serán `null` en producción.
+- ✅ `payouts` tiene columnas reales `gross_commission_cents`, `withholding_pct`, `withholding_cents`, `net_commission_cents` (migración 0003).
 - 🔧 `accruals.status` incluye `paid` (que realmente significa "incluido en payout") pero el accrual no sabe si el payout fue finalmente pagado — estado `detached` sería útil si se reabre un payout.
-- ❌ `accruals.type` (`booking_commission / adjustment / bonus / deduction / advance / reversal`) — hoy todos los accruals son del mismo tipo implícito.
+- ✅ `accruals.type` (`booking_commission / adjustment / advance / reversal`) con CHECK; `booking_commission` mantiene la restricción de signo no negativo, los ajustes permiten céntimos negativos. Índice `accruals(payout_id)` añadido.
 - ❌ `commission_rules.is_active` — no existe; la desactivación requiere `effective_until = now()`.
 - ❌ `payouts.approved_at` / `payouts.approved_by` — sin flujo de aprobación.
-- ❌ `payouts.withholding_pct` / `payouts.withholding_cents` / `payouts.net_commission_cents` — sin soporte de retenciones en el modelo.
+- ✅ `payouts.withholding_pct` / `payouts.withholding_cents` / `payouts.net_commission_cents` / `payouts.gross_commission_cents` — soporte de retenciones en el modelo (migración 0003), más tabla `withholding_settings` (default por tenant + override por practitioner).
 - ❌ `practitioners` tabla propia en este schema — el módulo depende de `platform_resources.resources` para la identidad del profesional, sin cache local ni datos de contacto (nombre, NIF, IBAN).
-- ❌ Índice en `accruals(payout_id)` — actualmente sin índice, el join `payout → accruals` podría ser lento con volumen.
+- ✅ Índice en `accruals(payout_id)` añadido (migración 0003).
 
 ---
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Guardia de rol en rutas** — añadir `requireRole('super_admin', 'staff')` a todos los endpoints de gestión; riesgo de seguridad inmediato.
-2. **`net_amount_cents` + `withholding_cents` en el payout** — columnas que faltan y que el PDF ya referencia; desbloquea el extracto con retención IRPF (alta demanda en mercado español).
-3. **Retención IRPF en `closePeriod`** — leer `withholding_pct` configurable por practitioner/tenant y aplicarla al cerrar; REUSE `platform/tenant-config` para el tipo por defecto.
-4. **Endpoints CRUD de `payout_schedules`** — la tabla ya existe pero sin API; sin ella el tenant no puede autogestionar la frecuencia de liquidación.
-5. **Clawback automático** — cuando se revierte un accrual ya `paid`, generar accrual negativo para descontarlo de la siguiente liquidación; cierra el ciclo de cancelaciones tardías.
-6. **Accrual desde POS (`pos.ticket.closed`)** — REUSE `platform/pos` para dar soporte al modelo de peluquería/clínica con caja propia.
-7. **Envío automático del extracto PDF al professional** — REUSE `platform/notifications` (`payout.statement_ready`); coste bajo, alto impacto en UX del profesional.
-8. **Ajustes manuales (bonus/deducciones)** — campo `type` en `accruals` + endpoint admin con `requireRole`; permite correcciones sin tocar la BD directamente.
+1. ✅ ~~**Guardia de rol en rutas**~~ (`requireRole('super_admin','staff','admin','owner')` en `preHandler` de todas las rutas + `schema` en todas).
+2. ✅ ~~**`net_amount_cents` + `withholding_cents` en el payout**~~ (columnas `gross/withholding_pct/withholding_cents/net_commission_cents` en migración 0003; PDF actualizado).
+3. ✅ ~~**Retención IRPF en `closePeriod`**~~ (`resolveWithholdingPct` con override de practitioner > default de tenant en tabla `withholding_settings`; `applyWithholding` puro). NOTA: se implementó la tabla local en vez de REUSE `platform/tenant-config` para evitar acoplamiento cross-module; ver cross-cutting.
+4. ✅ ~~**Endpoints CRUD de `payout_schedules`**~~ (`POST/GET/GET :id/PATCH :id/DELETE :id` bajo `/v1/practitioner-payouts/schedules`, incl. pausa/reanudación).
+5. ✅ ~~**Clawback automático**~~ (cancelar/no-show de cita ya `paid` → accrual negativo `type='adjustment'`; evento `accrual.reversed`).
+6. **Accrual desde POS (`pos.ticket.closed`)** — REUSE `platform/pos` para dar soporte al modelo de peluquería/clínica con caja propia. (FUERA: requiere consumir un evento de otro módulo; ver cross-cutting.)
+7. **Envío automático del extracto PDF al professional** — REUSE `platform/notifications` (`payout.statement_ready`); coste bajo, alto impacto en UX del profesional. (FUERA: requiere `platform/notifications` + storage; ver cross-cutting.)
+8. 🔧 **Ajustes manuales (bonus/deducciones)** — campo `type` en `accruals` + `POST /accruals` protegido por `requireRole` y aceptando céntimos negativos YA implementado; falta la aprobación doble (maker/checker) por umbral.
 9. **Aprobación en dos pasos (draft → pending → paid)** — introduce estado `draft` + campos `approved_at/approved_by`; necesario para entornos regulados o pagos de alto importe.
 10. **Exportación contable CSV + modelo 190** — complementa `platform/verifactu` para liquidaciones trimestrales de retenciones IRPF; reducción de carga manual del departamento de administración.

@@ -15,6 +15,11 @@ import * as chatEphemeralPurge               from './chat-ephemeral-purge.job.js
 import * as chatRetentionPurge               from './chat-retention-purge.job.js'
 import * as chatSupportSla                   from './chat-support-sla.job.js'
 import * as leadRetentionPurge               from './lead-retention-purge.job.js'
+import * as schedulerRunsPurge               from './scheduler-runs-purge.job.js'
+import * as authTokenPurge                    from './auth-token-purge.job.js'
+import * as notificationSendLogPurge          from './notification-send-log-purge.job.js'
+import * as messagingSla                       from './messaging-sla.job.js'
+import * as telehealthExpireStale              from './telehealth-expire-stale.job.js'
 
 import { env } from '../lib/env.js'
 
@@ -39,6 +44,11 @@ export const jobs = [
   { mod: chatRetentionPurge,           enabled: env.JOB_CHAT_RETENTION_PURGE_ENABLED },
   { mod: chatSupportSla,               enabled: env.JOB_CHAT_SUPPORT_SLA_ENABLED },
   { mod: leadRetentionPurge,           enabled: env.JOB_LEAD_RETENTION_PURGE_ENABLED },
+  { mod: schedulerRunsPurge,           enabled: env.JOB_SCHEDULER_RUNS_PURGE_ENABLED },
+  { mod: authTokenPurge,               enabled: env.JOB_AUTH_TOKEN_PURGE_ENABLED },
+  { mod: notificationSendLogPurge,     enabled: env.JOB_NOTIFICATION_SEND_LOG_PURGE_ENABLED },
+  { mod: messagingSla,                 enabled: env.JOB_MESSAGING_SLA_ENABLED },
+  { mod: telehealthExpireStale,        enabled: env.JOB_TELEHEALTH_EXPIRE_STALE_ENABLED },
 ].map((j) => ({
   meta:    j.mod.meta,
   run:     j.mod.run,

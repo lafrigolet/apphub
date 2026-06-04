@@ -87,10 +87,20 @@ describe('insertHoldAtomic', () => {
     clientUserId: 'u1', ttlSeconds: 600,
   }
 
+  it('toma advisory lock por (resource_id, starts_at|ends_at) antes del INSERT', async () => {
+    const c = mockClient([{ id: 'hold1' }])
+    await repo.insertHoldAtomic(c, APP, TENANT, hold)
+    // Primera query: el advisory lock transaccional (recomendación #6).
+    const [lockSql, lockParams] = c.query.mock.calls[0]
+    expect(lockSql).toMatch(/pg_advisory_xact_lock/)
+    expect(lockParams).toEqual([RES, FROM, TO])
+  })
+
   it('CTE overlapping_holds + overlapping_bookings; INSERT condicional; row', async () => {
     const c = mockClient([{ id: 'hold1' }])
     const r = await repo.insertHoldAtomic(c, APP, TENANT, hold)
-    const [sql, params] = c.query.mock.calls[0]
+    // El INSERT es la segunda query (la primera es el advisory lock).
+    const [sql, params] = c.query.mock.calls[1]
     expect(sql).toMatch(/WITH overlapping_holds AS/)
     expect(sql).toMatch(/INSERT INTO platform_availability\.holds/)
     expect(sql).toMatch(/NOT EXISTS \(SELECT 1 FROM overlapping_holds\)/)
@@ -104,7 +114,7 @@ describe('insertHoldAtomic', () => {
       resourceId: RES, startsAt: FROM, endsAt: TO, serviceId: SVC,
     })
     expect(r).toBeNull()
-    expect(c.query.mock.calls[0][1]).toEqual([APP, TENANT, RES, FROM, TO, SVC, null, '300'])
+    expect(c.query.mock.calls[1][1]).toEqual([APP, TENANT, RES, FROM, TO, SVC, null, '300'])
   })
 })
 

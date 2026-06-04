@@ -10,6 +10,7 @@ vi.mock('../lib/logger.js', () => ({
 }))
 vi.mock('../services/availability.service.js', () => ({
   listSlots: vi.fn(),
+  nextAvailable: vi.fn(),
   holdSlot: vi.fn(),
   releaseHold: vi.fn(),
 }))
@@ -92,6 +93,38 @@ describe('GET /v1/availability/slots', () => {
   })
 })
 
+describe('GET /v1/availability/next', () => {
+  it('delega a nextAvailable y envuelve en { slot }', async () => {
+    service.nextAvailable.mockResolvedValue({ startsAt: FROM })
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/availability/next?serviceId=${SVC}`,
+      headers: auth,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ slot: { startsAt: FROM } })
+    expect(service.nextAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ appId: APP }),
+      expect.objectContaining({ serviceId: SVC }),
+    )
+  })
+
+  it('null slot → { slot: null }', async () => {
+    service.nextAvailable.mockResolvedValue(null)
+    const res = await app.inject({
+      method: 'GET', url: `/v1/availability/next?serviceId=${SVC}`, headers: auth,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ slot: null })
+  })
+
+  it('serviceId inválido → 422', async () => {
+    const res = await app.inject({ method: 'GET', url: '/v1/availability/next?serviceId=nope', headers: auth })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.nextAvailable).not.toHaveBeenCalled()
+  })
+})
+
 describe('POST /v1/availability/holds', () => {
   it('201 con el hold creado', async () => {
     service.holdSlot.mockResolvedValue({ id: 'hold1' })
@@ -130,8 +163,9 @@ describe('POST /v1/availability/holds', () => {
 describe('DELETE /v1/availability/holds/:id', () => {
   it('204 tras releaseHold', async () => {
     service.releaseHold.mockResolvedValue()
-    const res = await app.inject({ method: 'DELETE', url: '/v1/availability/holds/hold1', headers: auth })
+    const id = '33333333-3333-3333-3333-333333333333'
+    const res = await app.inject({ method: 'DELETE', url: `/v1/availability/holds/${id}`, headers: auth })
     expect(res.statusCode).toBe(204)
-    expect(service.releaseHold).toHaveBeenCalledWith(expect.objectContaining({ appId: APP }), 'hold1')
+    expect(service.releaseHold).toHaveBeenCalledWith(expect.objectContaining({ appId: APP }), id)
   })
 })

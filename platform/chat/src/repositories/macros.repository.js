@@ -23,6 +23,19 @@ export async function findById(client, id) {
   return rows[0] ?? null
 }
 
+// Partial update of title/body. The touch_updated_at trigger refreshes
+// updated_at. Returns null when the macro doesn't exist (or RLS hides it).
+export async function update(client, id, { title, body }) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.support_macros
+        SET title = COALESCE($2, title), body = COALESCE($3, body)
+      WHERE id = $1
+      RETURNING ${COLS}`,
+    [id, title ?? null, body ?? null],
+  )
+  return rows[0] ?? null
+}
+
 export async function remove(client, id) {
   const { rowCount } = await client.query(`DELETE FROM ${SCHEMA}.support_macros WHERE id = $1`, [id])
   return rowCount > 0

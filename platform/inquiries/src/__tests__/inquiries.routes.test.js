@@ -17,10 +17,16 @@ vi.mock('../lib/logger.js', () => ({
 }))
 
 vi.mock('../services/inquiries.service.js', () => ({
-  create:    vi.fn(),
-  listAdmin: vi.fn(),
-  getById:   vi.fn(),
-  update:    vi.fn(),
+  create:         vi.fn(),
+  submitCsat:     vi.fn(),
+  listAdmin:      vi.fn(),
+  getById:        vi.fn(),
+  update:         vi.fn(),
+  assign:         vi.fn(),
+  addNote:        vi.fn(),
+  listActivities: vi.fn(),
+  analytics:      vi.fn(),
+  remove:         vi.fn(),
 }))
 
 vi.mock('../services/settings.service.js', () => ({
@@ -162,6 +168,41 @@ describe('POST /v1/inquiries — honeypot anti-bot', () => {
   })
 })
 
+describe('POST /v1/inquiries/csat — CSAT público', () => {
+  const csatPayload = {
+    appId:     'aikikan',
+    tenantId:  '22222222-2222-2222-2222-222222222222',
+    reference: 'INQ-20260101-AB12CD',
+    email:     'ana@example.org',
+    score:     5,
+  }
+
+  it('200 sin Authorization (ruta public) → delega en service.submitCsat', async () => {
+    service.submitCsat.mockResolvedValue({ reference: csatPayload.reference, score: 5, submittedAt: '2026-01-02T00:00:00Z' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/inquiries/csat',
+      headers: { 'Content-Type': 'application/json' },
+      payload: csatPayload,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.score).toBe(5)
+    expect(service.submitCsat).toHaveBeenCalledWith(
+      expect.objectContaining({ redis: expect.objectContaining({ publish: expect.any(Function) }) }),
+      expect.objectContaining({ reference: csatPayload.reference, email: 'ana@example.org', score: 5 }),
+    )
+  })
+
+  it('score fuera de rango (6) no llega al service', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/inquiries/csat',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { ...csatPayload, score: 6 },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.submitCsat).not.toHaveBeenCalled()
+  })
+})
+
 describe('admin — role gating', () => {
   it('GET /admin sin Bearer → 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/v1/inquiries/admin/' })
@@ -260,9 +301,11 @@ describe('defaults defensivos (?? {}) — invocación directa de handlers', () =
     const routes = []
     await adminRoutes({
       addHook: () => {},
-      get:   (p, o, h) => routes.push({ m: 'get', p, h: h ?? o }),
-      put:   (p, o, h) => routes.push({ m: 'put', p, h: h ?? o }),
-      patch: (p, o, h) => routes.push({ m: 'patch', p, h: h ?? o }),
+      get:    (p, o, h) => routes.push({ m: 'get', p, h: h ?? o }),
+      put:    (p, o, h) => routes.push({ m: 'put', p, h: h ?? o }),
+      patch:  (p, o, h) => routes.push({ m: 'patch', p, h: h ?? o }),
+      post:   (p, o, h) => routes.push({ m: 'post', p, h: h ?? o }),
+      delete: (p, o, h) => routes.push({ m: 'delete', p, h: h ?? o }),
     })
     return routes
   }

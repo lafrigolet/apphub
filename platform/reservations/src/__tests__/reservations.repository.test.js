@@ -12,13 +12,14 @@ const APP = 'aikikan'
 const TEN = 't1'
 
 describe('insertReservation', () => {
-  it('INSERT into platform_reservations.reservations with 15 params and COALESCE defaults', async () => {
+  it('INSERT into platform_reservations.reservations with 16 params and COALESCE defaults', async () => {
     const c = mockClient([{ id: 'r1' }])
     const out = await repo.insertReservation(c, {
       appId: APP, tenantId: TEN, subTenantId: null, guestUserId: 'u1',
       guestName: 'Ana', guestEmail: 'ana@x.com', guestPhone: '+34',
       partySize: 4, reservedFor: '2026-05-01T20:00:00Z', durationMinutes: 120,
       tableId: 'tbl1', status: 'requested', notes: 'window', source: 'phone', locale: 'es',
+      specialRequests: { highChair: true, allergens: ['nuts'] },
     })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_reservations\.reservations/)
@@ -29,6 +30,7 @@ describe('insertReservation', () => {
     expect(params).toEqual([
       APP, TEN, null, 'u1', 'Ana', 'ana@x.com', '+34',
       4, '2026-05-01T20:00:00Z', 120, 'tbl1', 'requested', 'window', 'phone', 'es',
+      JSON.stringify({ highChair: true, allergens: ['nuts'] }),
     ])
     expect(out).toEqual({ id: 'r1' })
   })
@@ -41,7 +43,7 @@ describe('insertReservation', () => {
     const params = c.query.mock.calls[0][1]
     expect(params).toEqual([
       APP, TEN, null, null, 'Ana', null, null,
-      2, 't', 90, null, 'requested', null, 'portal', null,
+      2, 't', 90, null, 'requested', null, 'portal', null, null,
     ])
   })
 })
@@ -84,19 +86,30 @@ describe('findReservationById', () => {
 })
 
 describe('updateReservationStatus', () => {
-  it('UPDATE with COALESCE table_id and tenant scope', async () => {
+  it('UPDATE with COALESCE table_id, cancellation metadata and tenant scope', async () => {
     const c = mockClient([{ id: 'r1', status: 'seated' }])
     await repo.updateReservationStatus(c, APP, TEN, 'r1', 'seated', 'tbl1')
     const [sql, params] = c.query.mock.calls[0]
-    expect(sql).toMatch(/SET status=\$4, table_id = COALESCE\(\$5, table_id\)/)
+    expect(sql).toMatch(/SET status=\$4/)
+    expect(sql).toMatch(/table_id = COALESCE\(\$5, table_id\)/)
+    expect(sql).toMatch(/cancellation_reason = CASE WHEN \$4 = 'cancelled' THEN \$6/)
+    expect(sql).toMatch(/cancelled_by\s+= CASE WHEN \$4 = 'cancelled' THEN \$7/)
     expect(sql).toMatch(/WHERE app_id=\$1 AND tenant_id=\$2 AND id=\$3/)
-    expect(params).toEqual([APP, TEN, 'r1', 'seated', 'tbl1'])
+    expect(params).toEqual([APP, TEN, 'r1', 'seated', 'tbl1', null, null])
   })
 
-  it('null tableId default; missing row → null', async () => {
+  it('null tableId/meta defaults; missing row → null', async () => {
     const c = mockClient([])
     expect(await repo.updateReservationStatus(c, APP, TEN, 'r1', 'cancelled')).toBeNull()
-    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'r1', 'cancelled', null])
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'r1', 'cancelled', null, null, null])
+  })
+
+  it('passes cancellation reason and actor through meta', async () => {
+    const c = mockClient([{ id: 'r1', status: 'cancelled' }])
+    await repo.updateReservationStatus(c, APP, TEN, 'r1', 'cancelled', null, {
+      cancellationReason: 'weather', cancelledBy: 'staff',
+    })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'r1', 'cancelled', null, 'weather', 'staff'])
   })
 })
 
@@ -157,7 +170,7 @@ describe('updateWaitlistStatus', () => {
 })
 
 describe('insertServiceHours', () => {
-  it('INSERT with COALESCE is_closed default FALSE', async () => {
+  it('INSERT with COALESCE is_closed default FALSE and null max_covers', async () => {
     const c = mockClient([{ id: 's1' }])
     await repo.insertServiceHours(c, {
       appId: APP, tenantId: TEN, dayOfWeek: 1, openMinute: 480, closeMinute: 1320,
@@ -165,16 +178,86 @@ describe('insertServiceHours', () => {
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_reservations\.service_hours/)
     expect(sql).toMatch(/COALESCE\(\$7,FALSE\)/)
-    expect(params).toEqual([APP, TEN, 1, 480, 1320, null, false])
+    expect(params).toEqual([APP, TEN, 1, 480, 1320, null, false, null])
   })
 
-  it('passes explicit label and isClosed', async () => {
+  it('passes explicit label, isClosed and maxCovers', async () => {
     const c = mockClient([{ id: 's1' }])
     await repo.insertServiceHours(c, {
       appId: APP, tenantId: TEN, dayOfWeek: 0, openMinute: 0, closeMinute: 0,
-      serviceLabel: 'brunch', isClosed: true,
+      serviceLabel: 'brunch', isClosed: true, maxCovers: 40,
     })
-    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 0, 0, 0, 'brunch', true])
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 0, 0, 0, 'brunch', true, 40])
+  })
+})
+
+describe('availability queries', () => {
+  it('listOpenServiceHoursForDay filters open windows by weekday + tenant', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.listOpenServiceHoursForDay(c, APP, TEN, 5)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/day_of_week=\$3 AND is_closed = FALSE/)
+    expect(params).toEqual([APP, TEN, 5])
+  })
+
+  it('findBlackoutCovering checks the instant inside [starts_at, ends_at)', async () => {
+    const c = mockClient([{ id: 'b1', reason: 'holiday' }])
+    const out = await repo.findBlackoutCovering(c, APP, TEN, '2026-05-01T20:00:00Z')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/starts_at <= \$3 AND ends_at > \$3/)
+    expect(params).toEqual([APP, TEN, '2026-05-01T20:00:00Z'])
+    expect(out).toEqual({ id: 'b1', reason: 'holiday' })
+  })
+
+  it('sumActiveCoversInWindow sums overlapping active reservations, excludes id', async () => {
+    const c = mockClient([{ covers: 12 }])
+    const out = await repo.sumActiveCoversInWindow(c, APP, TEN, 'F', 'T', 'self')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SUM\(party_size\)/)
+    expect(sql).toMatch(/status IN \('requested','confirmed','seated'\)/)
+    expect(sql).toMatch(/reserved_for < \$4/)
+    expect(params).toEqual([APP, TEN, 'F', 'T', 'self'])
+    expect(out).toBe(12)
+  })
+
+  it('sumActiveCoversInWindow defaults exclude id to null', async () => {
+    const c = mockClient([{ covers: 0 }])
+    await repo.sumActiveCoversInWindow(c, APP, TEN, 'F', 'T')
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'F', 'T', null])
+  })
+})
+
+describe('countNoShowsByGuest', () => {
+  it('returns 0 without identifiers (no query issued)', async () => {
+    const c = mockClient([])
+    expect(await repo.countNoShowsByGuest(c, APP, TEN, {})).toBe(0)
+    expect(c.query).not.toHaveBeenCalled()
+  })
+
+  it('counts no_show reservations scoped by user id / email', async () => {
+    const c = mockClient([{ n: 3 }])
+    const out = await repo.countNoShowsByGuest(c, APP, TEN, { guestUserId: 'u1', guestEmail: 'g@a.com' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/status='no_show'/)
+    expect(params).toEqual([APP, TEN, 'u1', 'g@a.com'])
+    expect(out).toBe(3)
+  })
+})
+
+describe('findNextWaitingForCapacity', () => {
+  it('returns FIFO waiting entry fitting capacity', async () => {
+    const c = mockClient([{ id: 'w1', party_size: 2 }])
+    const out = await repo.findNextWaitingForCapacity(c, APP, TEN, 4)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/status='waiting' AND party_size <= \$3/)
+    expect(sql).toMatch(/ORDER BY created_at ASC/)
+    expect(params).toEqual([APP, TEN, 4])
+    expect(out).toEqual({ id: 'w1', party_size: 2 })
+  })
+
+  it('null when queue empty', async () => {
+    const c = mockClient([])
+    expect(await repo.findNextWaitingForCapacity(c, APP, TEN, 4)).toBeNull()
   })
 })
 

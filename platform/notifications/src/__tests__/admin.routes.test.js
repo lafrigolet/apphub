@@ -59,9 +59,11 @@ async function buildApp() {
     return { value: data }
   }
   app.setValidatorCompiler(zodCompiler)
-  const { appGuard } = await import('@apphub/platform-sdk/app-guard')
-  await app.register(appGuard)
-  await app.register(adminRoutes, { prefix: '/v1/notifications/admin' })
+  // Error handler must be set BEFORE registering the route plugins so it is
+  // inherited by their encapsulated context — otherwise Fastify's schema
+  // validation errors short-circuit to a raw 400 inside the plugin instead of
+  // reaching this handler (which maps FST_ERR_VALIDATION → 422). Mirrors the
+  // boot order in platform-core's server.js (setErrorHandler before modules).
   app.setErrorHandler((err, req, reply) => {
     if (err.name === 'ZodError' || err.code === 'FST_ERR_VALIDATION') {
       return reply.status(422).send({ error: { code: 'VALIDATION_ERROR' } })
@@ -69,12 +71,18 @@ async function buildApp() {
     if (err.statusCode) return reply.status(err.statusCode).send({ error: { code: err.code } })
     return reply.status(500).send({ error: { code: 'INTERNAL_ERROR' } })
   })
+  const { appGuard } = await import('@apphub/platform-sdk/app-guard')
+  await app.register(appGuard)
+  await app.register(adminRoutes, { prefix: '/v1/notifications/admin' })
   await app.ready()
   return app
 }
 
 let app
 const H = { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' }
+// Auth-only header for bodyless requests (DELETE). Sending Content-Type:
+// application/json with no body makes Fastify reject with FST_ERR_CTP_EMPTY_JSON_BODY.
+const A = { Authorization: 'Bearer staff-token' }
 beforeEach(async () => {
   vi.clearAllMocks()
   connect.mockResolvedValue({ release, query })
@@ -198,6 +206,50 @@ describe('templates', () => {
     tmplRepo.findById.mockResolvedValue({ subject: 's', body_text: 'b', body_html: 'h' })
     const res = await app.inject({ method: 'POST', url: '/v1/notifications/admin/templates/t1/preview', headers: H, payload: {} })
     expect(res.statusCode).toBe(200)
+  })
+})
+
+describe('send-log retention + suppressions', () => {
+  it('DELETE /send-log?older_than_days purga y devuelve deleted', async () => {
+    query.mockResolvedValue({ rowCount: 5 })
+    const res = await app.inject({ method: 'DELETE', url: '/v1/notifications/admin/send-log?older_than_days=90', headers: A })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual({ deleted: 5, olderThanDays: 90 })
+  })
+
+  it('DELETE /send-log sin older_than_days → 422', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/v1/notifications/admin/send-log', headers: A })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('GET /suppressions lista', async () => {
+    query.mockResolvedValue({ rows: [{ id: 's1', channel: 'email' }] })
+    const res = await app.inject({ method: 'GET', url: '/v1/notifications/admin/suppressions?channel=email', headers: H })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data[0].id).toBe('s1')
+  })
+
+  it('POST /suppressions 201 normaliza email a minúsculas', async () => {
+    query.mockResolvedValue({ rows: [{ id: 's1', recipient: 'a@x.com' }] })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/notifications/admin/suppressions', headers: H,
+      payload: { channel: 'email', recipient: 'A@X.com', reason: 'manual' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(query.mock.calls[0][1]).toEqual(['email', 'a@x.com', 'manual', null])
+  })
+
+  it('DELETE /suppressions 200 cuando borra', async () => {
+    query.mockResolvedValue({ rowCount: 1 })
+    const res = await app.inject({ method: 'DELETE', url: '/v1/notifications/admin/suppressions?channel=sms&recipient=%2B34600', headers: A })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual({ removed: true })
+  })
+
+  it('DELETE /suppressions 404 cuando no estaba suprimido', async () => {
+    query.mockResolvedValue({ rowCount: 0 })
+    const res = await app.inject({ method: 'DELETE', url: '/v1/notifications/admin/suppressions?channel=email&recipient=a@x.com', headers: A })
+    expect(res.statusCode).toBe(404)
   })
 })
 

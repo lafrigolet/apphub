@@ -55,16 +55,17 @@ describe('maxNumero / lastHuella — encadenado', () => {
 })
 
 describe('insertRegistro', () => {
-  it('INSERT con 17 params en orden; defaults aplicados', async () => {
+  it('INSERT con 19 params en orden; defaults aplicados (incluye id_emisor + gen_registro de 0007)', async () => {
     const c = mockClient([{ num_serie: 'A/1' }])
     await repo.insertRegistro(c, {
       appId: 'aikikan', tenantId: 't1', numero: 6, numSerie: '2027-A/000006',
       huella: 'H6', huellaAnterior: 'H5', qrUrl: 'http://q',
       importeTotal: 121, cuotaTotal: 21,
+      idEmisor: 'B12345678', genRegistro: '2027-01-02T10:15:30+01:00',
     })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_verifactu\.registros/)
-    expect(sql).toMatch(/VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11,\$12,\$13,\$14,\$15,\$16,\$17\)/)
+    expect(sql).toMatch(/VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11,\$12,\$13,\$14,\$15,\$16,\$17,\$18,\$19\)/)
     expect(params[0]).toBe('aikikan')
     expect(params[3]).toBe(6)            // numero
     expect(params[5]).toBe('alta')       // tipo default
@@ -73,6 +74,16 @@ describe('insertRegistro', () => {
     expect(params[14]).toBe('H6')        // huella
     expect(params[15]).toBe('H5')        // huella_anterior
     expect(params[16]).toBe('http://q')  // qr_url
+    expect(params[17]).toBe('B12345678') // id_emisor (campo canónico de la huella)
+    expect(params[18]).toBe('2027-01-02T10:15:30+01:00') // gen_registro (FechaHoraHusoGenRegistro)
+  })
+
+  it('id_emisor / gen_registro ausentes → null (filas sin campos canónicos)', async () => {
+    const c = mockClient([{ num_serie: 'A/1' }])
+    await repo.insertRegistro(c, { appId: 'a', tenantId: 't', numero: 1, numSerie: 'A/1' })
+    const params = c.query.mock.calls[0][1]
+    expect(params[17]).toBeNull() // id_emisor
+    expect(params[18]).toBeNull() // gen_registro
   })
 })
 

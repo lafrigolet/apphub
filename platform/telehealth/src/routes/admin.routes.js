@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { requireRole } from '@apphub/platform-sdk/app-guard'
 import * as repo from '../repositories/settings.repository.js'
+import * as service from '../services/telehealth.service.js'
 import { pool } from '../lib/db.js'
 
 const providerEnum = z.enum(['stub', 'daily', 'twilio', 'whereby', 'jitsi'])
@@ -50,5 +51,24 @@ export async function adminRoutes(fastify) {
       }
       return { data: await repo.listForAdmin(client) }
     } finally { client.release() }
+  })
+
+  // Manually drive the access-window expiry sweep for the calling tenant.
+  // Intended for platform/scheduler (cross-cutting) or operator use. Idempotent.
+  fastify.post('/rooms/expire-stale', {
+    schema: {
+      tags,
+      summary: 'Transition rooms past their access window to expired',
+    },
+  }, async (req) => {
+    const ctx = {
+      appId:       req.identity.appId,
+      tenantId:    req.identity.tenantId,
+      subTenantId: req.identity.subTenantId ?? null,
+      userId:      req.identity.userId,
+      role:        req.identity.role,
+    }
+    const expired = await service.expireStaleRooms(ctx)
+    return { expired: expired.length, roomIds: expired.map((r) => r.id) }
   })
 }

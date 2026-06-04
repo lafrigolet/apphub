@@ -16,13 +16,49 @@ describe('insert', () => {
     expect(r).toEqual({ id: 'sl1', sent_at: 'now' })
     const [sql, params] = client.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_notifications\.send_log/)
-    expect(params).toEqual(['aikikan', 't1', 'u1', 'email', 'user.welcome', 'a@b', 'sent', null])
+    expect(params).toEqual(['aikikan', 't1', 'u1', 'email', 'user.welcome', 'a@b', 'sent', null, null])
   })
 
   it('app_id/tenant_id/user_id/error ausentes → NULL', async () => {
     client.query.mockResolvedValue({ rows: [{}] })
     await repo.insert(client, { channel: 'sms', template: 'k', recipient: '+34', status: 'skipped' })
-    expect(client.query.mock.calls[0][1]).toEqual([null, null, null, 'sms', 'k', '+34', 'skipped', null])
+    expect(client.query.mock.calls[0][1]).toEqual([null, null, null, 'sms', 'k', '+34', 'skipped', null, null])
+  })
+
+  it('providerMessageId se persiste como 9º param', async () => {
+    client.query.mockResolvedValue({ rows: [{ id: 'x' }] })
+    await repo.insert(client, { channel: 'email', template: 'k', recipient: 'a@b', status: 'sent', providerMessageId: 'msg_42' })
+    expect(client.query.mock.calls[0][1][8]).toBe('msg_42')
+  })
+})
+
+describe('updateDeliveryStatus', () => {
+  it('actualiza por provider_message_id y devuelve rowCount', async () => {
+    client.query.mockResolvedValue({ rowCount: 1 })
+    const n = await repo.updateDeliveryStatus(client, { providerMessageId: 'msg_1', deliveryStatus: 'delivered' })
+    expect(n).toBe(1)
+    const [sql, params] = client.query.mock.calls[0]
+    expect(sql).toMatch(/UPDATE platform_notifications\.send_log/)
+    expect(sql).toMatch(/WHERE provider_message_id = \$1/)
+    expect(params).toEqual(['msg_1', 'delivered', null])
+  })
+  it('trunca el error a 2000 chars', async () => {
+    client.query.mockResolvedValue({ rowCount: 0 })
+    const n = await repo.updateDeliveryStatus(client, { providerMessageId: 'm', deliveryStatus: 'bounced', error: 'e'.repeat(5000) })
+    expect(n).toBe(0)
+    expect(client.query.mock.calls[0][1][2].length).toBe(2000)
+  })
+})
+
+describe('purgeOlderThan', () => {
+  it('borra por intervalo y devuelve rowCount', async () => {
+    client.query.mockResolvedValue({ rowCount: 7 })
+    const n = await repo.purgeOlderThan(client, { olderThanDays: 90 })
+    expect(n).toBe(7)
+    const [sql, params] = client.query.mock.calls[0]
+    expect(sql).toMatch(/DELETE FROM platform_notifications\.send_log/)
+    expect(sql).toMatch(/interval/)
+    expect(params).toEqual(['90'])
   })
 })
 

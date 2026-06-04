@@ -134,4 +134,55 @@ export async function packagesRoutes(fastify) {
   }, async (req, reply) => {
     return reply.status(201).send(await service.renewPackage(ctxFromRequest(req), req.params.id))
   })
+
+  // ── #8 Manual balance adjustment (staff) ─────────────────────────────
+  const balanceTags = ['packages · balance']
+  const adjustBody  = z.object({
+    delta:     z.number().int(),
+    note:      z.string().max(500).optional(),
+    bookingId: z.string().uuid().optional(),
+  })
+  fastify.post('/v1/packages/purchases/:id/adjust', {
+    schema: { tags: balanceTags, summary: 'Manually adjust a package balance (staff only, reason=adjust)', params: idParams, body: adjustBody },
+  }, async (req) => {
+    const body = adjustBody.parse(req.body)
+    return service.adjustBalance(ctxFromRequest(req), req.params.id, body)
+  })
+
+  // ── #9 Freeze / unfreeze / extend validity (staff) ───────────────────
+  const freezeTags  = ['packages · freeze']
+  const freezeBody  = z.object({ reason: z.string().max(500).optional() }).optional()
+  const extendBody  = z.object({ days: z.number().int().positive() })
+
+  fastify.post('/v1/packages/purchases/:id/freeze', {
+    schema: { tags: freezeTags, summary: 'Freeze a package (pauses validity; staff only)', params: idParams, body: freezeBody },
+  }, async (req) => {
+    const body = freezeBody.parse(req.body ?? {})
+    return service.freezePackage(ctxFromRequest(req), req.params.id, body)
+  })
+
+  fastify.post('/v1/packages/purchases/:id/unfreeze', {
+    schema: { tags: freezeTags, summary: 'Unfreeze a package (extends expiry by frozen duration; staff only)', params: idParams },
+  }, async (req) => service.unfreezePackage(ctxFromRequest(req), req.params.id))
+
+  fastify.post('/v1/packages/purchases/:id/extend', {
+    schema: { tags: freezeTags, summary: 'Extend a package expiry by N days (staff only)', params: idParams, body: extendBody },
+  }, async (req) => {
+    const body = extendBody.parse(req.body)
+    return service.extendExpiry(ctxFromRequest(req), req.params.id, body)
+  })
+
+  fastify.get('/v1/packages/purchases/:id/freezes', {
+    schema: { tags: freezeTags, summary: 'List freeze history of this package', params: idParams },
+  }, async (req) => ({ data: await service.listFreezes(ctxFromRequest(req), req.params.id) }))
+
+  // ── #4 Cancellation with proportional monetary refund (staff) ────────
+  const cancelTags = ['packages · refund']
+  const cancelBody = z.object({ penaltyPct: z.number().min(0).max(100).optional() }).optional()
+  fastify.post('/v1/packages/purchases/:id/cancel', {
+    schema: { tags: cancelTags, summary: 'Cancel a package and emit package.refunded with the proportional refund amount (staff only)', params: idParams, body: cancelBody },
+  }, async (req) => {
+    const body = cancelBody.parse(req.body ?? {})
+    return service.cancelPackage(ctxFromRequest(req), req.params.id, body)
+  })
 }

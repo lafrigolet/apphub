@@ -20,7 +20,7 @@ import * as service from '../services/intake-forms.service.js'
 import { withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import * as repo from '../repositories/intake-forms.repository.js'
-import { ConflictError, NotFoundError } from '@apphub/platform-sdk/errors'
+import { ConflictError, NotFoundError, ValidationError } from '@apphub/platform-sdk/errors'
 
 const APP_ID    = 'yoga-studio'
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'
@@ -86,6 +86,8 @@ describe('submissions', () => {
   })
 
   it('submitAnswers publishes intake.submitted', async () => {
+    repo.findSubmissionById.mockResolvedValue({ id: SUB_ID, template_id: TPL_ID, erased_at: null })
+    repo.findTemplateById.mockResolvedValue({ id: TPL_ID, schema: { fields: [] } })
     repo.submitAnswers.mockResolvedValue({
       id: SUB_ID, booking_id: BOOK_ID, template_id: TPL_ID, client_user_id: 'u1',
     })
@@ -97,7 +99,7 @@ describe('submissions', () => {
   })
 
   it('submitAnswers throws NotFoundError when submission missing', async () => {
-    repo.submitAnswers.mockResolvedValue(null)
+    repo.findSubmissionById.mockResolvedValue(null)
     await expect(service.submitAnswers(ctx, SUB_ID, { answers: {} })).rejects.toThrow(NotFoundError)
   })
 
@@ -110,6 +112,62 @@ describe('submissions', () => {
   it('reviewSubmission throws NotFoundError when missing', async () => {
     repo.reviewSubmission.mockResolvedValue(null)
     await expect(service.reviewSubmission(ctx, SUB_ID)).rejects.toThrow(NotFoundError)
+  })
+})
+
+describe('submitAnswers — validation + erasure guard (#4/#5)', () => {
+  it('rejects when required fields are missing (ValidationError)', async () => {
+    repo.findSubmissionById.mockResolvedValue({ id: SUB_ID, template_id: TPL_ID, erased_at: null })
+    repo.findTemplateById.mockResolvedValue({ id: TPL_ID, schema: { fields: [{ key: 'name', required: true }] } })
+    await expect(service.submitAnswers(ctx, SUB_ID, { answers: {} })).rejects.toThrow(ValidationError)
+    expect(repo.submitAnswers).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('refuses to submit an erased submission (ConflictError)', async () => {
+    repo.findSubmissionById.mockResolvedValue({ id: SUB_ID, template_id: TPL_ID, erased_at: '2026-01-01' })
+    await expect(service.submitAnswers(ctx, SUB_ID, { answers: {} })).rejects.toThrow(ConflictError)
+    expect(repo.submitAnswers).not.toHaveBeenCalled()
+  })
+
+  it('submits when validation passes', async () => {
+    repo.findSubmissionById.mockResolvedValue({ id: SUB_ID, template_id: TPL_ID, erased_at: null })
+    repo.findTemplateById.mockResolvedValue({ id: TPL_ID, schema: { fields: [{ key: 'name', required: true }] } })
+    repo.submitAnswers.mockResolvedValue({ id: SUB_ID, booking_id: null, template_id: TPL_ID, client_user_id: 'u1' })
+    await service.submitAnswers(ctx, SUB_ID, { answers: { name: 'Ana' } })
+    expect(repo.submitAnswers).toHaveBeenCalled()
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'intake.submitted' }))
+  })
+})
+
+describe('listSubmissions (#2)', () => {
+  it('delegates filters + pagination to repo', async () => {
+    repo.listSubmissions.mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
+    await service.listSubmissions(ctx, { status: 'submitted', limit: 10 })
+    expect(repo.listSubmissions).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID,
+      expect.objectContaining({ status: 'submitted', limit: 10 }),
+    )
+  })
+})
+
+describe('eraseSubmission (#5)', () => {
+  it('erases + publishes intake.erased', async () => {
+    repo.eraseSubmission.mockResolvedValue({
+      id: SUB_ID, booking_id: BOOK_ID, template_id: TPL_ID, client_user_id: 'u1', erased_at: 'now',
+    })
+    const out = await service.eraseSubmission(ctx, SUB_ID)
+    expect(repo.eraseSubmission).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, SUB_ID, 'u1')
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'intake.erased',
+      payload: expect.objectContaining({ submissionId: SUB_ID, bookingId: BOOK_ID }),
+    }))
+    expect(out.erased_at).toBe('now')
+  })
+
+  it('throws NotFoundError when missing', async () => {
+    repo.eraseSubmission.mockResolvedValue(null)
+    await expect(service.eraseSubmission(ctx, SUB_ID)).rejects.toThrow(NotFoundError)
   })
 })
 

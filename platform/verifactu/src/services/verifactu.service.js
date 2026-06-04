@@ -4,8 +4,20 @@ import { buildCotejoUrl, parseCotejoUrl } from '../lib/cotejo.js'
 import { generarQrDataUri } from '../lib/qr.js'
 import { validarRegistro } from '../lib/validacion.js'
 import { verificarEnlace } from '../lib/cadena.js'
+import { recalcularCadena } from '../lib/rehash.js'
 import { construirEvento } from '../lib/sif.js'
 import * as repo from '../repositories/verifactu.repository.js'
+
+// Error de regla de negocio. Lleva `statusCode` (422) y `code` para que el
+// error handler de Fastify lo traduzca a 4xx en lugar de 500.
+export class ReglaNegocioError extends Error {
+  constructor(code, message) {
+    super(message)
+    this.code = code
+    this.statusCode = 422
+    this.name = 'ReglaNegocioError'
+  }
+}
 
 // ISO-8601 con huso (la huella exige FechaHoraHusoGenRegistro con offset).
 // new Date().toISOString() devuelve 'Z' (=+00:00), huso válido. (verificar)
@@ -84,32 +96,63 @@ export function crearEvento(scope, { tipoEvento, descripcion }) {
 // El IDEmisorFactura es el NIF del OBLIGADO (de config), no el del cliente.
 export function crearRegistro(scope, input) {
   return tx(scope, async (c) => {
-    const numero = (await repo.maxNumero(c)) + 1
-    const huellaAnterior = await repo.lastHuella(c) // null → PrimerRegistro de la cadena
-    const numSerie = input.numSerie ?? `2027-A/${String(numero).padStart(6, '0')}`
+    const tipo = input.tipo ?? 'alta'
     const cfg = await repo.getConfig(c)
+    const idEmisor = cfg?.nif_obligado ?? input.clienteNif
+
+    // ── num_serie: por serie (correlativo atómico) o explícito ──────────
+    const numero = (await repo.maxNumero(c)) + 1 // posición en la cadena del tenant
+    let numSerie = input.numSerie
+    if (!numSerie && input.serie) {
+      const reservado = await repo.reservarNumeroSerie(c, input.serie)
+      if (!reservado) {
+        throw new ReglaNegocioError('SERIE_INACTIVA', `serie '${input.serie}' inexistente o cerrada`)
+      }
+      numSerie = `${reservado.codigo}/${String(reservado.numero).padStart(6, '0')}`
+    }
+    if (!numSerie) numSerie = `2027-A/${String(numero).padStart(6, '0')}`
+
+    // ── reglas de negocio de anulación (uso §2) ─────────────────────────
+    if (tipo === 'anulacion') {
+      const ref = input.numSerieAnulada ?? input.numSerie
+      if (!ref) {
+        throw new ReglaNegocioError('ANULACION_SIN_REF', 'una anulación debe referenciar el num_serie de la factura anulada')
+      }
+      const cuenta = await repo.contarPorNumSerie(c, ref)
+      if (cuenta.alta === 0) {
+        throw new ReglaNegocioError('ANULACION_NO_CONSTA', `la factura '${ref}' no consta en la cadena del obligado`)
+      }
+      if (cuenta.anulacion > 0) {
+        throw new ReglaNegocioError('ANULACION_DUPLICADA', `la factura '${ref}' ya está anulada`)
+      }
+      numSerie = ref // el registro de anulación referencia la factura anulada
+    }
+
+    const huellaAnterior = await repo.lastHuella(c) // null → PrimerRegistro de la cadena
+    const generadoEn = ahoraIso()
     const huella = calcularHuella(
       {
-        tipo:            input.tipo ?? 'alta',
-        idEmisor:        cfg?.nif_obligado ?? input.clienteNif,
+        tipo,
+        idEmisor,
         numSerie,
         fechaExpedicion: input.fechaExpedicion,
         tipoFactura:     input.tipoFactura ?? 'F1',
         cuotaTotal:      input.cuotaTotal,
         importeTotal:    input.importeTotal,
-        generadoEn:      ahoraIso(),
+        generadoEn,
       },
       huellaAnterior,
     )
-    void TIPO_HUELLA // TipoHuella=01 (SHA-256) — se persistirá con el modelo XSD completo (A1)
+    void TIPO_HUELLA // TipoHuella=01 (SHA-256)
     const qrUrl = buildCotejoUrl({
-      nif: cfg?.nif_obligado ?? input.clienteNif,
+      nif: idEmisor,
       numSerie,
       fecha: input.fechaExpedicion,
       importe: input.importeTotal,
     })
     const row = await repo.insertRegistro(c, {
-      ...scope, ...input, numero, numSerie, huella, huellaAnterior, qrUrl,
+      ...scope, ...input, tipo, numero, numSerie, huella, huellaAnterior, qrUrl,
+      idEmisor, genRegistro: generadoEn,
     })
     return {
       serie: row.num_serie, cliente: row.cliente_nombre, fecha: row.fecha_expedicion,
@@ -259,6 +302,86 @@ export function verificarCadena(scope) {
       numero: r.numero, huella: r.huella, huellaAnterior: r.huella_anterior,
     }))
     return verificarEnlace(registros)
+  })
+}
+
+// Recálculo COMPLETO de la cadena (full re-hash) — recomputa la huella de cada
+// registro desde sus campos canónicos persistidos y la compara con la
+// almacenada. Detecta manipulaciones e interpolaciones (no solo roturas de
+// enlace). Las filas sin campos canónicos se reportan como `noVerificables`.
+export function recalcularCadenaCompleta(scope) {
+  return tx(scope, async (c) => {
+    const rows = await repo.listRegistrosParaRehash(c, { limit: 1000 })
+    return recalcularCadena(rows)
+  })
+}
+
+// ── Series de facturación ─────────────────────────────────────────────
+export function listSeries(scope) {
+  return tx(scope, async (c) => {
+    const rows = await repo.listSeries(c)
+    return rows.map((s) => ({
+      codigo: s.codigo, descripcion: s.descripcion, ejercicio: s.ejercicio,
+      siguiente: s.siguiente, activa: s.activa,
+    }))
+  })
+}
+
+export function crearSerie(scope, input) {
+  return tx(scope, async (c) => {
+    const s = await repo.insertSerie(c, { ...scope, ...input })
+    return { codigo: s.codigo, descripcion: s.descripcion, ejercicio: s.ejercicio, siguiente: s.siguiente, activa: s.activa }
+  })
+}
+
+export function cerrarSerie(scope, codigo) {
+  return tx(scope, async (c) => {
+    const s = await repo.cerrarSerie(c, codigo)
+    if (!s) throw new ReglaNegocioError('SERIE_NO_ENCONTRADA', `serie '${codigo}' no encontrada`)
+    return { codigo: s.codigo, descripcion: s.descripcion, ejercicio: s.ejercicio, siguiente: s.siguiente, activa: s.activa }
+  })
+}
+
+// ── Exportación legal (uso §16 / recomendación #10) ───────────────────
+// Volcado de la cadena completa (registros + eventos + identidad del SIF) en
+// formato JSON para entrega a la Administración. Registra automáticamente el
+// evento EXPORTACION encadenado en la cadena de eventos del SIF.
+export function exportar(scope) {
+  return tx(scope, async (c) => {
+    const cfg = await repo.getConfig(c)
+    const registros = await repo.exportRegistros(c)
+    const eventos = await repo.exportEventos(c)
+
+    // Evento EXPORTACION encadenado (antes de capturar el snapshot de eventos
+    // ya no, para no auto-incluirlo; queda registrado para la próxima auditoría).
+    const huellaAnteriorEv = await repo.lastHuellaEvento(c)
+    const ev = construirEvento(
+      { tipoEvento: 'EXPORTACION', obligadoNif: cfg?.nif_obligado, generadoEn: ahoraIso() },
+      huellaAnteriorEv,
+    )
+    await repo.insertEvento(c, { ...scope, ...ev, tsDisplay: 'ahora' })
+
+    return {
+      meta: {
+        appId: scope.appId,
+        tenantId: scope.tenantId,
+        obligado: { nif: cfg?.nif_obligado ?? null, nombre: cfg?.nombre_obligado ?? null },
+        generadoEn: ahoraIso(),
+        totalRegistros: registros.length,
+        totalEventos: eventos.length,
+      },
+      registros: registros.map((r) => ({
+        numero: r.numero, numSerie: r.num_serie, tipo: r.tipo, tipoFactura: r.tipo_factura,
+        idEmisor: r.id_emisor, clienteNombre: r.cliente_nombre, clienteNif: r.cliente_nif,
+        fechaExpedicion: r.fecha_expedicion, importeTotal: r.importe_total, cuotaTotal: r.cuota_total,
+        generadoEn: r.gen_registro, huella: r.huella, huellaAnterior: r.huella_anterior,
+        estadoRemision: r.estado_remision,
+      })),
+      eventos: eventos.map((e) => ({
+        tag: e.tag, descripcion: e.descripcion, huella: e.huella, huellaAnterior: e.huella_anterior,
+        ocurridoEn: e.ocurrido_en,
+      })),
+    }
   })
 }
 

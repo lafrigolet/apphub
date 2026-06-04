@@ -11,8 +11,10 @@ vi.mock('../services/intake-forms.service.js', () => ({
   publishTemplate:     vi.fn(),
   createSubmission:    vi.fn(),
   getSubmission:       vi.fn(),
+  listSubmissions:     vi.fn(),
   submitAnswers:       vi.fn(),
   reviewSubmission:    vi.fn(),
+  eraseSubmission:     vi.fn(),
   exportSubmissionPdf: vi.fn(),
 }))
 
@@ -133,6 +135,37 @@ describe('submissions', () => {
     })
     expect([400, 422, 500]).toContain(res.statusCode)
     expect(service.createSubmission).not.toHaveBeenCalled()
+  })
+
+  it('GET /submissions (listado) delega filtros parseados', async () => {
+    service.listSubmissions.mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 })
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/intake-forms/submissions?status=submitted&templateId=${TPL}&limit=10&offset=5`,
+      headers: auth,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.listSubmissions).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'submitted', templateId: TPL, limit: 10, offset: 5 }),
+    )
+  })
+
+  it('GET /submissions query inválida (status fuera de enum) → 4xx/500', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/v1/intake-forms/submissions?status=bogus', headers: auth,
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+  })
+
+  it('POST /submissions/:id/erase delega (#5)', async () => {
+    service.eraseSubmission.mockResolvedValue({ id: SUB, erased_at: 'now' })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/intake-forms/submissions/${SUB}/erase`,
+      headers: { authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.eraseSubmission).toHaveBeenCalledWith(expect.anything(), SUB)
   })
 
   it('GET /submissions/:id delega', async () => {

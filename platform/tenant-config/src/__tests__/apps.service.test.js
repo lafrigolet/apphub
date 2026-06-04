@@ -29,12 +29,14 @@ vi.mock('../lib/db.js', () => ({
 vi.mock('../services/nginx-config.service.js', () => ({
   writeAppNginxConfig: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('../lib/redis.js', () => ({ publish: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../repositories/apps.repository.js')
 
 import {
   listApps, getApp, createApp, setAppStatus, setAppSplitpayEnabled, setAppEnabledModules,
 } from '../services/apps.service.js'
 import { withTransaction } from '../lib/db.js'
+import { publish } from '../lib/redis.js'
 import { writeAppNginxConfig } from '../services/nginx-config.service.js'
 import * as repo from '../repositories/apps.repository.js'
 import { logger } from '../lib/logger.js'
@@ -78,6 +80,22 @@ describe('createApp', () => {
     })
     expect(r.app_id).toBe('new')
     expect(writeAppNginxConfig).toHaveBeenCalledWith({ appId: 'new', subdomain: 'new' })
+  })
+
+  it('emite evento app.created', async () => {
+    repo.create.mockResolvedValue({ app_id: 'new', subdomain: 'new', display_name: 'New' })
+    await createApp({ appId: 'new', displayName: 'New', subdomain: 'new', jwtAudience: 'aud' })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'app.created',
+      payload: expect.objectContaining({ appId: 'new', subdomain: 'new' }),
+    }))
+  })
+
+  it('fallo al publicar app.created → no rompe la creación', async () => {
+    repo.create.mockResolvedValue({ app_id: 'new', subdomain: 'new' })
+    publish.mockRejectedValueOnce(new Error('redis down'))
+    const r = await createApp({ appId: 'new', displayName: 'New', subdomain: 'new', jwtAudience: 'aud' })
+    expect(r.app_id).toBe('new')
   })
 
   it('unique violation Postgres (23505) → ConflictError 409', async () => {

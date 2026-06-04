@@ -233,7 +233,7 @@ describe('reschedule', () => {
       .mockResolvedValueOnce({ id: 'NEW' })
     repo.setStatus.mockResolvedValue({ id: BOOK_ID, status: 'rescheduled' })
     repo.recordEvent.mockResolvedValue()
-    repo.insertBooking.mockResolvedValue({ id: 'NEW' })
+    repo.insertBookingAtomic.mockResolvedValue({ id: 'NEW' })
     repo.listResources.mockResolvedValue([RES_ID])
     repo.attachResource.mockResolvedValue()
     repo.listEvents.mockResolvedValue([])
@@ -242,7 +242,8 @@ describe('reschedule', () => {
     expect(repo.setStatus).toHaveBeenCalledWith(
       expect.anything(), APP_ID, TENANT_ID, BOOK_ID, 'rescheduled', expect.objectContaining(newSlot),
     )
-    expect(repo.insertBooking).toHaveBeenCalledWith(
+    // El clon ahora pasa por el overlap-guard atómico cuando hay recursos.
+    expect(repo.insertBookingAtomic).toHaveBeenCalledWith(
       expect.anything(), APP_ID, TENANT_ID,
       expect.objectContaining({ status: 'confirmed', parentBookingId: BOOK_ID, ...newSlot }),
     )
@@ -270,5 +271,32 @@ describe('waitlist', () => {
   it('notifyWaitlist throws NotFoundError when missing', async () => {
     repo.updateWaitlistStatus.mockResolvedValue(null)
     await expect(service.notifyWaitlist(ctx, 'w1')).rejects.toThrow(NotFoundError)
+  })
+})
+
+describe('recurrences', () => {
+  it('createRecurrence delega en repo.insertRecurrence', async () => {
+    repo.insertRecurrence.mockResolvedValue({ id: 'r1', rrule: { freq: 'WEEKLY' } })
+    const body = { rrule: { freq: 'WEEKLY' }, startsOn: '2026-06-01' }
+    const r = await service.createRecurrence(ctx, body)
+    expect(repo.insertRecurrence).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, body)
+    expect(r).toEqual({ id: 'r1', rrule: { freq: 'WEEKLY' } })
+  })
+
+  it('listRecurrences delega filtros en repo', async () => {
+    repo.listRecurrences.mockResolvedValue([{ id: 'r1' }])
+    const r = await service.listRecurrences(ctx, { limit: 50 })
+    expect(repo.listRecurrences).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, { limit: 50 })
+    expect(r).toHaveLength(1)
+  })
+
+  it('getRecurrence devuelve la fila cuando existe', async () => {
+    repo.findRecurrenceById.mockResolvedValue({ id: 'r1' })
+    expect(await service.getRecurrence(ctx, 'r1')).toEqual({ id: 'r1' })
+  })
+
+  it('getRecurrence → NotFoundError cuando no existe', async () => {
+    repo.findRecurrenceById.mockResolvedValue(null)
+    await expect(service.getRecurrence(ctx, 'ghost')).rejects.toThrow(NotFoundError)
   })
 })

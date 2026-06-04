@@ -119,6 +119,29 @@ export async function deliverScheduledFor({ appId, tenantId, subTenantId, messag
   return result.message
 }
 
+// ── scheduled messages (the sender's own pending queue) ─────────────────────
+// A scheduled message stays silent (no fan-out) until platform-scheduler fires
+// chat.scheduled.due. Until then the sender may list, reschedule, or cancel it.
+export async function listScheduled(ctx, { conversationId, limit } = {}) {
+  return withTenantTransaction(ctx.appId, ctx.tenantId, ctx.subTenantId ?? null, (c) =>
+    msgRepo.listScheduledForSender(c, ctx.userId, { conversationId, limit }),
+  )
+}
+
+export async function cancelScheduled(ctx, messageId) {
+  return withTenantTransaction(ctx.appId, ctx.tenantId, ctx.subTenantId ?? null, async (c) =>
+    ensureFound(await msgRepo.cancelScheduled(c, messageId, ctx.userId, new Date().toISOString()), 'Scheduled message'),
+  )
+}
+
+export async function rescheduleScheduled(ctx, messageId, scheduledFor) {
+  const when = new Date(scheduledFor)
+  if (!(when.getTime() > Date.now())) throw new ValidationError('scheduledFor must be in the future')
+  return withTenantTransaction(ctx.appId, ctx.tenantId, ctx.subTenantId ?? null, async (c) =>
+    ensureFound(await msgRepo.rescheduleScheduled(c, messageId, ctx.userId, when.toISOString()), 'Scheduled message'),
+  )
+}
+
 // ── list history ──────────────────────────────────────────────────────────
 export async function listMessages(ctx, conversationId, opts) {
   return withTenantTransaction(ctx.appId, ctx.tenantId, ctx.subTenantId ?? null, async (c) => {

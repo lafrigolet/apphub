@@ -76,7 +76,7 @@ describe('bumpTicket FSM', () => {
     repo.findTicketById.mockResolvedValue({ id: TICKET_ID, status: 'fired', order_id: ORDER_ID, station_id: STATION, course: 'main' })
     repo.setTicketStatus.mockResolvedValue({ id: TICKET_ID, status: 'in_progress' })
     await service.bumpTicket(ctx, TICKET_ID, 'in_progress')
-    expect(repo.setTicketStatus).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, TICKET_ID, 'in_progress', 'acked_at')
+    expect(repo.setTicketStatus).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, TICKET_ID, 'in_progress', 'acked_at', null)
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'kds.ticket.acked' }))
   })
 

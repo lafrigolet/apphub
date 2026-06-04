@@ -2,7 +2,7 @@ const SCHEMA = 'platform_chat'
 
 const COLS = `
   id, app_id, tenant_id, conversation_id, sender_user_id, type, body,
-  reply_to_message_id, thread_root_id, status, scheduled_for, expires_at,
+  reply_to_message_id, thread_root_id, status, scheduled_for, cancelled_at, expires_at,
   edited_at, deleted_at, metadata, created_at
 `
 
@@ -32,6 +32,51 @@ export async function deliverScheduled(client, id, when) {
       WHERE id = $1 AND status = 'scheduled'
       RETURNING ${COLS}`,
     [id, when],
+  )
+  return rows[0] ?? null
+}
+
+// The caller's own still-pending scheduled messages, soonest-first. Optionally
+// scoped to one conversation. Cancelled / already-delivered rows are excluded
+// (status is only 'scheduled' while pending).
+export async function listScheduledForSender(client, senderUserId, { conversationId, limit = 100 } = {}) {
+  const params = [senderUserId]
+  let conv = ''
+  if (conversationId) { params.push(conversationId); conv = `AND conversation_id = $${params.length}` }
+  params.push(limit)
+  const { rows } = await client.query(
+    `SELECT ${COLS} FROM ${SCHEMA}.messages
+      WHERE sender_user_id = $1 AND status = 'scheduled' ${conv}
+      ORDER BY scheduled_for ASC
+      LIMIT $${params.length}`,
+    params,
+  )
+  return rows
+}
+
+// Cancel a still-scheduled message: flip to 'cancelled' and stamp cancelled_at
+// so the scheduler's partial index stops matching it. Returns null if it was
+// already dispatched, cancelled, or belongs to someone else.
+export async function cancelScheduled(client, id, senderUserId, when) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.messages
+        SET status = 'cancelled', cancelled_at = $3
+      WHERE id = $1 AND sender_user_id = $2 AND status = 'scheduled'
+      RETURNING ${COLS}`,
+    [id, senderUserId, when],
+  )
+  return rows[0] ?? null
+}
+
+// Move a still-scheduled message to a new future time. Returns null if it was
+// already dispatched/cancelled or isn't the caller's.
+export async function rescheduleScheduled(client, id, senderUserId, when) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.messages
+        SET scheduled_for = $3
+      WHERE id = $1 AND sender_user_id = $2 AND status = 'scheduled'
+      RETURNING ${COLS}`,
+    [id, senderUserId, when],
   )
   return rows[0] ?? null
 }
@@ -97,7 +142,16 @@ export async function softDelete(client, id, when) {
 
 // Full-text search restricted to conversations the user actively belongs to,
 // with optional filters (conversation, sender, type, date range).
-export async function search(client, userId, q, { limit = 50, conversationId, senderUserId, type, before, after } = {}) {
+export async function search(client, userId, q, { limit = 50, conversationId, senderUserId, type, before, after, language = 'simple' } = {}) {
+  // language is a Postgres regconfig name; callers pass a value already
+  // validated against an allow-list (SEARCH_LANGUAGES), so it is safe to inline.
+  // 'simple' matches the body_tsv generated column and uses its GIN index;
+  // other configs recompute to_tsvector(language, body) at query time for
+  // correct stemming/stop-words.
+  const lang = ['simple', 'spanish', 'english'].includes(language) ? language : 'simple'
+  const matcher = lang === 'simple'
+    ? `m.body_tsv @@ plainto_tsquery('simple', $2)`
+    : `to_tsvector('${lang}', coalesce(m.body, '')) @@ plainto_tsquery('${lang}', $2)`
   const filters = []
   const params = [userId, q]
   if (conversationId) { params.push(conversationId); filters.push(`m.conversation_id = $${params.length}`) }
@@ -115,7 +169,7 @@ export async function search(client, userId, q, { limit = 50, conversationId, se
       WHERE m.deleted_at IS NULL
         AND m.status = 'sent'
         AND (m.expires_at IS NULL OR m.expires_at > now())
-        AND m.body_tsv @@ plainto_tsquery('simple', $2)
+        AND ${matcher}
         ${filters.length ? `AND ${filters.join(' AND ')}` : ''}
       ORDER BY m.created_at DESC
       LIMIT $${params.length}`,
@@ -142,6 +196,22 @@ export async function unreadSummary(client, userId) {
     [userId],
   )
   return rows.filter((r) => r.unread_count > 0)
+}
+
+// GDPR right-to-be-forgotten: detach a user from their chat history. We keep
+// the rows (so threads/receipts stay coherent) but null the author and wipe the
+// body, then drop the user's reactions and mentions. Returns how many messages
+// were anonymized. Scoped to the tenant by RLS.
+export async function anonymizeUser(client, userId) {
+  const { rowCount } = await client.query(
+    `UPDATE ${SCHEMA}.messages
+        SET sender_user_id = NULL, body = NULL, metadata = '{}'::jsonb
+      WHERE sender_user_id = $1`,
+    [userId],
+  )
+  await client.query(`DELETE FROM ${SCHEMA}.message_reactions WHERE user_id = $1`, [userId])
+  await client.query(`DELETE FROM ${SCHEMA}.message_mentions WHERE mentioned_user_id = $1`, [userId])
+  return rowCount
 }
 
 // ── mentions (live with messages — they share lifecycle) ─────────────────

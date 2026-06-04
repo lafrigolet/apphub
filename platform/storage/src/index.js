@@ -1,6 +1,7 @@
 import { configurePool } from './lib/db.js'
 import { configureRedis } from './lib/redis.js'
 import { storageRoutes } from './routes/storage.routes.js'
+import { adminRoutes } from './routes/admin.routes.js'
 
 export { runMigrations } from './lib/migrate.js'
 
@@ -13,5 +14,6 @@ export async function register({ app, db, redis, logger }) {
   }))
 
   await app.register(storageRoutes)
+  await app.register(adminRoutes, { prefix: '/v1/storage/admin' })
   logger?.info('storage module ready')
 }

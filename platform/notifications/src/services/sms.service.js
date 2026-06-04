@@ -12,6 +12,7 @@ import { pool } from '../lib/db.js'
 import * as configRepo from '../repositories/config.repository.js'
 import { renderTemplate } from './template-renderer.js'
 import { logSend } from './send-log.service.js'
+import { isSuppressed } from './suppression.service.js'
 
 const CACHE_TTL_MS = 30_000
 let cache = {
@@ -57,9 +58,17 @@ async function send({ to, body, templateKey, meta }) {
   const cfg = await loadConfig()
 
   // Audit best-effort hacia send_log — mismo patrón que email.service.js.
-  const audit = (status, error) => logSend({
-    ...meta, channel: 'sms', template: templateKey, recipient: to, status, error,
+  const audit = (status, error, providerMessageId) => logSend({
+    ...meta, channel: 'sms', template: templateKey, recipient: to, status, error, providerMessageId,
   })
+
+  // Suppression gate (recommendation #5): skip numbers that opted out (STOP).
+  // Fails open, so a store hiccup never silences a legitimate SMS.
+  if (await isSuppressed('sms', to)) {
+    logger.info({ to, template: templateKey }, 'SMS suppressed (opt-out list)')
+    await audit('skipped', 'suppressed')
+    return { suppressed: true }
+  }
 
   if (isStubMode(cfg)) {
     logger.info({ to, body }, '[stub] SMS not sent — Twilio not configured (or NODE_ENV=development)')
@@ -92,7 +101,9 @@ async function send({ to, body, templateKey, meta }) {
     }
     const data = await res.json()
     logger.info({ sid: data.sid, to }, 'SMS sent')
-    await audit('sent')
+    // Stash the Twilio SID so the StatusCallback webhook can correlate the
+    // async delivery result (delivered / failed / undelivered) back here.
+    await audit('sent', null, data.sid ?? null)
     return { sid: data.sid }
   } catch (err) {
     logger.error({ err, to }, 'Failed to send SMS')
@@ -168,4 +179,28 @@ export async function sendReservationCancelledSms(to, { reservedFor, locale = 'e
     text: locale === 'en' ? `Your reservation on ${when} has been cancelled.` : `Tu reserva del ${when} ha sido cancelada.`,
   }, locale)
   return send({ to, body: tmpl.text, templateKey: 'reservation.cancelled' })
+}
+
+// ── Waitlist SMS senders (anonymous guests/clients — phone-only) ───────────
+// A table / slot freed up and this waitlisted party is up next. The waitlist
+// entries are typically created without a user account (just a name + phone),
+// so SMS is the only resolvable channel.
+
+export async function sendWaitlistNotifiedSms(to, { guestName, locale = 'es' } = {}) {
+  const namePrefix = guestName ? ' ' + guestName : ''
+  const tmpl = await compose('waitlist.notified', { namePrefix }, {
+    text: locale === 'en'
+      ? `Hi${namePrefix}, a table just opened up. Reply or call us soon to claim it before it's offered to the next party.`
+      : `Hola${namePrefix}, se ha quedado una mesa libre. Contáctanos pronto para confirmarla antes de que se ofrezca al siguiente.`,
+  }, locale)
+  return send({ to, body: tmpl.text, templateKey: 'waitlist.notified' })
+}
+
+export async function sendBookingWaitlistNotifiedSms(to, { locale = 'es' } = {}) {
+  const tmpl = await compose('booking.waitlist.notified', {}, {
+    text: locale === 'en'
+      ? 'A slot just opened up for the service you were waiting for. Book it soon before it is offered to the next person.'
+      : 'Se ha liberado un hueco para el servicio en el que estabas en lista de espera. Resérvalo pronto antes de que se ofrezca al siguiente.',
+  }, locale)
+  return send({ to, body: tmpl.text, templateKey: 'booking.waitlist.notified' })
 }

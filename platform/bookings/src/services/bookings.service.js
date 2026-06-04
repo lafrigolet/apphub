@@ -116,6 +116,13 @@ async function createBookingForSession(ctx, body) {
       throw new ValidationError('sessionId only valid for services with kind=event')
     }
 
+    // Doble inscripción del mismo cliente a la misma sesión → 409. El cliente
+    // se resuelve igual que en el insert (body.clientUserId con fallback al JWT).
+    const clientUserId = body.clientUserId ?? ctx.userId
+    if (await repo.clientAlreadyEnrolled(c, ctx.appId, ctx.tenantId, session.id, clientUserId)) {
+      throw new ConflictError('client already enrolled in this session')
+    }
+
     const capacity = session.capacity ?? svc.capacity ?? 1
     const taken    = await repo.countBookingsForSession(c, ctx.appId, ctx.tenantId, session.id)
     if (taken >= capacity) throw new ConflictError('session full')
@@ -127,7 +134,7 @@ async function createBookingForSession(ctx, body) {
     const b = await repo.insertBookingForSession(c, ctx.appId, ctx.tenantId, {
       ...body,
       subTenantId:  ctx.subTenantId,
-      clientUserId: body.clientUserId ?? ctx.userId,
+      clientUserId,
       serviceId:    session.service_id,
       sessionId:    session.id,
       startsAt:     session.starts_at,
@@ -199,11 +206,21 @@ export async function reschedule(ctx, id, { startsAt, endsAt, reason }) {
     if (['cancelled','no_show','completed','rescheduled'].includes(b.status)) {
       throw new ConflictError(`cannot reschedule a ${b.status} booking`)
     }
+    // Resolve the original's resources BEFORE flipping its status so the
+    // overlap-guard on the clone sees the slot as freed (the original is now
+    // 'rescheduled', which is excluded from the guard).
+    const resourceIds = await repo.listResources(c, ctx.appId, ctx.tenantId, id)
+
     const updated = await repo.setStatus(c, ctx.appId, ctx.tenantId, id, 'rescheduled', { startsAt, endsAt })
     await repo.recordEvent(c, ctx.appId, ctx.tenantId, id, b.status, 'rescheduled', ctx.userId, reason ?? 'rescheduled')
 
     // Create the new booking row (status=confirmed) referencing the original.
-    const cloned = await repo.insertBooking(c, ctx.appId, ctx.tenantId, {
+    // When the booking owns resources we use the overlap-guarded insert so a
+    // reschedule onto an already-booked slot is rejected with 409 — same
+    // protection createBooking has. Bookings without resources (e.g. session
+    // events with no room) fall back to the legacy unguarded insert because
+    // the per-resource guard has nothing to check.
+    const cloneInput = {
       subTenantId: b.sub_tenant_id, serviceId: b.service_id,
       clientUserId: b.client_user_id, clientName: b.client_name,
       clientEmail: b.client_email, clientPhone: b.client_phone,
@@ -211,9 +228,15 @@ export async function reschedule(ctx, id, { startsAt, endsAt, reason }) {
       notes: b.notes, internalNotes: b.internal_notes,
       recurrenceId: b.recurrence_id, parentBookingId: id,
       packageId: b.package_id, priceCents: b.price_cents, currency: b.currency, source: b.source,
-      metadata: b.metadata,
-    })
-    const resourceIds = await repo.listResources(c, ctx.appId, ctx.tenantId, id)
+      metadata: b.metadata, locale: b.locale,
+    }
+    let cloned
+    if (resourceIds.length) {
+      cloned = await repo.insertBookingAtomic(c, ctx.appId, ctx.tenantId, { ...cloneInput, resourceIds })
+      if (!cloned) throw new ConflictError('target slot already booked')
+    } else {
+      cloned = await repo.insertBooking(c, ctx.appId, ctx.tenantId, cloneInput)
+    }
     for (const rid of resourceIds) {
       await repo.attachResource(c, ctx.appId, ctx.tenantId, cloned.id, rid)
     }
@@ -223,6 +246,9 @@ export async function reschedule(ctx, id, { startsAt, endsAt, reason }) {
       payload: {
         appId: ctx.appId, tenantId: ctx.tenantId,
         oldBookingId: id, newBookingId: cloned.id, startsAt, endsAt,
+        // The original slot is freed; expose service/resources so the
+        // waitlist-promotion subscriber can offer it to the next in line.
+        serviceId: b.service_id, resourceIds,
       },
     })
     return loadFull(c, ctx, cloned.id)
@@ -310,10 +336,15 @@ export async function cancelBooking(ctx, id, reason, opts = {}) {
     const updated = await repo.setStatus(c, ctx.appId, ctx.tenantId, id, 'cancelled')
     await repo.recordEvent(c, ctx.appId, ctx.tenantId, id, b.status, 'cancelled', ctx.userId, reason ?? 'cancelled')
 
+    // serviceId + resourceIds + sessionId let the waitlist-promotion subscriber
+    // (events/waitlist-promotion.handler.js) match the freed slot to a waiting
+    // entry. Read after the status flip so the slot is already free.
+    const resourceIds = await repo.listResources(c, ctx.appId, ctx.tenantId, id)
     await publish({
       type: 'booking.cancelled',
       payload: {
         appId: ctx.appId, tenantId: ctx.tenantId, bookingId: id,
+        serviceId: b.service_id, sessionId: b.session_id ?? null, resourceIds,
         clientUserId: b.client_user_id, clientEmail: b.client_email, clientPhone: b.client_phone,
         clientName: b.client_name, startsAt: b.starts_at, reason,
         feeCents, feeReason: policyReason,
@@ -333,6 +364,32 @@ export async function cancelBooking(ctx, id, reason, opts = {}) {
     }
     return updated
   })
+}
+
+// ── Recurrences ────────────────────────────────────────────────────────
+//
+// `recurrences` holds the RRULE-ish definition the platform-scheduler's
+// `booking-recurrence-expander` job materializes into concrete bookings.
+// `insertRecurrence` existed in the repo but had no REST surface — only the
+// scheduler read the table. These endpoints let staff create and list series.
+export async function createRecurrence(ctx, body) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.insertRecurrence(c, ctx.appId, ctx.tenantId, body),
+  )
+}
+
+export async function listRecurrences(ctx, opts) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listRecurrences(c, ctx.appId, ctx.tenantId, opts),
+  )
+}
+
+export async function getRecurrence(ctx, id) {
+  const r = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.findRecurrenceById(c, ctx.appId, ctx.tenantId, id),
+  )
+  if (!r) throw new NotFoundError('recurrence')
+  return r
 }
 
 // Waitlist

@@ -13,18 +13,37 @@ import {
   sendBookingReminderSms, sendReservationReminderSms,
   sendBookingConfirmedSms, sendBookingCancelledSms, sendBookingRescheduledSms,
   sendReservationCancelledSms,
+  sendWaitlistNotifiedSms, sendBookingWaitlistNotifiedSms,
 } from './sms.service.js'
 import { checkRateLimit } from './rate-limit.service.js'
+import { claimEvent } from './idempotency.service.js'
+import { isMuted } from './preferences.service.js'
 import { shouldDigest, enqueueDigest } from './digest.service.js'
 import {
   sendBookingReminderPush, sendBookingConfirmedPush, sendReservationReminderPush,
   sendPushToUser,
+  sendReviewRepliedPush, sendDisputeOpenedPush, sendDisputeWithdrawnPush,
+  sendPackageFrozenPush, sendPackageUnfrozenPush, sendPackageRefundedPush,
 } from './push.service.js'
 
-// Rate-limit gate: skip the send when the per-user/hour or per-user/day cap
-// is hit. We only check when userId is present — staff/system messages bypass.
-async function gated(userId, eventClass, channel, fn) {
+// Rate-limit + preference gate: skip the send when the user opted out of this
+// channel/category, or when the per-user/hour or per-user/day cap is hit. We
+// only check when userId is present — staff/system messages bypass both gates
+// (anonymous initiators have no preference row and no per-user limit).
+async function gated(userId, eventClass, channel, fn, ctx) {
   if (userId) {
+    // Preference opt-out takes precedence over rate-limit: a muted channel
+    // shouldn't even consume a rate-limit slot. Tenant context (when present
+    // on the event payload) lets the RLS-scoped lookup run; otherwise the
+    // preference check fails open and only the rate-limit applies.
+    const muted = await isMuted({
+      userId, eventType: eventClass, channel,
+      appId: ctx?.appId, tenantId: ctx?.tenantId, subTenantId: ctx?.subTenantId,
+    })
+    if (muted) {
+      logger.info({ userId, eventClass, channel }, 'notification suppressed by user preference')
+      return
+    }
     const v = await checkRateLimit({ userId, eventClass, channel })
     if (!v.allowed) {
       logger.info({ userId, eventClass, channel, reason: v.reason }, 'notification suppressed by rate-limit')
@@ -65,11 +84,28 @@ export function startEventConsumer() {
     }
 
     try {
+      // Idempotency: drop redelivered events (producer retry, Redis reconnect
+      // replay, manual re-publish) before any send. The internal digest-flush
+      // is deliberately exempt — it's safe to run repeatedly (it renames the
+      // per-user queue before reading) and the scheduler may fire it on a tight
+      // cadence that we must never dedup away.
+      if (event.type !== 'notifications.digest.flush') {
+        if (!(await claimEvent(event))) return
+      }
+
       // Locale is optional on every event payload. Senders default to 'es'
       // when missing, and the template repo falls back to 'es' rows when the
       // requested locale has no row — so an unknown/missing locale never
       // breaks delivery.
       const locale = event.payload?.locale ?? 'es'
+
+      // Tenant context for the RLS-scoped preference lookup, when the producer
+      // included it on the payload. Events without it fall back to fail-open.
+      const prefCtx = {
+        appId:       event.payload?.appId ?? null,
+        tenantId:    event.payload?.tenantId ?? null,
+        subTenantId: event.payload?.subTenantId ?? null,
+      }
 
       if (event.type === 'user.registered') {
         const { email, appId, userId } = event.payload ?? {}
@@ -283,20 +319,20 @@ export function startEventConsumer() {
       if (event.type === 'booking.reminder.due') {
         const { appId, tenantId, clientEmail, clientPhone, clientName, clientUserId, startsAt, window } = event.payload ?? {}
         const pushCtx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
-        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window, locale }))
+        if (clientEmail) await gated(clientUserId, event.type, 'email', () => sendBookingReminderEmail(clientEmail, { name: clientName, startsAt, window, locale }), prefCtx)
         // SMS goes out only when the scheduler hydrated the phone number;
         // the booking module is responsible for including it in the event
         // payload. Stays a noop in dev / when Twilio is not configured.
-        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window, locale }))
-        if (clientUserId) await gated(clientUserId, event.type, 'push', () => sendBookingReminderPush(pushCtx, clientUserId, { startsAt, window, locale }))
+        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingReminderSms(clientPhone, { name: clientName, startsAt, window, locale }), prefCtx)
+        if (clientUserId) await gated(clientUserId, event.type, 'push', () => sendBookingReminderPush(pushCtx, clientUserId, { startsAt, window, locale }), prefCtx)
       }
 
       if (event.type === 'reservation.reminder.due') {
         const { appId, tenantId, guestEmail, guestPhone, guestName, guestUserId, reservedFor, partySize, window } = event.payload ?? {}
         const pushCtx = { appId, tenantId, subTenantId: null, userId: guestUserId, role: 'system' }
-        if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window, locale }))
-        if (guestPhone) await gated(guestUserId, event.type, 'sms',   () => sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window, locale }))
-        if (guestUserId) await gated(guestUserId, event.type, 'push',  () => sendReservationReminderPush(pushCtx, guestUserId, { reservedFor, partySize, window, locale }))
+        if (guestEmail) await gated(guestUserId, event.type, 'email', () => sendReservationReminderEmail(guestEmail, { name: guestName, reservedFor, partySize, window, locale }), prefCtx)
+        if (guestPhone) await gated(guestUserId, event.type, 'sms',   () => sendReservationReminderSms(guestPhone, { name: guestName, reservedFor, partySize, window, locale }), prefCtx)
+        if (guestUserId) await gated(guestUserId, event.type, 'push',  () => sendReservationReminderPush(pushCtx, guestUserId, { reservedFor, partySize, window, locale }), prefCtx)
       }
 
       if (event.type === 'package.expiring') {
@@ -321,10 +357,10 @@ export function startEventConsumer() {
         const { appId, tenantId, clientEmail, clientPhone, clientName, clientUserId, startsAt } = event.payload ?? {}
         const pushCtx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
         if (clientEmail && !await maybeDigestEmail(event, { userId: clientUserId, to: clientEmail, locale })) {
-          await gated(clientUserId, event.type, 'email', () => sendBookingConfirmedEmail(clientEmail, { name: clientName, startsAt, locale }))
+          await gated(clientUserId, event.type, 'email', () => sendBookingConfirmedEmail(clientEmail, { name: clientName, startsAt, locale }), prefCtx)
         }
-        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingConfirmedSms(clientPhone, { startsAt, locale }))
-        if (clientUserId) await gated(clientUserId, event.type, 'push', () => sendBookingConfirmedPush(pushCtx, clientUserId, { startsAt, locale }))
+        if (clientPhone) await gated(clientUserId, event.type, 'sms', () => sendBookingConfirmedSms(clientPhone, { startsAt, locale }), prefCtx)
+        if (clientUserId) await gated(clientUserId, event.type, 'push', () => sendBookingConfirmedPush(pushCtx, clientUserId, { startsAt, locale }), prefCtx)
       }
 
       if (event.type === 'booking.cancelled') {
@@ -456,7 +492,7 @@ export function startEventConsumer() {
           const ctx = { appId, tenantId, subTenantId: null, userId, role: 'system' }
           await gated(userId, event.type, 'push', () => sendPushToUser(ctx, userId, {
             title: 'New message', body: '', data: { type: 'chat.message.created', conversationId, messageId },
-          }))
+          }), ctx)
         }
       }
 
@@ -466,7 +502,7 @@ export function startEventConsumer() {
           const ctx = { appId, tenantId, subTenantId: null, userId: mentionedUserId, role: 'system' }
           await gated(mentionedUserId, event.type, 'push', () => sendPushToUser(ctx, mentionedUserId, {
             title: 'You were mentioned', body: '', data: { type: 'chat.mention.created', conversationId, messageId },
-          }))
+          }), ctx)
         }
       }
 
@@ -487,6 +523,86 @@ export function startEventConsumer() {
           await gated(assignedAgentUserId, event.type, 'push', () => sendPushToUser(ctx, assignedAgentUserId, {
             title: 'Support SLA breached', body: '', data: { type: 'chat.support.sla_breached', conversationId },
           }))
+        }
+      }
+
+      // ── reviews ─────────────────────────────────────────────────────────
+      // The vendor replied to the buyer's review. Payload carries buyerUserId
+      // (reviews own no email — auth does), so push is the resolvable channel.
+      if (event.type === 'review.replied') {
+        const { appId, tenantId, buyerUserId, reviewId } = event.payload ?? {}
+        if (buyerUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: buyerUserId, role: 'system' }
+          await gated(buyerUserId, event.type, 'push', () => sendReviewRepliedPush(ctx, buyerUserId, { reviewId, locale }), ctx)
+        }
+      }
+
+      // ── disputes ────────────────────────────────────────────────────────
+      // dispute.opened / dispute.withdrawn carry the acting buyer's userId.
+      // dispute.resolved / dispute.message carry no recipient userId (only a
+      // role / amount) so they are intentionally not wired here.
+      if (event.type === 'dispute.opened') {
+        const { appId, tenantId, buyerUserId, disputeId, orderId } = event.payload ?? {}
+        if (buyerUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: buyerUserId, role: 'system' }
+          await gated(buyerUserId, event.type, 'push', () => sendDisputeOpenedPush(ctx, buyerUserId, { disputeId, orderId, locale }), ctx)
+        }
+      }
+      if (event.type === 'dispute.withdrawn') {
+        const { appId, tenantId, withdrawnByUserId, disputeId } = event.payload ?? {}
+        if (withdrawnByUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: withdrawnByUserId, role: 'system' }
+          await gated(withdrawnByUserId, event.type, 'push', () => sendDisputeWithdrawnPush(ctx, withdrawnByUserId, { disputeId, locale }), ctx)
+        }
+      }
+
+      // ── packages (admin actions) ─────────────────────────────────────────
+      // freeze / unfreeze / cancel(=refund) carry clientUserId → push channel.
+      if (event.type === 'package.frozen') {
+        const { appId, tenantId, clientUserId, packageId } = event.payload ?? {}
+        if (clientUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
+          await gated(clientUserId, event.type, 'push', () => sendPackageFrozenPush(ctx, clientUserId, { packageId, locale }), ctx)
+        }
+      }
+      if (event.type === 'package.unfrozen') {
+        const { appId, tenantId, clientUserId, packageId, daysAdded } = event.payload ?? {}
+        if (clientUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
+          await gated(clientUserId, event.type, 'push', () => sendPackageUnfrozenPush(ctx, clientUserId, { packageId, daysAdded, locale }), ctx)
+        }
+      }
+      if (event.type === 'package.refunded') {
+        const { appId, tenantId, clientUserId, packageId, refundCents, currency } = event.payload ?? {}
+        if (clientUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
+          await gated(clientUserId, event.type, 'push', () => sendPackageRefundedPush(ctx, clientUserId, { packageId, refundCents, currency, locale }), ctx)
+        }
+      }
+
+      // ── waitlist promotions (anonymous guests/clients — SMS only) ─────────
+      // A table / slot freed up and this party is next. Waitlist entries are
+      // typically created without a user account (name + phone only), so SMS
+      // is the resolvable channel. No userId → no rate-limit gate (send direct,
+      // same as inquiry/lead). Errors are swallowed by the sms sender itself.
+      if (event.type === 'waitlist.notified') {
+        const { guestPhone, guestName } = event.payload ?? {}
+        if (guestPhone) {
+          try {
+            await sendWaitlistNotifiedSms(guestPhone, { guestName, locale })
+          } catch (err) {
+            logger.error({ err }, 'sendWaitlistNotifiedSms failed')
+          }
+        }
+      }
+      if (event.type === 'booking.waitlist.notified') {
+        const { clientPhone } = event.payload ?? {}
+        if (clientPhone) {
+          try {
+            await sendBookingWaitlistNotifiedSms(clientPhone, { locale })
+          } catch (err) {
+            logger.error({ err }, 'sendBookingWaitlistNotifiedSms failed')
+          }
         }
       }
     } catch (err) {

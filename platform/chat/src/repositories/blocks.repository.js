@@ -29,6 +29,14 @@ export async function listForUser(client, userId) {
   return rows
 }
 
+// GDPR erase: drop every block this user authored or is the target of.
+export async function purgeUser(client, userId) {
+  await client.query(
+    `DELETE FROM ${SCHEMA}.blocks WHERE user_id = $1 OR blocked_user_id = $1`,
+    [userId],
+  )
+}
+
 // True if a blocks b OR b blocks a (block is symmetric for messaging purposes).
 export async function existsBetween(client, userA, userB) {
   const { rows } = await client.query(

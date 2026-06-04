@@ -31,6 +31,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   `platform/storage/scripts/seed-grafocaligrafia-downloads.mjs` que sube los
   3 descargables pesados (>10 MB) de grafocaligrafía a MinIO con UUIDs fijos;
   los ≤10 MB se sirven como estáticos del portal.
+- **Prioritarios de `docs/use-cases/` implementados en los 34 módulos (5 olas).**
+  Cada módulo de plataforma recibió sus recomendaciones priorizadas viables
+  (backend-only) del catálogo de casos de uso, con migraciones aditivas,
+  OpenAPI en todas las rutas nuevas, scoping `(app_id, tenant_id)`/RLS
+  intacto y suites verdes por módulo (~+1.500 tests netos). Detalle por ola
+  en los commits `a778835` (marketplace ×8), `3f5b81f` (restaurant ×6),
+  `8406a9c` (appointments ×8), `00f593d` (core ×10) y el commit actual
+  (scheduler + wiring de notifications). Cierre cross-cutting:
+  **platform-scheduler** gana retry con backoff + evento
+  `scheduler.job.failed` (dead-man parcial) y 5 jobs nuevos
+  (`scheduler-runs-purge`, `auth-token-purge`,
+  `notification-send-log-purge`, `messaging-sla`,
+  `telehealth-expire-stale`) con grants least-privilege (migración 0007,
+  sin guard condicional); **platform/notifications** cablea 8 consumers
+  nuevos (review.replied, dispute.opened/withdrawn, package.frozen/
+  unfrozen/refunded → push; waitlist.notified de reservations y bookings →
+  SMS) con plantillas seed es/en (migración 0025). Los ítems que requieren
+  proveedores externos, UI o diseño mayor quedan anotados como pendientes
+  en cada `docs/use-cases/<módulo>.md`.
 - **`platform/leads` — CRM completo (casos de uso priorizados de
   `docs/use-cases/leads.md`).** Migración `0002_crm_extension`: asignación
   (`assigned_to`), `score`, estados `won|lost` con `lost_reason` obligatorio

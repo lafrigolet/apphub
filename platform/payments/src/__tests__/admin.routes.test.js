@@ -16,6 +16,10 @@ vi.mock('../repositories/config.repository.js', () => ({
   upsertValue: vi.fn(),
 }))
 
+vi.mock('../lib/stripe.js', () => ({
+  reloadStripeFromDb: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@apphub/platform-sdk/app-guard', async () => {
   const { default: fp } = await import('fastify-plugin')
   return {

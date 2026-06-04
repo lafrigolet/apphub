@@ -39,11 +39,13 @@ describe('insert', () => {
       priceCents: 1000, currency: 'USD', cancellationPolicy: { a: 1 },
       requiresIntakeForm: true, intakeFormId: 'if1', capacity: 4, minAge: 18,
       metadata: { m: 1 }, isActive: false, kind: 'class', publicCatalog: true,
+      minAdvanceMinutes: 120, maxAdvanceDays: 30,
     })
     const [, params] = c.query.mock.calls[0]
     expect(params).toEqual([
       APP, TEN, 'st1', 'X', 'N', 'D', 'cat', 'online', 45, 5, 10,
       1000, 'USD', { a: 1 }, true, 'if1', 4, 18, { m: 1 }, false, 'class', true,
+      120, 30,
     ])
   })
 })
@@ -216,5 +218,71 @@ describe('pricing tiers', () => {
     expect(c.query.mock.calls[0][0]).toMatch(/DELETE FROM platform_services\.service_pricing_tiers/)
     const c2 = mockClient([], 0)
     expect(await repo.deletePricingTier(c2, APP, TEN, 'pt1')).toBe(false)
+  })
+})
+
+describe('insert — booking window defaults', () => {
+  it('defaults min_advance_minutes=0 (param 22) and max_advance_days=null (param 23)', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.insert(c, APP, TEN, { code: 'C', name: 'C', durationMinutes: 30 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/min_advance_minutes, max_advance_days/)
+    expect(params[22]).toBe(0)      // minAdvanceMinutes default
+    expect(params[23]).toBeNull()   // maxAdvanceDays default
+  })
+})
+
+describe('translations', () => {
+  it('listTranslations: scope + ORDER BY locale', async () => {
+    const c = mockClient([{ locale: 'es' }])
+    const r = await repo.listTranslations(c, APP, TEN, 's1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/FROM platform_services\.service_translations/)
+    expect(sql).toMatch(/ORDER BY locale/)
+    expect(params).toEqual([APP, TEN, 's1'])
+    expect(r).toEqual([{ locale: 'es' }])
+  })
+
+  it('upsertTranslation: ON CONFLICT upsert with params', async () => {
+    const c = mockClient([{ id: 'tr1' }])
+    await repo.upsertTranslation(c, APP, TEN, 's1', { locale: 'es', name: 'N', description: 'D' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_services\.service_translations/)
+    expect(sql).toMatch(/ON CONFLICT/)
+    expect(params).toEqual([APP, TEN, 's1', 'es', 'N', 'D'])
+  })
+
+  it('upsertTranslation: null name/description defaults', async () => {
+    const c = mockClient([{ id: 'tr1' }])
+    await repo.upsertTranslation(c, APP, TEN, 's1', { locale: 'fr' })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 's1', 'fr', null, null])
+  })
+
+  it('deleteTranslation true/false según rowCount', async () => {
+    const c = mockClient([], 1)
+    expect(await repo.deleteTranslation(c, APP, TEN, 's1', 'es')).toBe(true)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 's1', 'es'])
+    const c2 = mockClient([], 0)
+    expect(await repo.deleteTranslation(c2, APP, TEN, 's1', 'es')).toBe(false)
+  })
+
+  it('translationsForServices: empty ids → empty Map without querying', async () => {
+    const c = mockClient([])
+    const m = await repo.translationsForServices(c, APP, TEN, [], 'es')
+    expect(m.size).toBe(0)
+    expect(c.query).not.toHaveBeenCalled()
+  })
+
+  it('translationsForServices: builds Map keyed by service_id', async () => {
+    const c = mockClient([
+      { service_id: 's1', name: 'N1', description: 'D1' },
+      { service_id: 's2', name: 'N2', description: 'D2' },
+    ])
+    const m = await repo.translationsForServices(c, APP, TEN, ['s1', 's2'], 'es')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/= ANY\(\$4::uuid\[\]\)/)
+    expect(params).toEqual([APP, TEN, 'es', ['s1', 's2']])
+    expect(m.get('s1')).toEqual({ name: 'N1', description: 'D1' })
+    expect(m.get('s2')).toEqual({ name: 'N2', description: 'D2' })
   })
 })

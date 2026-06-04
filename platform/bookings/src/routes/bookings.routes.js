@@ -47,6 +47,17 @@ const rescheduleBody = z.object({
   reason:   z.string().max(512).optional(),
 })
 
+// RRULE-ish JSON subset (RFC-5545). Stored verbatim in recurrences.rrule and
+// interpreted by the platform-scheduler recurrence expander; we only validate
+// the envelope here, not the full RFC.
+const recurrenceBody = z.object({
+  rrule:    z.record(z.any()),
+  startsOn: z.string().date(),
+  endsOn:   z.string().date().optional(),
+  count:    z.number().int().positive().optional(),
+  metadata: z.record(z.any()).optional(),
+})
+
 const waitlistBody = z.object({
   serviceId:       z.string().uuid(),
   resourceId:      z.string().uuid().optional(),
@@ -66,8 +77,9 @@ function ctxFromRequest(req) {
   }
 }
 
-const tags         = ['bookings']
-const waitlistTags = ['bookings · waitlist']
+const tags           = ['bookings']
+const waitlistTags   = ['bookings · waitlist']
+const recurrenceTags = ['bookings · recurrences']
 const cancelBody   = z.object({ reason: z.string().max(512).optional() })
 const idParams     = z.object({ id: z.string().uuid() })
 
@@ -124,6 +136,36 @@ export async function bookingsRoutes(fastify) {
     const body = rescheduleBody.parse(req.body)
     return service.reschedule(ctxFromRequest(req), req.params.id, body)
   })
+
+  // Recurrences — RRULE-ish series consumed by the platform-scheduler expander.
+  fastify.post('/v1/bookings/recurrences', {
+    schema: {
+      tags: recurrenceTags,
+      summary: 'Create a recurrence series (materialized later by the scheduler)',
+      body: recurrenceBody,
+    },
+  }, async (req, reply) => {
+    const body = recurrenceBody.parse(req.body)
+    return reply.status(201).send(await service.createRecurrence(ctxFromRequest(req), body))
+  })
+
+  fastify.get('/v1/bookings/recurrences', {
+    schema: {
+      tags: recurrenceTags,
+      summary: 'List recurrence series for the tenant',
+      querystring: z.object({ limit: z.coerce.number().int().positive().max(1000).optional() }),
+    },
+  }, async (req) =>
+    service.listRecurrences(ctxFromRequest(req), {
+      limit: req.query?.limit ? Number(req.query.limit) : undefined,
+    }),
+  )
+
+  fastify.get('/v1/bookings/recurrences/:id', {
+    schema: { tags: recurrenceTags, summary: 'Get one recurrence series', params: idParams },
+  }, async (req) =>
+    service.getRecurrence(ctxFromRequest(req), req.params.id),
+  )
 
   // Waitlist
   fastify.post('/v1/bookings/waitlist', {

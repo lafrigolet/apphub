@@ -19,9 +19,9 @@ export async function register({ app, db, redis, logger }) {
     subscribe(async (_channel, raw) => {
       let event
       try { event = JSON.parse(raw) } catch { return }
-      if (!['order.paid', 'pos.bill.paid'].includes(event.type)) return
+      if (!['order.paid', 'pos.bill.paid', 'order.cancelled', 'pos.bill.voided'].includes(event.type)) return
       await service.handleEvent(event)
     })
-    logger?.info('kds subscribed to order.paid and pos.bill.paid events')
+    logger?.info('kds subscribed to order.paid, pos.bill.paid, order.cancelled and pos.bill.voided events')
   })
 }

@@ -19,6 +19,10 @@ vi.mock('../services/services.service.js', () => ({
   addPricingTier:    vi.fn(),
   removePricingTier: vi.fn(),
   quotePrice:        vi.fn(),
+  evaluateBookingWindow: vi.fn(),
+  listTranslations:  vi.fn(),
+  upsertTranslation: vi.fn(),
+  removeTranslation: vi.fn(),
 }))
 vi.mock('../services/service-sessions.service.js', () => ({
   listPublicUpcoming:     vi.fn(),
@@ -197,6 +201,91 @@ describe('pricing tiers + quote', () => {
   })
 })
 
+describe('booking window', () => {
+  it('GET booking-window → delegates', async () => {
+    service.evaluateBookingWindow.mockResolvedValue({ ok: false, reason: 'too_soon' })
+    const res = await app.inject({
+      method: 'GET', url: `/v1/services/${SVC}/booking-window?at=2026-05-22T10:00:00Z`, headers: auth,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: false, reason: 'too_soon' })
+    expect(service.evaluateBookingWindow).toHaveBeenCalledWith(expect.anything(), SVC, '2026-05-22T10:00:00Z')
+  })
+
+  it('POST service with booking-window fields → forwarded', async () => {
+    service.createService.mockResolvedValue({ id: SVC })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/services', headers: auth,
+      payload: { code: 'C', name: 'C', durationMinutes: 30, minAdvanceMinutes: 120, maxAdvanceDays: 30 },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createService).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ minAdvanceMinutes: 120, maxAdvanceDays: 30 }),
+    )
+  })
+
+  it('POST service with canonical cancellationPolicy → accepted', async () => {
+    service.createService.mockResolvedValue({ id: SVC })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/services', headers: auth,
+      payload: {
+        code: 'C', name: 'C', durationMinutes: 30,
+        cancellationPolicy: { hours_before_cancel: 24, refund_pct: 50, no_show_fee_cents: 1000 },
+      },
+    })
+    expect(res.statusCode).toBe(201)
+  })
+
+  it('POST service with refund_pct > 100 → 400/500 (schema rejects)', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/services', headers: auth,
+      payload: { code: 'C', name: 'C', durationMinutes: 30, cancellationPolicy: { refund_pct: 200 } },
+    })
+    expect([400, 500]).toContain(res.statusCode)
+    expect(service.createService).not.toHaveBeenCalled()
+  })
+})
+
+describe('translations', () => {
+  it('GET translations → { data }', async () => {
+    service.listTranslations.mockResolvedValue([{ locale: 'es' }])
+    const res = await app.inject({ method: 'GET', url: `/v1/services/${SVC}/translations`, headers: auth })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual([{ locale: 'es' }])
+  })
+
+  it('PUT translation → 201', async () => {
+    service.upsertTranslation.mockResolvedValue({ id: 'tr1', locale: 'es' })
+    const res = await app.inject({
+      method: 'PUT', url: `/v1/services/${SVC}/translations`, headers: auth,
+      payload: { locale: 'es', name: 'Consulta', description: 'desc' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.upsertTranslation).toHaveBeenCalledWith(
+      expect.anything(), SVC, expect.objectContaining({ locale: 'es', name: 'Consulta' }),
+    )
+  })
+
+  it('PUT translation with bad locale → 400/500', async () => {
+    const res = await app.inject({
+      method: 'PUT', url: `/v1/services/${SVC}/translations`, headers: auth,
+      payload: { locale: 'not_a_locale!!', name: 'x' },
+    })
+    expect([400, 500]).toContain(res.statusCode)
+    expect(service.upsertTranslation).not.toHaveBeenCalled()
+  })
+
+  it('DELETE translation → 204', async () => {
+    service.removeTranslation.mockResolvedValue(undefined)
+    const res = await app.inject({
+      method: 'DELETE', url: `/v1/services/${SVC}/translations/es`, headers: noBody,
+    })
+    expect(res.statusCode).toBe(204)
+    expect(service.removeTranslation).toHaveBeenCalledWith(expect.anything(), SVC, 'es')
+  })
+})
+
 describe('sessions', () => {
   it('GET /v1/services/sessions/upcoming (público) → { data }', async () => {
     sessions.listPublicUpcoming.mockResolvedValue([{ id: 'ss1' }])
@@ -207,7 +296,20 @@ describe('sessions', () => {
     expect(res.statusCode).toBe(200)
     expect(res.json().data).toEqual([{ id: 'ss1' }])
     expect(sessions.listPublicUpcoming).toHaveBeenCalledWith(
-      { appId: 'yoga', tenantId: UUID }, { kind: 'event', limit: 10 },
+      { appId: 'yoga', tenantId: UUID }, { kind: 'event', limit: 10, locale: undefined },
+    )
+  })
+
+  it('GET upcoming with locale → forwarded', async () => {
+    sessions.listPublicUpcoming.mockResolvedValue([])
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/services/sessions/upcoming?appId=yoga&tenantId=${UUID}&locale=es`,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(sessions.listPublicUpcoming).toHaveBeenCalledWith(
+      { appId: 'yoga', tenantId: UUID },
+      expect.objectContaining({ locale: 'es' }),
     )
   })
 

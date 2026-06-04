@@ -238,3 +238,62 @@ export async function sendReservationReminderPush(ctx, userId, { reservedFor, pa
   }, locale)
   return sendPushToUser(ctx, userId, { title: tmpl.subject, body: tmpl.text, data: { type: 'reservation.reminder.due' } })
 }
+
+// ── Reviews ──────────────────────────────────────────────────────────────
+// The vendor replied to the buyer's review. Reviews carry userIds (not emails),
+// so push is the resolvable channel.
+export async function sendReviewRepliedPush(ctx, userId, { reviewId, locale = 'es' } = {}) {
+  const tmpl = await compose('review.replied', {}, {
+    subject: locale === 'en' ? 'New reply to your review' : 'Nueva respuesta a tu reseña',
+    text:    locale === 'en' ? 'The seller has replied to your review.' : 'El vendedor ha respondido a tu reseña.',
+  }, locale)
+  return sendPushToUser(ctx, userId, { title: tmpl.subject, body: tmpl.text, data: { type: 'review.replied', reviewId } })
+}
+
+// ── Disputes ─────────────────────────────────────────────────────────────
+// Dispute events carry buyer userIds (not emails) → push channel.
+export async function sendDisputeOpenedPush(ctx, userId, { disputeId, orderId, locale = 'es' } = {}) {
+  const tmpl = await compose('dispute.opened', {}, {
+    subject: locale === 'en' ? 'Dispute opened' : 'Reclamación abierta',
+    text:    locale === 'en' ? 'We have received your dispute and our team will review it shortly.' : 'Hemos recibido tu reclamación y nuestro equipo la revisará en breve.',
+  }, locale)
+  return sendPushToUser(ctx, userId, { title: tmpl.subject, body: tmpl.text, data: { type: 'dispute.opened', disputeId, orderId } })
+}
+
+export async function sendDisputeWithdrawnPush(ctx, userId, { disputeId, locale = 'es' } = {}) {
+  const tmpl = await compose('dispute.withdrawn', {}, {
+    subject: locale === 'en' ? 'Dispute withdrawn' : 'Reclamación retirada',
+    text:    locale === 'en' ? 'Your dispute has been withdrawn and is now closed.' : 'Tu reclamación ha sido retirada y queda cerrada.',
+  }, locale)
+  return sendPushToUser(ctx, userId, { title: tmpl.subject, body: tmpl.text, data: { type: 'dispute.withdrawn', disputeId } })
+}
+
+// ── Packages ─────────────────────────────────────────────────────────────
+// Package admin actions carry clientUserId (not email) → push channel.
+export async function sendPackageFrozenPush(ctx, userId, { packageId, locale = 'es' } = {}) {
+  const tmpl = await compose('package.frozen', {}, {
+    subject: locale === 'en' ? 'Your package has been paused' : 'Tu bono se ha congelado',
+    text:    locale === 'en' ? 'Your package has been paused. Its expiry is on hold until it is resumed.' : 'Tu bono se ha congelado. Su caducidad queda en pausa hasta que se reactive.',
+  }, locale)
+  return sendPushToUser(ctx, userId, { title: tmpl.subject, body: tmpl.text, data: { type: 'package.frozen', packageId } })
+}
+
+export async function sendPackageUnfrozenPush(ctx, userId, { packageId, daysAdded, locale = 'es' } = {}) {
+  const days = daysAdded ?? 0
+  const tmpl = await compose('package.unfrozen', { daysAdded: days }, {
+    subject: locale === 'en' ? 'Your package is active again' : 'Tu bono vuelve a estar activo',
+    text:    locale === 'en' ? `Your package is active again. We added ${days} day(s) to its expiry.` : `Tu bono vuelve a estar activo. Hemos añadido ${days} día(s) a su caducidad.`,
+  }, locale)
+  return sendPushToUser(ctx, userId, { title: tmpl.subject, body: tmpl.text, data: { type: 'package.unfrozen', packageId } })
+}
+
+export async function sendPackageRefundedPush(ctx, userId, { packageId, refundCents, currency, locale = 'es' } = {}) {
+  const amount = refundCents != null
+    ? new Intl.NumberFormat(intlLocale(locale), { style: 'currency', currency: currency || 'EUR' }).format(refundCents / 100)
+    : ''
+  const tmpl = await compose('package.refunded', { amount }, {
+    subject: locale === 'en' ? 'Package refunded' : 'Bono reembolsado',
+    text:    locale === 'en' ? `Your package has been refunded${amount ? ` (${amount})` : ''}. It can take several days to appear on your statement.` : `Tu bono ha sido reembolsado${amount ? ` (${amount})` : ''}. Puede tardar varios días en reflejarse en tu cuenta.`,
+  }, locale)
+  return sendPushToUser(ctx, userId, { title: tmpl.subject, body: tmpl.text, data: { type: 'package.refunded', packageId } })
+}

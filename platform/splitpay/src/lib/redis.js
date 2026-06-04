@@ -38,6 +38,23 @@ export async function storeIdempotency(key, result) {
   await ensureRedis().setex(`idempotency:${key}`, IDEMPOTENCY_TTL, JSON.stringify(result))
 }
 
+// Tenant-namespaced idempotency (priority #8). The plain helpers above key on
+// the raw caller string, so two different apps/tenants reusing the same
+// idempotency key would collide (one would receive the other's cached result).
+// These scope the Redis key by tenant so a key is only ever shared within the
+// same tenant. Same 24h TTL (regla CLAUDE.md #3).
+function scopedKey(tenantId, key) {
+  return `idempotency:${tenantId ?? 'no-tenant'}:${key}`
+}
+
+export async function checkIdempotencyScoped(tenantId, key) {
+  return ensureRedis().get(scopedKey(tenantId, key))
+}
+
+export async function storeIdempotencyScoped(tenantId, key, result) {
+  await ensureRedis().setex(scopedKey(tenantId, key), IDEMPOTENCY_TTL, JSON.stringify(result))
+}
+
 export async function cacheSet(key, value, ttlSeconds) {
   await ensureRedis().setex(`cache:${key}`, ttlSeconds, JSON.stringify(value))
 }

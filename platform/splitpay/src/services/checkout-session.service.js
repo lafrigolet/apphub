@@ -31,6 +31,7 @@ export async function createCheckoutSession(ctx, input) {
     splitRuleId = null,
     currency = 'eur',
     metadata  = {},
+    idempotencyKey = null,
   } = input
 
   if (!Array.isArray(lineItems) || lineItems.length === 0) {
@@ -41,6 +42,20 @@ export async function createCheckoutSession(ctx, input) {
   }
 
   return withTenant(ctx.tenantId, ctx.subTenantId, async (client) => {
+    // Idempotency (priority #8): a retried POST with the same tenant-scoped key
+    // replays the existing session instead of creating a second Stripe session.
+    if (idempotencyKey) {
+      const existing = await repo.findByTenantIdempotencyKey(client, ctx, idempotencyKey)
+      if (existing) {
+        return {
+          url:             existing.metadata?.checkout_url ?? null,
+          sessionId:       existing.id,
+          stripeSessionId: existing.stripe_session_id,
+          idempotentReplay: true,
+        }
+      }
+    }
+
     let primaryDestination = null
     if (splitRuleId) {
       const rule = await splitRuleRepo.findSplitRuleById(client, ctx, splitRuleId)
@@ -89,18 +104,29 @@ export async function createCheckoutSession(ctx, input) {
 
     let stripeSession
     try {
-      stripeSession = await stripe.checkout.sessions.create(sessionParams)
+      // Idempotency key forwarded to Stripe (regla CLAUDE.md #3) so even if our
+      // DB row is missing, Stripe returns the same session on a retry. Scoped
+      // by tenant to avoid cross-tenant collisions (priority #8).
+      const stripeOpts = idempotencyKey
+        ? { idempotencyKey: `cs_${ctx.tenantId}_${idempotencyKey}` }
+        : undefined
+      stripeSession = await stripe.checkout.sessions.create(sessionParams, stripeOpts)
     } catch (err) {
       logger.error({ err }, 'Stripe Checkout session creation failed')
       throw err  // splitpay error handler captura StripeError y devuelve 502
     }
+
+    // Persist the Stripe-hosted checkout URL so an idempotent replay can return
+    // it without re-hitting Stripe.
+    const persistedMetadata = { ...enrichedMetadata, checkout_url: stripeSession.url ?? null }
 
     const row = await repo.insert(client, ctx, {
       mode,
       stripeSessionId: stripeSession.id,
       currency,
       splitRuleId,
-      metadata: enrichedMetadata,
+      metadata: persistedMetadata,
+      idempotencyKey,
     })
 
     await publish(redis, 'platform', {
@@ -120,6 +146,14 @@ export async function createCheckoutSession(ctx, input) {
       sessionId:       row.id,
       stripeSessionId: stripeSession.id,
     }
+  })
+}
+
+// Paginated listing of a tenant's checkout sessions (priority #6 — antes solo
+// existía GET /:id). Cursor-based, mismo patrón que listPayments.
+export async function listCheckoutSessions(ctx, limit = 20) {
+  return withTenant(ctx.tenantId, ctx.subTenantId, async (client) => {
+    return repo.listForTenant(client, ctx, limit)
   })
 }
 

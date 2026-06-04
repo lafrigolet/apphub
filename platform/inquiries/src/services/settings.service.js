@@ -39,6 +39,7 @@ export async function upsertForTenant(identity, body) {
       replyToEmail:      body.replyToEmail,
       userThanksSubject: body.userThanksSubject,
       userThanksBody:    body.userThanksBody,
+      retentionDays:     body.retentionDays,
     }),
   )
 }

@@ -2,6 +2,7 @@ import { configurePool } from './lib/db.js'
 import { configureRedis } from './lib/redis.js'
 import { appsRoutes } from './routes/apps.routes.js'
 import { tenantsRoutes } from './routes/tenants.routes.js'
+import { subTenantsRoutes } from './routes/sub-tenants.routes.js'
 import { auditRoutes } from './routes/audit.routes.js'
 import { bootstrapRoutes } from './routes/bootstrap.routes.js'
 import { solarCalculatorRoutes } from './routes/solar-calculator.routes.js'
@@ -22,6 +23,7 @@ export async function register({ app, db, redis, logger }) {
 
   await app.register(appsRoutes)
   await app.register(tenantsRoutes)
+  await app.register(subTenantsRoutes)
   await app.register(auditRoutes)
   await app.register(bootstrapRoutes)
   await app.register(solarCalculatorRoutes)

@@ -14,6 +14,7 @@ import * as oauthProvidersRepo from '../repositories/oauth-providers.repository.
 import * as oauthRepo from '../repositories/oauth.repository.js'
 import * as resetRepo from '../repositories/password-reset.repository.js'
 import * as userRepo from '../repositories/user.repository.js'
+import * as authEventRepo from '../repositories/auth-event.repository.js'
 import { encryptSecret, decryptSecret } from '@apphub/platform-sdk/crypto'
 
 function mockClient(rows = []) {
@@ -256,19 +257,30 @@ describe('oauth.repository', () => {
 // ── password-reset.repository ───────────────────────────────────────
 
 describe('password-reset.repository', () => {
-  it('createReset → INSERT password_resets', async () => {
+  it('createReset → INSERT password_resets con token_hash', async () => {
     const c = mockClient([])
-    await resetRepo.createReset(c, { id: 'r1', userId: 'u1', appId: 'app', tenantId: 't1', expiresAt: 'E' })
+    await resetRepo.createReset(c, { id: 'r1', userId: 'u1', appId: 'app', tenantId: 't1', tokenHash: 'H', expiresAt: 'E' })
     expect(c.query.mock.calls[0][0]).toMatch(/INSERT INTO platform_auth\.password_resets/)
-    expect(c.query.mock.calls[0][1]).toEqual(['r1', 'u1', 'app', 't1', 'E'])
+    expect(c.query.mock.calls[0][0]).toMatch(/token_hash/)
+    expect(c.query.mock.calls[0][1]).toEqual(['r1', 'u1', 'app', 't1', 'H', 'E'])
   })
 
-  it('findValidReset → used_at IS NULL AND expires_at > now(); row + null', async () => {
+  it('findValidByHash → token_hash + used_at IS NULL AND expires_at > now(); row + null', async () => {
     const c = mockClient([{ id: 'r1' }])
-    expect(await resetRepo.findValidReset(c, 'r1')).toEqual({ id: 'r1' })
-    expect(c.query.mock.calls[0][0]).toMatch(/used_at IS NULL AND expires_at > now\(\)/)
+    expect(await resetRepo.findValidByHash(c, 'H')).toEqual({ id: 'r1' })
+    expect(c.query.mock.calls[0][0]).toMatch(/token_hash = \$1 AND used_at IS NULL AND expires_at > now\(\)/)
+    expect(c.query.mock.calls[0][1]).toEqual(['H'])
     const c2 = mockClient([])
-    expect(await resetRepo.findValidReset(c2, 'r1')).toBeNull()
+    expect(await resetRepo.findValidByHash(c2, 'H')).toBeNull()
+  })
+
+  it('findValidLegacyById → id + token_hash IS NULL; row + null', async () => {
+    const c = mockClient([{ id: 'r1' }])
+    expect(await resetRepo.findValidLegacyById(c, 'r1')).toEqual({ id: 'r1' })
+    expect(c.query.mock.calls[0][0]).toMatch(/id = \$1 AND token_hash IS NULL AND used_at IS NULL/)
+    expect(c.query.mock.calls[0][1]).toEqual(['r1'])
+    const c2 = mockClient([])
+    expect(await resetRepo.findValidLegacyById(c2, 'r1')).toBeNull()
   })
 
   it('markResetUsed → SET used_at = now()', async () => {
@@ -276,6 +288,36 @@ describe('password-reset.repository', () => {
     await resetRepo.markResetUsed(c, 'r1')
     expect(c.query.mock.calls[0][0]).toMatch(/SET used_at = now\(\)/)
     expect(c.query.mock.calls[0][1]).toEqual(['r1'])
+  })
+})
+
+// ── auth-event.repository ───────────────────────────────────────────
+
+describe('auth-event.repository', () => {
+  it('create → INSERT auth_events, serializa metadata a JSON', async () => {
+    const c = mockClient([{ id: 'e1' }])
+    const row = await authEventRepo.create(c, {
+      id: 'e1', appId: 'app', tenantId: 't1', userId: 'u1',
+      eventType: 'login', result: 'success', ip: '1.2.3.4', userAgent: 'UA', metadata: { reason: 'x' },
+    })
+    expect(c.query.mock.calls[0][0]).toMatch(/INSERT INTO platform_auth\.auth_events/)
+    expect(c.query.mock.calls[0][1]).toEqual(['e1', 'app', 't1', 'u1', 'login', 'success', '1.2.3.4', 'UA', JSON.stringify({ reason: 'x' })])
+    expect(row).toEqual({ id: 'e1' })
+  })
+
+  it('create → metadata null cuando no se pasa', async () => {
+    const c = mockClient([{ id: 'e1' }])
+    await authEventRepo.create(c, { id: 'e1', appId: 'app', tenantId: 't1', eventType: 'logout' })
+    expect(c.query.mock.calls[0][1]).toEqual(['e1', 'app', 't1', null, 'logout', 'success', null, null, null])
+  })
+
+  it('listByUser → scope (app_id, tenant_id, user_id), DESC + limit', async () => {
+    const c = mockClient([{ id: 'e1' }, { id: 'e2' }])
+    const rows = await authEventRepo.listByUser(c, { appId: 'app', tenantId: 't1', userId: 'u1', limit: 10 })
+    expect(c.query.mock.calls[0][0]).toMatch(/WHERE app_id = \$1 AND tenant_id = \$2 AND user_id = \$3/)
+    expect(c.query.mock.calls[0][0]).toMatch(/ORDER BY created_at DESC/)
+    expect(c.query.mock.calls[0][1]).toEqual(['app', 't1', 'u1', 10])
+    expect(rows).toHaveLength(2)
   })
 })
 

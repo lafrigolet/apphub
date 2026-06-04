@@ -32,6 +32,10 @@ vi.mock('../lib/db.js', () => ({
 vi.mock('../repositories/config.repository.js', () => ({ getValue }))
 const renderTemplate = vi.hoisted(() => vi.fn())
 vi.mock('../services/template-renderer.js', () => ({ renderTemplate }))
+// Suppression gate mocked off — covered in suppression.service.test.js. Default
+// "not suppressed" so the real send path runs.
+const isSuppressed = vi.hoisted(() => vi.fn().mockResolvedValue(false))
+vi.mock('../services/suppression.service.js', () => ({ isSuppressed }))
 
 import * as svc from '../services/email.service.js'
 import { logger } from '../lib/logger.js'
@@ -71,6 +75,19 @@ describe('send (camino real Resend)', () => {
     resendSend.mockRejectedValue(new Error('network'))
     await svc.sendWelcomeEmail('u@x.com', 'aikikan')
     expect(logger.error).toHaveBeenCalled()
+  })
+
+  it('destinatario suprimido → no se llama a Resend', async () => {
+    isSuppressed.mockResolvedValueOnce(true)
+    await svc.sendWelcomeEmail('bounced@x.com', 'aikikan')
+    expect(resendSend).not.toHaveBeenCalled()
+    isSuppressed.mockResolvedValue(false)
+  })
+
+  it('captura el messageId de Resend para correlación de webhooks', async () => {
+    resendSend.mockResolvedValue({ data: { id: 'msg_77' }, error: null })
+    await svc.sendWelcomeEmail('u@x.com', 'aikikan')
+    expect(resendSend).toHaveBeenCalled()
   })
 
   it('replyTo se añade al payload (inquiry admin alert)', async () => {

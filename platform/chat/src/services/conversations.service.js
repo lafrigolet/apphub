@@ -104,6 +104,17 @@ export async function create(ctx, input) {
         for (const u of others) {
           ps.push(await partRepo.insert(c, { conversationId: conv.id, userId: u, appId: ctx.appId, tenantId: ctx.tenantId, role: 'agent' }))
         }
+        // Auto first-response: drop a canned acknowledgement into the ticket so
+        // the member gets an immediate reply (chat.md §21). Configured per tenant
+        // via settings.support_auto_reply; null = off.
+        if (settings.support_auto_reply) {
+          const ack = await msgRepo.insert(c, {
+            appId: ctx.appId, tenantId: ctx.tenantId, conversationId: conv.id,
+            senderUserId: null, type: 'system', body: settings.support_auto_reply,
+            metadata: { event: 'support.auto_reply' },
+          })
+          await convRepo.bumpLastMessageAt(c, conv.id, ack.created_at)
+        }
         return { conversation: conv, participants: ps, isNew: true }
       }
 

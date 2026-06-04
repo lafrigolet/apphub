@@ -11,12 +11,17 @@ export async function insert(client, { actorUserId, actorRole, appId, tenantId, 
   return rows[0]
 }
 
-export async function list(client, { appId, tenantId, limit = 100 }) {
+// Cursor pagination (#10): `before` is the `ts` of the last row of the
+// previous page (keyset). Passing it returns the next page of older rows.
+// Cheaper and stable under inserts vs OFFSET. Existing callers omit it and
+// get the first page unchanged.
+export async function list(client, { appId, tenantId, limit = 100, before } = {}) {
   const conditions = []
   const values = []
   let idx = 1
   if (appId)    { conditions.push(`app_id = $${idx++}`);    values.push(appId) }
   if (tenantId) { conditions.push(`tenant_id = $${idx++}`); values.push(tenantId) }
+  if (before)   { conditions.push(`ts < $${idx++}`);        values.push(before) }
   values.push(Math.min(Math.max(Number(limit) || 100, 1), 1000))
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
   const { rows } = await client.query(

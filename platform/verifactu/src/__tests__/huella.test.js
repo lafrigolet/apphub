@@ -1,10 +1,14 @@
 // Huella VERI·FACTU — tests de composición y encadenamiento.
 //
-// ⚠️ Estos tests blindan la COMPOSICIÓN de la cadena (orden de campos,
+// Estos tests blindan la COMPOSICIÓN de la cadena (orden de campos,
 // separador, reglas de formato) y las propiedades del hash (SHA-256, hex
-// MAYÚS, determinismo, encadenamiento). El VECTOR DE TEST OFICIAL (cadena
-// concreta → digest esperado del documento de la AEAT) está pendiente de
-// confirmar — ver `it.todo` al final (TODO M2 en TODO-verifactu.md).
+// MAYÚS, determinismo, encadenamiento). El VECTOR DE TEST OFICIAL de la AEAT
+// (cadena concreta → digest esperado del documento "Algoritmo de cálculo de
+// codificación de la huella o hash") está BLINDADO en el bloque
+// `vector oficial AEAT` al final: el ejemplo `89890001K / 12345678/G33` con su
+// digest `3C46…2F60`. Cualquier cambio de orden/formato/separador rompe ese
+// test. Fuente: doc oficial AEAT (reproducido por la lib de referencia
+// mdiago/VeriFactu y Zoho Books).
 
 import { describe, it, expect } from 'vitest'
 import { createHash } from 'node:crypto'
@@ -125,7 +129,85 @@ describe('calcularHuella (dispatcher)', () => {
   })
 })
 
-// VECTOR DE TEST OFICIAL — pendiente de confirmar el digest esperado contra el
-// documento "Algoritmo de cálculo de codificación de la huella o hash" (AEAT).
-// Cuando se tenga, fijar inputs del ejemplo oficial y assert del hash exacto.
-it.todo('vector oficial AEAT: cadena del ejemplo → digest esperado')
+// ── VECTOR DE TEST OFICIAL AEAT ───────────────────────────────────────
+// Ejemplo del documento oficial "Algoritmo de cálculo de codificación de la
+// huella o hash" de la AEAT (reproducido por mdiago/VeriFactu y Zoho Books):
+//   IDEmisorFactura=89890001K, NumSerieFactura=12345678/G33,
+//   FechaExpedicionFactura=01-01-2024, TipoFactura=F1, CuotaTotal=12.35,
+//   ImporteTotal=123.45, Huella= (primer registro),
+//   FechaHoraHusoGenRegistro=2024-01-01T19:20:30+01:00
+// → SHA-256 hex MAYÚS = 3C464DAF61ACB827C65FDA19F352A4E3BDC2C640E9E9FC4CC058073F38F12F60
+//
+// Blinda el algoritmo (orden de campos + separador + formato + casing) contra
+// regresiones: si alguien reordena un campo o cambia el separador, este test
+// falla. Riesgo #1 de la priorización: sin esto el módulo no puede ir a prod.
+describe('vector oficial AEAT', () => {
+  const oficial = {
+    idEmisor: '89890001K',
+    numSerie: '12345678/G33',
+    fechaExpedicion: '01-01-2024',
+    tipoFactura: 'F1',
+    cuotaTotal: '12.35',
+    importeTotal: '123.45',
+    generadoEn: '2024-01-01T19:20:30+01:00',
+  }
+  const DIGEST_OFICIAL = '3C464DAF61ACB827C65FDA19F352A4E3BDC2C640E9E9FC4CC058073F38F12F60'
+
+  it('cadena del ejemplo oficial', () => {
+    expect(cadenaAlta(oficial, null)).toBe(
+      'IDEmisorFactura=89890001K&NumSerieFactura=12345678/G33&' +
+      'FechaExpedicionFactura=01-01-2024&TipoFactura=F1&CuotaTotal=12.35&' +
+      'ImporteTotal=123.45&Huella=&FechaHoraHusoGenRegistro=2024-01-01T19:20:30+01:00',
+    )
+  })
+
+  it('huella = digest oficial 3C46…2F60', () => {
+    expect(huellaAlta(oficial, null)).toBe(DIGEST_OFICIAL)
+  })
+
+  it('dispatcher calcularHuella reproduce el digest oficial', () => {
+    expect(calcularHuella({ ...oficial, tipo: 'alta' }, null)).toBe(DIGEST_OFICIAL)
+  })
+})
+
+// ── VECTOR DE ENCADENAMIENTO (hash chain) ─────────────────────────────
+// Comprueba que el 2º registro encadena con la huella del 1º (la del vector
+// oficial) y que el resultado es estable/determinista. Estos digests son
+// AUTO-CALCULADOS por nuestra implementación: fijan el contrato de
+// encadenamiento (no son del documento AEAT, que solo publica el 1er eslabón).
+describe('vector de encadenamiento', () => {
+  const r1 = {
+    idEmisor: '89890001K', numSerie: '12345678/G33', fechaExpedicion: '01-01-2024',
+    tipoFactura: 'F1', cuotaTotal: '12.35', importeTotal: '123.45',
+    generadoEn: '2024-01-01T19:20:30+01:00',
+  }
+  const H1 = '3C464DAF61ACB827C65FDA19F352A4E3BDC2C640E9E9FC4CC058073F38F12F60'
+  const r2 = {
+    idEmisor: '89890001K', numSerie: '12345678/G34', fechaExpedicion: '01-01-2024',
+    tipoFactura: 'F1', cuotaTotal: '12.35', importeTotal: '123.45',
+    generadoEn: '2024-01-01T19:21:30+01:00',
+  }
+
+  it('el 2º registro incluye la huella del 1º en su cadena', () => {
+    expect(cadenaAlta(r2, H1)).toContain(`&Huella=${H1}&FechaHoraHusoGenRegistro=`)
+  })
+
+  it('huella encadenada del 2º registro (determinista)', () => {
+    const h2 = huellaAlta(r2, H1)
+    expect(h2).toMatch(HEX64)
+    expect(h2).toBe(huellaAlta(r2, H1)) // determinista
+    // si el eslabón anterior cambia, la huella cambia (tamper-evidence)
+    expect(h2).not.toBe(huellaAlta(r2, 'OTRA_HUELLA'))
+  })
+
+  it('una anulación que referencia la huella anterior es determinista', () => {
+    const anul = {
+      idEmisor: '89890001K', numSerie: '12345678/G33', fechaExpedicion: '01-01-2024',
+      generadoEn: '2024-01-02T09:00:00+01:00',
+    }
+    const ha = huellaAnulacion(anul, H1)
+    expect(ha).toMatch(HEX64)
+    expect(ha).toBe(huellaAnulacion(anul, H1))
+    expect(ha).not.toBe(huellaAnulacion(anul, null))
+  })
+})

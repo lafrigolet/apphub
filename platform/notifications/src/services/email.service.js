@@ -5,6 +5,7 @@ import { pool } from '../lib/db.js'
 import * as configRepo from '../repositories/config.repository.js'
 import { renderTemplate } from './template-renderer.js'
 import { logSend } from './send-log.service.js'
+import { isSuppressed } from './suppression.service.js'
 
 // Resolve runtime config: prefer DB rows (set by staff via console),
 // fall back to env var. Cached for 30s to avoid hammering Postgres on
@@ -50,14 +51,26 @@ async function send(msg) {
   // adjunta templateKey; msg.meta (appId/tenantId/userId) llega de los
   // callers que ya tienen tenant context — el resto queda NULL hasta el
   // refactor tenant-aware del pipeline (TODO-resend).
-  const audit = (status, error) => logSend({
+  const audit = (status, error, providerMessageId) => logSend({
     ...msg.meta,
     channel:   'email',
     template:  msg.templateKey,
     recipient: Array.isArray(msg.to) ? msg.to.join(',') : msg.to,
     status,
     error,
+    providerMessageId,
   })
+
+  // Suppression gate (recommendation #5): a previously-bounced or
+  // complained-about address must not be contacted again, or domain
+  // reputation degrades. Only single-recipient sends are gated (every
+  // user-facing helper passes a string `to`); batch arrays bypass. The check
+  // fails open, so a suppression-store outage never silences legitimate mail.
+  if (typeof msg.to === 'string' && await isSuppressed('email', msg.to)) {
+    logger.info({ to: msg.to, template: msg.templateKey }, 'email suppressed (bounce/complaint list)')
+    await audit('skipped', 'suppressed')
+    return
+  }
 
   if (skip) {
     logger.info(
@@ -84,6 +97,11 @@ async function send(msg) {
       text:    msg.text,
     }
     if (msg.replyTo) payload.replyTo = msg.replyTo
+    // Custom headers passthrough — used for List-Unsubscribe /
+    // List-Unsubscribe-Post (RFC 8058 one-click unsubscribe, required by Gmail
+    // bulk-sender rules). Callers that have the recipient's unsubscribe token
+    // attach { 'List-Unsubscribe': '<https://…/unsubscribe?...>', … }.
+    if (msg.headers && Object.keys(msg.headers).length) payload.headers = msg.headers
     const { data, error } = await resend.emails.send(payload)
     if (error) {
       logger.error({ err: error, to: msg.to }, 'Failed to send email')
@@ -91,7 +109,9 @@ async function send(msg) {
       return
     }
     logger.info({ to: msg.to, subject: msg.subject, messageId: data?.id }, 'Email sent')
-    await audit('sent')
+    // Stash the provider message id so the Resend webhook (delivered / bounced /
+    // complained) can correlate the async result back to this attempt.
+    await audit('sent', null, data?.id ?? null)
   } catch (err) {
     logger.error({ err, to: msg.to }, 'Failed to send email')
     await audit('failed', err.message)

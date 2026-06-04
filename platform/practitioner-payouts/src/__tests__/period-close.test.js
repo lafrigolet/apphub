@@ -86,6 +86,7 @@ describe('closePeriod', () => {
       payload: {
         appId: ctx.appId, tenantId: ctx.tenantId,
         payoutId: 'po-1', practitionerId: PRAC, totalCommissionCents: 1500,
+        withholdingCents: 0, netCommissionCents: 1500,
       },
     })
   })
@@ -142,7 +143,7 @@ describe('markPayoutPaid', () => {
     repo.setPayoutStatus.mockResolvedValue({ id: 'po-1', status: 'paid' })
     await markPayoutPaid(ctx, 'po-1', 'STRIPE_PAYOUT_xyz')
     expect(repo.setPayoutStatus).toHaveBeenCalledWith(
-      expect.anything(), ctx.appId, ctx.tenantId, 'po-1', 'paid', 'STRIPE_PAYOUT_xyz',
+      expect.anything(), ctx.appId, ctx.tenantId, 'po-1', 'paid', 'STRIPE_PAYOUT_xyz', { expectedStatus: 'pending' },
     )
     expect(publish).toHaveBeenCalledWith({
       type: 'payout.paid',

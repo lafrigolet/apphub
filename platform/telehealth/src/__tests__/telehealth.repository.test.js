@@ -18,19 +18,19 @@ describe('insertRoom', () => {
     recordingEnabled: true, metadata: { a: 1 },
   }
 
-  it('INSERT en platform_telehealth.rooms con 12 params en orden', async () => {
+  it('INSERT en platform_telehealth.rooms con 13 params en orden', async () => {
     const c = mockClient([{ id: 'room1' }])
-    const out = await repo.insertRoom(c, APP, TEN, r)
+    const out = await repo.insertRoom(c, APP, TEN, { ...r, dataRegion: 'eu-central' })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_telehealth\.rooms/)
     expect(sql).toMatch(/RETURNING \*/)
     expect(params).toEqual([
-      APP, TEN, 'b1', 'daily', 'ext1', 'http://j', 'created', 'S', 'E', 'X', true, { a: 1 },
+      APP, TEN, 'b1', 'daily', 'ext1', 'http://j', 'created', 'S', 'E', 'X', true, { a: 1 }, 'eu-central',
     ])
     expect(out).toEqual({ id: 'room1' })
   })
 
-  it('aplica defaults (provider stub, status created, recording false, metadata {})', async () => {
+  it('aplica defaults (provider stub, status created, recording false, metadata {}, region null→eu-west)', async () => {
     const c = mockClient([{ id: 'room1' }])
     await repo.insertRoom(c, APP, TEN, { startsAt: 'S', endsAt: 'E', expiresAt: 'X' })
     const params = c.query.mock.calls[0][1]
@@ -41,6 +41,7 @@ describe('insertRoom', () => {
     expect(params[6]).toBe('created')   // status default
     expect(params[10]).toBe(false)      // recordingEnabled default
     expect(params[11]).toEqual({})      // metadata default
+    expect(params[12]).toBeNull()       // dataRegion → COALESCE to eu-west in SQL
   })
 })
 
@@ -130,5 +131,113 @@ describe('markTokenUsed', () => {
   it('rowCount=0 → false', async () => {
     const c = mockClient([], 0)
     expect(await repo.markTokenUsed(c, APP, TEN, 'tok1')).toBe(false)
+  })
+})
+
+describe('updateRoomSchedule', () => {
+  it('UPDATE starts/ends/expires scoped y excluye estados terminales', async () => {
+    const c = mockClient([{ id: 'room1' }])
+    const out = await repo.updateRoomSchedule(c, APP, TEN, 'room1', { startsAt: 'S2', endsAt: 'E2', expiresAt: 'X2' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET starts_at=\$4, ends_at=\$5, expires_at=\$6/)
+    expect(sql).toMatch(/status NOT IN \('ended','cancelled','expired'\)/)
+    expect(params).toEqual([APP, TEN, 'room1', 'S2', 'E2', 'X2'])
+    expect(out).toEqual({ id: 'room1' })
+  })
+  it('sin row → null', async () => {
+    const c = mockClient([])
+    expect(await repo.updateRoomSchedule(c, APP, TEN, 'x', { startsAt: 'S', endsAt: 'E', expiresAt: 'X' })).toBeNull()
+  })
+})
+
+describe('expireStaleRooms', () => {
+  it("UPDATE status='expired' filtra expires_at<now() y created/active, devuelve filas", async () => {
+    const c = mockClient([{ id: 'r1' }, { id: 'r2' }])
+    const out = await repo.expireStaleRooms(c, APP, TEN, 100)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET status='expired'/)
+    expect(sql).toMatch(/expires_at < now\(\)/)
+    expect(sql).toMatch(/status IN \('created','active'\)/)
+    expect(params).toEqual([APP, TEN, 100])
+    expect(out).toHaveLength(2)
+  })
+  it('default limit = 500', async () => {
+    const c = mockClient([])
+    await repo.expireStaleRooms(c, APP, TEN)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 500])
+  })
+})
+
+describe('setRecordingConsent', () => {
+  it('UPDATE recording_consent_* scoped; text COALESCE', async () => {
+    const c = mockClient([{ id: 'room1' }])
+    const out = await repo.setRecordingConsent(c, APP, TEN, 'room1', { status: 'granted', by: 'u9', text: 'I consent' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/recording_consent_status=\$4/)
+    expect(sql).toMatch(/recording_consent_at=now\(\)/)
+    expect(params).toEqual([APP, TEN, 'room1', 'granted', 'u9', 'I consent'])
+    expect(out).toEqual({ id: 'room1' })
+  })
+  it('by/text omitidos → null', async () => {
+    const c = mockClient([{ id: 'room1' }])
+    await repo.setRecordingConsent(c, APP, TEN, 'room1', { status: 'denied' })
+    const params = c.query.mock.calls[0][1]
+    expect(params[4]).toBeNull()
+    expect(params[5]).toBeNull()
+  })
+})
+
+describe('insertRoomEvent / listRoomEvents', () => {
+  it('insertRoomEvent con 8 params y defaults', async () => {
+    const c = mockClient([{ id: 'ev1' }])
+    await repo.insertRoomEvent(c, APP, TEN, { roomId: 'r1', toStatus: 'ended' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_telehealth\.room_events/)
+    expect(params).toEqual([APP, TEN, 'r1', null, 'ended', null, null, {}])
+  })
+  it('listRoomEvents filtra por room_id ORDER BY created_at', async () => {
+    const c = mockClient([{ id: 'ev1' }])
+    await repo.listRoomEvents(c, APP, TEN, 'r1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/room_id=\$3 ORDER BY created_at/)
+    expect(params).toEqual([APP, TEN, 'r1'])
+  })
+})
+
+describe('session_notes repo', () => {
+  it('insertNote con 11 params y defaults', async () => {
+    const c = mockClient([{ id: 'n1' }])
+    await repo.insertNote(c, APP, TEN, { roomId: 'r1', authorId: 'u1', subjective: 'S' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_telehealth\.session_notes/)
+    expect(params[0]).toBe(APP)
+    expect(params[2]).toBe('r1')        // roomId
+    expect(params[3]).toBeNull()        // bookingId
+    expect(params[4]).toBe('u1')        // authorId
+    expect(params[5]).toBe('S')         // subjective
+    expect(params[10]).toEqual({})      // metadata default
+  })
+  it('findNoteById scoped; sin row → null', async () => {
+    const c = mockClient([])
+    expect(await repo.findNoteById(c, APP, TEN, 'n1')).toBeNull()
+    expect(c.query.mock.calls[0][0]).toMatch(/WHERE app_id=\$1 AND tenant_id=\$2 AND id=\$3/)
+  })
+  it('listNotesByRoom filtra por room_id', async () => {
+    const c = mockClient([{ id: 'n1' }])
+    await repo.listNotesByRoom(c, APP, TEN, 'r1')
+    expect(c.query.mock.calls[0][0]).toMatch(/room_id=\$3 ORDER BY created_at/)
+  })
+  it('updateNote solo si signed_at IS NULL', async () => {
+    const c = mockClient([{ id: 'n1' }])
+    await repo.updateNote(c, APP, TEN, 'n1', { plan: 'P' })
+    expect(c.query.mock.calls[0][0]).toMatch(/signed_at IS NULL/)
+  })
+  it('signNote stampea signed_at solo si no firmada', async () => {
+    const c = mockClient([{ id: 'n1', signed_at: 'now' }])
+    const out = await repo.signNote(c, APP, TEN, 'n1')
+    const sql = c.query.mock.calls[0][0]
+    expect(sql).toMatch(/SET signed_at=now\(\)/)
+    expect(sql).toMatch(/signed_at IS NULL/)
+    expect(out).toEqual({ id: 'n1', signed_at: 'now' })
   })
 })

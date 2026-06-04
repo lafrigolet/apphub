@@ -93,6 +93,47 @@ export async function setBillStatus(client, appId, tenantId, id, status) {
   return rows[0] ?? null
 }
 
+export async function cancelBill(client, appId, tenantId, id, cancelledBy, reason) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.bills
+     SET status='cancelled', closed_at=now(), cancelled_by=$4, cancel_reason=$5
+     WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
+    [appId, tenantId, id, cancelledBy ?? null, reason ?? null],
+  )
+  return rows[0] ?? null
+}
+
+// Items not yet sent to the kitchen for this bill.
+export async function listUnfiredItems(client, appId, tenantId, billId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.bill_items
+     WHERE app_id=$1 AND tenant_id=$2 AND bill_id=$3 AND fired_at IS NULL
+     ORDER BY created_at`,
+    [appId, tenantId, billId],
+  )
+  return rows
+}
+
+// Mark the given item ids as fired. When ids is empty/undefined, fire every
+// still-unfired item of the bill. Returns the rows that transitioned.
+export async function markItemsFired(client, appId, tenantId, billId, itemIds) {
+  if (itemIds && itemIds.length > 0) {
+    const { rows } = await client.query(
+      `UPDATE ${SCHEMA}.bill_items SET fired_at=now()
+       WHERE app_id=$1 AND tenant_id=$2 AND bill_id=$3
+         AND id = ANY($4::uuid[]) AND fired_at IS NULL RETURNING *`,
+      [appId, tenantId, billId, itemIds],
+    )
+    return rows
+  }
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.bill_items SET fired_at=now()
+     WHERE app_id=$1 AND tenant_id=$2 AND bill_id=$3 AND fired_at IS NULL RETURNING *`,
+    [appId, tenantId, billId],
+  )
+  return rows
+}
+
 export async function insertSplit(client, s) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.bill_splits (app_id, tenant_id, parent_bill_id, share_index, amount_cents)
@@ -118,4 +159,56 @@ export async function markSplitPaid(client, appId, tenantId, splitId, paymentId)
     [appId, tenantId, splitId, paymentId],
   )
   return rows[0] ?? null
+}
+
+// ── split-by-item (#6) ────────────────────────────────────────────────────
+export async function insertSplitItem(client, s) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.bill_split_items (app_id, tenant_id, split_id, bill_item_id)
+     VALUES ($1,$2,$3,$4) RETURNING *`,
+    [s.appId, s.tenantId, s.splitId, s.billItemId],
+  )
+  return rows[0]
+}
+
+export async function listSplitItems(client, appId, tenantId, billId) {
+  const { rows } = await client.query(
+    `SELECT si.* FROM ${SCHEMA}.bill_split_items si
+     JOIN ${SCHEMA}.bill_splits s ON s.id = si.split_id
+     WHERE si.app_id=$1 AND si.tenant_id=$2 AND s.parent_bill_id=$3
+     ORDER BY si.split_id`,
+    [appId, tenantId, billId],
+  )
+  return rows
+}
+
+// ── per-tenant settings (#5) ──────────────────────────────────────────────
+export async function getSettings(client, appId, tenantId, subTenantId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.pos_settings
+     WHERE app_id=$1 AND tenant_id=$2 AND sub_tenant_id IS NOT DISTINCT FROM $3`,
+    [appId, tenantId, subTenantId ?? null],
+  )
+  return rows[0] ?? null
+}
+
+export async function upsertSettings(client, s) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.pos_settings
+       (app_id, tenant_id, sub_tenant_id, tip_suggestions, tip_allow_custom, default_tax_rate, updated_at)
+     VALUES ($1,$2,$3,COALESCE($4,'[]'::jsonb),COALESCE($5,TRUE),$6, now())
+     ON CONFLICT (app_id, tenant_id, sub_tenant_id) DO UPDATE SET
+       tip_suggestions  = COALESCE(EXCLUDED.tip_suggestions, ${SCHEMA}.pos_settings.tip_suggestions),
+       tip_allow_custom = COALESCE(EXCLUDED.tip_allow_custom, ${SCHEMA}.pos_settings.tip_allow_custom),
+       default_tax_rate = EXCLUDED.default_tax_rate,
+       updated_at       = now()
+     RETURNING *`,
+    [
+      s.appId, s.tenantId, s.subTenantId ?? null,
+      s.tipSuggestions !== undefined ? JSON.stringify(s.tipSuggestions) : null,
+      s.tipAllowCustom ?? null,
+      s.defaultTaxRate ?? null,
+    ],
+  )
+  return rows[0]
 }

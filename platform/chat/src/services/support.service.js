@@ -104,6 +104,13 @@ export async function createMacro(ctx, { title, body }) {
   )
 }
 
+export async function updateMacro(ctx, id, fields) {
+  requireStaff(ctx)
+  return withTenantTransaction(ctx.appId, ctx.tenantId, ctx.subTenantId ?? null, async (c) =>
+    ensureFound(await macroRepo.update(c, id, fields), 'Macro'),
+  )
+}
+
 export async function deleteMacro(ctx, id) {
   requireStaff(ctx)
   return withTenantTransaction(ctx.appId, ctx.tenantId, ctx.subTenantId ?? null, async (c) => {

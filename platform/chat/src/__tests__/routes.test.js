@@ -14,14 +14,16 @@ vi.mock('../services/messages.service.js', () => ({
   markRead: vi.fn(), markDelivered: vi.fn(), unread: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn(),
   attach: vi.fn(), listAttachments: vi.fn(), detach: vi.fn(),
   forward: vi.fn(), listThread: vi.fn(), pin: vi.fn(), unpin: vi.fn(), listPins: vi.fn(),
+  listScheduled: vi.fn(), rescheduleScheduled: vi.fn(), cancelScheduled: vi.fn(),
 }))
 vi.mock('../services/support.service.js', () => ({
   open: vi.fn(), queue: vi.fn(), assign: vi.fn(), updateSupport: vi.fn(), setQueue: vi.fn(),
-  submitCsat: vi.fn(), getCsat: vi.fn(), listMacros: vi.fn(), createMacro: vi.fn(), deleteMacro: vi.fn(),
+  submitCsat: vi.fn(), getCsat: vi.fn(), listMacros: vi.fn(), createMacro: vi.fn(),
+  updateMacro: vi.fn(), deleteMacro: vi.fn(),
 }))
 vi.mock('../services/moderation.service.js', () => ({
   block: vi.fn(), unblock: vi.fn(), listBlocks: vi.fn(), report: vi.fn(), listReports: vi.fn(), updateReport: vi.fn(),
-  banUser: vi.fn(), unbanUser: vi.fn(), listBans: vi.fn(),
+  banUser: vi.fn(), unbanUser: vi.fn(), listBans: vi.fn(), listUserReports: vi.fn(), eraseUserData: vi.fn(),
 }))
 vi.mock('../services/search.service.js', () => ({ search: vi.fn() }))
 vi.mock('../services/presence.service.js', () => ({ snapshot: vi.fn() }))
@@ -191,6 +193,15 @@ describe('new member routes (block A)', () => {
     msgService.listPins.mockResolvedValue([])
     expect((await json('GET', `/v1/chat/conversations/${C}/pins`)).statusCode).toBe(200)
   })
+  it('scheduled list/reschedule/cancel', async () => {
+    const S = '66666666-6666-6666-6666-666666666666'
+    msgService.listScheduled.mockResolvedValue([{ id: M }])
+    expect((await json('GET', '/v1/chat/scheduled')).statusCode).toBe(200)
+    msgService.rescheduleScheduled.mockResolvedValue({ id: M })
+    expect((await json('PATCH', `/v1/chat/scheduled/${S}`, { scheduledFor: '2999-01-01T00:00:00Z' })).statusCode).toBe(200)
+    msgService.cancelScheduled.mockResolvedValue({ id: M, status: 'cancelled' })
+    expect((await json('DELETE', `/v1/chat/scheduled/${S}`)).statusCode).toBe(200)
+  })
   it('accept/decline requests', async () => {
     convService.acceptRequest.mockResolvedValue({ id: C, is_request: false })
     expect((await json('POST', `/v1/chat/conversations/${C}/accept`)).statusCode).toBe(200)
@@ -227,6 +238,9 @@ describe('new support routes (CSAT / macros / queue)', () => {
     expect((await json('GET', '/v1/chat/support/macros')).statusCode).toBe(200)
     supportService.createMacro.mockResolvedValue({ id: 'mm1' })
     expect((await json('POST', '/v1/chat/support/macros', { title: 'T', body: 'B' })).statusCode).toBe(201)
+    supportService.updateMacro.mockResolvedValue({ id: 'mm1', title: 'T2' })
+    expect((await json('PATCH', '/v1/chat/support/macros/mm1', { title: 'T2' })).statusCode).toBe(200)
+    expect((await json('PATCH', '/v1/chat/support/macros/mm1', {})).statusCode).toBe(400)
     supportService.deleteMacro.mockResolvedValue({ ok: true })
     expect((await json('DELETE', '/v1/chat/support/macros/mm1')).statusCode).toBe(200)
     supportService.setQueue.mockResolvedValue({ id: C, queue: 'billing' })
@@ -252,12 +266,30 @@ describe('admin routes — role gate', () => {
     moderationService.listBans.mockResolvedValue([])
     expect((await json('GET', '/v1/chat/admin/bans')).statusCode).toBe(200)
     moderationService.banUser.mockResolvedValue({ user_id: U })
-    expect((await json('POST', '/v1/chat/admin/bans', { userId: U, reason: 'spam' })).statusCode).toBe(201)
+    expect((await json('POST', '/v1/chat/admin/bans', { userId: U, reason: 'spam', bannedUntil: '2999-01-01T00:00:00Z' })).statusCode).toBe(201)
+    expect(moderationService.banUser).toHaveBeenCalledWith(expect.any(Object), U, 'spam', '2999-01-01T00:00:00Z')
     moderationService.unbanUser.mockResolvedValue()
     expect((await json('DELETE', `/v1/chat/admin/bans/${U}`)).statusCode).toBe(200)
     adminService.metrics.mockResolvedValue({ direct_count: 1 })
     expect((await json('GET', '/v1/chat/admin/metrics')).statusCode).toBe(200)
     adminService.exportConversation.mockResolvedValue({ conversation: {}, messages: [] })
     expect((await json('GET', `/v1/chat/admin/conversations/${C}/export`)).statusCode).toBe(200)
+  })
+  it('staff can read per-user report history + GDPR-erase a user', async () => {
+    identity = { appId: 'platform', tenantId: 't1', subTenantId: null, userId: 's1', role: 'staff' }
+    app = await buildApp()
+    moderationService.listUserReports.mockResolvedValue({ total: 2, open: 1, reports: [] })
+    const r1 = await json('GET', `/v1/chat/admin/users/${U}/reports?limit=10`)
+    expect(r1.statusCode).toBe(200)
+    expect(r1.json().data.total).toBe(2)
+    expect(moderationService.listUserReports).toHaveBeenCalledWith(expect.any(Object), U, { limit: 10 })
+    moderationService.eraseUserData.mockResolvedValue({ userId: U, messagesAnonymized: 3, conversationsLeft: 1 })
+    const r2 = await json('DELETE', `/v1/chat/admin/users/${U}/data`)
+    expect(r2.statusCode).toBe(200)
+    expect(r2.json().data.messagesAnonymized).toBe(3)
+    expect(moderationService.eraseUserData).toHaveBeenCalledWith(expect.any(Object), U)
+  })
+  it('GDPR-erase is forbidden for a plain user', async () => {
+    expect((await json('DELETE', `/v1/chat/admin/users/${U}/data`)).statusCode).toBe(403)
   })
 })

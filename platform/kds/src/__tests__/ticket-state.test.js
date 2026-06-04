@@ -6,9 +6,9 @@
 //   picked_up   → ∅ (terminal)
 //   cancelled   → ∅ (terminal)
 //
-// Todas las transiciones tipadas como 'cancelled' usan picked_up_at como columna
-// de timestamp (no hay cancelled_at, lo cual es deliberado — la consola
-// distingue por status, no por timestamp).
+// Las transiciones tipadas como 'cancelled' usan cancelled_at como columna de
+// timestamp y persisten cancel_reason (migración 0002). El resto de
+// transiciones usan su columna de timestamp dedicada.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -50,16 +50,16 @@ function whenStatus(status) {
 describe('FSM — transiciones válidas', () => {
   it.each([
     ['fired',       'in_progress', 'acked_at',     'kds.ticket.acked'],
-    ['fired',       'cancelled',   'picked_up_at', 'kds.ticket.cancelled'],
+    ['fired',       'cancelled',   'cancelled_at', 'kds.ticket.cancelled'],
     ['in_progress', 'ready',       'ready_at',     'kds.ticket.ready'],
-    ['in_progress', 'cancelled',   'picked_up_at', 'kds.ticket.cancelled'],
+    ['in_progress', 'cancelled',   'cancelled_at', 'kds.ticket.cancelled'],
     ['ready',       'picked_up',   'picked_up_at', 'kds.ticket.picked_up'],
-    ['ready',       'cancelled',   'picked_up_at', 'kds.ticket.cancelled'],
+    ['ready',       'cancelled',   'cancelled_at', 'kds.ticket.cancelled'],
   ])('%s → %s usa columna %s + emite %s', async (from, to, tsCol, eventType) => {
     whenStatus(from)
     await bumpTicket(ctx, 'tkt-1', to)
     expect(repo.setTicketStatus).toHaveBeenCalledWith(
-      expect.anything(), ctx.appId, ctx.tenantId, 'tkt-1', to, tsCol,
+      expect.anything(), ctx.appId, ctx.tenantId, 'tkt-1', to, tsCol, null,
     )
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: eventType }))
   })

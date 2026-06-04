@@ -17,13 +17,16 @@ export async function register({ app, db, redis, logger }) {
   await app.register(telehealthRoutes)
   await app.register(adminRoutes, { prefix: '/v1/telehealth/admin' })
 
+  const HANDLED = new Set([
+    'booking.confirmed', 'booking.cancelled', 'booking.rescheduled', 'booking.no_show',
+  ])
   app.addHook('onReady', async () => {
     subscribe(async (_channel, raw) => {
       let event
       try { event = JSON.parse(raw) } catch { return }
-      if (event.type !== 'booking.confirmed') return
+      if (!HANDLED.has(event.type)) return
       await service.handleEvent(event)
     })
-    logger?.info('telehealth subscribed to booking.confirmed events')
+    logger?.info('telehealth subscribed to booking lifecycle events')
   })
 }

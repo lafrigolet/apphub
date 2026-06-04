@@ -94,8 +94,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Modelo de dos niveles definido en el JWT: `tenant_id` + `sub_tenant_id` (nullable).
 - ✅ Todas las queries en módulos de plataforma deben escopar por `(app_id, tenant_id)`.
-- 🔧 `sub_tenant_id` existe en el claim JWT pero no hay tabla `sub_tenants` en este módulo — el concepto existe en la identidad pero no en el registro.
-- ❌ CRUD de sub-tenants: alta, baja, listado por tenant.
+- ✅ Tabla `sub_tenants` (migración 0017) con FK `tenant_id → tenants(id) ON DELETE CASCADE`, `app_id` heredado del padre, `slug` único por tenant padre, estado `active|suspended|archived` — completa el segundo nivel que el JWT ya declara.
+- ✅ CRUD de sub-tenants: alta, baja, listado y detalle por tenant (`/v1/tenants/:tenantId/sub-tenants[/:id]`, GET público a autenticados, escrituras staff). Emite `tenant.config.updated` en cada mutación.
 - ❌ Settings/flags por sub-tenant (herencia desde tenant con override).
 - ❌ Branding/tema propio por sub-tenant.
 - ❌ Límites y cuotas por sub-tenant independientes del tenant padre.
@@ -108,7 +108,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Módulos baseline añadidos automáticamente en migraciones: `tenants`, `auth`, `audit`, `notifications`.
 - ✅ `splitpay` añadido automáticamente a `enabled_modules` cuando `splitpay_enabled = true`.
 - 🔧 Los feature flags viven en `apps`, no en `tenants` — no es posible activar un módulo para un subconjunto de tenants de la misma app.
-- ❌ Feature flags por tenant (sobreescritura del conjunto de módulos del app para un tenant concreto).
+- ✅ Feature flags por tenant (sobreescritura del conjunto de módulos del app para un tenant concreto): columna `enabled_modules_override TEXT[]` (NULL = hereda del app); `GET /v1/tenants/:id/enabled-modules` resuelve la lista efectiva (`source: tenant|app`); `PUT /v1/tenants/:id/enabled-modules` (staff) setea/limpia (null) el override y emite `tenant.config.updated`.
 - ❌ Feature flags por plan (STARTER no accede a módulos premium).
 - ❌ Fechas de activación/expiración de flags (trial de feature).
 - ❌ Flags tipados: booleano, string, número, JSON (no solo arrays de módulos).
@@ -154,8 +154,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Soporte de `hasServer` para añadir ruta `/api/<appId>/` al server block cuando la app tiene backend propio (ADR 013).
 - ✅ Eliminación de config NGINX al revocar bootstrap (`deleteTenantNginxConfig`).
 - 🔧 Dominio custom solo almacenado; el server block de NGINX no refleja el dominio custom — todos los tenants usan `<subdomain>.hulkstein.com`.
-- ❌ Verificación de DNS para dominio custom (TXT record / CNAME check + estado `dns_verified`).
-- ❌ Generación de server block NGINX con el dominio custom verificado.
+- ✅ Verificación de DNS para dominio custom (TXT record check + estado `custom_domain_verified`): `POST /v1/tenants/:id/custom-domain/challenge` emite/rota un token (`custom_domain_verify_token`) a publicar como TXT en `_apphub-challenge.<domain>`; `POST /v1/tenants/:id/custom-domain/verify` resuelve el TXT vía `dns/promises` y marca `custom_domain_verified` + `custom_domain_verified_at`. Ambos staff-only; emiten `tenant.config.updated` al verificar.
+- ❌ Generación de server block NGINX con el dominio custom verificado (cross-cutting: render en `nginx-config.service` + recarga del sidecar).
 - ❌ Provisioning de TLS para dominio custom (Let's Encrypt / Cloudflare API).
 - ❌ Endpoint de reconciliación manual de NGINX (hoy solo vía restart de platform-core).
 - ❌ Alertas de dominio próximo a expirar.
@@ -175,8 +175,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 12. Localización (idioma, zona horaria, moneda)
 
 - ✅ `default_locale` (texto libre, default `'es'`) por tenant — usado por `platform/scheduler` para localizar notificaciones cuando booking/usuario no tienen locale propio.
-- 🔧 No hay zona horaria por tenant — las notificaciones de recordatorio se envían en UTC.
-- ❌ `timezone` por tenant (IANA, ej. `Europe/Madrid`) — afecta generación de recordatorios, slots de disponibilidad y faturas.
+- ✅ `timezone` por tenant (IANA, ej. `Europe/Madrid`): columna en `tenants` (default `'UTC'`, migración 0016) + `PATCH /v1/tenants/:id` con validación contra la tz database vía `Intl.DateTimeFormat`. Pendiente que `platform/scheduler` y `availability` lo consuman (cross-cutting).
 - ❌ `currency` por tenant para apps multi-divisa (separado del `subscription_currency`).
 - ❌ `date_format` y `number_format` por tenant para localización de UI.
 - ❌ Idiomas disponibles por app (catalog de locales soportados).
@@ -202,7 +201,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - 🔧 `detail` es texto libre — no hay schema de payload estructurado por acción.
 - 🔧 No hay audit de cambios en `apps` (alta de app, cambio de estado, módulos, splitpay_enabled).
 - ❌ Diff de campos previo/nuevo en `TENANT_UPDATED` (hoy solo lista las claves cambiadas).
-- ❌ Paginación del audit log (hoy `LIMIT` sin cursor/offset).
+- ✅ Paginación con cursor (keyset) del audit log: `GET /v1/audit?before=<ts>` filtra `ts < before` aprovechando el índice `(tenant_id, ts DESC)`; el caller pagina pasando el `ts` de la última fila de la página previa. Compatible hacia atrás (sin `before` → primera página, mismo shape array).
 - ❌ Retención y purga automática de entradas antiguas (REUSE `platform/scheduler`).
 - ❌ Export del audit log (CSV/JSONL).
 - ❌ Firma/inmutabilidad de entradas (hash encadenado o append-only).
@@ -212,11 +211,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `tenant.bootstrap_started` — publicado al crear un tenant (Fase A) y al reenviar activación; payload: `tenantId`, `appId`, `ownerEmail`, `magicLinkUrl`, `expiresAt`, `locale`.
 - ✅ `tenant.bootstrap_completed` — publicado automáticamente al detectar todos los pasos obligatorios completados; payload: `tenantId`, `appId`, `ownerEmail`.
 - ✅ Subscriber de `splitpay.*` eventos para sincronizar suscripción: `checkout.completed`, `invoice.paid`, `subscription.updated`, `subscription.deleted`, `invoice.payment_failed`.
-- ❌ `tenant.created` — evento explícito al crear tenant vía `POST /v1/tenants` (fuera del wizard).
-- ❌ `tenant.suspended` / `tenant.archived` / `tenant.reactivated` — eventos que otros módulos necesitan para bloquear acceso o limpiar datos.
+- ✅ `tenant.created` — evento explícito al crear tenant vía `POST /v1/tenants` (fuera del wizard); payload: `tenantId`, `appId`, `displayName`, `subdomain`. Best-effort (no bloquea el alta si Redis cae).
+- ✅ `tenant.suspended` / `tenant.archived` / `tenant.reactivated` — emitidos en `setTenantStatus` tras commitear estado+audit; payload: `tenantId`, `appId`, `status`, `reason` (sólo en suspended). Los consumen auth/scheduler/notifications.
 - ❌ `tenant.subscription.past_due` / `tenant.subscription.cancelled` — eventos específicos del cambio de estado de suscripción.
-- ❌ `app.created` / `app.disabled` — eventos para que otros módulos reaccionen al ciclo de vida de una app.
-- ❌ `tenant.config.updated` — evento genérico de cambio de configuración.
+- ✅ `app.created` — emitido en `createApp`; payload: `appId`, `displayName`, `subdomain`. Best-effort. (`app.disabled` sigue ❌.)
+- ✅ `tenant.config.updated` — evento genérico de cambio de configuración; payload: `tenantId`, `appId`, `change` (`enabled_modules_override` | `custom_domain_verified` | `sub_tenant_created` | `sub_tenant_updated` | `sub_tenant_deleted`). Best-effort.
 
 ## 16. Integración con auth
 
@@ -227,8 +226,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Consulta del estado del owner (`pending_activation`, `password_set`) vía `/internal/auth/owners/state`.
 - ✅ Conteo de admins del tenant para el paso de bootstrap vía `/internal/auth/admins/count`.
 - ✅ `jwt_audience` por app — usado por auth para emitir tokens con la audiencia correcta.
-- 🔧 El flag `requires_user_approval` se activa manualmente por staff en migraciones; no hay endpoint de gestión.
-- ❌ Endpoint de gestión de `requires_user_approval` en el módulo tenant-config (hoy solo hay columna + grant).
+- ✅ El flag `requires_user_approval` es gestionable por staff vía `PATCH /v1/tenants/:id` (`requiresUserApproval` boolean en el schema Zod + `ALLOWED_UPDATE_FIELDS`).
+- ✅ Endpoint de gestión de `requires_user_approval` en el módulo tenant-config (PATCH del tenant; ya no requiere SQL manual).
 - ❌ Política de contraseña por tenant (longitud mínima, expiración, MFA obligatorio).
 - ❌ SSO / SAML / OIDC por tenant (IdP externo propio del tenant).
 - ❌ IP allowlist por tenant para acceso a la consola.
@@ -262,13 +261,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Eventos `tenant.suspended` / `tenant.archived`** — otros módulos (auth, notifications, scheduler) los necesitan para bloquear acceso y limpiar recursos; coste bajo, impacto alto.
-2. **Endpoint de `requires_user_approval`** — hoy solo gestionable vía migraciones SQL; un `PATCH /v1/tenants/:id` ya existe y basta añadir el campo al schema Zod.
-3. **`timezone` por tenant** — desbloquea recordatorios correctos en `platform/scheduler` y slots de disponibilidad en horario local; coste bajo (columna + field en PATCH).
-4. **`tenant.created` / `app.created` events** — completan el contrato de eventos del dominio y permiten que leads (conversión), notifications y otros módulos reaccionen al alta.
-5. **Verificación de dominio custom** (DNS TXT check + estado `dns_verified`) + **server block NGINX con dominio custom** — desbloquea white-labeling completo para tenants enterprise.
-6. **Cancelación explícita de suscripción** (`DELETE /v1/tenants/:id/subscription`) + **Customer Portal Stripe** — operativa de negocio que hoy requiere intervención manual en el dashboard de Stripe.
-7. **Feature flags por tenant** (sobreescritura del `enabled_modules` del app para un tenant concreto) — permite planes diferenciados sin cambiar el array del app para todos los tenants.
-8. **Límites/cuotas por plan** con enforcement real — los campos de volumen ya están; falta la tabla `plan_limits` y los checks en las APIs de negocio.
-9. **Tabla `sub_tenants`** — completa el modelo de identidad de dos niveles que el JWT ya declara.
-10. **Purga automática del audit log** (REUSE `platform/scheduler`) + **paginación con cursor** — higiene operativa y escalabilidad.
+1. ✅ ~~**Eventos `tenant.suspended` / `tenant.archived`**~~ — implementado (`tenant.suspended`/`tenant.archived`/`tenant.reactivated` emitidos en `setTenantStatus`).
+2. ✅ ~~**Endpoint de `requires_user_approval`**~~ — implementado (`requiresUserApproval` en `PATCH /v1/tenants/:id`).
+3. ✅ ~~**`timezone` por tenant**~~ — implementado (columna 0016 + validación IANA en PATCH). Consumo en scheduler/availability queda como cross-cutting.
+4. ✅ ~~**`tenant.created` / `app.created` events**~~ — implementado (emitidos en `createTenant` y `createApp`).
+5. 🔧 ~~**Verificación de dominio custom** (DNS TXT check + estado `dns_verified`)~~ — implementado (challenge/verify TXT vía `dns/promises` + `custom_domain_verified`). Pendiente (cross-cutting): **server block NGINX con dominio custom** — render en `nginx-config.service` + recarga del sidecar.
+6. **Cancelación explícita de suscripción** (`DELETE /v1/tenants/:id/subscription`) + **Customer Portal Stripe** — operativa de negocio que hoy requiere intervención manual en el dashboard de Stripe. (Requiere endpoint nuevo en `platform/splitpay` — cross-cutting; ver informe.)
+7. ✅ ~~**Feature flags por tenant** (sobreescritura del `enabled_modules` del app para un tenant concreto)~~ — implementado (`enabled_modules_override` + GET/PUT + `tenant.config.updated`).
+8. **Límites/cuotas por plan** con enforcement real — los campos de volumen ya están; falta la tabla `plan_limits` y los checks en las APIs de negocio (enforcement es cross-cutting a los módulos de negocio).
+9. ✅ ~~**Tabla `sub_tenants`**~~ — implementado (migración 0017 + CRUD escopado + eventos).
+10. 🔧 ~~**paginación con cursor**~~ del audit log — implementado (`?before=<ts>` keyset). Pendiente (cross-cutting): **purga automática** (REUSE `platform/scheduler`).

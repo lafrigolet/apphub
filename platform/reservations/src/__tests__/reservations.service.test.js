@@ -35,6 +35,13 @@ function mockClient() {
 beforeEach(() => {
   vi.clearAllMocks()
   withTenantTransaction.mockImplementation(async (_p, _a, _t, _s, fn) => fn(mockClient()))
+  // Availability checks default to "unconstrained": no blackout, no service
+  // hours configured for the weekday. Individual tests override as needed.
+  repo.findBlackoutCovering.mockResolvedValue(null)
+  repo.listOpenServiceHoursForDay.mockResolvedValue([])
+  repo.sumActiveCoversInWindow.mockResolvedValue(0)
+  repo.findNextWaitingForCapacity.mockResolvedValue(null)
+  repo.countNoShowsByGuest.mockResolvedValue(0)
 })
 
 // ── createReservation ─────────────────────────────────────────────────────
@@ -54,6 +61,122 @@ describe('createReservation', () => {
       type: 'reservation.created',
       payload: expect.objectContaining({ reservationId: RES_ID, guestEmail: 'g@a.com' }),
     }))
+  })
+})
+
+// ── availability validation on create ────────────────────────────────────
+describe('createReservation availability validation', () => {
+  const baseBody = { guestName: 'G', partySize: 4, reservedFor: '2026-05-01T20:00:00Z' }
+
+  it('rejects when reserved_for falls inside a blackout', async () => {
+    repo.findBlackoutCovering.mockResolvedValue({ id: 'b1', reason: 'private event' })
+    await expect(service.createReservation(ctx, baseBody)).rejects.toThrow(ConflictError)
+    expect(repo.insertReservation).not.toHaveBeenCalled()
+  })
+
+  it('rejects when outside configured service hours', async () => {
+    // window 12:00–15:00 only; reservation at 20:00 (1200 min) is outside
+    repo.listOpenServiceHoursForDay.mockResolvedValue([
+      { id: 's1', open_minute: 720, close_minute: 900, max_covers: null },
+    ])
+    await expect(service.createReservation(ctx, baseBody)).rejects.toThrow(ConflictError)
+    expect(repo.insertReservation).not.toHaveBeenCalled()
+  })
+
+  it('rejects when window capacity would be exceeded', async () => {
+    repo.listOpenServiceHoursForDay.mockResolvedValue([
+      { id: 's1', open_minute: 1080, close_minute: 1380, max_covers: 10 },
+    ])
+    repo.sumActiveCoversInWindow.mockResolvedValue(8) // 8 + 4 > 10
+    await expect(service.createReservation(ctx, baseBody)).rejects.toThrow(ConflictError)
+  })
+
+  it('accepts within hours + capacity', async () => {
+    repo.listOpenServiceHoursForDay.mockResolvedValue([
+      { id: 's1', open_minute: 1080, close_minute: 1380, max_covers: 10 },
+    ])
+    repo.sumActiveCoversInWindow.mockResolvedValue(2)
+    repo.insertReservation.mockResolvedValue({ id: RES_ID, status: 'requested', party_size: 4 })
+    await service.createReservation(ctx, baseBody)
+    expect(repo.insertReservation).toHaveBeenCalled()
+  })
+
+  it('skips availability checks for walk-ins', async () => {
+    repo.findBlackoutCovering.mockResolvedValue({ id: 'b1', reason: 'x' })
+    repo.insertReservation.mockResolvedValue({ id: RES_ID, status: 'requested', party_size: 2 })
+    await service.createReservation(ctx, { ...baseBody, source: 'walk_in' })
+    expect(repo.findBlackoutCovering).not.toHaveBeenCalled()
+    expect(repo.insertReservation).toHaveBeenCalled()
+  })
+})
+
+describe('checkAvailability', () => {
+  it('returns windows with covers used/remaining and availability flag', async () => {
+    repo.listOpenServiceHoursForDay.mockResolvedValue([
+      { id: 's1', service_label: 'Cena', open_minute: 1080, close_minute: 1380, max_covers: 10 },
+      { id: 's2', service_label: 'Comida', open_minute: 720, close_minute: 900, max_covers: null },
+    ])
+    repo.sumActiveCoversInWindow.mockResolvedValueOnce(8).mockResolvedValueOnce(50)
+    const out = await service.checkAvailability(ctx, { date: '2026-05-01', partySize: 4 })
+    expect(out.windows[0]).toMatchObject({ coversUsed: 8, coversRemaining: 2, available: false })
+    expect(out.windows[1]).toMatchObject({ coversRemaining: null, available: true })
+  })
+
+  it('throws ValidationError on bad date', async () => {
+    await expect(service.checkAvailability(ctx, { date: 'nope' })).rejects.toThrow()
+  })
+})
+
+describe('getGuestNoShowCount', () => {
+  it('delegates to repo and returns { count }', async () => {
+    repo.countNoShowsByGuest.mockResolvedValue(2)
+    const out = await service.getGuestNoShowCount(ctx, { guestEmail: 'g@a.com' })
+    expect(repo.countNoShowsByGuest).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, { guestUserId: undefined, guestEmail: 'g@a.com' })
+    expect(out).toEqual({ count: 2 })
+  })
+})
+
+describe('changeStatus cancellation + waitlist auto-notify', () => {
+  it('cancelled records actor/reason and defaults cancelledBy to staff', async () => {
+    repo.findReservationById.mockResolvedValue({ id: RES_ID, status: 'confirmed', party_size: 4 })
+    repo.updateReservationStatus.mockResolvedValue({
+      id: RES_ID, status: 'cancelled', party_size: 4, cancelled_by: 'staff', cancellation_reason: 'weather',
+    })
+    await service.changeStatus(ctx, RES_ID, 'cancelled', undefined, { cancellationReason: 'weather' })
+    expect(repo.updateReservationStatus).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID, RES_ID, 'cancelled', undefined,
+      { cancelledBy: 'staff', cancellationReason: 'weather' },
+    )
+  })
+
+  it('completed frees capacity and auto-notifies a fitting waiting guest', async () => {
+    repo.findReservationById.mockResolvedValue({ id: RES_ID, status: 'seated', party_size: 4 })
+    repo.updateReservationStatus.mockResolvedValue({ id: RES_ID, status: 'completed', party_size: 4 })
+    repo.findNextWaitingForCapacity.mockResolvedValue({ id: 'w1', party_size: 2 })
+    repo.updateWaitlistStatus.mockResolvedValue({ id: 'w1', guest_phone: '+34', guest_name: 'Wait' })
+    await service.changeStatus(ctx, RES_ID, 'completed')
+    expect(repo.findNextWaitingForCapacity).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, 4)
+    expect(repo.updateWaitlistStatus).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, 'w1', 'notified')
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'waitlist.notified',
+      payload: expect.objectContaining({ waitlistId: 'w1', reason: 'auto_table_freed', freedReservationId: RES_ID }),
+    }))
+  })
+
+  it('no waitlist notification when queue empty', async () => {
+    repo.findReservationById.mockResolvedValue({ id: RES_ID, status: 'seated', party_size: 4 })
+    repo.updateReservationStatus.mockResolvedValue({ id: RES_ID, status: 'completed', party_size: 4 })
+    repo.findNextWaitingForCapacity.mockResolvedValue(null)
+    await service.changeStatus(ctx, RES_ID, 'completed')
+    expect(repo.updateWaitlistStatus).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'waitlist.notified' }))
+  })
+
+  it('does not look for waitlist on non-freeing transition (seated)', async () => {
+    repo.findReservationById.mockResolvedValue({ id: RES_ID, status: 'confirmed', party_size: 4 })
+    repo.updateReservationStatus.mockResolvedValue({ id: RES_ID, status: 'seated', party_size: 4 })
+    await service.changeStatus(ctx, RES_ID, 'seated')
+    expect(repo.findNextWaitingForCapacity).not.toHaveBeenCalled()
   })
 })
 
@@ -98,7 +221,10 @@ describe('changeStatus FSM', () => {
       guest_email: 'g@a.com', guest_name: 'G', party_size: 2, reserved_for: 't',
     })
     await service.changeStatus(ctx, RES_ID, 'seated', TABLE_ID)
-    expect(repo.updateReservationStatus).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, RES_ID, 'seated', TABLE_ID)
+    expect(repo.updateReservationStatus).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID, RES_ID, 'seated', TABLE_ID,
+      { cancelledBy: null, cancellationReason: null },
+    )
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({
       type: 'reservation.seated',
       payload: expect.objectContaining({ tableId: TABLE_ID }),

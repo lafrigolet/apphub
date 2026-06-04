@@ -48,6 +48,8 @@ const stripeMock = vi.hoisted(() => ({
   refunds: { create: vi.fn() },
 }))
 vi.mock('../lib/stripe.js', () => ({ stripe: stripeMock }))
+const publishMock = vi.hoisted(() => vi.fn())
+vi.mock('@apphub/platform-sdk/redis', () => ({ publish: publishMock }))
 vi.mock('../repositories/payment.repository.js')
 vi.mock('../repositories/split-rule.repository.js')
 
@@ -173,6 +175,26 @@ describe('stripe.paymentIntents.create — args', () => {
     })
     const arg0 = stripeMock.paymentIntents.create.mock.calls[0][0]
     expect(arg0.automatic_payment_methods).toEqual({ enabled: true })
+  })
+
+  it('transfer_group explícito = "pi_<idempotencyKey>" + persistido en la transacción (priority #1)', async () => {
+    await createPaymentIntent(ctx, {
+      idempotencyKey: 'order-99', amount: 5000, currency: 'eur', splitRuleId: 'rule-1',
+    })
+    const arg0 = stripeMock.paymentIntents.create.mock.calls[0][0]
+    expect(arg0.transfer_group).toBe('pi_order-99')
+    expect(paymentRepo.insertPayment).toHaveBeenCalledWith(
+      expect.anything(), ctx,
+      expect.objectContaining({ transferGroup: 'pi_order-99' }),
+    )
+  })
+
+  it('metadata.app_id propagado desde el ctx (para resolver eventos en webhooks)', async () => {
+    await createPaymentIntent(ctx, {
+      idempotencyKey: 'k1', amount: 5000, currency: 'eur', splitRuleId: 'rule-1',
+    })
+    const arg0 = stripeMock.paymentIntents.create.mock.calls[0][0]
+    expect(arg0.metadata.app_id).toBe('shop')
   })
 })
 
@@ -321,5 +343,50 @@ describe('createAdditionalTransfers', () => {
     await createAdditionalTransfers('pi_xyz', 'ch_xyz')
     expect(stripeMock.transfers.create).toHaveBeenCalledTimes(2)
     expect(logger.error).toHaveBeenCalled()
+  })
+
+  it('transfer fallida con app_id en metadata → emite splitpay.transfer.failed (priority #4)', async () => {
+    paymentRepo.findPaymentByStripeId.mockResolvedValue({
+      id: 'pay-1', splitRuleId: 'rule-1', amount: 10000, platformFee: 1000,
+      currency: 'eur', tenantId: 't1', subTenantId: null,
+      transferGroup: 'pi_tg', metadata: { app_id: 'shop' },
+    })
+    fakeClient.query.mockResolvedValue({
+      rows: [{
+        recipients: JSON.stringify([
+          { accountId: 'a1', label: 'A', percentage: 50 },
+          { accountId: 'a2', label: 'B', percentage: 50 },
+        ]),
+        platform_fee_percent: '10',
+      }],
+    })
+    stripeMock.transfers.create.mockRejectedValueOnce(new Error('Insufficient funds'))
+    await createAdditionalTransfers('pi_xyz', 'ch_xyz')
+    expect(publishMock).toHaveBeenCalledWith({}, 'shop', expect.objectContaining({
+      type: 'splitpay.transfer.failed',
+      payload: expect.objectContaining({ paymentId: 'pay-1', accountId: 'a2' }),
+    }))
+  })
+
+  it('transfer con transfer_group propaga transfer_group a stripe.transfers.create (priority #1)', async () => {
+    paymentRepo.findPaymentByStripeId.mockResolvedValue({
+      id: 'pay-1', splitRuleId: 'rule-1', amount: 10000, platformFee: 1000,
+      currency: 'eur', tenantId: 't1', transferGroup: 'pi_grp', metadata: {},
+    })
+    fakeClient.query.mockResolvedValue({
+      rows: [{
+        recipients: JSON.stringify([
+          { accountId: 'a1', label: 'A', percentage: 60 },
+          { accountId: 'a2', label: 'B', percentage: 40 },
+        ]),
+        platform_fee_percent: '10',
+      }],
+    })
+    stripeMock.transfers.create.mockResolvedValue({ id: 'tr_1' })
+    await createAdditionalTransfers('pi_xyz', 'ch_xyz')
+    expect(stripeMock.transfers.create).toHaveBeenCalledWith(
+      expect.objectContaining({ transfer_group: 'pi_grp' }),
+      expect.anything(),
+    )
   })
 })

@@ -33,19 +33,27 @@ vi.mock('../services/email.service.js', () => emailMock)
 
 const smsMock = vi.hoisted(() => Object.fromEntries(
   ['sendBookingReminderSms', 'sendReservationReminderSms', 'sendBookingConfirmedSms',
-    'sendBookingCancelledSms', 'sendBookingRescheduledSms', 'sendReservationCancelledSms']
+    'sendBookingCancelledSms', 'sendBookingRescheduledSms', 'sendReservationCancelledSms',
+    'sendWaitlistNotifiedSms', 'sendBookingWaitlistNotifiedSms']
     .map((n) => [n, vi.fn()]),
 ))
 vi.mock('../services/sms.service.js', () => smsMock)
 
 const pushMock = vi.hoisted(() => Object.fromEntries(
-  ['sendBookingReminderPush', 'sendBookingConfirmedPush', 'sendReservationReminderPush', 'sendPushToUser']
+  ['sendBookingReminderPush', 'sendBookingConfirmedPush', 'sendReservationReminderPush', 'sendPushToUser',
+    'sendReviewRepliedPush', 'sendDisputeOpenedPush', 'sendDisputeWithdrawnPush',
+    'sendPackageFrozenPush', 'sendPackageUnfrozenPush', 'sendPackageRefundedPush']
     .map((n) => [n, vi.fn()]),
 ))
 vi.mock('../services/push.service.js', () => pushMock)
 
 const rate = vi.hoisted(() => ({ checkRateLimit: vi.fn() }))
 vi.mock('../services/rate-limit.service.js', () => rate)
+
+const idem = vi.hoisted(() => ({ claimEvent: vi.fn() }))
+vi.mock('../services/idempotency.service.js', () => idem)
+const prefs = vi.hoisted(() => ({ isMuted: vi.fn() }))
+vi.mock('../services/preferences.service.js', () => prefs)
 
 const digest = vi.hoisted(() => ({ shouldDigest: vi.fn(), enqueueDigest: vi.fn(), flushAll: vi.fn() }))
 vi.mock('../services/digest.service.js', () => digest)
@@ -69,6 +77,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   capturedMessageHandler = undefined
   rate.checkRateLimit.mockResolvedValue({ allowed: true })
+  idem.claimEvent.mockResolvedValue(true)
+  prefs.isMuted.mockResolvedValue(false)
   digest.shouldDigest.mockResolvedValue(false)
   digest.flushAll.mockResolvedValue({ flushed: 0 })
   delete process.env.PLATFORM_PUBLIC_DOMAIN
@@ -430,6 +440,36 @@ describe('subdomain ?? appId — subdomain explícito en payload', () => {
   it('signup.approved usa subdomain del payload', async () => {
     await emit({ type: 'auth.signup.approved', payload: { email: 'a@x', token: 'T', subdomain: 'custom' } })
     expect(emailMock.sendSignupApprovedEmail).toHaveBeenCalledWith('a@x', expect.objectContaining({ magicLinkUrl: expect.stringContaining('custom.hulkstein.local') }))
+  })
+})
+
+describe('idempotency + preference gates', () => {
+  it('duplicate event (claimEvent → false) is dropped before any send', async () => {
+    idem.claimEvent.mockResolvedValueOnce(false)
+    await emit({ type: 'user.registered', payload: { email: 'a@x', appId: 'yoga' } })
+    expect(emailMock.sendWelcomeEmail).not.toHaveBeenCalled()
+  })
+
+  it('first delivery (claimEvent → true) proceeds normally', async () => {
+    await emit({ type: 'user.registered', payload: { email: 'a@x', appId: 'yoga' } })
+    expect(emailMock.sendWelcomeEmail).toHaveBeenCalled()
+  })
+
+  it('digest.flush is exempt from the idempotency claim', async () => {
+    await emit({ type: 'notifications.digest.flush', payload: {} })
+    expect(idem.claimEvent).not.toHaveBeenCalled()
+    expect(digest.flushAll).toHaveBeenCalled()
+  })
+
+  it('muted user (isMuted → true) suppresses the send', async () => {
+    prefs.isMuted.mockResolvedValueOnce(true)
+    await emit({ type: 'booking.confirmed', payload: { appId: 'a', tenantId: 't', clientEmail: 'c@x', clientUserId: 'u1', startsAt: '2030-01-01T10:00:00Z' } })
+    expect(emailMock.sendBookingConfirmedEmail).not.toHaveBeenCalled()
+  })
+
+  it('passes tenant context from the payload to the preference check', async () => {
+    await emit({ type: 'booking.confirmed', payload: { appId: 'a', tenantId: 't', clientEmail: 'c@x', clientUserId: 'u1', startsAt: '2030-01-01T10:00:00Z' } })
+    expect(prefs.isMuted).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1', appId: 'a', tenantId: 't', channel: 'email' }))
   })
 })
 

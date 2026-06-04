@@ -55,7 +55,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Caché Redis 60 s por regla; invalidación al desactivar.
 - ✅ Endpoint `/simulate` — recibe `splitRuleId`, `amount`, `currency`; devuelve desglose completo (Stripe fee, platform fee, importe por recipient) sin crear ningún objeto en Stripe.
 - ✅ Scoping de la tabla `split_rules` por `(tenant_id, sub_tenant_id)` con RLS.
-- 🔧 Los porcentajes se refieren al neto después de fee de Stripe (2.9 % + 30 céntimos hardcoded). La tarifa de Stripe no es configurable por tenant ni por país.
+- 🔧 Los porcentajes se refieren al neto después de fee de Stripe. La tarifa de Stripe ya es configurable globalmente vía `splitpay_core.config` (`stripe_fee_percent`/`stripe_fee_fixed`, priority #9; default 2.9 % + 30 c); aún no es per-tenant ni per-método de pago.
 - ❌ Splits por importes absolutos (en lugar de porcentajes).
 - ❌ Reglas de split condicionales (p. ej. distinto porcentaje según tipo de producto, categoría, o monto del pedido).
 - ❌ Actualización de una regla existente (solo crear + desactivar; no hay PATCH de regla).
@@ -70,6 +70,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Propagación de `tenant_id`, `sub_tenant_id`, `split_rule_id` en `metadata` de Stripe para trazabilidad.
 - ✅ `automatic_payment_methods: { enabled: true }` para que Stripe seleccione el método óptimo.
 - ✅ Persistencia de la transacción en `splitpay_core.transactions` con estado inicial y `platform_fee`.
+- ✅ `transfer_group` explícito en `paymentIntents.create` + columna `transactions.transfer_group`; los transfers adicionales y el lookup de reversals usan ese grupo (integridad de reversals proporcionales).
+- ✅ `app_id` propagado en `metadata` del PaymentIntent para resolver eventos splitpay en webhooks.
 - 🔧 Solo destinatario primario via `transfer_data`; los adicionales se despachan en el webhook `payment_intent.succeeded` (mayor latencia, riesgo de fallo parcial no recuperado).
 - ❌ Separate charges & transfers (modelo alternativo para mayor control sobre timing de fees y destinos múltiples desde el momento del cargo).
 - ❌ Destination charges (cobro directamente contra la cuenta Connect del merchant, no la de la plataforma).
@@ -84,11 +86,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Transferencias adicionales (recipients 2…N) creadas en `createAdditionalTransfers` disparado por `payment_intent.succeeded`.
 - ✅ Idempotencia de cada transfer individual: clave `tr_{paymentId}_{accountId}`.
 - ✅ Log de error por transferencia fallida sin detener las restantes.
-- 🔧 El `netAmount` para calcular las transferencias adicionales usa un fee de Stripe hardcodeado (2.9 % + 30 c) que puede no coincidir con la tarifa real negociada.
+- ✅ Evento Redis `splitpay.transfer.failed` por cada transferencia adicional fallida (la app de origen puede alertar/reintentar).
+- ✅ El `netAmount` para las transferencias adicionales usa la tarifa de Stripe configurable (`config.getFeeConfig`, priority #9), con fallback al default 2.9 % + 30 c.
 - 🔧 No se persiste en BD el estado de cada transfer individual; si falla, no hay reintento automático.
 - ❌ Reintento automático de transferencias fallidas (job scheduler `platform-scheduler` o evento Redis).
 - ❌ Modelo "separate charges & transfers": cargo a plataforma + N transfers independientes (más flexible para splits asimétricos).
-- ❌ Transfer group explícito para agrupar todos los transfers de un mismo pago y facilitar conciliación.
+- ✅ Transfer group explícito para agrupar todos los transfers de un mismo pago y facilitar conciliación.
 - ❌ N-vendedores dinámico: split calculado en runtime según participantes del pedido (marketplace de N vendedores con cantidades variables por vendedor).
 
 ## 7. Checkout Sessions
@@ -100,7 +103,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Persistencia en `splitpay_core.checkout_sessions`; obtener por ID (`GET /:id`).
 - ✅ Evento Redis `splitpay.checkout.created` publicado en `platform.events`.
 - 🔧 No se persiste el `amount` conocido hasta que llega el webhook `checkout.session.completed`.
-- ❌ Listado paginado de sesiones por tenant (solo existe `GET /:id`).
+- ✅ Listado de sesiones por tenant (`GET /v1/splitpay/checkout-sessions?limit`) — priority #6.
 - ❌ Expiración explícita de la sesión (campo `expires_at` de Stripe) ni manejo del estado `expired`.
 - ❌ Recuperación de sesiones abandonadas (cobros de abandono de carrito vía webhook `checkout.session.expired`).
 - ❌ Customer portal para autogestión de suscripciones (Stripe Billing Portal).
@@ -116,10 +119,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `stripe.transfers.createReversal` por cada transfer con idempotencia `rev_{idempotencyKey}_{transferId}`.
 - ✅ Idempotencia del refund con clave Redis 24 h.
 - ✅ Motivo del reembolso: `duplicate`, `fraudulent`, `requested_by_customer`.
-- 🔧 Los transfers se leen de Stripe via `stripe.transfers.list({ transfer_group })` pero el `transfer_group` no se setea explícitamente al crear el PaymentIntent, lo cual puede dar resultados incorrectos si hay transfers de distintos orígenes.
+- ✅ Los transfers se leen de Stripe via `stripe.transfers.list({ transfer_group })` usando el `transfer_group` explícito de la transacción (fallback al PaymentIntent id para filas legacy).
 - ❌ Reembolso parcial con distribución personalizada (p.ej. devolver solo la parte de un recipient).
-- ❌ Persistencia del reembolso en BD (no hay tabla `refunds`; solo log + evento Redis).
-- ❌ Evento Redis `splitpay.refund.created` para notificar a la app de origen.
+- ✅ Persistencia del reembolso en BD (tabla `refunds` con `transaction_id`, `stripe_refund_id`, `amount`, `reason`, `reversals` JSON, `idempotency_key`; RLS por tenant).
+- ✅ Evento Redis `splitpay.refund.created` para notificar a la app de origen.
 - ❌ Reembolso desde Checkout Session (flujo diferente al de PaymentIntent directo).
 - ❌ Crédito en lugar de reembolso (Stripe balance credit al cliente).
 
@@ -128,9 +131,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Clave de idempotencia obligatoria (`idempotencyKey`) en `CreatePaymentIntentSchema` y `CreateRefundSchema`.
 - ✅ Verificación en Redis antes de ejecutar (`checkIdempotency`), almacenamiento del resultado tras éxito (`storeIdempotency`, TTL 24 h).
 - ✅ Clave de idempotencia propagada a Stripe: `pi_{key}` para PaymentIntent, `ref_{key}` para Refund, `tr_{paymentId}_{accountId}` para cada Transfer, `rev_{key}_{transferId}` para cada Reversal.
-- 🔧 La clave la genera y gestiona el caller; el módulo no valida formato ni unicidad entre tenants (un `key` podría colisionar si dos apps distintas usan la misma cadena).
-- ❌ Idempotencia para la creación de Checkout Sessions (no hay campo `idempotencyKey` en el schema de checkout).
-- ❌ Namespacing de la clave por `(tenant_id, idempotency_key)` para evitar colisiones cross-tenant.
+- 🔧 La clave la genera y gestiona el caller; en pagos/refunds aún se usan los helpers no-scoped (`pi_`/`ref_`). Los helpers tenant-scoped (`checkIdempotencyScoped`/`storeIdempotencyScoped`) ya existen para extenderlo.
+- ✅ Idempotencia para la creación de Checkout Sessions (campo `idempotencyKey` en el schema): replay tenant-scoped vía columna `checkout_sessions.idempotency_key` (UNIQUE `(tenant_id, idempotency_key)`) + clave Stripe `cs_{tenantId}_{key}` (priority #8).
+- 🔧 Namespacing de la clave por `(tenant_id, idempotency_key)` — implementado en Checkout Sessions y disponible como helpers `*Scoped` para pagos/refunds (priority #8).
 - ❌ Audit de claves ya usadas (para detectar reutilización indebida de claves).
 
 ## 10. Webhooks y verificación de firma
@@ -141,7 +144,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Secreto de webhook cargado desde BD (`getWebhookSecret`) con fallback a env var.
 - ✅ Eventos soportados: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`, `account.updated`, `charge.dispute.created`, `charge.dispute.closed`, `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`.
 - 🔧 El procesamiento en background no tiene dead-letter queue ni reintento; un error es solo logueado.
-- ❌ Deduplicación de eventos webhook por `event.id` (Stripe puede entregar el mismo evento más de una vez).
+- ✅ Deduplicación de eventos webhook por `event.id` (tabla `processed_webhook_events` + `INSERT … ON CONFLICT DO NOTHING`; un replay del mismo evento se descarta sin side-effects).
 - ❌ Soporte para `payment_method.attached` / `customer.created` / `payout.paid` / `transfer.failed`.
 - ❌ Endpoint separado por app/tenant con su propio secret (hoy un único endpoint para toda la plataforma).
 - ❌ Alerta de latencia o fallo de webhooks (monitoreo del lag entre `event.created` y procesamiento).
@@ -156,16 +159,16 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Caso especial `platform_subscription`: también publica en `platform.events` para que `tenant-config` actualice el estado del tenant.
 - 🔧 Si `app_id` no está presente en el metadata, el evento se descarta con `logger.warn` (posible pérdida silenciosa).
 - ❌ `splitpay.payment.succeeded` / `splitpay.payment.failed` (PaymentIntents directos, no Checkout) no emiten evento Redis hacia la app de origen.
-- ❌ `splitpay.refund.created` — las apps no son notificadas de reembolsos.
-- ❌ `splitpay.dispute.created` / `splitpay.dispute.closed` — las apps no son notificadas de chargebacks.
-- ❌ `splitpay.transfer.failed` — no hay evento cuando una transferencia adicional falla.
+- ✅ `splitpay.refund.created` — las apps son notificadas de reembolsos (incluye reversals aplicados).
+- 🔧 `splitpay.dispute.created` — emitido cuando hay chargeback con tenant resuelto; `splitpay.dispute.closed` aún no.
+- ✅ `splitpay.transfer.failed` — evento cuando una transferencia adicional falla.
 
 ## 12. Gestión de disputas (chargebacks)
 
 - ✅ Registro de disputa en `splitpay_core.disputes` al recibir `charge.dispute.created` (campos: `stripe_dispute_id`, `stripe_charge_id`, `amount`, `currency`, `reason`, `status`, `due_by`).
 - ✅ Actualización de estado al recibir `charge.dispute.closed`.
 - ✅ Índice para consulta rápida de disputas `needs_response`.
-- 🔧 La tabla `disputes` no tiene `tenant_id` — no está aislada por tenant ni por app; cualquier disputa del webhook queda en la tabla global.
+- ✅ La tabla `disputes` ahora tiene `app_id` / `tenant_id` / `sub_tenant_id` (resueltos desde la transacción del `payment_intent` del chargeback) + RLS por tenant. Las disputas sin transacción origen quedan con scoping NULL (ocultas a usuarios normales).
 - ❌ API de consulta de disputas para el staff (`GET /v1/splitpay/admin/disputes`).
 - ❌ Submission de evidencia desde el portal (`stripe.disputes.update` con `evidence`).
 - ❌ Alerta automática al merchant/staff cuando se crea una disputa (REUSE `platform/notifications`).
@@ -194,7 +197,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `application_fee_amount` calculado sobre el neto (gross − stripe_fee) × `platform_fee_percent`.
 - ✅ Aritmética entera en todo el split engine para evitar drift por coma flotante.
 - ✅ El último recipient recibe el resto exacto para absorber el centavo del redondeo.
-- 🔧 La tarifa de Stripe está hardcodeada (2.9 % + 30 c); no refleja tarifas negociadas ni varía por método de pago.
+- 🔧 La tarifa de Stripe es configurable globalmente (`config.stripe_fee_percent`/`stripe_fee_fixed`, priority #9); aún no varía por método de pago ni por tenant.
 - ❌ Fee calculado sobre el gross (antes de Stripe fee) como opción alternativa.
 - ❌ Fee fijo por transacción (en lugar de o adicional a un porcentaje).
 - ❌ Fee escalado por volumen (tiers).
@@ -213,7 +216,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 16. Configuración runtime (admin)
 
-- ✅ Tabla `splitpay_core.config` con claves `platform_account_id`, `stripe_secret_key`, `stripe_publishable_key`, `stripe_webhook_secret`.
+- ✅ Tabla `splitpay_core.config` con claves `platform_account_id`, `stripe_secret_key`, `stripe_publishable_key`, `stripe_webhook_secret`, `stripe_fee_percent`, `stripe_fee_fixed` (las dos últimas, priority #9, configuran la tarifa de Stripe sin redeploy).
 - ✅ Valores sensibles cifrados en reposo con AES-256-GCM via `@apphub/platform-sdk/crypto`.
 - ✅ `GET /v1/splitpay/admin/config` y `PATCH /v1/splitpay/admin/config` con guard `super_admin|staff`.
 - ✅ `reloadStripeFromDb()` tras PATCH para que el cliente Stripe use las nuevas credenciales sin redeploy.
@@ -229,8 +232,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Comentario en tabla con hint de particionado por `tenant_id` para volúmenes altos.
 - ✅ Listado de pagos con cursor-based pagination (`GET /v1/splitpay/payments?limit&cursor`).
 - 🔧 No hay tabla de transfers individuales en BD; solo existen en Stripe. La reconciliación requiere llamar a la API de Stripe.
-- 🔧 No hay tabla de reembolsos en BD.
-- ❌ Export CSV / XLSX de transacciones por rango de fechas.
+- ✅ Tabla de reembolsos en BD (`refunds`): traza `transaction_id`, `stripe_refund_id`, `amount`, `reason`, `reversals` aplicados e `idempotency_key`.
+- ✅ Export CSV de transacciones por rango de fechas (`GET /v1/splitpay/payments/export.csv?from&to&limit`) — priority #6.
 - ❌ Reconciliación diaria automática contra el balance de Stripe (diferencias → alerta; REUSE `platform-scheduler`).
 - ❌ Ledger contable: asientos dobles por transacción (débito/crédito) para cierre contable.
 - ❌ Dashboard de ingresos de plataforma (application fees acumuladas por tenant/periodo).
@@ -251,13 +254,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **`transfer_group` explícito** en `stripe.paymentIntents.create` — corrige el lookup de transfers en `createRefund`; impacto directo en la integridad de los reversals proporcionales (regla crítica de plataforma). Coste: 2 líneas.
-2. **Deduplicación de eventos webhook por `event.id`** — Stripe puede entregar el mismo evento múltiples veces; sin dedup, `createAdditionalTransfers` se ejecuta dos veces para el mismo pago. Coste: tabla `processed_webhook_events(id)` + ON CONFLICT DO NOTHING.
-3. **`tenant_id` en tabla `disputes`** — sin este campo las disputas no están aisladas por tenant; consultar disputas de otro tenant es posible con acceso directo a BD. Coste: migración + política RLS.
-4. **Evento `splitpay.refund.created` + `splitpay.transfer.failed`** — las apps de origen no saben cuándo hay un reembolso o una transferencia fallida; necesitan reaccionar (marcar pedido, alertar al merchant). REUSE del bus `publish(redis, appId, …)` ya implementado.
+1. ~~**`transfer_group` explícito** en `stripe.paymentIntents.create` — corrige el lookup de transfers en `createRefund`; impacto directo en la integridad de los reversals proporcionales (regla crítica de plataforma). Coste: 2 líneas.~~ ✅ **Implementado** (migración 0007 + payment.service).
+2. ~~**Deduplicación de eventos webhook por `event.id`** — Stripe puede entregar el mismo evento múltiples veces; sin dedup, `createAdditionalTransfers` se ejecuta dos veces para el mismo pago. Coste: tabla `processed_webhook_events(id)` + ON CONFLICT DO NOTHING.~~ ✅ **Implementado** (migración 0007 + webhook.service `markEventProcessed`).
+3. ~~**`tenant_id` en tabla `disputes`** — sin este campo las disputas no están aisladas por tenant; consultar disputas de otro tenant es posible con acceso directo a BD. Coste: migración + política RLS.~~ ✅ **Implementado** (migración 0008: `app_id`/`tenant_id`/`sub_tenant_id` + RLS; scoping resuelto desde la transacción del chargeback).
+4. ~~**Evento `splitpay.refund.created` + `splitpay.transfer.failed`** — las apps de origen no saben cuándo hay un reembolso o una transferencia fallida; necesitan reaccionar (marcar pedido, alertar al merchant). REUSE del bus `publish(redis, appId, …)` ya implementado.~~ ✅ **Implementado** (+ `splitpay.dispute.created`). Requiere `app_id` en el metadata del PaymentIntent (ahora propagado).
 5. **Dashboard link (Connect embedded components)** — permite al merchant ver su saldo, payouts y disputas en el propio portal sin redirigir a Stripe Express Dashboard. Altamente demandado en marketplaces.
-6. **Listado y export de transacciones** + **reconciliación diaria** via `platform-scheduler` → alerta de diferencias con Stripe balance. Debloquea cierre contable.
-7. **Tabla `refunds` en BD** — trazabilidad completa de quién pidió el reembolso, cuándo y por qué, ligada a la transacción y a los reversals individuales.
-8. **Idempotencia de Checkout Sessions** + **namespacing de claves por `(tenant_id, key)`** — evita colisiones cross-tenant y duplicados de sesiones.
-9. **Tarifa de Stripe configurable por método de pago / región** — eliminar el hardcode de 2.9 % + 30 c que hace incorrecto el cálculo de recipients adicionales en muchos países europeos.
+6. 🔧 ~~**Listado y export de transacciones**~~ ✅ **Implementado** (`GET /payments/export.csv` + `GET /checkout-sessions`; migración no requerida) + **reconciliación diaria** via `platform-scheduler` → alerta de diferencias con Stripe balance (pendiente, cross-cutting con scheduler). Debloquea cierre contable.
+7. ~~**Tabla `refunds` en BD** — trazabilidad completa de quién pidió el reembolso, cuándo y por qué, ligada a la transacción y a los reversals individuales.~~ ✅ **Implementado** (migración 0007 + `payment.repository.insertRefund`).
+8. ~~**Idempotencia de Checkout Sessions** + **namespacing de claves por `(tenant_id, key)`**~~ ✅ **Implementado** (migración 0009: `checkout_sessions.idempotency_key` + índice UNIQUE `(tenant_id, idempotency_key)`; replay tenant-scoped + clave Stripe `cs_{tenantId}_{key}`; helpers `*Scoped` en `lib/redis.js` para extender a pagos/refunds).
+9. ~~**Tarifa de Stripe configurable por método de pago / región**~~ 🔧 **Implementado a nivel global** (migración 0009: claves `stripe_fee_percent`/`stripe_fee_fixed` en `config`; `split-engine` y `payment.service` resuelven el fee con fallback al default). Falta el desglose per-método-de-pago / per-tenant.
 10. **Cancelación / pausa de suscripciones desde el portal** + **Customer Portal** — imprescindible para apps SaaS o de membresía que usen `mode=subscription`.

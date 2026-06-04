@@ -59,4 +59,18 @@ describe('list', () => {
     await repo.list(c2, { limit: -5 })
     expect(c2.query.mock.calls[0][1]).toEqual([1])
   })
+
+  it('cursor before → añade ts < $n (#10)', async () => {
+    const c = mockClient([])
+    await repo.list(c, { tenantId: 't1', before: '2026-06-01T00:00:00Z', limit: 50 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/tenant_id = \$1 AND ts < \$2/)
+    expect(params).toEqual(['t1', '2026-06-01T00:00:00Z', 50])
+  })
+
+  it('sin args → default limit 100 (rama default param)', async () => {
+    const c = mockClient([])
+    await repo.list(c)
+    expect(c.query.mock.calls[0][1]).toEqual([100])
+  })
 })

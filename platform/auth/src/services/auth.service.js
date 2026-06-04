@@ -9,12 +9,40 @@ import * as userRepo from '../repositories/user.repository.js'
 import * as resetRepo from '../repositories/password-reset.repository.js'
 import * as activationRepo from '../repositories/activation-token.repository.js'
 import * as magicLinkRepo from '../repositories/magic-link.repository.js'
+import * as authEventRepo from '../repositories/auth-event.repository.js'
 import { AppError, ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors.js'
 
 const REFRESH_TTL = env.PLATFORM_JWT_REFRESH_DAYS * 24 * 60 * 60
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function redisKey(appId, tenantId, userId, refreshToken) {
   return `${appId}:${tenantId}:refresh:${userId}:${refreshToken}`
+}
+
+function sha256(plain) {
+  return crypto.createHash('sha256').update(plain, 'utf8').digest('hex')
+}
+
+// Registro de auditoría best-effort: nunca debe romper el flujo de
+// autenticación que lo origina. Usa su propia conexión + staff bypass para
+// poder escribir aunque el caller no tenga (app_id, tenant_id) en contexto
+// (p.ej. login fallido con email inexistente). Errores se tragan a propósito.
+export async function recordEvent({ appId, tenantId, userId = null, eventType, result = 'success', ip = null, userAgent = null, metadata = null }) {
+  if (!appId || !tenantId) return
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(`SELECT set_config('app.app_id',       '__audit__',                            true)`)
+    await client.query(`SELECT set_config('app.tenant_id',    '00000000-0000-0000-0000-000000000000', true)`)
+    await client.query(`SELECT set_config('app.staff_access', 'true',                                 true)`)
+    await authEventRepo.create(client, { id: uuidv4(), appId, tenantId, userId, eventType, result, ip, userAgent, metadata })
+    await client.query('COMMIT')
+  } catch {
+    await client.query('ROLLBACK').catch(() => {})
+  } finally {
+    client.release()
+  }
 }
 
 function signAccess(user) {
@@ -112,7 +140,7 @@ async function resolveUserTenant(client, email) {
   return { appId: rows[0].app_id, tenantId: rows[0].tenant_id }
 }
 
-export async function login({ appId, tenantId, email, password }) {
+export async function login({ appId, tenantId, email, password, ip = null, userAgent = null }) {
   const client = await pool.connect()
   let committed = false
   try {
@@ -151,6 +179,7 @@ export async function login({ appId, tenantId, email, password }) {
       await userRepo.incrementFailedAttempts(client, user.id)
       await client.query('COMMIT')
       committed = true
+      await recordEvent({ appId, tenantId, userId: user.id, eventType: 'login', result: 'failure', ip, userAgent, metadata: { reason: 'bad_password' } })
       throw new UnauthorizedError('Invalid credentials')
     }
     await userRepo.resetFailedAttempts(client, user.id)
@@ -160,6 +189,7 @@ export async function login({ appId, tenantId, email, password }) {
     const accessToken = signAccess(user)
     const refreshToken = uuidv4()
     await redis.setex(redisKey(appId, tenantId, user.id, refreshToken), REFRESH_TTL, '1')
+    await recordEvent({ appId, tenantId, userId: user.id, eventType: 'login', result: 'success', ip, userAgent })
     return { accessToken, refreshToken, userId: user.id, role: user.role }
   } catch (err) {
     if (!committed) await client.query('ROLLBACK').catch(() => {})
@@ -192,6 +222,43 @@ export async function refresh({ appId, tenantId, userId, refreshToken }) {
   }
 }
 
+// Logout explícito (recomendación #2): invalida UN refresh token concreto
+// del usuario autenticado. Idempotente — borrar un token inexistente no
+// es error. `appId`/`tenantId`/`userId` salen del JWT, no del body, así que
+// un user sólo puede cerrar sus propias sesiones.
+export async function logout({ appId, tenantId, userId, refreshToken, ip = null, userAgent = null }) {
+  const key = redisKey(appId, tenantId, userId, refreshToken)
+  await redis.del(key)
+  await recordEvent({ appId, tenantId, userId, eventType: 'logout', ip, userAgent })
+  return { revoked: 1 }
+}
+
+// Logout global: borra TODOS los refresh tokens del usuario (cerrar todas
+// las sesiones). Mismo barrido por patrón Redis que usa resetPassword.
+export async function logoutAll({ appId, tenantId, userId, ip = null, userAgent = null }) {
+  const pattern = `${appId}:${tenantId}:refresh:${userId}:*`
+  const keys = await redis.keys(pattern)
+  if (keys.length) await redis.del(...keys)
+  await recordEvent({ appId, tenantId, userId, eventType: 'logout_all', ip, userAgent, metadata: { revoked: keys.length } })
+  return { revoked: keys.length }
+}
+
+// Listado de sesiones activas del usuario — una por refresh token vivo en
+// Redis. No exponemos el token completo; sólo un sufijo para identificarlo
+// más un TTL restante. Insumo para una futura "revocación selectiva".
+export async function listSessions({ appId, tenantId, userId }) {
+  const prefix = `${appId}:${tenantId}:refresh:${userId}:`
+  const keys = await redis.keys(`${prefix}*`)
+  const sessions = []
+  for (const key of keys) {
+    const token = key.slice(prefix.length)
+    let ttl = null
+    try { ttl = await redis.ttl(key) } catch { ttl = null }
+    sessions.push({ tokenSuffix: token.slice(-8), ttlSeconds: ttl })
+  }
+  return sessions
+}
+
 export async function forgotPassword({ appId, tenantId, email }) {
   const client = await pool.connect()
   try {
@@ -202,11 +269,14 @@ export async function forgotPassword({ appId, tenantId, email }) {
       await client.query('ROLLBACK')
       return // silent — no email enumeration
     }
-    const token = uuidv4()
+    // El token plano (secreto enviado por email) es aleatorio de 32 bytes;
+    // sólo guardamos su SHA-256. `id` es una PK independiente, no el secreto.
+    const plainToken = crypto.randomBytes(32).toString('base64url')
+    const tokenHash  = sha256(plainToken)
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1h
-    await resetRepo.createReset(client, { id: token, userId: user.id, appId, tenantId, expiresAt })
+    await resetRepo.createReset(client, { id: uuidv4(), userId: user.id, appId, tenantId, tokenHash, expiresAt })
     await client.query('COMMIT')
-    await publish({ type: 'auth.password_reset_requested', payload: { userId: user.id, email, token, appId, tenantId } })
+    await publish({ type: 'auth.password_reset_requested', payload: { userId: user.id, email, token: plainToken, appId, tenantId } })
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
     throw err
@@ -219,17 +289,24 @@ export async function resetPassword({ token, newPassword }) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const reset = await resetRepo.findValidReset(client, token)
+    // Camino seguro: verificación por hash. Las filas legacy (pre-0010,
+    // token_hash=NULL) sólo se resuelven por `id` UUID — único caso en que
+    // el token entrante es un UUID. Pasada 1h no quedan filas legacy válidas.
+    let reset = await resetRepo.findValidByHash(client, sha256(token))
+    if (!reset && UUID_RE.test(token)) {
+      reset = await resetRepo.findValidLegacyById(client, token)
+    }
     if (!reset) throw new UnauthorizedError('Invalid or expired reset token')
     await setTenantContext(client, reset.app_id, reset.tenant_id, null)
     const passwordHash = await bcrypt.hash(newPassword, 12)
     await userRepo.updatePassword(client, reset.user_id, passwordHash)
-    await resetRepo.markResetUsed(client, token)
+    await resetRepo.markResetUsed(client, reset.id)
     await client.query('COMMIT')
     // Invalidate all refresh tokens for this user
     const pattern = `${reset.app_id}:${reset.tenant_id}:refresh:${reset.user_id}:*`
     const keys = await redis.keys(pattern)
     if (keys.length) await redis.del(...keys)
+    await recordEvent({ appId: reset.app_id, tenantId: reset.tenant_id, userId: reset.user_id, eventType: 'password.reset' })
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {})
     throw err
@@ -364,6 +441,7 @@ export async function loginWithMagicLink({ token }) {
     const accessToken  = signAccess(fullUser)
     const refreshToken = uuidv4()
     await redis.setex(redisKey(fullUser.app_id, fullUser.tenant_id, fullUser.id, refreshToken), REFRESH_TTL, '1')
+    await recordEvent({ appId: fullUser.app_id, tenantId: fullUser.tenant_id, userId: fullUser.id, eventType: 'magic_link.login', result: 'success' })
     return { accessToken, refreshToken, userId: user.id, role: user.role }
   } catch (err) {
     if (!committed) await client.query('ROLLBACK').catch(() => {})

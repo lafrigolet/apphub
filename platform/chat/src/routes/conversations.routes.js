@@ -67,6 +67,11 @@ const createInviteBody = z.object({
   expiresAt: z.string().datetime().optional(),
 })
 const threadQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(100) })
+const scheduledQuery = z.object({
+  conversationId: uuid.optional(),
+  limit:          z.coerce.number().int().min(1).max(200).default(100),
+})
+const rescheduleBody = z.object({ scheduledFor: z.string().datetime() })
 const publicQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
 const attachBody = z.object({
   objectId:     uuid,
@@ -207,6 +212,25 @@ export async function memberRoutes(fastify) {
   fastify.get('/unread', {
     schema: { tags: TAG, summary: 'Global unread summary across my conversations' },
   }, async (req) => ({ data: await msgService.unread(ctx(req)) }))
+
+  // ── scheduled messages (my pending queue) ──────────────────────────────────
+  fastify.get('/scheduled', {
+    schema: { tags: TAG, summary: 'List my pending scheduled messages', querystring: scheduledQuery },
+  }, async (req) => {
+    const q = scheduledQuery.parse(req.query ?? {})
+    return { data: await msgService.listScheduled(ctx(req), q) }
+  })
+
+  fastify.patch('/scheduled/:mid', {
+    schema: { tags: TAG, summary: 'Reschedule one of my pending scheduled messages', body: rescheduleBody },
+  }, async (req) => {
+    const body = rescheduleBody.parse(req.body ?? {})
+    return { data: await msgService.rescheduleScheduled(ctx(req), req.params.mid, body.scheduledFor) }
+  })
+
+  fastify.delete('/scheduled/:mid', {
+    schema: { tags: TAG, summary: 'Cancel one of my pending scheduled messages' },
+  }, async (req) => ({ data: await msgService.cancelScheduled(ctx(req), req.params.mid) }))
 
   // ── pins ───────────────────────────────────────────────────────────────────
   fastify.put('/conversations/:id/messages/:mid/pin', {

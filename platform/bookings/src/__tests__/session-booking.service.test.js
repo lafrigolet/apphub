@@ -80,6 +80,31 @@ describe('createBookingForSession', () => {
     await expect(createBooking(ctx, { sessionId: SESS })).rejects.toMatchObject({ statusCode: 422 })
   })
 
+  it('cliente ya inscrito a la sesión → 409 (no doble inscripción)', async () => {
+    repo.loadServiceSession.mockResolvedValue(scheduledSession)
+    repo.loadServiceFor.mockResolvedValue(eventService)
+    repo.clientAlreadyEnrolled.mockResolvedValue(true)
+    await expect(createBooking(ctx, { sessionId: SESS })).rejects.toMatchObject({
+      statusCode: 409, message: expect.stringContaining('already enrolled'),
+    })
+    // No debe siquiera comprobar capacidad ni insertar.
+    expect(repo.insertBookingForSession).not.toHaveBeenCalled()
+  })
+
+  it('comprueba doble inscripción con el clientUserId resuelto (body override)', async () => {
+    repo.loadServiceSession.mockResolvedValue(scheduledSession)
+    repo.loadServiceFor.mockResolvedValue(eventService)
+    repo.clientAlreadyEnrolled.mockResolvedValue(false)
+    repo.countBookingsForSession.mockResolvedValue(0)
+    repo.insertBookingForSession.mockResolvedValue({
+      id: 'b9', status: 'confirmed', service_id: SVC, session_id: SESS, client_user_id: 'other',
+      starts_at: scheduledSession.starts_at, ends_at: scheduledSession.ends_at,
+    })
+    repo.findById.mockResolvedValue({ id: 'b9', status: 'confirmed' })
+    await createBooking(ctx, { sessionId: SESS, clientUserId: 'other' })
+    expect(repo.clientAlreadyEnrolled).toHaveBeenCalledWith(expect.anything(), APP, TENANT, SESS, 'other')
+  })
+
   it('session llena (taken >= capacity) → 409', async () => {
     repo.loadServiceSession.mockResolvedValue(scheduledSession)
     repo.loadServiceFor.mockResolvedValue(eventService)

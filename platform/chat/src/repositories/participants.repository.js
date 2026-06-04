@@ -75,6 +75,18 @@ export async function leave(client, conversationId, userId, when) {
   return rows[0] ?? null
 }
 
+// GDPR erase: mark the user as having left every conversation they were in.
+// Returns the distinct conversation ids touched so the caller can fan out.
+export async function leaveAllForUser(client, userId, when) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.conversation_participants SET left_at = $2
+       WHERE user_id = $1 AND left_at IS NULL
+       RETURNING conversation_id`,
+    [userId, when],
+  )
+  return rows.map((r) => r.conversation_id)
+}
+
 // Distinct user ids that share at least one active conversation with `userId`
 // (excluding the user themself). Used to broadcast presence transitions.
 export async function coParticipantUserIds(client, userId) {

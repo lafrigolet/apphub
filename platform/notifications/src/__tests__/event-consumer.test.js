@@ -18,6 +18,11 @@ vi.mock('../services/email.service.js', () => ({
   sendPasswordResetEmail: vi.fn(),
 }))
 
+// Idempotency + preference gates: claim always succeeds, nothing muted, so
+// these tests keep exercising the original dispatch behaviour.
+vi.mock('../services/idempotency.service.js', () => ({ claimEvent: vi.fn().mockResolvedValue(true) }))
+vi.mock('../services/preferences.service.js', () => ({ isMuted: vi.fn().mockResolvedValue(false) }))
+
 // Capture the Redis message handler so we can call it directly in tests
 let capturedMessageHandler
 vi.mock('ioredis', () => ({

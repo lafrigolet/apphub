@@ -4,12 +4,19 @@ import { logger } from '../lib/logger.js'
 import * as repo       from '../repositories/donations.repository.js'
 import * as causesRepo from '../repositories/causes.repository.js'
 import * as subsRepo   from '../repositories/donation-subscriptions.repository.js'
+import { normalizeNif, isValidNif } from '../lib/nif.js'
 import {
   AppError, ConflictError, ForbiddenError, NotFoundError, ValidationError,
 } from '@apphub/platform-sdk/errors'
 
 const ADMIN_ROLES = new Set(['owner', 'admin', 'staff', 'super_admin'])
 const MIN_AMOUNT_CENTS = 100  // 1€
+
+// Devuelve hoy en formato DATE (YYYY-MM-DD) — para comparar con las
+// columnas DATE starts_at / ends_at de las causas (sin componente hora).
+function todayDate() {
+  return new Date().toISOString().slice(0, 10)
+}
 
 function requireAdmin(identity) {
   if (!identity?.userId) throw new ForbiddenError()
@@ -49,6 +56,14 @@ export async function createCheckout(input, { bearerToken } = {}) {
     throw new ValidationError(`amountCents debe ser entero ≥ ${MIN_AMOUNT_CENTS}`)
   }
 
+  // Normaliza y valida el NIF en ingesta. Un NIF inválido se rechaza
+  // aquí (no en el momento del modelo 182) para evitar errores AEAT
+  // posteriores; el NIF es opcional, sólo se valida si viene.
+  const normalizedNif = normalizeNif(donorNif)
+  if (normalizedNif && !isValidNif(normalizedNif)) {
+    throw new ValidationError('donorNif no es un NIF/NIE/CIF español válido')
+  }
+
   // 1) Crea el row pending y obtiene su id ANTES de Stripe, para
   //    metérselo en metadata y poder reconciliar en el webhook.
   let donation
@@ -58,12 +73,19 @@ export async function createCheckout(input, { bearerToken } = {}) {
       const cause = await causesRepo.findById(c, causeId)
       if (!cause) throw new NotFoundError('Cause')
       if (!cause.active) throw new ConflictError('La causa no está activa')
+      // Ventana de apertura/cierre: starts_at/ends_at son DATE; si la
+      // causa aún no ha abierto o ya cerró, rechazamos el checkout.
+      const today = todayDate()
+      const startsAt = cause.starts_at ? String(cause.starts_at).slice(0, 10) : null
+      const endsAt   = cause.ends_at   ? String(cause.ends_at).slice(0, 10)   : null
+      if (startsAt && today < startsAt) throw new ConflictError('La causa aún no está abierta')
+      if (endsAt   && today > endsAt)   throw new ConflictError('La causa ya está cerrada')
       causeName = cause.name
     }
     donation = await repo.insert(c, {
       appId, tenantId, subTenantId: subTenantId ?? null, causeId: causeId ?? null,
       donorUserId: donorUserId ?? null, donorEmail, donorName: donorName ?? null,
-      donorNif: donorNif ?? null,
+      donorNif: normalizedNif,
       donorAddress: donorAddress ?? null,
       donorPostalCode: donorPostalCode ?? null,
       donorCountry: donorCountry ?? null,

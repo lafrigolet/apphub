@@ -6,7 +6,9 @@
 
 Modelo de datos completo persistido en `platform_verifactu` (RLS por `app_id` + `tenant_id`): tablas `registros`, `eventos`, `lotes`, `clientes`, `certificados`, `config`, `cotejos`. Algoritmo de huella SHA-256 encadenada para registros de alta, anulación y eventos del SIF (lib/huella.js). Verificación del enlace de la cadena (lib/cadena.js). Generación de URL de cotejo + QR data-URI (lib/cotejo.js + lib/qr.js). Validación estructural pre-remisión (lib/validacion.js). Scaffold del envelope SOAP + cliente mTLS gateado por certificado (lib/soap-envelope.js + lib/remision.js). Endpoints públicos para emisor, asesoría, administrador y receptor (`GET/POST /v1/verifactu/*`). Modalidad única Veri\*Factu (NO\_VERI\*FACTU descartada en migración 0006). NIF del obligado emisor en `config` (migración 0003). Huella encadenada en eventos (migración 0005). Identidad del SIF en lib/sif.js (productor, versión, nº instalación).
 
-**Piezas stubbed / pendientes de specs AEAT:** orden exacto de campos de la huella (vector de test oficial no verificado), firma XAdES (no implementada), WSDL/XSD oficiales del SOAP (namespaces ilustrativos), colas de remisión/reintentos/DLQ, cotejo externo contra la Sede AEAT, nivel de corrección de errores del QR, catálogo de tipos de evento (Orden HAC/1177/2024 no extraída de fuente oficial).
+Orden exacto de campos de la huella de **RegistroAlta blindado contra el VECTOR DE TEST OFICIAL de la AEAT** (ejemplo `89890001K / 12345678/G33` → `3C46…2F60`, `src/__tests__/huella.test.js` · "vector oficial AEAT").
+
+**Piezas stubbed / pendientes de specs AEAT:** firma XAdES (no implementada), WSDL/XSD oficiales del SOAP (namespaces ilustrativos), colas de remisión/reintentos/DLQ, cotejo externo contra la Sede AEAT, nivel de corrección de errores del QR, catálogo de tipos de evento (Orden HAC/1177/2024 no extraída de fuente oficial), vector oficial de RegistroAnulacion/RegistroEvento (el doc AEAT solo publica el ejemplo de alta).
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -19,7 +21,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Referencia a la huella anterior (`huellaAnterior = NULL` en el primer registro → primer eslabón de la cadena).
 - ✅ Persistencia de `huella` + `huella_anterior` + `qr_url` en `registros`.
 - ✅ `IDEmisorFactura` = NIF del obligado (de `config.nif_obligado`), no el NIF del cliente receptor.
-- 🔧 Orden de campos de la huella reconstruido de documentación pública — **pendiente de blindar con el vector de test oficial de la AEAT** antes de producción.
+- ✅ Orden de campos de la huella de RegistroAlta **blindado contra el vector de test oficial de la AEAT** (ejemplo `89890001K / 12345678/G33` → digest `3C464DAF…F38F12F60`; `src/__tests__/huella.test.js`). ~~pendiente de blindar con el vector de test oficial~~.
 - 🔧 `FechaHoraHusoGenRegistro` usa `new Date().toISOString()` (UTC `Z`) — verificar si la AEAT acepta offset `+00:00` o exige el huso local del sistema.
 - ❌ Validación completa contra el XSD oficial de la AEAT (E2) — solo validación estructural propia.
 - ❌ Soporte de todos los tipos de factura AEAT (F2 rectificativa por sustitución, F3 resumen, R1–R5, …).
@@ -33,8 +35,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Algoritmo de huella para `tipo = 'anulacion'` (`cadenaAnulacion` — campos distintos de alta: `IDEmisorFacturaAnulada`, `NumSerieFacturaAnulada`, `FechaExpedicionFacturaAnulada`).
 - ✅ Dispatcher `calcularHuella` selecciona el algoritmo correcto según `tipo`.
 - ✅ `tipo` persistido en `registros` con CHECK `('alta','anulacion')`.
-- 🔧 Sin endpoint dedicado para anulación — el `POST /registros` acepta `tipo` en el body pero carece de validación de que el `num_serie` referenciado exista.
-- ❌ Reglas de negocio: impedir anular una factura ya anulada; requerir referencia al registro de alta original; devolver error si el registro no consta en la cadena del tenant.
+- 🔧 Sin endpoint dedicado para anulación — el `POST /registros` con `tipo='anulacion'` ya valida la referencia (`numSerieAnulada`/`numSerie`).
+- ✅ Reglas de negocio: `ANULACION_SIN_REF` (sin referencia), `ANULACION_NO_CONSTA` (la factura no consta en la cadena del obligado), `ANULACION_DUPLICADA` (ya anulada). ~~❌~~
 - ❌ Flujo de anulación parcial o sustitución (rectificativa R1–R5).
 
 ## 3. Cadena de huellas encadenadas (hash chain)
@@ -44,10 +46,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `GET /v1/verifactu/cadena` — devuelve los últimos registros con su `huella` y `anterior` para visualización del portal.
 - ✅ `GET /v1/verifactu/cadena/verificar` — recorre hasta 1 000 registros y valida que cada `huella_anterior` apunta exactamente a la huella del registro previo (`verificarEnlace`); detecta roturas.
 - ✅ Cadena de eventos del SIF también encadenada desde migración 0005 (`huella`+`huella_anterior` en `eventos`).
-- 🔧 `verificarEnlace` comprueba el encadenamiento declarado pero **no recalcula la huella** de cada registro (exige `FechaHoraHusoGenRegistro` persistido + modelo de campos completo — TODO A1).
-- ❌ Recálculo completo de la cadena (full re-hash) para auditoría de inalterabilidad.
-- ❌ Detección de registros interpolados / insertados retroactivamente.
-- ❌ Exportación de la cadena completa en formato AEAT para peritaje.
+- 🔧 `verificarEnlace` comprueba el encadenamiento declarado pero **no recalcula la huella** de cada registro (eso lo hace ahora `recalcularCadena`, ver abajo).
+- ✅ Recálculo completo de la cadena (full re-hash) para auditoría de inalterabilidad — `GET /v1/verifactu/cadena/recalcular` (`recalcularCadena` recomputa cada huella desde campos canónicos y la compara con la persistida). ~~❌~~
+- ✅ Detección de registros interpolados / insertados retroactivamente (el re-hash rompe el encadenamiento recalculado, no solo el declarado). ~~❌~~
+- ✅ Exportación de la cadena completa (registros + eventos + identidad SIF) en JSON — `GET /v1/verifactu/exportar`. ~~❌~~ (formato AEAT XML para peritaje sigue pendiente)
 
 ## 4. Firma electrónica XAdES
 
@@ -177,11 +179,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 14. Series de facturación
 
-- 🔧 `num_serie` soporta formato libre (`2027-A/000128`) pero sin gestión de series como entidad.
-- 🔧 `numero` es secuencia simple global por tenant — no por serie.
-- ❌ Tabla `series` con `prefijo`, `ejercicio`, `siguiente_numero`, activa/inactiva.
-- ❌ Validación de que el `num_serie` de un nuevo registro pertenece a una serie activa y su número es el correlativo esperado.
-- ❌ Cierre de serie al final del ejercicio fiscal con bloqueo de nuevas inserciones.
+- ✅ Tabla `series` (migración 0007) con `codigo`, `ejercicio`, `siguiente`, `activa`; endpoints `GET/POST /v1/verifactu/series` + `POST /v1/verifactu/series/:codigo/cerrar`. ~~❌~~
+- ✅ Reserva atómica del correlativo (`reservarNumeroSerie` con `SELECT … FOR UPDATE`) → `num_serie` `CODIGO/000042` sin huecos ni colisiones.
+- ✅ Validación de que el `num_serie` pertenece a una serie ACTIVA (serie inexistente/cerrada → `SERIE_INACTIVA`). ~~❌~~
+- ✅ Cierre de serie con bloqueo de nuevas inserciones (`cerrarSerie` → `activa=false`; reservar sobre serie cerrada devuelve null). ~~❌~~
+- 🔧 `numero` sigue siendo la secuencia global por tenant (posición en la cadena), distinta del correlativo por serie.
 - ❌ Múltiples series simultáneas (ventas, rectificativas, exportación, intracomunitarias).
 - ❌ Numeración correlativa con gaps: detección de huecos en la numeración e inscripción en el evento de anomalía.
 
@@ -196,9 +198,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 16. Exportación legal y backup del SIF
 
-- ❌ `GET /v1/verifactu/exportar` — descarga de todos los registros, eventos y metadatos del tenant en formato definido por la AEAT para entrega a la Administración.
+- ✅ `GET /v1/verifactu/exportar` — vuelca todos los registros, eventos y metadatos del tenant (JSON). ~~❌~~ (formato XML AEAT oficial pendiente)
 - ❌ Firma del fichero de exportación con el certificado del obligado.
-- ❌ Registro automático del evento `EXPORTACION` en la cadena de eventos al exportar.
+- ✅ Registro automático del evento `EXPORTACION` encadenado al exportar (`exportar` inserta el evento antes de devolver). ~~❌~~
 - ❌ Backup automático programado (REUSE `platform/scheduler`) con hash del fichero para restauración verificable.
 - ❌ Restauración verificable: al restaurar un backup, registrar evento `RESTAURACION` con referencia al fichero.
 - ❌ Retención mínima legal (4 años en España) con purga automática de ejercicios fuera de plazo.
@@ -222,14 +224,14 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Migración de endpoints a autenticación con `appGuard` + `requireRole` cuando el portal implemente login.
 - ❌ Endpoints de escritura (`POST /registros`, `POST /eventos`, `PATCH /config`) gateados por `staff` o `super_admin`.
 - ❌ Audit log de accesos/mutaciones (quién creó cada registro, quién exportó, quién cambió config).
-- ❌ Inalterabilidad reforzada: impedir `UPDATE`/`DELETE` directo en `registros` mediante reglas PG o trigger que registre el intento como evento `ANOMALIA`.
+- ✅ Inalterabilidad reforzada: trigger `deny_mutation` (migración 0007) bloquea `UPDATE`/`DELETE` sobre `registros` y `eventos` a nivel de motor (append-only). ~~❌~~ (registrar el intento como evento `ANOMALIA` sigue pendiente)
 - ❌ Trazabilidad `user_id` en cada registro de facturación (quién lo creó dentro del tenant).
 
 ---
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Blindar el vector de test de la huella** contra la fuente oficial AEAT — sin esto el módulo no puede ir a producción; es el riesgo mayor con coste acotado (un test con el vector publicado por la AEAT).
+1. ✅ ~~**Blindar el vector de test de la huella** contra la fuente oficial AEAT~~ — HECHO: el RegistroAlta reproduce exactamente el digest del ejemplo oficial AEAT (`89890001K / 12345678/G33` → `3C464DAF…F38F12F60`), blindado en `src/__tests__/huella.test.js` ("vector oficial AEAT" + "vector de encadenamiento"). Pendiente sólo el vector oficial de anulación/evento (el doc AEAT no los publica).
 2. **Firma XAdES** — requisito legal para Veri\*Factu; desbloquea toda la cadena de remisión. Usar `xmldsig-core` o librería equivalente; la clave privada del PKCS#12 ya se lee en `lib/remision.js`.
 3. **Cola de remisión + worker + actualización de `estado_remision`** — conectar `crearRegistro` al flujo real: insertar en cola → job del scheduler → `remitir` → actualizar estado. Config `reintentos`/`dlq_enabled` ya está.
 4. **Autenticación JWT en endpoints de escritura** (`appGuard` + `requireRole`) — bloqueo de seguridad antes del lanzamiento a producción.

@@ -86,11 +86,12 @@ describe('insertAccrual', () => {
     await repo.insertAccrual(c, APP, TEN, { practitionerId: PRAC, grossCents: 1000, commissionCents: 300 })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_practitioner_payouts\.accruals/)
-    expect(params[3]).toBeNull()         // serviceId
-    expect(params[4]).toBeNull()         // bookingId
-    expect(params[7]).toBe('accrued')    // status default
-    expect(params[8]).toBeNull()         // occurredAt
-    expect(params[9]).toEqual({})        // metadata default
+    expect(params[3]).toBeNull()                  // serviceId
+    expect(params[4]).toBeNull()                  // bookingId
+    expect(params[7]).toBe('accrued')             // status default
+    expect(params[8]).toBe('booking_commission')  // type default
+    expect(params[9]).toBeNull()                  // occurredAt
+    expect(params[10]).toEqual({})                // metadata default
   })
 })
 
@@ -119,7 +120,8 @@ describe('findAccrualByBooking', () => {
   it('SELECT por booking_id con LIMIT 1; sin row → null', async () => {
     const c = mockClient([])
     expect(await repo.findAccrualByBooking(c, APP, TEN, 'b1')).toBeNull()
-    expect(c.query.mock.calls[0][0]).toMatch(/booking_id=\$3 LIMIT 1/)
+    expect(c.query.mock.calls[0][0]).toMatch(/booking_id=\$3 AND type='booking_commission'/)
+    expect(c.query.mock.calls[0][0]).toMatch(/LIMIT 1/)
     expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'b1'])
   })
 })
@@ -142,9 +144,14 @@ describe('insertPayout', () => {
     })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_practitioner_payouts\.payouts/)
-    expect(params[6]).toBe('EUR')      // currency default
-    expect(params[7]).toBe('pending')  // status default
-    expect(params[8]).toBeNull()       // notes
+    expect(params[5]).toBe(5000)        // total_commission_cents
+    expect(params[6]).toBe(5000)        // gross_commission_cents (defaults to total)
+    expect(params[7]).toBe(0)           // withholding_pct default
+    expect(params[8]).toBe(0)           // withholding_cents default
+    expect(params[9]).toBe(5000)        // net_commission_cents (defaults to total)
+    expect(params[10]).toBe('EUR')      // currency default
+    expect(params[11]).toBe('pending')  // status default
+    expect(params[12]).toBeNull()       // notes
   })
 })
 

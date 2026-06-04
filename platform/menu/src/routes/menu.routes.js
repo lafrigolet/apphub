@@ -1,18 +1,38 @@
 import { z } from 'zod'
 import * as service from '../services/menu.service.js'
 
+const TAGS = ['menu']
+
+// Controlled vocabulary — the 14 allergens declared by EU Regulation 1169/2011.
+export const EU_ALLERGENS = [
+  'gluten', 'crustaceans', 'eggs', 'fish', 'peanuts', 'soybeans', 'milk',
+  'nuts', 'celery', 'mustard', 'sesame', 'sulphites', 'lupin', 'molluscs',
+]
+const allergenCode = z.enum(EU_ALLERGENS)
+const allergensArray = z.array(allergenCode)
+
+const COURSE_TYPES = ['starter', 'main', 'dessert', 'drink', 'side', 'combo', 'other']
+
 const menuBody = z.object({
   name:        z.string().min(1).max(128),
   description: z.string().max(1024).optional(),
   isActive:    z.boolean().optional(),
 })
 
+const menuPatchBody = menuBody.partial().refine(
+  (o) => Object.keys(o).length > 0, { message: 'empty patch' },
+)
+
 const categoryBody = z.object({
   menuId:       z.string().uuid(),
   name:         z.string().min(1).max(128),
-  courseType:   z.enum(['starter','main','dessert','drink','side','combo','other']),
+  courseType:   z.enum(COURSE_TYPES),
   displayOrder: z.number().int().optional(),
 })
+
+const categoryPatchBody = categoryBody.partial().omit({ menuId: true }).refine(
+  (o) => Object.keys(o).length > 0, { message: 'empty patch' },
+)
 
 const itemBody = z.object({
   categoryId:      z.string().uuid(),
@@ -21,10 +41,10 @@ const itemBody = z.object({
   description:     z.string().max(1024).optional(),
   priceCents:      z.number().int().min(0),
   currency:        z.string().length(3).optional(),
-  courseType:      z.enum(['starter','main','dessert','drink','side','combo','other']).optional(),
+  courseType:      z.enum(COURSE_TYPES).optional(),
   station:         z.string().max(64).optional(),
   prepTimeSeconds: z.number().int().positive().optional(),
-  allergens:       z.array(z.string()).optional(),
+  allergens:       allergensArray.optional(),
   badges:          z.array(z.string()).optional(),
   photoUrl:        z.string().url().optional(),
   photoObjectId:   z.string().uuid().optional(),
@@ -32,7 +52,8 @@ const itemBody = z.object({
   metadata:        z.record(z.any()).optional(),
 })
 
-const itemPatchBody = itemBody.partial().omit({ categoryId: true, sku: true })
+// PATCH allows moving an item to another category (categoryId), but not the SKU.
+const itemPatchBody = itemBody.partial().omit({ sku: true })
 
 const availabilityBody = z.object({
   scopeType:    z.enum(['menu','category','item']),
@@ -42,6 +63,10 @@ const availabilityBody = z.object({
   endMinute:    z.number().int().min(0).max(1440),
   label:        z.string().max(64).optional(),
 })
+
+const availabilityPatchBody = availabilityBody.partial().omit({ scopeType: true, scopeId: true }).refine(
+  (o) => Object.keys(o).length > 0, { message: 'empty patch' },
+)
 
 function ctxFromRequest(req) {
   return {
@@ -62,6 +87,31 @@ export async function menuRoutes(fastify) {
   fastify.get('/v1/menu/menus', async (req) => service.listMenus(ctxFromRequest(req)))
   fastify.get('/v1/menu/menus/:id', async (req) => service.getMenu(ctxFromRequest(req), req.params.id))
 
+  fastify.patch('/v1/menu/menus/:id', {
+    schema: {
+      tags: TAGS,
+      summary: 'Update a menu (name, description, active flag)',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' }, description: { type: 'string' }, isActive: { type: 'boolean' },
+        },
+      },
+    },
+  }, async (req) => {
+    const body = menuPatchBody.parse(req.body)
+    return service.updateMenu(ctxFromRequest(req), req.params.id, body)
+  })
+
+  fastify.delete('/v1/menu/menus/:id', {
+    schema: {
+      tags: TAGS,
+      summary: 'Soft-delete a menu',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+    },
+  }, async (req) => service.deleteMenu(ctxFromRequest(req), req.params.id))
+
   fastify.post('/v1/menu/menus/:id/publish', async (req) =>
     service.publishMenu(ctxFromRequest(req), req.params.id),
   )
@@ -70,10 +120,46 @@ export async function menuRoutes(fastify) {
     service.listAvailableItems(ctxFromRequest(req), req.params.id),
   )
 
+  fastify.get('/v1/menu/menus/:id/available-now', {
+    schema: {
+      tags: TAGS,
+      summary: 'List items available right now (evaluates availability windows)',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+      querystring: { type: 'object', properties: { at: { type: 'string', description: 'ISO timestamp; defaults to now (UTC)' } } },
+    },
+  }, async (req) => service.listItemsAvailableNow(ctxFromRequest(req), req.params.id, req.query?.at))
+
   fastify.post('/v1/menu/categories', async (req, reply) => {
     const body = categoryBody.parse(req.body)
     return reply.status(201).send(await service.createCategory(ctxFromRequest(req), body))
   })
+
+  fastify.patch('/v1/menu/categories/:id', {
+    schema: {
+      tags: TAGS,
+      summary: 'Update a category (name, course type, display order)',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          courseType: { type: 'string', enum: COURSE_TYPES },
+          displayOrder: { type: 'integer' },
+        },
+      },
+    },
+  }, async (req) => {
+    const body = categoryPatchBody.parse(req.body)
+    return service.updateCategory(ctxFromRequest(req), req.params.id, body)
+  })
+
+  fastify.delete('/v1/menu/categories/:id', {
+    schema: {
+      tags: TAGS,
+      summary: 'Soft-delete a category (cascades to its items)',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+    },
+  }, async (req) => service.deleteCategory(ctxFromRequest(req), req.params.id))
 
   fastify.post('/v1/menu/items', async (req, reply) => {
     const body = itemBody.parse(req.body)
@@ -84,6 +170,14 @@ export async function menuRoutes(fastify) {
     const body = itemPatchBody.parse(req.body)
     return service.updateItem(ctxFromRequest(req), req.params.id, body)
   })
+
+  fastify.delete('/v1/menu/items/:id', {
+    schema: {
+      tags: TAGS,
+      summary: 'Soft-delete a menu item',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+    },
+  }, async (req) => service.deleteItem(ctxFromRequest(req), req.params.id))
 
   fastify.post('/v1/menu/items/:id/eighty-six', async (req) =>
     service.eightySixItem(ctxFromRequest(req), req.params.id),
@@ -96,4 +190,59 @@ export async function menuRoutes(fastify) {
     const body = availabilityBody.parse(req.body)
     return reply.status(201).send(await service.createAvailabilityWindow(ctxFromRequest(req), body))
   })
+
+  fastify.get('/v1/menu/availability-windows', {
+    schema: {
+      tags: TAGS,
+      summary: 'List availability windows, optionally filtered by scope',
+      querystring: {
+        type: 'object',
+        properties: {
+          scopeType: { type: 'string', enum: ['menu', 'category', 'item'] },
+          scopeId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+  }, async (req) => {
+    const filter = {}
+    if (req.query?.scopeType !== undefined) filter.scopeType = req.query.scopeType
+    if (req.query?.scopeId !== undefined) filter.scopeId = req.query.scopeId
+    return service.listAvailabilityWindows(ctxFromRequest(req), filter)
+  })
+
+  fastify.patch('/v1/menu/availability-windows/:id', {
+    schema: {
+      tags: TAGS,
+      summary: 'Update an availability window (days, minute range, label)',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+      body: {
+        type: 'object',
+        properties: {
+          daysOfWeek: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 6 } },
+          startMinute: { type: 'integer', minimum: 0, maximum: 1439 },
+          endMinute: { type: 'integer', minimum: 0, maximum: 1440 },
+          label: { type: 'string' },
+        },
+      },
+    },
+  }, async (req) => {
+    const body = availabilityPatchBody.parse(req.body)
+    return service.updateAvailabilityWindow(ctxFromRequest(req), req.params.id, body)
+  })
+
+  fastify.delete('/v1/menu/availability-windows/:id', {
+    schema: {
+      tags: TAGS,
+      summary: 'Delete an availability window',
+      params: { type: 'object', properties: { id: { type: 'string', format: 'uuid' } }, required: ['id'] },
+    },
+  }, async (req) => service.deleteAvailabilityWindow(ctxFromRequest(req), req.params.id))
+
+  fastify.get('/v1/menu/allergens', {
+    schema: {
+      tags: TAGS,
+      summary: 'List the controlled vocabulary of EU 1169/2011 allergens',
+    },
+    config: { public: true },
+  }, async () => ({ allergens: EU_ALLERGENS }))
 }

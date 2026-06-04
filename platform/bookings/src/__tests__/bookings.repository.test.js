@@ -290,3 +290,79 @@ describe('waitlist', () => {
     expect(await repo.updateWaitlistStatus(c2, APP, TENANT, 'w1', 'notified')).toBeNull()
   })
 })
+
+// ── clientAlreadyEnrolled ───────────────────────────────────────────
+
+describe('clientAlreadyEnrolled', () => {
+  it('true cuando hay inscripción viva', async () => {
+    const c = mockClient([{ '?column?': 1 }])
+    const r = await repo.clientAlreadyEnrolled(c, APP, TENANT, 'sess1', 'u1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/session_id = \$3/)
+    expect(sql).toMatch(/client_user_id = \$4/)
+    expect(sql).toMatch(/status NOT IN/)
+    expect(params).toEqual([APP, TENANT, 'sess1', 'u1'])
+    expect(r).toBe(true)
+  })
+
+  it('false cuando no hay filas', async () => {
+    const c = mockClient([])
+    expect(await repo.clientAlreadyEnrolled(c, APP, TENANT, 'sess1', 'u1')).toBe(false)
+  })
+})
+
+// ── promoteOldestWaiting ────────────────────────────────────────────
+
+describe('promoteOldestWaiting', () => {
+  it('sin resourceId → no añade filtro de recurso; FIFO + SKIP LOCKED', async () => {
+    const c = mockClient([{ id: 'w1', status: 'notified' }])
+    const r = await repo.promoteOldestWaiting(c, APP, TENANT, { serviceId: SVC })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET status = 'notified'/)
+    expect(sql).toMatch(/status = 'waiting'/)
+    expect(sql).toMatch(/ORDER BY created_at/)
+    expect(sql).toMatch(/FOR UPDATE SKIP LOCKED/)
+    expect(sql).not.toMatch(/resource_id IS NULL OR resource_id/)
+    expect(params).toEqual([APP, TENANT, SVC])
+    expect(r).toEqual({ id: 'w1', status: 'notified' })
+  })
+
+  it('con resourceId → filtra resource_id NULL o match ($4)', async () => {
+    const c = mockClient([{ id: 'w1' }])
+    await repo.promoteOldestWaiting(c, APP, TENANT, { serviceId: SVC, resourceId: RES })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/resource_id IS NULL OR resource_id = \$4/)
+    expect(params).toEqual([APP, TENANT, SVC, RES])
+  })
+
+  it('sin entrada elegible → null', async () => {
+    const c = mockClient([])
+    expect(await repo.promoteOldestWaiting(c, APP, TENANT, { serviceId: SVC })).toBeNull()
+  })
+})
+
+// ── recurrences read ────────────────────────────────────────────────
+
+describe('listRecurrences / findRecurrenceById', () => {
+  it('listRecurrences → app+tenant, LIMIT por defecto 200', async () => {
+    const c = mockClient([{ id: 'r1' }])
+    await repo.listRecurrences(c, APP, TENANT)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/FROM platform_bookings\.recurrences/)
+    expect(sql).toMatch(/ORDER BY created_at DESC/)
+    expect(params).toEqual([APP, TENANT, 200])
+  })
+
+  it('listRecurrences respeta limit', async () => {
+    const c = mockClient([])
+    await repo.listRecurrences(c, APP, TENANT, { limit: 5 })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TENANT, 5])
+  })
+
+  it('findRecurrenceById → row o null', async () => {
+    const c = mockClient([{ id: 'r1' }])
+    expect(await repo.findRecurrenceById(c, APP, TENANT, 'r1')).toEqual({ id: 'r1' })
+    const c2 = mockClient([])
+    expect(await repo.findRecurrenceById(c2, APP, TENANT, 'r1')).toBeNull()
+  })
+})

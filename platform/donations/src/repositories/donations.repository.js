@@ -110,6 +110,34 @@ export async function listAdmin(client, { causeId, status, fromDate, toDate, lim
   return rows
 }
 
+// Años (distintos) en que un NIF tiene donativos pagados — para el
+// cálculo de la fidelización (tramo 40 % a partir de 3 años consecutivos).
+export async function listDonationYearsForNif(client, donorNif) {
+  const { rows } = await client.query(
+    `SELECT DISTINCT EXTRACT(YEAR FROM paid_at)::int AS year
+       FROM ${SCHEMA}.donations
+      WHERE donor_nif = $1
+        AND status = 'paid'
+        AND paid_at IS NOT NULL
+      ORDER BY year`,
+    [donorNif],
+  )
+  return rows.map((r) => r.year)
+}
+
+// Total pagado por un NIF en un ejercicio (céntimos). 0 si no hay.
+export async function totalForNifAndYear(client, donorNif, year) {
+  const { rows } = await client.query(
+    `SELECT COALESCE(SUM(amount_cents), 0)::bigint AS total_cents
+       FROM ${SCHEMA}.donations
+      WHERE donor_nif = $1
+        AND status = 'paid'
+        AND EXTRACT(YEAR FROM paid_at) = $2`,
+    [donorNif, year],
+  )
+  return Number(rows[0]?.total_cents ?? 0)
+}
+
 // Listado para certificado fiscal: agrupa por donor_nif para un año.
 export async function listByNifAndYear(client, year) {
   const { rows } = await client.query(

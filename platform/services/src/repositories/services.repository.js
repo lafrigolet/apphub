@@ -7,12 +7,12 @@ export async function insert(client, appId, tenantId, s) {
         duration_minutes, buffer_before_minutes, buffer_after_minutes,
         price_cents, currency, cancellation_policy,
         requires_intake_form, intake_form_id, capacity, min_age, metadata, is_active,
-        kind, public_catalog)
+        kind, public_catalog, min_advance_minutes, max_advance_days)
      VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8,'in_person'),
              $9,COALESCE($10,0),COALESCE($11,0),
              COALESCE($12,0),COALESCE($13,'EUR'),COALESCE($14,'{}'::jsonb),
              COALESCE($15,FALSE),$16,COALESCE($17,1),$18,COALESCE($19,'{}'::jsonb),COALESCE($20,TRUE),
-             COALESCE($21,'appointment'),COALESCE($22,FALSE))
+             COALESCE($21,'appointment'),COALESCE($22,FALSE),COALESCE($23,0),$24)
      RETURNING *`,
     [
       appId, tenantId, s.subTenantId ?? null, s.code, s.name, s.description ?? null, s.category ?? null,
@@ -22,6 +22,7 @@ export async function insert(client, appId, tenantId, s) {
       s.requiresIntakeForm ?? false, s.intakeFormId ?? null,
       s.capacity ?? 1, s.minAge ?? null, s.metadata ?? {}, s.isActive ?? true,
       s.kind ?? 'appointment', s.publicCatalog ?? false,
+      s.minAdvanceMinutes ?? 0, s.maxAdvanceDays ?? null,
     ],
   )
   return rows[0]
@@ -56,6 +57,7 @@ export async function update(client, appId, tenantId, id, patch) {
     requiresIntakeForm: 'requires_intake_form', intakeFormId: 'intake_form_id',
     capacity: 'capacity', minAge: 'min_age', metadata: 'metadata', isActive: 'is_active',
     kind: 'kind', publicCatalog: 'public_catalog',
+    minAdvanceMinutes: 'min_advance_minutes', maxAdvanceDays: 'max_advance_days',
   }
   const sets = []
   const params = [appId, tenantId, id]
@@ -167,4 +169,59 @@ export async function deletePricingTier(client, appId, tenantId, tierId) {
     [appId, tenantId, tierId],
   )
   return rowCount > 0
+}
+
+// ── i18n translations ─────────────────────────────────────────────────────
+
+export async function listTranslations(client, appId, tenantId, serviceId) {
+  const { rows } = await client.query(
+    `SELECT id, service_id, locale, name, description, created_at, updated_at
+       FROM platform_services.service_translations
+       WHERE app_id=$1 AND tenant_id=$2 AND service_id=$3
+       ORDER BY locale`,
+    [appId, tenantId, serviceId],
+  )
+  return rows
+}
+
+// Upsert: a (service_id, locale) pair is unique. Re-posting the same locale
+// overwrites name/description rather than erroring — translations are a
+// natural "set this value" operation.
+export async function upsertTranslation(client, appId, tenantId, serviceId, { locale, name, description }) {
+  const { rows } = await client.query(
+    `INSERT INTO platform_services.service_translations
+       (app_id, tenant_id, service_id, locale, name, description)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (app_id, tenant_id, service_id, locale)
+       DO UPDATE SET name = EXCLUDED.name,
+                     description = EXCLUDED.description,
+                     updated_at = now()
+     RETURNING id, service_id, locale, name, description, created_at, updated_at`,
+    [appId, tenantId, serviceId, locale, name ?? null, description ?? null],
+  )
+  return rows[0]
+}
+
+export async function deleteTranslation(client, appId, tenantId, serviceId, locale) {
+  const { rowCount } = await client.query(
+    `DELETE FROM platform_services.service_translations
+       WHERE app_id=$1 AND tenant_id=$2 AND service_id=$3 AND locale=$4`,
+    [appId, tenantId, serviceId, locale],
+  )
+  return rowCount > 0
+}
+
+// Map of serviceId → { name, description } for one locale, used to localize
+// the public catalog in a single round trip.
+export async function translationsForServices(client, appId, tenantId, serviceIds, locale) {
+  if (!serviceIds.length) return new Map()
+  const { rows } = await client.query(
+    `SELECT service_id, name, description
+       FROM platform_services.service_translations
+       WHERE app_id=$1 AND tenant_id=$2 AND locale=$3 AND service_id = ANY($4::uuid[])`,
+    [appId, tenantId, locale, serviceIds],
+  )
+  const map = new Map()
+  for (const r of rows) map.set(r.service_id, { name: r.name, description: r.description })
+  return map
 }

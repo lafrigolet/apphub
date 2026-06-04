@@ -59,7 +59,9 @@ import * as checkoutRepo from '../repositories/checkout-session.repository.js'
 import { syncAccountFromStripe } from '../services/connect-account.service.js'
 import { createAdditionalTransfers } from '../services/payment.service.js'
 
-function mkClient(query = vi.fn().mockResolvedValue({ rows: [] })) {
+// Default query mock returns rowCount: 1 so the dedup INSERT into
+// processed_webhook_events is treated as a fresh event (rowCount > 0).
+function mkClient(query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 })) {
   return { query, release: vi.fn() }
 }
 
@@ -219,7 +221,8 @@ describe('invoice.paid', () => {
   })
 
   it('lookup checkout_sessions por subscription + emit con periodStart/End ISO', async () => {
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ tenant_id: 't1', sub_tenant_id: null, metadata: { app_id: 'aikikan' } }],
     })))
     await handleWebhookEvent({
@@ -244,7 +247,8 @@ describe('invoice.paid', () => {
     // Cubre: línea 214 subscription?.id, 219 appId pre-resuelto desde invoice.metadata,
     // 229 sess.metadata ?? {} (falsy), 230 appId || ... (skip), 240 customer?.id ?? null,
     // 243/244 period_start/end ausentes → null.
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ tenant_id: 't7', sub_tenant_id: 'st1', metadata: null }],
     })))
     await handleWebhookEvent({
@@ -266,7 +270,8 @@ describe('invoice.paid', () => {
   })
 
   it('customer null → customerId null (rama ?? null)', async () => {
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ tenant_id: 't1', sub_tenant_id: null, metadata: { app_id: 'aikikan' } }],
     })))
     await handleWebhookEvent({
@@ -292,7 +297,8 @@ describe('invoice.payment_failed', () => {
   })
 
   it('lookup checkout_sessions + emit splitpay.invoice.payment_failed', async () => {
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ app_id: 'aikikan', tenant_id: 't1', metadata: { app_id: 'aikikan' } }],
     })))
     await handleWebhookEvent({
@@ -319,7 +325,8 @@ describe('invoice.payment_failed', () => {
     // invoice.metadata?.app_id ausente, pero subscription_details.metadata.app_id presente:
     // ejercita el 2º operando del `||` en la línea 254. Además rows[0] existe y
     // appId ya está resuelto → línea 264 `appId || ...` por el lado truthy.
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ app_id: 'otra', tenant_id: 't9', metadata: { app_id: 'otra' } }],
     })))
     await handleWebhookEvent({
@@ -339,7 +346,8 @@ describe('invoice.payment_failed', () => {
   it('sin app_id en ningún sitio + rows sin metadata.app_id → appId null', async () => {
     // invoice sin metadata ni subscription_details; rows[0] sin metadata.app_id:
     // línea 264 cae al `|| null`. emit con appId null no publica (warn).
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ tenant_id: 't1', metadata: {} }],
     })))
     await handleWebhookEvent({
@@ -369,7 +377,8 @@ describe('emit — publish error tolerante', () => {
 
 describe('customer.subscription.updated / deleted', () => {
   it('updated → emit splitpay.subscription.updated', async () => {
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ app_id: 'aikikan', tenant_id: 't1', metadata: { app_id: 'aikikan' } }],
     })))
     await handleWebhookEvent({
@@ -388,7 +397,8 @@ describe('customer.subscription.updated / deleted', () => {
   })
 
   it('deleted → emit splitpay.subscription.deleted', async () => {
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ tenant_id: 't1', metadata: { app_id: 'aikikan' } }],
     })))
     await handleWebhookEvent({
@@ -404,7 +414,8 @@ describe('customer.subscription.updated / deleted', () => {
     // sub.metadata?.app_id ausente (línea 280 → null) y appId se resuelve desde
     // rows[0].metadata.app_id (línea 290 lado derecho). Además sin
     // current_period_end (línea 302 → null) ni cancel_at_period_end (303 → false).
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ tenant_id: 't5', metadata: { app_id: 'aikikan' } }],
     })))
     await handleWebhookEvent({
@@ -421,7 +432,8 @@ describe('customer.subscription.updated / deleted', () => {
 
   it('sub sin app_id en ningún sitio (rows sin metadata.app_id) → appId null, no emit', async () => {
     // línea 290 cae al `|| null`: ni sub.metadata ni rows[0].metadata aportan app_id.
-    pool.connect.mockResolvedValueOnce(mkClient(vi.fn().mockResolvedValue({
+    pool.connect.mockResolvedValue(mkClient(vi.fn().mockResolvedValue({
+      rowCount: 1,
       rows: [{ tenant_id: 't1', metadata: {} }],
     })))
     await handleWebhookEvent({
@@ -434,44 +446,72 @@ describe('customer.subscription.updated / deleted', () => {
 
 // ── disputes ─────────────────────────────────────────────────────────
 
+// El dedup (markEventProcessed) hace su propio INSERT en
+// processed_webhook_events ANTES de despachar; con un client persistente
+// compartido ese INSERT ocupa query.mock.calls[0] y el handler de la disputa
+// usa calls[1].
+function disputeQueryCall(c) {
+  return c.query.mock.calls.find(([sql]) => /disputes/.test(sql))
+}
+
 describe('charge.dispute.created', () => {
-  it('INSERT en payments.disputes con ON CONFLICT DO NOTHING + warn', async () => {
+  it('INSERT en payments.disputes con ON CONFLICT DO NOTHING + scoping de tenant resuelto + warn', async () => {
     const c = mkClient()
-    pool.connect.mockResolvedValueOnce(c)
+    pool.connect.mockResolvedValue(c)
+    // Resuelve la transacción origen desde dispute.payment_intent → scoping.
+    paymentRepo.findPaymentByStripeId.mockResolvedValueOnce({
+      id: 'txn-1', tenantId: 't1', subTenantId: null,
+      metadata: { app_id: 'aikikan' },
+    })
     await handleWebhookEvent({
       id: 'evt_1', type: 'charge.dispute.created',
       data: { object: {
-        id: 'dp_1', charge: 'ch_1', amount: 5000, currency: 'eur',
+        id: 'dp_1', charge: 'ch_1', payment_intent: 'pi_1', amount: 5000, currency: 'eur',
         reason: 'fraudulent', status: 'needs_response',
         evidence_details: { due_by: 1700000000 },
       } },
     })
-    const [sql, params] = c.query.mock.calls[0]
+    const [sql, params] = disputeQueryCall(c)
     expect(sql).toMatch(/INSERT INTO payments\.disputes/)
-    expect(params).toEqual(['dp_1', 'ch_1', 5000, 'eur', 'fraudulent', 'needs_response', 1700000000])
+    // params: dispute_id, charge, payment_intent, transaction_id, app_id, tenant_id, sub_tenant_id, amount, currency, reason, status, due_by
+    expect(params).toEqual([
+      'dp_1', 'ch_1', 'pi_1', 'txn-1', 'aikikan', 't1', null,
+      5000, 'eur', 'fraudulent', 'needs_response', 1700000000,
+    ])
     expect(logger.warn).toHaveBeenCalled()
+    // priority #4 — notifica a la app de origen.
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', expect.objectContaining({
+      type: 'splitpay.dispute.created',
+    }))
   })
 
-  it('sin evidence_details.due_by → null', async () => {
+  it('PI desconocido (sin transacción) → fila con scoping NULL, sin emit', async () => {
     const c = mkClient()
-    pool.connect.mockResolvedValueOnce(c)
+    pool.connect.mockResolvedValue(c)
+    paymentRepo.findPaymentByStripeId.mockResolvedValueOnce(null)
     await handleWebhookEvent({
       id: 'evt_1', type: 'charge.dispute.created',
-      data: { object: { id: 'dp_2', charge: 'ch_2', amount: 1, currency: 'eur', reason: 'x', status: 'open' } },
+      data: { object: { id: 'dp_2', charge: 'ch_2', payment_intent: 'pi_x', amount: 1, currency: 'eur', reason: 'x', status: 'open' } },
     })
-    expect(c.query.mock.calls[0][1][6]).toBeNull()
+    const [, params] = disputeQueryCall(c)
+    // transaction_id, app_id, tenant_id, sub_tenant_id todos null; due_by null.
+    expect(params[3]).toBeNull()   // transaction_id
+    expect(params[4]).toBeNull()   // app_id
+    expect(params[5]).toBeNull()   // tenant_id
+    expect(params[11]).toBeNull()  // due_by
+    expect(publishMock).not.toHaveBeenCalled()
   })
 })
 
 describe('charge.dispute.closed', () => {
   it('UPDATE status de la disputa', async () => {
     const c = mkClient()
-    pool.connect.mockResolvedValueOnce(c)
+    pool.connect.mockResolvedValue(c)
     await handleWebhookEvent({
       id: 'evt_1', type: 'charge.dispute.closed',
       data: { object: { id: 'dp_1', status: 'won' } },
     })
-    const [sql, params] = c.query.mock.calls[0]
+    const [sql, params] = disputeQueryCall(c)
     expect(sql).toMatch(/UPDATE payments\.disputes SET status/)
     expect(params).toEqual(['won', 'dp_1'])
   })
@@ -508,6 +548,32 @@ describe('unhandled event types', () => {
 
 // ── Idempotencia por event.id — LÍMITE conocido ─────────────────────
 
-describe('event.id dedup', () => {
-  it.todo('replay del mismo event.id NO debe disparar emit dos veces (requiere processed_events table o Redis SETNX)')
+describe('event.id dedup (priority #2)', () => {
+  it('evento fresco (INSERT rowCount 1) → se procesa', async () => {
+    const c = mkClient()
+    pool.connect.mockResolvedValue(c)
+    await handleWebhookEvent({
+      id: 'evt_fresh', type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1', latest_charge: 'ch_1' } },
+    })
+    // primer query es el INSERT de dedup.
+    expect(c.query.mock.calls[0][0]).toMatch(/INSERT INTO payments\.processed_webhook_events/)
+    expect(createAdditionalTransfers).toHaveBeenCalled()
+  })
+
+  it('replay del mismo event.id (INSERT rowCount 0) → SKIP, no side-effects', async () => {
+    // Simula que la fila ya existía: ON CONFLICT DO NOTHING → rowCount 0.
+    const c = mkClient(vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }))
+    pool.connect.mockResolvedValue(c)
+    await handleWebhookEvent({
+      id: 'evt_dup', type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1', latest_charge: 'ch_1' } },
+    })
+    expect(paymentRepo.updatePaymentStatus).not.toHaveBeenCalled()
+    expect(createAdditionalTransfers).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: 'evt_dup' }),
+      expect.stringMatching(/Duplicate/),
+    )
+  })
 })

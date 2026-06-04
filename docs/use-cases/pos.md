@@ -4,7 +4,9 @@
 
 ## Estado actual (implementado)
 
-Apertura de cuenta (`POST /v1/pos/bills`) con `table_id`, `table_code`, `currency`, `notes` y `metadata`; adición de ítems con `sku`, `name`, `qty`, `unit_price_cents`, `modifiers` (JSONB), `course` y `notes`; recálculo automático de `subtotal/tax/total`; división de cuenta en modos `equal`, `percent` y `amounts`; registro de pagos con métodos `card`, `cash`, `wallet`, `voucher` y `external`, con `tip_cents` y `external_ref`; marcado de sub-splits como pagados y cierre automático de la cuenta cuando la suma de pagos cubre el total; cierre explícito (`POST /v1/pos/bills/:id/close`); RLS por `(app_id, tenant_id)` en las cuatro tablas; eventos Redis `pos.bill.opened`, `pos.bill.split`, `pos.bill.paid` y `pos.bill.closed`; tasa de impuesto fija 10 % configurable vía `metadata.taxRate`.
+Apertura de cuenta (`POST /v1/pos/bills`) con `table_id`, `table_code`, `currency`, `notes` y `metadata`; adición de ítems con `sku`, `name`, `qty`, `unit_price_cents`, `modifiers` (JSONB), `course` y `notes`; recálculo automático de `subtotal/tax/total`; división de cuenta en modos `equal`, `percent` y `amounts`; registro de pagos con métodos `card`, `cash`, `wallet`, `voucher` y `external`, con `tip_cents` y `external_ref`; marcado de sub-splits como pagados y cierre automático de la cuenta cuando la suma de pagos cubre el total; cierre explícito (`POST /v1/pos/bills/:id/close`); RLS por `(app_id, tenant_id)` en las tablas; eventos Redis `pos.bill.opened`, `pos.bill.split`, `pos.bill.paid` y `pos.bill.closed`; tasa de impuesto fija 10 % configurable vía `metadata.taxRate`.
+
+Añadido (casos de uso prioritarios, backend-only): cancelación de cuenta (`POST /:id/cancel`, audit `cancelled_by`/`cancel_reason`, evento `pos.bill.cancelled`); guard de roles `requireRole` en todas las rutas; envío a cocina desacoplado del cobro (`POST /:id/fire`, `fired_at` por ítem, eventos `pos.bill.item_added` y `pos.bill.fired`); sugerencias de propina + IVA por defecto por tenant (`pos_settings`, `GET/PUT /v1/pos/settings`, `tipSuggestions` en `GET /:id`); división por ítems (`split` mode `items`, tabla `bill_split_items`). Migración `0002_cancel_fire_tips_split_items.sql`.
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -20,7 +22,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Estado inicial `open`; `opened_at` = `now()`.
 - ✅ Evento `pos.bill.opened` publicado en `platform.events` con `billId` y `tableId`.
 - 🔧 No hay integración con `platform/floor-plan` para validar que la mesa existe o cambiar su estado a "ocupada".
-- 🔧 `metadata.taxRate` permite sobreescribir el IVA, pero no hay endpoint admin para configurar la tasa por tenant sin tocar el payload del cliente.
+- ✅ Tasa de IVA configurable por tenant sin tocar el payload: `pos_settings.default_tax_rate` (vía `PUT /v1/pos/settings`). Precedencia: `metadata.taxRate` de la cuenta → `default_tax_rate` del tenant → 10 % por defecto.
 - ❌ Tipos de cuenta diferenciados (dine-in, barra, takeaway, delivery, room-service) con flujos distintos.
 - ❌ Número de comensales (`covers`) como campo de primera clase.
 - ❌ Tiempo estimado de espera para takeaway/delivery al abrir.
@@ -45,8 +47,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 3. Envío a cocina (integración KDS)
 
 - ✅ Al pagar una cuenta, el evento `pos.bill.paid` incluye el array de ítems (`sku`, `name`, `qty`, `course`, `modifiers`) para que `platform/kds` los procese como comanda.
-- 🔧 El envío a cocina está acoplado al pago (evento `paid`): no existe un evento intermedio de "comanda enviada" separado del cobro, lo que no refleja el flujo real (primero se manda a cocina, luego se cobra).
-- ❌ Endpoint `POST /v1/pos/bills/:id/fire` para enviar la comanda a cocina sin cobrar — flujo dine-in estándar.
+- ✅ Envío a cocina desacoplado del pago: `POST /:id/fire` emite `pos.bill.fired` antes de cobrar. El evento `pos.bill.paid` sigue incluyendo items como red de seguridad (dine-in sin fire previo).
+- ✅ Endpoint `POST /v1/pos/bills/:id/fire` para enviar la comanda a cocina sin cobrar — flujo dine-in estándar. Marca `fired_at` por ítem (idempotente; relanza solo lo no disparado), acepta `itemIds` opcional para envío parcial, publica `pos.bill.fired` (con `orderId`/items para KDS).
 - ❌ Envío parcial por curso (estrella a cocina antes que el principal).
 - ❌ Reenvío de ítem a cocina (por si se perdió la comanda o necesita rehacerse).
 - ❌ Visualización del estado de cada ítem en cocina desde el POS (REUSE `platform/kds` estado de ticket).
@@ -72,8 +74,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Al pagar una sub-cuenta (`splitId` en el pago), se marca su `paid = TRUE`.
 - ✅ Cuando todos los splits están pagados, la cuenta pasa a `paid` automáticamente.
 - ✅ Evento `pos.bill.split` con `mode` y `count`.
-- 🔧 División solo soporta importes totales (no por ítems específicos asignados a cada comensal).
-- ❌ División por ítems: asignar cada línea de la cuenta a un comensal concreto (`split-by-item`).
+- ✅ División por ítems: asignar cada línea de la cuenta a un comensal concreto (`split-by-item`). Modo `items` con `assignments[].itemIds`; importe del share = subtotal de sus ítems + IVA proporcional; valida que cada ítem se asigne exactamente una vez y que se cubran todos. Asociaciones persistidas en `bill_split_items` y devueltas como `splits[].itemIds`.
 - ❌ Re-split: modificar los tramos después de haber dividido (un comensal se va y su parte la pagan los demás).
 - ❌ Merge de splits: fusionar varios tramos en uno solo.
 - ❌ Nombre/alias por comensal en cada split (para identificarlos en el display del camarero).
@@ -83,8 +84,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `tip_cents` en el pago (`bill_payments.tip_cents`) — se registra junto al método de pago.
 - ✅ `tip_cents` en la cuenta (`bills.tip_cents`) — reflejado en el total.
-- 🔧 La propina se registra manualmente en el payload del pago: no hay sugerencias automáticas ni porcentajes precalculados servidos por el API.
-- ❌ Sugerencias de propina configurables por tenant (p.ej. 5 %, 10 %, 15 %, libre) devueltas junto al total de la cuenta.
+- 🔧 La propina se registra manualmente en el payload del pago (sin terminal físico).
+- ✅ Sugerencias de propina configurables por tenant (p.ej. 5 %, 10 %, 15 %, libre) devueltas junto al total de la cuenta. `GET /v1/pos/bills/:id` incluye `tipSuggestions.options` (porcentaje → céntimos sobre el total) + `allowCustom`; configurables en `pos_settings` vía `GET/PUT /v1/pos/settings`.
 - ❌ Propina incluida automáticamente para grupos grandes (mínimo de comensales configurable).
 - ❌ Propina compartida entre camareros del turno (pool de propinas) — REUSE `platform/practitioner-payouts` para distribución.
 - ❌ Asignación de propina a camarero concreto (`server_user_id`) para reporting de propinas por empleado.
@@ -113,8 +114,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Estado `closed` con `closed_at` timestamp.
 - ✅ Estado `cancelled` en el CHECK (existe en la BD) aunque no hay endpoint de cancelación.
 - ✅ Evento `pos.bill.closed` con `totalCents`.
-- 🔧 No existe endpoint para cancelar una cuenta (`PATCH` a estado `cancelled`) — no implementado en el servicio.
-- ❌ Cancelación de cuenta con motivo y `cancelled_by` (camarero / manager).
+- ✅ Cancelación de cuenta con motivo y `cancelled_by`: `POST /v1/pos/bills/:id/cancel` (solo desde `open`/`split`), columnas `cancelled_by`+`cancel_reason`, requiere rol manager+, publica `pos.bill.cancelled`.
 - ❌ Reapertura de cuenta cerrada por error (solo por rol manager/super_admin).
 - ❌ Cuenta en espera (`on_hold`): cliente sale a fumar, mesa se libera temporalmente.
 - ❌ Transferencia de cuenta entre mesas (REUSE `platform/floor-plan` para marcar nueva mesa como ocupada).
@@ -205,9 +205,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 17. Gestión de empleados y permisos
 
-- 🔧 `role` del JWT se transporta en el contexto (`ctx.role`) pero no se aplica ningún guard de rol en las rutas actuales — cualquier token autenticado puede realizar cualquier operación.
-- ❌ Guard de acceso: solo `staff`/`manager`/`super_admin` puede abrir cuentas; `waiter` tiene vista limitada a sus mesas.
-- ❌ Permiso diferenciado para aplicar descuentos, cortesías, devoluciones y cancelaciones según rol.
+- ✅ Guard de acceso por rol (`requireRole` de `@apphub/platform-sdk`) en todas las rutas: roles de operación (waiter/server/cashier/staff/manager/admin/owner/super_admin) para abrir/añadir/dividir/cobrar/fire/cerrar; roles de gestión (manager/admin/owner/staff/super_admin) para cancelar cuentas y editar `pos_settings`.
+- 🔧 Permiso diferenciado por rol: cancelación ya restringida a manager+. Descuentos/cortesías/devoluciones aún no implementados (ver §4, §13).
 - ❌ PIN de camarero (rápido login en terminales compartidos sin sesión larga).
 - ❌ Listado de empleados activos con rol y turno asociado (REUSE `platform/auth` usuarios del tenant).
 - ❌ Log de auditoría de operaciones sensibles (descuentos, cortesías, cancelaciones, devoluciones) con `actor_id` y `reason`.
@@ -236,10 +235,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `pos.bill.split` — al dividir la cuenta, con `mode` y `count`.
 - ✅ `pos.bill.paid` — al marcar la cuenta como pagada, incluyendo ítems para KDS.
 - ✅ `pos.bill.closed` — al cerrar formalmente la cuenta.
-- ❌ `pos.bill.item_added` — ítem añadido (útil para KDS / display de cocina en tiempo real).
+- ✅ `pos.bill.item_added` — ítem añadido (útil para KDS / display de cocina en tiempo real).
+- ✅ `pos.bill.fired` — comanda enviada a cocina/KDS desacoplada del cobro (con `orderId` + items).
 - ❌ `pos.bill.item_cancelled` — ítem cancelado con motivo.
 - ❌ `pos.bill.discount_applied` — descuento/cortesía registrado.
-- ❌ `pos.bill.cancelled` — cuenta anulada.
+- ✅ `pos.bill.cancelled` — cuenta anulada (con `cancelledBy` + `reason`).
 - ❌ `pos.bill.transferred` — cuenta transferida a otra mesa o camarero.
 - ❌ `pos.bill.refunded` — devolución registrada.
 - ❌ `pos.shift.opened` / `pos.shift.closed` — apertura y cierre de turno de caja.
@@ -249,13 +249,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Endpoint de cancelación de cuenta** (`PATCH` status → `cancelled` con motivo) — la tabla y el CHECK ya contemplan el estado; solo falta la ruta y el evento.
-2. **Guard de roles en rutas** — actualmente cualquier token autenticado puede ejecutar cualquier operación; añadir `requireRole` con diferenciación waiter/manager/super_admin es imprescindible antes de producción.
-3. **Evento `pos.bill.item_added`** + endpoint `POST /v1/pos/bills/:id/fire` para enviar comanda a KDS desacoplado del cobro — el flujo dine-in real exige mandar a cocina antes de cobrar.
-4. **Integración con `platform/verifactu`** para generar tickets y facturas con cadena AEAT — **obligatorio legalmente en España desde 2026**; es el bloqueo de go-live más crítico.
-5. **Sugerencias de propina configurables por tenant** devueltas en el `GET /v1/pos/bills/:id` — bajo coste, alto impacto en la conversión de propinas.
-6. **División por ítems** (`split-by-item`) — el modo más habitual en restaurantes; requiere asociar `bill_item_id` a cada split.
-7. **Integración con `platform/menu`** para capturar precios desde el catálogo activo en lugar de precios libres — elimina errores de caja y permite control de precios por tenant.
+1. ✅ ~~**Endpoint de cancelación de cuenta** (`PATCH` status → `cancelled` con motivo)~~ — `POST /v1/pos/bills/:id/cancel` (open/split → cancelled, `cancelled_by`+`cancel_reason` audit, evento `pos.bill.cancelled`).
+2. ✅ ~~**Guard de roles en rutas**~~ — `requireRole` en todas las rutas: operadores (waiter/server/cashier/staff/manager/…) para abrir/añadir/dividir/cobrar/fire/cerrar; manager+ para cancelar y editar settings.
+3. ✅ ~~**Evento `pos.bill.item_added`** + endpoint `POST /v1/pos/bills/:id/fire`~~ — `addItem` publica `pos.bill.item_added`; `POST /v1/pos/bills/:id/fire` (todos o `itemIds`) marca `fired_at` (idempotente) y publica `pos.bill.fired` con `orderId` para KDS.
+4. **Integración con `platform/verifactu`** para generar tickets y facturas con cadena AEAT — **obligatorio legalmente en España desde 2026**; es el bloqueo de go-live más crítico. *(Cross-cutting: requiere `platform/verifactu`; fuera del scope backend-only de `platform/pos`.)*
+5. ✅ ~~**Sugerencias de propina configurables por tenant** devueltas en el `GET /v1/pos/bills/:id`~~ — tabla `pos_settings` (tip_suggestions, tip_allow_custom, default_tax_rate) + `GET/PUT /v1/pos/settings`; `GET /v1/pos/bills/:id` devuelve `tipSuggestions.options` precalculadas sobre el total.
+6. ✅ ~~**División por ítems** (`split-by-item`)~~ — modo `items` en `POST /:id/split` con `assignments[].itemIds`; tabla `bill_split_items`; importe por share = subtotal de sus ítems + IVA proporcional; valida cobertura total y exclusividad de cada ítem.
+7. **Integración con `platform/menu`** para capturar precios desde el catálogo activo en lugar de precios libres — elimina errores de caja y permite control de precios por tenant. *(Cross-cutting: requiere `platform/menu`.)*
 8. **Informes X/Z** básicos (ventas del día por método de pago) — desbloquea el uso real por parte de los restauradores.
 9. **Integración con `platform/payments`** (Stripe Terminal / card-present) para cerrar el ciclo de pago con tarjeta con referencia del intento de pago.
 10. **Apertura/cierre de caja y arqueo** — exigido por muchos restauradores como requisito mínimo de TPV; tabla `shifts` sencilla como primer paso.

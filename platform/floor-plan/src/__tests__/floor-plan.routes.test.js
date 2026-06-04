@@ -6,11 +6,18 @@ import Fastify from 'fastify'
 vi.mock('../services/floor-plan.service.js', () => ({
   createSection:     vi.fn(),
   listSections:      vi.fn(),
+  updateSection:     vi.fn(),
+  deleteSection:     vi.fn(),
   createTable:       vi.fn(),
   listTables:        vi.fn(),
   getTable:          vi.fn(),
+  updateTable:       vi.fn(),
+  deleteTable:       vi.fn(),
+  listTableEvents:   vi.fn(),
+  occupancy:         vi.fn(),
   changeTableStatus: vi.fn(),
   combineTables:     vi.fn(),
+  splitTables:       vi.fn(),
 }))
 
 import { floorPlanRoutes } from '../routes/floor-plan.routes.js'
@@ -172,5 +179,106 @@ describe('POST /v1/floor-plan/tables/:id/combine', () => {
       payload: { otherIds: [] },
     })
     expect([400, 422, 500]).toContain(res.statusCode)
+  })
+})
+
+describe('POST /v1/floor-plan/tables/:id/split', () => {
+  it('separa mesa combinada', async () => {
+    service.splitTables.mockResolvedValue({ id: TABLE_ID, combined_with: [] })
+    const res = await app.inject({ method: 'POST', url: `/v1/floor-plan/tables/${TABLE_ID}/split` })
+    expect(res.statusCode).toBe(200)
+    expect(service.splitTables).toHaveBeenCalledWith(expect.anything(), TABLE_ID)
+  })
+})
+
+describe('PATCH /v1/floor-plan/sections/:id', () => {
+  it('actualiza sección', async () => {
+    service.updateSection.mockResolvedValue({ id: SECTION_ID, name: 'Nueva' })
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/floor-plan/sections/${SECTION_ID}`,
+      payload: { name: 'Nueva' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.updateSection).toHaveBeenCalledWith(expect.anything(), SECTION_ID, expect.objectContaining({ name: 'Nueva' }))
+  })
+})
+
+describe('DELETE /v1/floor-plan/sections/:id', () => {
+  it('borra sección', async () => {
+    service.deleteSection.mockResolvedValue({ id: SECTION_ID })
+    const res = await app.inject({ method: 'DELETE', url: `/v1/floor-plan/sections/${SECTION_ID}` })
+    expect(res.statusCode).toBe(200)
+    expect(service.deleteSection).toHaveBeenCalledWith(expect.anything(), SECTION_ID)
+  })
+
+  it('409 si la sección tiene mesas', async () => {
+    const err = new Error('has tables'); err.statusCode = 409; err.code = 'CONFLICT'
+    service.deleteSection.mockRejectedValue(err)
+    const res = await app.inject({ method: 'DELETE', url: `/v1/floor-plan/sections/${SECTION_ID}` })
+    expect(res.statusCode).toBe(409)
+  })
+})
+
+describe('PATCH /v1/floor-plan/tables/:id', () => {
+  it('actualiza mesa', async () => {
+    service.updateTable.mockResolvedValue({ id: TABLE_ID, capacity: 6 })
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/floor-plan/tables/${TABLE_ID}`,
+      payload: { capacity: 6, shape: 'oval' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.updateTable).toHaveBeenCalledWith(expect.anything(), TABLE_ID, expect.objectContaining({ capacity: 6, shape: 'oval' }))
+  })
+
+  it('rechaza capacity no positivo', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/floor-plan/tables/${TABLE_ID}`,
+      payload: { capacity: -1 },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+  })
+})
+
+describe('DELETE /v1/floor-plan/tables/:id', () => {
+  it('borra mesa libre', async () => {
+    service.deleteTable.mockResolvedValue({ id: TABLE_ID })
+    const res = await app.inject({ method: 'DELETE', url: `/v1/floor-plan/tables/${TABLE_ID}` })
+    expect(res.statusCode).toBe(200)
+    expect(service.deleteTable).toHaveBeenCalledWith(expect.anything(), TABLE_ID)
+  })
+
+  it('409 si la mesa está activa', async () => {
+    const err = new Error('active'); err.statusCode = 409; err.code = 'CONFLICT'
+    service.deleteTable.mockRejectedValue(err)
+    const res = await app.inject({ method: 'DELETE', url: `/v1/floor-plan/tables/${TABLE_ID}` })
+    expect(res.statusCode).toBe(409)
+  })
+})
+
+describe('GET /v1/floor-plan/tables/:id/events', () => {
+  it('lista audit log con filtros', async () => {
+    service.listTableEvents.mockResolvedValue([{ id: 'e1' }])
+    const res = await app.inject({ method: 'GET', url: `/v1/floor-plan/tables/${TABLE_ID}/events?toStatus=occupied&limit=10` })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual([{ id: 'e1' }])
+    expect(service.listTableEvents).toHaveBeenCalledWith(
+      expect.anything(), TABLE_ID,
+      expect.objectContaining({ toStatus: 'occupied', limit: 10 }),
+    )
+  })
+
+  it('rechaza toStatus inválido', async () => {
+    const res = await app.inject({ method: 'GET', url: `/v1/floor-plan/tables/${TABLE_ID}/events?toStatus=bogus` })
+    expect([400, 422, 500]).toContain(res.statusCode)
+  })
+})
+
+describe('GET /v1/floor-plan/occupancy', () => {
+  it('devuelve snapshot', async () => {
+    service.occupancy.mockResolvedValue({ total_capacity: 40, seated_guests: 12 })
+    const res = await app.inject({ method: 'GET', url: '/v1/floor-plan/occupancy?sectionId=' + SECTION_ID })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ total_capacity: 40, seated_guests: 12 })
+    expect(service.occupancy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sectionId: SECTION_ID }))
   })
 })

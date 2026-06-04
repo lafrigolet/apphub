@@ -43,7 +43,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ TTL configurable por query `ttl` (30–3600 s), por defecto 300 s.
 - ✅ Reescritura del host para el navegador.
 - ✅ Guard: el objeto debe estar en estado `uploaded`; rechaza `pending` y `deleted`.
-- 🔧 Sin `Content-Disposition` en la URL firmada (el navegador descarga con la clave S3 como nombre, no el `filename` original).
+- ✅ `Content-Disposition` en la URL firmada con el `filename` original (RFC 5987/6266; `lib/s3-extra.js → presignGetWithDisposition`).
 - ❌ Acceso público anónimo a objetos marcados como públicos (sin firma).
 - ❌ Token de descarga de un solo uso o con número máximo de accesos.
 - ❌ Descarga de rango de bytes (`Content-Range` / streaming parcial).
@@ -98,10 +98,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `retention_until TIMESTAMPTZ` calculado al insertar según `retentionDays` del *kind* (null = sin expiración).
 - ✅ Índice parcial `idx_storage_objects_retention` para consultas eficientes de expirados.
 - ✅ Valores de retención por *kind*: `signature` 7 años, `intake_attachment` 5 años, `telehealth_recording` 1 año, `payout_report`/`invoice` 7 años, `aikikan_certificate` 10 años, etc.
-- 🔧 No hay job de scheduler que purgue automáticamente objetos cuyo `retention_until` ha expirado.
-- ❌ Job `storage-retention-purge` en `platform-scheduler` (similar a `chat-retention-purge`).
+- ✅ Purga real (hard-delete bytes + fila) de objetos con `retention_until` vencido: servicio `purgeExpired` + repo `findExpired` + endpoint staff `POST /v1/storage/admin/retention/purge`; cada purga publica `storage.object.deleted { hard:true, reason:'retention' }`. Es la unidad de trabajo que el cron invocaría.
+- 🔧 Job `storage-retention-purge` en `platform-scheduler` — **cross-cutting pendiente**: la lógica vive en `purgeExpired`; falta una entrada de cron en `platform/scheduler` (p.ej. `'30 3 * * *'`) que la dispare por tenant.
 - ❌ Retención configurable por tenant (un tenant con obligaciones legales distintas podría necesitar valores diferentes).
-- ❌ Notificación previa a la expiración (`storage.object.expiring_soon`) para que el propietario archive.
+- ✅ Notificación previa a la expiración (`storage.object.expiring_soon`) para que el propietario archive: servicio `notifyExpiringSoon` + repo `findExpiringSoon(windowDays)` + endpoint staff `POST /v1/storage/admin/retention/notify-expiring`. **Cross-cutting pendiente**: el scheduler debería llamarlo en ventanas T-30d/T-7d y `platform/notifications` consumir el evento.
 
 ## 9. Cuotas y límites por tenant
 
@@ -200,9 +200,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Evento `storage.object.uploaded` con `appId, tenantId, objectId, kind, sizeBytes, contentType`.
 - ✅ Evento `storage.object.deleted` con `appId, tenantId, objectId, kind`.
 - ✅ `owner_user_id`, `created_at`, `finalized_at`, `deleted_at` en la fila del objeto.
-- ❌ Registro de cada descarga (`storage.object.downloaded`) con `userId`, `ip`, `user_agent`, `timestamp`.
+- ✅ Registro de cada descarga: al emitir la presigned GET se inserta fila en `platform_storage.access_log` (`object_id, kind, action, user_id, ip, user_agent, created_at`) y se publica `storage.object.downloaded` con `userId, ip, userAgent`.
 - ❌ Registro de intentos de acceso no autorizados (403) al objeto.
-- ❌ Tabla `platform_storage.access_log` o evento Redis para consumo de módulos de compliance.
+- ✅ Tabla `platform_storage.access_log` (RLS por `app_id+tenant_id`) + evento Redis `storage.object.downloaded` para consumo de módulos de compliance; lectura staff via `GET /v1/storage/admin/access-log` (cursor-paginada, filtro `objectId`).
 - ❌ Exportación de audit log por tenant (GDPR).
 
 ## 20. Cumplimiento GDPR / borrado de datos personales
@@ -219,13 +219,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Hard-delete real del bucket** tras soft-delete (o job de scheduler diferido) — obligatorio para GDPR; el SDK ya expone `deleteObject`; bajo esfuerzo.
-2. **Job `storage-retention-purge`** en `platform-scheduler` — las filas con `retention_until` expirado deben purgarse automáticamente; la infraestructura de scheduler ya existe y tiene el patrón.
-3. **`Content-Disposition` en el presigned GET** con el `filename` original — UX inmediata: el navegador descarga con nombre legible en vez de la clave S3.
-4. **Test de conectividad al guardar configuración** (`HeadBucket` tras PATCH admin) — evita configuraciones rotas silenciosas en producción.
-5. **Paginación real (cursor o offset)** en `GET /v1/storage/objects` — necesario antes de que cualquier tenant acumule >500 objetos.
-6. **Cuota de almacenamiento por tenant** + `SUM(size_bytes)` expuesto en API — desbloquea billing y protección de costes S3.
+1. ~~**Hard-delete real del bucket** tras soft-delete (o job de scheduler diferido)~~ ✅ — `deleteObject(..., { hard:true })` (staff) borra bytes + fila; `restoreObject` revierte soft-deletes.
+2. ~~**Job `storage-retention-purge`** (lógica de purga)~~ ✅ servicio `purgeExpired` + endpoint admin; 🔧 el cron en `platform-scheduler` queda **cross-cutting pendiente**.
+3. ~~**`Content-Disposition` en el presigned GET** con el `filename` original~~ ✅ `presignGetWithDisposition`.
+4. ~~**Test de conectividad al guardar configuración** (`HeadBucket` tras PATCH admin)~~ ✅ `testConnectivity` + `POST /admin/config/test` y probe best-effort en el PATCH.
+5. ~~**Paginación real (cursor)** en `GET /v1/storage/objects`~~ ✅ cursor `{createdAt}|{id}` con `nextCursor`.
+6. ~~**Cuota de almacenamiento por tenant** + `SUM(size_bytes)` expuesto en API~~ ✅ tabla `quotas`, `GET /v1/storage/usage`, enforcement en `requestUpload` (413).
 7. **Thumbnails de imágenes** al recibir `storage.object.uploaded` (consumer asíncrono) — REUSE `platform-scheduler` o un worker Redis; alto impacto en UX de galerías de `menu_photo`, `catalog_image`, `review_media`.
 8. **Escaneo antivirus** en flujo de finalización (ClamAV embebido o API externa) — riesgo de seguridad activo al aceptar PDFs y vídeos de usuarios.
 9. **Verificación real de SHA-256** (no confiar en ETag de multipart) — fiabilidad de integridad para `signature`, `payout_report`, `invoice` (documentos legales).
-10. **Audit log de descargas** (`storage.object.downloaded`) — necesario para compliance en *kinds* con datos sensibles (`signature`, `telehealth_recording`, `payout_report`).
+10. ~~**Audit log de descargas** (`storage.object.downloaded`)~~ ✅ tabla `access_log` + evento + `GET /admin/access-log`.

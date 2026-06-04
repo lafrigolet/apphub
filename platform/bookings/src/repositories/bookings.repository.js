@@ -91,6 +91,21 @@ export async function countBookingsForSession(client, appId, tenantId, sessionId
   return rows[0]?.count ?? 0
 }
 
+// ¿Tiene ya este cliente una inscripción VIVA a esta sesión? Usado para
+// rechazar la doble inscripción del mismo cliente al mismo evento con un
+// 409 explícito (la migración 0007 añade además un índice único parcial
+// como defensa en profundidad ante carreras concurrentes).
+export async function clientAlreadyEnrolled(client, appId, tenantId, sessionId, clientUserId) {
+  const { rows } = await client.query(
+    `SELECT 1 FROM ${SCHEMA}.bookings
+      WHERE app_id = $1 AND tenant_id = $2 AND session_id = $3 AND client_user_id = $4
+        AND status NOT IN ('cancelled','no_show','rescheduled')
+      LIMIT 1`,
+    [appId, tenantId, sessionId, clientUserId],
+  )
+  return rows.length > 0
+}
+
 // Lee una session desde platform_services (cross-schema GRANT en la
 // migration 0006). Devuelve null si no existe o no es visible bajo RLS.
 export async function loadServiceSession(client, appId, tenantId, sessionId) {
@@ -251,6 +266,25 @@ export async function insertRecurrence(client, appId, tenantId, r) {
   return rows[0]
 }
 
+export async function listRecurrences(client, appId, tenantId, { limit = 200 } = {}) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.recurrences
+      WHERE app_id = $1 AND tenant_id = $2
+      ORDER BY created_at DESC
+      LIMIT $3`,
+    [appId, tenantId, limit],
+  )
+  return rows
+}
+
+export async function findRecurrenceById(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.recurrences WHERE app_id = $1 AND tenant_id = $2 AND id = $3`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
 // Waitlist
 export async function insertWaitlist(client, appId, tenantId, w) {
   const { rows } = await client.query(
@@ -273,6 +307,40 @@ export async function listWaitlist(client, appId, tenantId, { serviceId, status 
     params,
   )
   return rows
+}
+
+// Promueve atómicamente la entrada `waiting` más antigua que coincida con el
+// slot liberado. Selecciona con FOR UPDATE SKIP LOCKED (FIFO por created_at) y
+// la flippa a `notified` en el mismo statement, de modo que dos eventos
+// concurrentes (p.ej. dos cancelaciones) no promuevan la misma entrada.
+//
+// Matching: siempre por service_id. Si se pasa `resourceId`, sólo se promueven
+// entradas cuyo resource_id sea NULL (cualquier recurso) o coincida con el
+// recurso liberado — así una entrada sin preferencia de recurso es elegible
+// para cualquier hueco del servicio.
+export async function promoteOldestWaiting(client, appId, tenantId, { serviceId, resourceId }) {
+  const params = [appId, tenantId, serviceId]
+  let resourceFilter = ''
+  if (resourceId) {
+    resourceFilter = `AND (resource_id IS NULL OR resource_id = $4)`
+    params.push(resourceId)
+  }
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.waitlist
+        SET status = 'notified', updated_at = now()
+      WHERE id = (
+        SELECT id FROM ${SCHEMA}.waitlist
+         WHERE app_id = $1 AND tenant_id = $2 AND service_id = $3
+           AND status = 'waiting'
+           ${resourceFilter}
+         ORDER BY created_at
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+      )
+      RETURNING *`,
+    params,
+  )
+  return rows[0] ?? null
 }
 
 export async function updateWaitlistStatus(client, appId, tenantId, id, status) {

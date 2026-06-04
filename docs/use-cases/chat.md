@@ -205,7 +205,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Staff: actualizar estado del reporte (`PATCH /v1/chat/admin/reports/:id`).
 - 🔧 El reporte no conlleva acción automática (suspensión del remitente, borrado del mensaje…).
 - ❌ Threshold automático: borrar/ocultar mensaje al recibir N reportes en X tiempo.
-- ❌ Historial de reportes por usuario (cuántas veces ha sido reportado un usuario).
+- ✅ Historial de reportes por usuario (`GET /v1/chat/admin/users/:userId/reports`): los reportes de tipo `message` resuelven y persisten `target_user_id` (el sender del mensaje), y el endpoint staff devuelve `{ total, open, reports[] }` por usuario reportado.
 - ❌ Notificación push al staff cuando llega un nuevo reporte.
 - ❌ Reporte anónimo (el `reporter_user_id` siempre se persiste).
 
@@ -244,7 +244,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Vista de cola staff: `GET /v1/chat/support/queue` con filtros por `status` y `queue`.
 - 🔧 No hay round-robin ni asignación automática; todo es manual.
 - ❌ Capacidad/carga por agente (máximo de tickets abiertos por agente).
-- ❌ Respuesta automática de primer contacto ("hemos recibido tu consulta, te atendemos en breve").
+- ✅ Respuesta automática de primer contacto: setting `support_auto_reply` por tenant; al abrir una conversación `support` se publica un mensaje `system` con el texto configurado (string vacío lo desactiva). Configurable vía `PUT /v1/chat/admin/settings`.
 - ❌ Transferencia de conversación entre colas/agentes con historial de reasignaciones.
 - ❌ Escalado automático a otro agente si no hay respuesta en X minutos.
 
@@ -333,8 +333,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Exportación de conversación individual (`GET /v1/chat/admin/conversations/:id/export`) — uso para derecho de acceso.
 - ✅ Soft-delete de mensajes (no borrado físico inmediato).
 - ✅ Redacción de PII (emails y teléfonos) activable por tenant.
-- 🔧 El borrado de datos de usuario (right to be forgotten) no está implementado como operación específica: no hay `DELETE /v1/chat/users/:id/data` que anonimice o elimine todo el historial de un usuario.
-- ❌ Anonimización de mensajes al borrar un usuario (sustituir `sender_user_id` por null + borrar body).
+- ✅ Borrado de datos de usuario (right to be forgotten): `DELETE /v1/chat/admin/users/:userId/data` (staff) anonimiza el historial del usuario en el tenant: pone `sender_user_id = NULL` + `body = NULL` + `metadata = {}` en sus mensajes, borra sus reacciones y menciones, purga sus bloqueos (ambas direcciones) y le da `left_at` en todas sus conversaciones. Publica `chat.user.erased` en `platform.events`.
+- ✅ Anonimización de mensajes al borrar un usuario (sustituir `sender_user_id` por null + borrar body) — ver el endpoint anterior.
 - ❌ Exportación de todos los datos de un usuario concreto (`right to portability`).
 - ❌ Audit log de quién ha accedido al export (quién descargó los datos de quién).
 - ❌ Consentimiento explícito a las condiciones de uso del chat.
@@ -389,12 +389,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
 1. **Notificaciones offline reales** — los eventos ya se publican; implementar el consumer en `platform/notifications` para los tipos `chat.message.created` y `chat.mention.created` + respetar `notify_pref` y `muted_until` desbloquea las apps en producción.
-2. **GDPR — anonimización al borrar usuario** — riesgo legal inmediato en UE/España; añadir `DELETE /v1/chat/users/:id/data` que ponga `sender_user_id = NULL` y borre `body` de mensajes.
-3. **Listado y cancelación de mensajes programados** — gap de UX crítico; el usuario no puede ver ni cancelar lo que programó.
-4. **Umbral SLA configurable por tenant/prioridad** — el campo `sla_breached_at` existe; solo falta parametrizar el umbral desde `settings`.
-5. **Purga de objetos huérfanos en storage** — al borrar mensajes con adjuntos, invocar `DELETE /v1/storage/objects/:id` para evitar acumulación de objetos sin referencia.
-6. **Bans temporales** (`banned_until`) — añadir columna a `tenant_bans` y verificar en el scheduler; coste mínimo, muy demandado en moderación.
-7. **Respuesta automática de primer contacto en soporte** — REUSE `platform/notifications`; reduce la frustración del usuario al abrir un ticket.
-8. **Integración leads → soporte** — abrir conversación de soporte desde `platform/leads` usando el evento `lead.created`; cierra el ciclo CRM.
-9. **Búsqueda con configuración de idioma** — cambiar `to_tsvector('simple', …)` por configuración dinámica o `'spanish'` según el tenant; coste bajo, impacto alto en apps hispanohablantes.
-10. **Macros con edición** (`PATCH /v1/chat/support/macros/:id`) — gap mínimo, evita borrar y recrear.
+2. ~~**GDPR — anonimización al borrar usuario** — riesgo legal inmediato en UE/España; añadir `DELETE /v1/chat/users/:id/data` que ponga `sender_user_id = NULL` y borre `body` de mensajes.~~ ✅ Implementado como `DELETE /v1/chat/admin/users/:userId/data` (anonimiza mensajes, purga reacciones/menciones/bloqueos, sale de conversaciones, emite `chat.user.erased`).
+3. ~~**Listado y cancelación de mensajes programados** — gap de UX crítico; el usuario no puede ver ni cancelar lo que programó.~~ ✅ Implementado (`GET /v1/chat/scheduled`, `PATCH /v1/chat/scheduled/:mid`, `DELETE /v1/chat/scheduled/:mid`).
+4. ~~**Umbral SLA configurable por tenant/prioridad** — el campo `sla_breached_at` existe; solo falta parametrizar el umbral desde `settings`.~~ ✅ Implementado (`sla_minutes_low/normal/high/urgent` en settings + `slaMinutesFor()`). Pendiente cross-cutting: que el job `chat-support-sla` lea estos umbrales (hoy hardcoded en el scheduler).
+5. **Purga de objetos huérfanos en storage** — al borrar mensajes con adjuntos, invocar `DELETE /v1/storage/objects/:id` para evitar acumulación de objetos sin referencia. *(Cross-cutting: requiere cliente HTTP a `platform/storage`.)*
+6. ~~**Bans temporales** (`banned_until`) — añadir columna a `tenant_bans` y verificar en el scheduler; coste mínimo, muy demandado en moderación.~~ ✅ Implementado (`banned_until` + `isBanned()` filtra los caducados; `banUser` acepta `bannedUntil`).
+7. ~~**Respuesta automática de primer contacto en soporte** — REUSE `platform/notifications`; reduce la frustración del usuario al abrir un ticket.~~ ✅ Implementado in-chat vía setting `support_auto_reply` (mensaje `system` al abrir el ticket). No requiere `platform/notifications`.
+8. **Integración leads → soporte** — abrir conversación de soporte desde `platform/leads` usando el evento `lead.created`; cierra el ciclo CRM. *(Cross-cutting: depende del payload de `lead.created` y de a qué usuario/tenant mapea un lead; pendiente de definición.)*
+9. ~~**Búsqueda con configuración de idioma** — cambiar `to_tsvector('simple', …)` por configuración dinámica o `'spanish'` según el tenant; coste bajo, impacto alto en apps hispanohablantes.~~ ✅ Implementado (setting `search_language` ∈ {simple, spanish, english}; el repo usa el regconfig por tenant).
+10. ~~**Macros con edición** (`PATCH /v1/chat/support/macros/:id`) — gap mínimo, evita borrar y recrear.~~ ✅ Implementado (`PATCH /v1/chat/support/macros/:id`, COALESCE de campos no especificados).

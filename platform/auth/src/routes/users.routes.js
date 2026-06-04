@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import * as usersService from '../services/users.service.js'
+import * as authService from '../services/auth.service.js'
 import { ForbiddenError } from '../utils/errors.js'
 
 const listQuery = z.object({
@@ -51,6 +52,19 @@ export async function usersRoutes(fastify) {
   fastify.patch('/v1/users/me', async (req) => {
     const body = profileBody.parse(req.body)
     return usersService.updateMe(body, req.identity)
+  })
+
+  // Sesiones activas del propio usuario — una por refresh token vivo en
+  // Redis. No expone el token completo; sólo un sufijo + TTL restante.
+  fastify.get('/v1/users/me/sessions', {
+    schema: { tags: ['users'], summary: 'List the authenticated user\'s active sessions' },
+  }, async (req) => {
+    const sessions = await authService.listSessions({
+      appId:    req.identity.appId,
+      tenantId: req.identity.tenantId,
+      userId:   req.identity.userId,
+    })
+    return { data: sessions }
   })
 
   fastify.get('/v1/users', async (req) => {

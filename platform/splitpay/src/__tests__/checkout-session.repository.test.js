@@ -13,12 +13,12 @@ describe('insert', () => {
     const c = mockClient([{ id: 's1' }])
     const r = await repo.insert(c, ctx, {
       mode: 'payment', stripeSessionId: 'cs_1', currency: 'eur',
-      splitRuleId: 'rule-1', metadata: { k: 'v' },
+      splitRuleId: 'rule-1', metadata: { k: 'v' }, idempotencyKey: 'idem-1',
     })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO splitpay_core\.checkout_sessions/)
     expect(sql).toMatch(/'open'/)
-    expect(params).toEqual(['t1', 'st1', 'aikikan', 'payment', 'cs_1', 'eur', 'rule-1', { k: 'v' }])
+    expect(params).toEqual(['t1', 'st1', 'aikikan', 'payment', 'cs_1', 'eur', 'rule-1', { k: 'v' }, 'idem-1'])
     expect(r).toEqual({ id: 's1' })
   })
 
@@ -30,6 +30,7 @@ describe('insert', () => {
     expect(params[2]).toBeNull() // app_id
     expect(params[6]).toBeNull() // split_rule_id
     expect(params[7]).toEqual({}) // metadata
+    expect(params[8]).toBeNull() // idempotency_key
   })
 })
 

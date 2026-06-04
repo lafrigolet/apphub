@@ -117,8 +117,11 @@ vi.mock('../lib/redis.js', () => ({
   checkIdempotency: idempCheck,
   storeIdempotency: idempStore,
 }))
+const publishMock = vi.hoisted(() => vi.fn())
+vi.mock('@apphub/platform-sdk/redis', () => ({ publish: publishMock }))
 vi.mock('../repositories/payment.repository.js', () => ({
   findPaymentById: vi.fn(),
+  insertRefund: vi.fn(),
 }))
 
 import { createRefund } from '../services/payment.service.js'
@@ -131,9 +134,64 @@ beforeEach(() => {
   idempCheck.mockResolvedValue(null)
   paymentRepo.findPaymentById.mockResolvedValue({
     id: 'p1', stripePaymentIntentId: 'pi_test', amount: 10000, currency: 'EUR',
+    transferGroup: 'pi_idem-tg', tenantId: ctx.tenantId, subTenantId: null,
+    metadata: { app_id: 'aikikan' },
   })
   stripeMock.refunds.create.mockResolvedValue({ id: 're_test_1' })
   stripeMock.transfers.list.mockResolvedValue({ data: [] })
+})
+
+describe('createRefund — transfer_group explícito (priority #1)', () => {
+  it('lista transfers por el transfer_group de la transacción, no por el PI id', async () => {
+    await createRefund(ctx, { paymentId: 'p1', idempotencyKey: 'idem-tg' })
+    expect(stripeMock.transfers.list).toHaveBeenCalledWith({ transfer_group: 'pi_idem-tg' })
+  })
+
+  it('fallback al stripePaymentIntentId si la transacción no tiene transfer_group (legacy)', async () => {
+    paymentRepo.findPaymentById.mockResolvedValueOnce({
+      id: 'p1', stripePaymentIntentId: 'pi_test', amount: 10000, currency: 'EUR',
+      transferGroup: null, tenantId: ctx.tenantId, subTenantId: null, metadata: {},
+    })
+    await createRefund(ctx, { paymentId: 'p1', idempotencyKey: 'idem-legacy' })
+    expect(stripeMock.transfers.list).toHaveBeenCalledWith({ transfer_group: 'pi_test' })
+  })
+})
+
+describe('createRefund — ledger + eventos (priorities #4 y #7)', () => {
+  it('persiste el refund con sus reversals aplicados', async () => {
+    stripeMock.transfers.list.mockResolvedValueOnce({
+      data: [{ id: 'tr_A', amount: 6000 }, { id: 'tr_B', amount: 4000 }],
+    })
+    await createRefund(ctx, { paymentId: 'p1', idempotencyKey: 'idem-led', reason: 'fraudulent' })
+    expect(paymentRepo.insertRefund).toHaveBeenCalledWith(expect.anything(), ctx, expect.objectContaining({
+      transactionId: 'p1', stripeRefundId: 're_test_1', amount: 10000, reason: 'fraudulent',
+      reversals: [{ transferId: 'tr_A', amount: 6000 }, { transferId: 'tr_B', amount: 4000 }],
+      idempotencyKey: 'idem-led',
+    }))
+  })
+
+  it('emite splitpay.refund.created al canal de la app de origen', async () => {
+    await createRefund(ctx, { paymentId: 'p1', idempotencyKey: 'idem-evt' })
+    expect(publishMock).toHaveBeenCalledWith({}, 'aikikan', expect.objectContaining({
+      type: 'splitpay.refund.created',
+      payload: expect.objectContaining({ refundId: 're_test_1', paymentId: 'p1' }),
+    }))
+  })
+
+  it('un fallo persistiendo el ledger NO rompe el refund (best-effort)', async () => {
+    paymentRepo.insertRefund.mockRejectedValueOnce(new Error('db down'))
+    const r = await createRefund(ctx, { paymentId: 'p1', idempotencyKey: 'idem-led2' })
+    expect(r).toEqual({ refundId: 're_test_1' })
+  })
+
+  it('sin app_id en metadata → no publica evento (sin throw)', async () => {
+    paymentRepo.findPaymentById.mockResolvedValueOnce({
+      id: 'p1', stripePaymentIntentId: 'pi_test', amount: 10000, currency: 'EUR',
+      transferGroup: 'pi_tg', tenantId: ctx.tenantId, subTenantId: null, metadata: {},
+    })
+    await createRefund(ctx, { paymentId: 'p1', idempotencyKey: 'idem-noapp' })
+    expect(publishMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('createRefund — idempotencia (regla CLAUDE.md #3)', () => {

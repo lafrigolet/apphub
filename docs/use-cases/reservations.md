@@ -41,10 +41,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Tabla `service_hours` con `day_of_week`, `open_minute`, `close_minute`, `service_label` (ej. "Comida", "Cena"), `is_closed`.
 - ✅ Tabla `blackouts` con rango `starts_at / ends_at` y `reason` (festivos, eventos privados, cierre excepcional).
-- 🔧 `service_hours` define cuándo se puede reservar, pero no hay validación activa en `createReservation` contra los horarios: se acepta `reserved_for` en cualquier momento.
-- ❌ Configuración de aforo máximo por turno (`max_covers` por franja horaria).
-- ❌ Verificación de disponibilidad real al crear reserva (¿hay hueco para N comensales en ese turno?).
-- ❌ Endpoint público `GET /v1/reservations/availability?date=…&partySize=N` — franjas disponibles.
+- ✅ `service_hours` define cuándo se puede reservar y `createReservation` valida `reserved_for` contra los horarios abiertos del día (rechaza fuera de servicio con 409). Walk-ins omiten la validación; tenants sin `service_hours` configurados para ese día = sin restricción (opt-in).
+- ✅ Configuración de aforo máximo por turno (`max_covers` por franja horaria en `service_hours`).
+- ✅ Verificación de disponibilidad real al crear reserva: suma de cubiertos activos (`requested|confirmed|seated`) cuya ventana solapa, rechaza si `usados + party_size > max_covers`.
+- ✅ Endpoint público `GET /v1/reservations/availability?date=…&partySize=N` — devuelve franjas abiertas del día con `coversUsed` / `coversRemaining` / `available`.
 - ❌ Turnos con slots de inicio fijo (ej. comidas solo a las 13:00, 13:30, 14:00, 14:30).
 - ❌ Overbooking controlado: porcentaje de sobreasignación configurable por turno.
 - ❌ Configuración de duración estimada por tamaño de grupo (2 pax = 75 min, 6 pax = 120 min).
@@ -65,9 +65,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Estados: `requested → confirmed → seated → completed | cancelled | no_show`.
 - ✅ Transiciones válidas codificadas en `TRANSITIONS` (rechaza transiciones ilegales con 409).
 - ✅ Evento Redis por cada transición: `reservation.confirmed`, `reservation.seated`, `reservation.completed`, `reservation.cancelled`, `reservation.no_show`.
-- 🔧 `cancelled` no distingue quién cancela (cliente, local, sistema) ni el motivo.
-- ❌ Campo `cancellation_reason` (motivo libre + enum: `guest_no_show_prev`, `full`, `weather`, `operational`…).
-- ❌ Campo `cancelled_by` (`guest` / `staff` / `system`) con auditoría de quién ejecutó la acción.
+- ✅ `cancelled` distingue quién cancela y el motivo vía `PATCH /status` (`cancelledBy`, `cancellationReason`).
+- ✅ Campo `cancellation_reason` (motivo libre, máx. 512 chars) persistido solo en transición a `cancelled`.
+- ✅ Campo `cancelled_by` (`guest` / `staff` / `system`, default `staff`) con auditoría de quién ejecutó la acción; emitido en el evento `reservation.cancelled`.
 - ❌ Reapertura de reserva cancelada (ej. cliente llama para reactivar).
 - ❌ Historial de transiciones de estado (`reservation_status_history`) con timestamp y actor.
 - ❌ Reserva parcial: solo parte del grupo llega → ajustar `party_size` sin cancelar.
@@ -101,7 +101,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - 🔧 La notificación al cliente es manual (staff pulsa "notificar"); no hay automatización.
 - ❌ Escalado de notificaciones: si el cliente no responde en N minutos tras `notified`, pasar al siguiente de la cola.
 - ❌ `guest_email` en waitlist (hoy solo `guest_phone`).
-- ❌ Auto-notificación cuando se libera una mesa con capacidad ≥ `party_size` del primero en cola.
+- ✅ Auto-notificación cuando se libera una mesa: al transicionar una reserva a `completed`/`cancelled`/`no_show`, se busca el primer `waiting` en cola FIFO que quepa en los cubiertos liberados, se marca `notified` en la misma transacción y se emite `waitlist.notified` (`reason: auto_table_freed`).
 - ❌ Estimación dinámica de espera (actualización de `estimated_wait_minutes` en tiempo real según rotación de mesas).
 - ❌ Posición en cola visible al cliente (push/polling al widget público).
 - ❌ Confirmación por parte del cliente ("seguís esperando / sí/no" vía enlace en SMS).
@@ -110,7 +110,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Estado `no_show` accesible desde `confirmed` en la FSM.
 - ✅ Evento `reservation.no_show` publicado.
-- ❌ Contador de no-shows por `guest_email` / `guest_user_id` (perfil de cliente).
+- ✅ Contador de no-shows por `guest_email` / `guest_user_id` (`GET /v1/reservations/no-shows?guestUserId=…|guestEmail=…` → `{ count }`).
 - ❌ Política de penalización configurable: N no-shows → vetado temporalmente / requiere depósito obligatorio.
 - ❌ Lista negra de emails/teléfonos marcados como infractores.
 - ❌ No-show automático: si la reserva llega a T+15 min sin `seated`, marcar automáticamente vía scheduler.
@@ -130,7 +130,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 10. Peticiones especiales y ocasión
 
 - ✅ Campo `notes` (texto libre, máx. 512 chars) para peticiones del comensal.
-- ❌ Campo estructurado `special_requests` (JSONB) con categorías: alergias/intolerancias, silla de bebé (trona), accesibilidad (silla de ruedas), preferencia terraza/interior/ventana, decoración de cumpleaños/aniversario, menú especial…
+- ✅ Campo estructurado `special_requests` (JSONB) con categorías: `allergens[]`, `highChair`, `wheelchair`, `seatingPref` (terrace/indoor/window/quiet/accessible), `occasion` (birthday/anniversary/business/first_date/other), `dietaryNotes`. Validado con zod `.strict()` en el alta.
 - ❌ Etiqueta de ocasión: `birthday`, `anniversary`, `business`, `first_date`, etc. con acción de staff (decoración, postre, cava).
 - ❌ Notificación automática a cocina / sala cuando la reserva tiene alérgenos o petición especial.
 - ❌ Advertencia al hostess si el mismo cliente tiene alergia registrada en visitas anteriores.
@@ -229,12 +229,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Validación de disponibilidad al crear reserva** — hoy se acepta cualquier `reserved_for` sin comprobar horarios ni aforo; riesgo real de dobles reservas y reservas fuera de servicio. Requiere: leer `service_hours` + `blackouts` + contar cubiertos en curso.
-2. **Endpoint público de disponibilidad** (`GET /availability?date=…&partySize=N`) + widget embebable — desbloquea el canal digital sin intervención de staff y es el caso de uso principal de cualquier restaurante.
+1. ✅ ~~**Validación de disponibilidad al crear reserva**~~ — `createReservation` lee `service_hours` + `blackouts` + suma de cubiertos activos solapados y rechaza fuera de servicio / sin aforo (409). `max_covers` por franja añadido a `service_hours`. Walk-ins omiten la validación.
+2. 🔧 **Endpoint público de disponibilidad** (`GET /availability?date=…&partySize=N`) + widget embebable — ✅ endpoint implementado (franjas + cubiertos restantes + flag `available`). ❌ widget embebable y flujo anónimo sin JWT pendientes (frontend + auth cross-cutting).
 3. **Confirmación activa al cliente** (email/SMS con enlace confirm/cancel) — REUSE `platform/notifications`; elimina la incertidumbre del estado `requested`.
-4. **Auto-notificación de waitlist** cuando se libera una mesa — completa el flujo ya diseñado (`waitlist.notified` ya existe); añadir trigger automático en `changeStatus(seated→completed)`.
-5. **No-show automático** vía scheduler (T+15 min sin `seated` → `no_show`) + contador por cliente — previene mesas bloqueadas indefinidamente.
-6. **`special_requests` estructurado** (alérgenos, trona, ocasión) con notificación a cocina/sala — alto impacto operativo, bajo coste de implementación.
+4. ✅ ~~**Auto-notificación de waitlist** cuando se libera una mesa~~ — trigger automático en `changeStatus` para transiciones `completed|cancelled|no_show`: busca el primer `waiting` FIFO que quepa, lo marca `notified` en la misma tx y emite `waitlist.notified`.
+5. 🔧 **No-show automático** vía scheduler (T+15 min sin `seated` → `no_show`) + contador por cliente — ✅ contador por cliente implementado (`GET /no-shows`). ❌ auto-transición vía scheduler pendiente (cross-cutting `platform-scheduler`).
+6. ✅ ~~**`special_requests` estructurado**~~ (alérgenos, trona, ocasión) — columna JSONB + validación zod en el alta. ❌ notificación automática a cocina/sala pendiente (cross-cutting `platform/kds`).
 7. **Integración POS**: al marcar `seated`, abrir comanda en `platform/pos` — cierra el ciclo operativo front-of-house/kitchen sin intervención manual.
 8. **Política de cancelación y depósito** (REUSE `platform/payments`) — bloquea no-shows en locales de alta demanda.
 9. **Solicitud de reseña post-visita** (REUSE `platform/reviews` + scheduler) — automatiza la captación de opiniones sin esfuerzo de staff.

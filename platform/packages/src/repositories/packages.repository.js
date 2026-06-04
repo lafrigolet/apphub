@@ -105,10 +105,23 @@ export async function setStatus(client, appId, tenantId, id, status) {
 
 export async function insertRedemption(client, appId, tenantId, r) {
   await client.query(
-    `INSERT INTO ${SCHEMA}.redemptions (app_id, tenant_id, package_id, booking_id, delta, reason)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    [appId, tenantId, r.packageId, r.bookingId ?? null, r.delta, r.reason],
+    `INSERT INTO ${SCHEMA}.redemptions
+       (app_id, tenant_id, package_id, booking_id, delta, reason, redeemer_user_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [appId, tenantId, r.packageId, r.bookingId ?? null, r.delta, r.reason, r.redeemerUserId ?? null],
   )
+}
+
+// #5 Idempotencia de redención: ¿este booking ya consumió una sesión?
+// Devuelve true si existe una redención reason='redeem' para el booking dado.
+export async function redeemExistsForBooking(client, appId, tenantId, bookingId) {
+  if (!bookingId) return false
+  const { rows } = await client.query(
+    `SELECT 1 FROM ${SCHEMA}.redemptions
+       WHERE app_id=$1 AND tenant_id=$2 AND booking_id=$3 AND reason='redeem' LIMIT 1`,
+    [appId, tenantId, bookingId],
+  )
+  return rows.length > 0
 }
 
 export async function listRedemptions(client, appId, tenantId, packageId) {
@@ -225,4 +238,85 @@ export async function insertRenewal(client, appId, tenantId, original, template)
     ],
   )
   return rows[0]
+}
+
+// ── #9 Freeze / unfreeze / extend validity ──────────────────────────────
+
+// Freeze an active package: stamp frozen_at and flip status → 'frozen'.
+// Guarded so only currently-active rows can be frozen.
+export async function freezePackage(client, appId, tenantId, packageId) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.purchased_packages
+        SET status='frozen', frozen_at=now()
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3 AND status='active'
+      RETURNING *`,
+    [appId, tenantId, packageId],
+  )
+  return rows[0] ?? null
+}
+
+// Unfreeze: extend expires_at by the days the package stayed frozen, clear
+// frozen_at, accumulate frozen_days_total and flip status back to 'active'.
+export async function unfreezePackage(client, appId, tenantId, packageId) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.purchased_packages
+        SET status='active',
+            frozen_at=NULL,
+            expires_at = expires_at + (now() - frozen_at),
+            frozen_days_total = frozen_days_total
+              + GREATEST(0, CEIL(EXTRACT(EPOCH FROM (now() - frozen_at)) / 86400))::int
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3 AND status='frozen' AND frozen_at IS NOT NULL
+      RETURNING *`,
+    [appId, tenantId, packageId],
+  )
+  return rows[0] ?? null
+}
+
+// Manual extension of validity by N days (staff goodwill / closures).
+export async function extendExpiry(client, appId, tenantId, packageId, days) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.purchased_packages
+        SET expires_at = expires_at + ($4 || ' days')::interval
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+        AND status IN ('active','frozen','exhausted')
+      RETURNING *`,
+    [appId, tenantId, packageId, String(days)],
+  )
+  return rows[0] ?? null
+}
+
+export async function insertFreeze(client, appId, tenantId, f) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.package_freezes
+       (app_id, tenant_id, package_id, reason, actor_user_id)
+     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [appId, tenantId, f.packageId, f.reason ?? null, f.actorUserId ?? null],
+  )
+  return rows[0]
+}
+
+// Close the most recent open freeze row (unfrozen_at IS NULL) for a package.
+export async function closeFreeze(client, appId, tenantId, packageId, daysAdded) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.package_freezes
+        SET unfrozen_at=now(), days_added=$4
+      WHERE id = (
+        SELECT id FROM ${SCHEMA}.package_freezes
+          WHERE app_id=$1 AND tenant_id=$2 AND package_id=$3 AND unfrozen_at IS NULL
+          ORDER BY frozen_at DESC LIMIT 1
+      )
+      RETURNING *`,
+    [appId, tenantId, packageId, daysAdded ?? null],
+  )
+  return rows[0] ?? null
+}
+
+export async function listFreezes(client, appId, tenantId, packageId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.package_freezes
+       WHERE app_id=$1 AND tenant_id=$2 AND package_id=$3
+       ORDER BY created_at DESC`,
+    [appId, tenantId, packageId],
+  )
+  return rows
 }

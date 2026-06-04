@@ -197,3 +197,91 @@ describe('markSplitPaid', () => {
     expect(params).toEqual([APP, TEN, 'sp1', 'p1'])
   })
 })
+
+describe('cancelBill', () => {
+  it('UPDATE a cancelled con actor + motivo; sin row → null', async () => {
+    const c = mockClient([])
+    expect(await repo.cancelBill(c, APP, TEN, BILL, 'u9', 'motivo')).toBeNull()
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET status='cancelled', closed_at=now\(\), cancelled_by=\$4, cancel_reason=\$5/)
+    expect(params).toEqual([APP, TEN, BILL, 'u9', 'motivo'])
+  })
+
+  it('actor/motivo nulos por defecto', async () => {
+    const c = mockClient([{ id: BILL }])
+    await repo.cancelBill(c, APP, TEN, BILL)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, BILL, null, null])
+  })
+})
+
+describe('listUnfiredItems', () => {
+  it('SELECT scoped con fired_at IS NULL', async () => {
+    const c = mockClient([{ id: 'it1' }])
+    await repo.listUnfiredItems(c, APP, TEN, BILL)
+    expect(c.query.mock.calls[0][0]).toMatch(/fired_at IS NULL/)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, BILL])
+  })
+})
+
+describe('markItemsFired', () => {
+  it('con itemIds → UPDATE filtrado por ANY($4)', async () => {
+    const c = mockClient([{ id: 'it1' }])
+    await repo.markItemsFired(c, APP, TEN, BILL, ['it1'])
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/id = ANY\(\$4::uuid\[\]\) AND fired_at IS NULL/)
+    expect(params).toEqual([APP, TEN, BILL, ['it1']])
+  })
+
+  it('sin itemIds → UPDATE de todos los no disparados', async () => {
+    const c = mockClient([{ id: 'it1' }])
+    await repo.markItemsFired(c, APP, TEN, BILL)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET fired_at=now\(\)/)
+    expect(sql).not.toMatch(/ANY/)
+    expect(params).toEqual([APP, TEN, BILL])
+  })
+})
+
+describe('insertSplitItem / listSplitItems', () => {
+  it('insertSplitItem INSERT scoped', async () => {
+    const c = mockClient([{ id: 'si1' }])
+    await repo.insertSplitItem(c, { appId: APP, tenantId: TEN, splitId: 'sp1', billItemId: 'it1' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_pos\.bill_split_items/)
+    expect(params).toEqual([APP, TEN, 'sp1', 'it1'])
+  })
+
+  it('listSplitItems JOIN por parent_bill_id', async () => {
+    const c = mockClient([{ id: 'si1' }])
+    await repo.listSplitItems(c, APP, TEN, BILL)
+    expect(c.query.mock.calls[0][0]).toMatch(/JOIN platform_pos\.bill_splits/)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, BILL])
+  })
+})
+
+describe('getSettings / upsertSettings', () => {
+  it('getSettings scoped con sub_tenant_id IS NOT DISTINCT FROM', async () => {
+    const c = mockClient([])
+    expect(await repo.getSettings(c, APP, TEN, null)).toBeNull()
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/sub_tenant_id IS NOT DISTINCT FROM \$3/)
+    expect(params).toEqual([APP, TEN, null])
+  })
+
+  it('upsertSettings ON CONFLICT con tip_suggestions serializado', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.upsertSettings(c, { appId: APP, tenantId: TEN, tipSuggestions: [10, 15], tipAllowCustom: false, defaultTaxRate: 0.21 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/ON CONFLICT \(app_id, tenant_id, sub_tenant_id\) DO UPDATE/)
+    expect(params[0]).toBe(APP)
+    expect(params[3]).toBe(JSON.stringify([10, 15]))
+    expect(params[4]).toBe(false)
+    expect(params[5]).toBe(0.21)
+  })
+
+  it('upsertSettings con tipSuggestions undefined → null param', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.upsertSettings(c, { appId: APP, tenantId: TEN })
+    expect(c.query.mock.calls[0][1][3]).toBeNull()
+  })
+})
