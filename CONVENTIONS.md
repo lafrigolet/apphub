@@ -111,6 +111,16 @@ must ship with anti-abuse from day one:
   indistinguishable from a real success (fake id/reference) but do NOT persist
   or publish events. See `platform/leads/src/routes/leads.routes.js`.
 
+### Public file downloads (platform/storage)
+
+Anonymous downloads exist only for kinds flagged `public: true` in
+`platform/storage/src/kinds.js` (e.g. `public_download` for landing
+materials). The flow is `GET /v1/storage/public/:id?appId&tenantId` →
+`302` to a short-lived presigned GET — nginx/Node never proxy the bytes.
+The object UUID is unguessable and the lookup still runs under RLS with the
+appId/tenantId from the query. Every other kind stays authenticated-only;
+never flag a kind `public` if its objects can contain user data.
+
 ## Notification senders
 
 Every sender in `platform/notifications` (email/SMS/push) must record each

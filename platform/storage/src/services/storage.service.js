@@ -169,6 +169,30 @@ export async function getDownloadUrl(ctx, id, ttlSeconds = 300) {
   }
 }
 
+// ── getPublicDownloadUrl ───────────────────────────────────────────
+// Variante anónima de getDownloadUrl para kinds marcados `public: true`
+// (descargables de landings). El caller aporta appId/tenantId por query —
+// el UUID del objeto no es adivinable y el RLS sigue aplicando.
+export async function getPublicDownloadUrl({ appId, tenantId }, id, ttlSeconds = 300) {
+  const obj = await withTenantTransaction(pool, appId, tenantId, null, async (c) => {
+    const row = await repo.findById(c, appId, tenantId, id)
+    if (!row) throw new NotFoundError('object')
+    return row
+  })
+  const kindCfg = getKind(obj.kind)
+  if (!kindCfg?.public) throw new ForbiddenError('object is not publicly downloadable')
+  if (obj.status !== 'uploaded') {
+    throw new ConflictError(`object is ${obj.status}, no download available`)
+  }
+  const rawUrl = await presignGet(ensureClient(), {
+    bucket: obj.bucket, key: obj.key, ttlSeconds,
+  })
+  return {
+    downloadUrl: rewriteHost(rawUrl),
+    expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+  }
+}
+
 // ── listObjects ────────────────────────────────────────────────────
 export async function listObjects(ctx, opts) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>

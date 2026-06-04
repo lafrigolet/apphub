@@ -9,6 +9,12 @@ import Areas from './views/Areas'
 import Proyectos from './views/Proyectos'
 import Contacto from './views/Contacto'
 import Privada from './views/Privada'
+import GrafoHome from './views/grafocaligrafia/GrafoHome'
+import GrafoTecnica from './views/grafocaligrafia/GrafoTecnica'
+import GrafoMetodo from './views/grafocaligrafia/GrafoMetodo'
+import GrafoZurdos from './views/grafocaligrafia/GrafoZurdos'
+import GrafoRecursos from './views/grafocaligrafia/GrafoRecursos'
+import GrafoCurso from './views/grafocaligrafia/GrafoCurso'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -31,6 +37,12 @@ export default function App() {
           <Route path="/contacto" element={<Contacto />} />
           <Route path="/donar" element={<Contacto />} />
           <Route path="/privada" element={<Privada />} />
+          <Route path="/grafocaligrafia" element={<GrafoHome />} />
+          <Route path="/grafocaligrafia/tecnica" element={<GrafoTecnica />} />
+          <Route path="/grafocaligrafia/metodo" element={<GrafoMetodo />} />
+          <Route path="/grafocaligrafia/zurdos" element={<GrafoZurdos />} />
+          <Route path="/grafocaligrafia/recursos" element={<GrafoRecursos />} />
+          <Route path="/grafocaligrafia/curso" element={<GrafoCurso />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>

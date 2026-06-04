@@ -89,7 +89,8 @@ function AreasAccion({ disciplines, loading }) {
             <p>{d.body}</p>
             <div className="meta">
               <span className={`tag ${d.state === 'Consolidada' ? 'featured' : ''}`}>{d.state}</span>
-              <Link to="/contacto">Saber más →</Link>
+              {/* La disciplina de grafomotricidad tiene sección propia con marca Grafocaligrafía Racional */}
+              <Link to={/grafo/i.test(d.name) ? '/grafocaligrafia' : '/contacto'}>Saber más →</Link>
             </div>
           </div>
         </article>

@@ -28,6 +28,16 @@ describe('App — routing', () => {
     await waitFor(() => expect(screen.getByText('Donar al proyecto')).toBeInTheDocument())
   })
 
+  it('/grafocaligrafia monta GrafoHome con la marca propia', async () => {
+    renderAt('/grafocaligrafia')
+    await waitFor(() => expect(screen.getByText('Grafocaligrafía Racional')).toBeInTheDocument())
+  })
+
+  it('/grafocaligrafia/metodo monta la vista del método', async () => {
+    renderAt('/grafocaligrafia/metodo')
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'El análisis grafológico' })).toBeInTheDocument())
+  })
+
   it('ruta desconocida → catch-all a Home (no crashea)', async () => {
     const { container } = renderAt('/ruta-que-no-existe')
     // El layout (nav/footer) se monta; no lanza.

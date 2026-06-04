@@ -14,6 +14,11 @@ const downloadQuery = z.object({
   ttl: z.coerce.number().int().min(30).max(3600).optional(),
 })
 
+const publicDownloadQuery = z.object({
+  appId:    z.string().min(1).max(64),
+  tenantId: z.string().uuid(),
+})
+
 const listQuery = z.object({
   kind:        z.string().optional(),
   ownerUserId: z.string().uuid().optional(),
@@ -34,6 +39,32 @@ function ctxFromRequest(req) {
 export async function storageRoutes(fastify) {
   // Public: list of allowed kinds (frontends use this to know what they can upload).
   fastify.get('/v1/storage/kinds', { config: { public: true } }, async () => listKinds())
+
+  // GET /v1/storage/public/:id — anonymous download for kinds with
+  // `public: true` (landing downloadables). 302 → presigned GET so nginx
+  // never proxies the bytes. appId/tenantId travel in the query (the
+  // object UUID is unguessable; RLS still applies inside the service).
+  fastify.get(
+    '/v1/storage/public/:id',
+    {
+      config: {
+        public: true,
+        // Endpoint público sin auth — mismo criterio anti-abuso que los
+        // POST públicos de leads/inquiries, con margen para descargas.
+        rateLimit: { max: 30, timeWindow: '1 minute' },
+      },
+      schema: {
+        tags: ['storage'],
+        summary: 'Redirect to a presigned GET for a public-kind object',
+        querystring: publicDownloadQuery,
+      },
+    },
+    async (req, reply) => {
+      const ctx = publicDownloadQuery.parse(req.query)
+      const { downloadUrl } = await service.getPublicDownloadUrl(ctx, req.params.id)
+      return reply.redirect(downloadUrl, 302)
+    },
+  )
 
   // POST /v1/storage/uploads — request a presigned PUT
   fastify.post('/v1/storage/uploads', async (req, reply) => {

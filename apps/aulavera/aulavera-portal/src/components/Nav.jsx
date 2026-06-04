@@ -5,6 +5,7 @@ const links = [
   { to: '/', label: 'Inicio', end: true },
   { to: '/areas', label: 'Áreas' },
   { to: '/proyectos', label: 'Proyectos' },
+  { to: '/grafocaligrafia', label: 'Grafocaligrafía' },
   { to: '/contacto', label: 'Contacto' },
   { to: '/privada', label: 'Área privada' },
 ]

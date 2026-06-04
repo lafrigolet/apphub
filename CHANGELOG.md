@@ -7,6 +7,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`apps/aulavera` — sección "Grafocaligrafía Racional" (multi-página, marca
+  propia).** Integración del contenido de grafocaligrafiaracional.com (Juanjo
+  Vara, discípulo de Vicente Lledó Parrés) como sección con identidad
+  diferenciada bajo `/grafocaligrafia` con 6 sub-rutas: quiénes somos, técnica
+  escritural ("la escritura sana"), método de los 12 trazos (con temperatura
+  y esencias por trazo + Gran Test V1 estático — la auto-evaluación
+  interactiva queda para V2 si el autor facilita el algoritmo), guía para
+  zurdos, recursos (20 vídeos YouTube con facade click-to-load, 15 artículos
+  externos enlazados, 8 descargables) y curso profesional con inscripción.
+  Contenido estático en `src/data/grafocaligrafia/` + assets en
+  `public/grafocaligrafia/`; scope visual `.grafo` (acento azul tinta) en
+  `styles/grafocaligrafia.css` sin tocar el design system. La inscripción al
+  curso REUSA `platform/leads` (`source: aulavera/grafocaligrafia-curso`) —
+  cero backend nuevo en el app.
+- **`platform/storage` — descargas públicas (kind `public_download`).** Nuevo
+  kind (`pdf`/`zip`, 100 MB, `public: true`) y endpoint anónimo
+  `GET /v1/storage/public/:id?appId&tenantId` que responde `302` → presigned
+  GET (rate-limit 30/min por IP, mismo criterio anti-abuso que los POST
+  públicos de leads/inquiries; el UUID no es adivinable y el RLS sigue
+  aplicando). Helper `putObject` server-side en `@apphub/platform-sdk/storage`
+  y seed idempotente
+  `platform/storage/scripts/seed-grafocaligrafia-downloads.mjs` que sube los
+  3 descargables pesados (>10 MB) de grafocaligrafía a MinIO con UUIDs fijos;
+  los ≤10 MB se sirven como estáticos del portal.
 - **`platform/leads` — CRM completo (casos de uso priorizados de
   `docs/use-cases/leads.md`).** Migración `0002_crm_extension`: asignación
   (`assigned_to`), `score`, estados `won|lost` con `lost_reason` obligatorio

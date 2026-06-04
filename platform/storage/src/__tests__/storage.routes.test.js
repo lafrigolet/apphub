@@ -6,12 +6,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import Fastify from 'fastify'
 
 vi.mock('../services/storage.service.js', () => ({
-  requestUpload:  vi.fn(),
-  finalize:       vi.fn(),
-  getObject:      vi.fn(),
-  getDownloadUrl: vi.fn(),
-  deleteObject:   vi.fn(),
-  listObjects:    vi.fn(),
+  requestUpload:        vi.fn(),
+  finalize:             vi.fn(),
+  getObject:            vi.fn(),
+  getDownloadUrl:       vi.fn(),
+  getPublicDownloadUrl: vi.fn(),
+  deleteObject:         vi.fn(),
+  listObjects:          vi.fn(),
 }))
 
 import { storageRoutes } from '../routes/storage.routes.js'
@@ -58,6 +59,38 @@ describe('GET /v1/storage/kinds (público)', () => {
     const body = res.json()
     expect(Array.isArray(body)).toBe(true)
     expect(body).toContain('menu_photo')
+  })
+})
+
+describe('GET /v1/storage/public/:id (público)', () => {
+  it('302 → presigned GET sin auth, con ctx del query', async () => {
+    service.getPublicDownloadUrl.mockResolvedValue({ downloadUrl: 'http://minio/presigned' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/storage/public/3a0f0000-0000-4000-8000-000000000001?appId=aulavera&tenantId=70000000-0000-0000-0000-000000000001',
+    })
+    expect(res.statusCode).toBe(302)
+    expect(res.headers.location).toBe('http://minio/presigned')
+    expect(service.getPublicDownloadUrl).toHaveBeenCalledWith(
+      { appId: 'aulavera', tenantId: '70000000-0000-0000-0000-000000000001' },
+      '3a0f0000-0000-4000-8000-000000000001',
+    )
+  })
+
+  it('rechaza query sin appId/tenantId', async () => {
+    const res = await app.inject({ method: 'GET', url: '/v1/storage/public/o1' })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.getPublicDownloadUrl).not.toHaveBeenCalled()
+  })
+
+  it('propaga 403 cuando el kind no es público', async () => {
+    const err = Object.assign(new Error('object is not publicly downloadable'), { statusCode: 403, code: 'FORBIDDEN' })
+    service.getPublicDownloadUrl.mockRejectedValue(err)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/storage/public/o1?appId=aulavera&tenantId=70000000-0000-0000-0000-000000000001',
+    })
+    expect(res.statusCode).toBe(403)
   })
 })
 

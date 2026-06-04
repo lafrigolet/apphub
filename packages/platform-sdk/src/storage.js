@@ -42,6 +42,18 @@ export async function presignGet(client, { bucket, key, ttlSeconds = 300 }) {
   return getSignedUrl(client, cmd, { expiresIn: ttlSeconds })
 }
 
+// PUT directo (server-side) — para seeds y jobs que suben bytes desde Node
+// sin pasar por una URL presignada (p.ej. seed de descargables públicos).
+export async function putObject(client, { bucket, key, body, contentType, contentDisposition }) {
+  return client.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+    ContentDisposition: contentDisposition,
+  }))
+}
+
 // HEAD — validates that an upload landed and returns Content-Length / ETag.
 export async function headObject(client, { bucket, key }) {
   return client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))

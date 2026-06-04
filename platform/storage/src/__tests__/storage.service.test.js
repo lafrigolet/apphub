@@ -197,6 +197,33 @@ describe('getDownloadUrl', () => {
   })
 })
 
+// ── getPublicDownloadUrl ─────────────────────────────────────────────
+describe('getPublicDownloadUrl', () => {
+  const pubCtx = { appId: 'aulavera', tenantId: TENANT_ID }
+
+  it('throws NotFoundError when missing', async () => {
+    repo.findById.mockResolvedValue(null)
+    await expect(service.getPublicDownloadUrl(pubCtx, OBJ_ID)).rejects.toThrow(NotFoundError)
+  })
+
+  it('throws ForbiddenError when the kind is not public', async () => {
+    repo.findById.mockResolvedValue({ id: OBJ_ID, kind: 'menu_photo', status: 'uploaded', bucket: 'apphub', key: 'k' })
+    await expect(service.getPublicDownloadUrl(pubCtx, OBJ_ID)).rejects.toThrow(ForbiddenError)
+  })
+
+  it('throws ConflictError when not yet uploaded', async () => {
+    repo.findById.mockResolvedValue({ id: OBJ_ID, kind: 'public_download', status: 'pending', bucket: 'apphub', key: 'k' })
+    await expect(service.getPublicDownloadUrl(pubCtx, OBJ_ID)).rejects.toThrow(ConflictError)
+  })
+
+  it('returns presigned URL (rewritten host) for a public kind', async () => {
+    repo.findById.mockResolvedValue({ id: OBJ_ID, kind: 'public_download', status: 'uploaded', bucket: 'apphub', key: 'k' })
+    const r = await service.getPublicDownloadUrl(pubCtx, OBJ_ID, 120)
+    expect(sdkStorage.presignGet).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ ttlSeconds: 120 }))
+    expect(r.downloadUrl).toContain('localhost:9000')
+  })
+})
+
 // ── deleteObject ─────────────────────────────────────────────────────
 describe('deleteObject', () => {
   it('throws NotFoundError when missing', async () => {

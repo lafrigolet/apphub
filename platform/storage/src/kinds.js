@@ -79,6 +79,17 @@ export const KINDS = {
     maxBytes: 10 * MB,
     retentionDays: 365 * 10,
   },
+  // Descargables públicos de las landings (p.ej. materiales de la sección
+  // Grafocaligrafía de aulavera). `public: true` habilita el endpoint
+  // anónimo GET /v1/storage/public/:id (302 → presigned GET); el resto de
+  // kinds siguen siendo solo-autenticados. La subida sigue requiriendo
+  // identidad (o el seed script con UUIDs fijos).
+  public_download: {
+    mime: ['application/pdf', 'application/zip'],
+    maxBytes: 100 * MB,
+    retentionDays: null,
+    public: true,
+  },
 }
 
 export function getKind(name) {
