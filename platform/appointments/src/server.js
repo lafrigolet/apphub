@@ -58,7 +58,10 @@ async function start() {
   redis.on('connect', () => logger.info('Redis connected'))
   redis.on('error', (err) => logger.error({ err }, 'Redis error'))
 
-  const app = Fastify({ logger: false, ignoreTrailingSlash: true })
+  // trustProxy: detrás de NGINX (y Cloudflare en prod) la IP real del cliente
+  // viaja en X-Forwarded-For; sin esto req.ip es la IP del proxy y el
+  // rate-limit por IP colapsa en un único bucket compartido.
+  const app = Fastify({ logger: false, ignoreTrailingSlash: true, trustProxy: true })
 
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)

@@ -119,6 +119,34 @@ describe('POST /v1/leads — público', () => {
   })
 })
 
+describe('POST /v1/leads — honeypot anti-bot', () => {
+  it('website relleno → 201 fake, NO persiste ni publica', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/leads/',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { ...validBody, website: 'http://spam.example' },
+    })
+    expect(res.statusCode).toBe(201)
+    // Respuesta indistinguible de un alta real: trae id + status.
+    expect(res.json().data.id).toBeTruthy()
+    expect(res.json().data.status).toBe('new')
+    expect(service.create).not.toHaveBeenCalled()
+  })
+
+  it('website vacío (string) → flujo normal, sí persiste', async () => {
+    service.create.mockResolvedValue({ id: 'l1', created_at: '', status: 'new' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/leads/',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { ...validBody, website: '' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.create).toHaveBeenCalledTimes(1)
+    // El campo honeypot nunca llega al servicio.
+    expect(service.create.mock.calls[0][0]).not.toHaveProperty('website')
+  })
+})
+
 describe('GET /v1/leads/admin — role-gated', () => {
   it('rechaza al user normal (403 por requireRole)', async () => {
     const res = await app.inject({

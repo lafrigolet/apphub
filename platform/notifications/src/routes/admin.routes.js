@@ -6,6 +6,7 @@ import { renderString } from '../services/template-renderer.js'
 import { sendTestSms, invalidateSmsConfigCache } from '../services/sms.service.js'
 import { invalidateConfigCache as invalidateEmailConfigCache } from '../services/email.service.js'
 import { invalidateRateLimitCache } from '../services/rate-limit.service.js'
+import * as sendLogRepo from '../repositories/send-log.repository.js'
 import { pool } from '../lib/db.js'
 
 const configBody = z.object({
@@ -33,6 +34,14 @@ const configBody = z.object({
   apns_bundle_id:               z.string().min(1).max(256).optional().nullable(),
   apns_p8_key:                  z.string().min(1).max(8192).optional().nullable(),
   apns_environment:             z.enum(['sandbox', 'production']).optional().nullable(),
+})
+
+const sendLogQuery = z.object({
+  channel:  z.enum(['email', 'sms', 'push']).optional(),
+  template: z.string().max(128).optional(),
+  status:   z.enum(['sent', 'failed', 'skipped']).optional(),
+  limit:    z.coerce.number().int().min(1).max(500).default(100),
+  offset:   z.coerce.number().int().min(0).default(0),
 })
 
 const smsTestBody = z.object({
@@ -91,6 +100,20 @@ export async function adminRoutes(fastify) {
       invalidatePushConfigCache()
       return { data: await configRepo.listConfig(client) }
     } finally { client.release() }
+  })
+
+  // ── Send log (auditoría de envíos) ──────────────────────────────────
+  // GET /v1/notifications/admin/send-log?channel=&template=&status=
+  fastify.get('/send-log', {
+    schema: {
+      tags: cfgTags,
+      summary: 'List send attempts (email/sms/push) with status sent/failed/skipped',
+      querystring: sendLogQuery,
+    },
+  }, async (req) => {
+    const q = sendLogQuery.parse(req.query ?? {})
+    const client = await pool.connect()
+    try { return { data: await sendLogRepo.list(client, q) } } finally { client.release() }
   })
 
   // POST /v1/notifications/admin/sms/test  { to, body? }

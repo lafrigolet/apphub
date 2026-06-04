@@ -7,6 +7,34 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`docs/use-cases/` — catálogo exhaustivo de casos de uso por microservicio.**
+  Un fichero por módulo de plataforma (34 + README índice) enumerando los
+  casos de uso posibles del dominio —implementados o no— con marcado
+  ✅/🔧/❌ verificado contra el código, para detectar funcionalidad futura
+  deseable. Plantilla canónica: `docs/use-cases/leads.md`.
+- **`platform/notifications` — auditoría de envíos en `send_log`.** Los tres
+  senders (email/Resend, SMS/Twilio, push/FCM) registran ahora cada intento en
+  `platform_notifications.send_log` con `status` `sent|failed|skipped`,
+  `channel`, `template` (la clave de plantilla viaja desde `compose()` vía
+  `templateKey`) y `recipient`. Push registra además el tenant context completo
+  (`app_id`/`tenant_id`/`user_id`); email/SMS lo dejarán completo cuando el
+  pipeline sea tenant-aware (TODO-resend). Migración `0021` (scope nullable +
+  CHECK de status + índices) y endpoint staff
+  `GET /v1/notifications/admin/send-log` con filtros channel/template/status.
+  El log es best-effort: un fallo al escribirlo nunca tumba el envío.
+- **`platform/leads` + `platform/inquiries` — anti-abuso en los endpoints
+  públicos.** `POST /v1/leads` y `POST /v1/inquiries` llevan ahora (a) override
+  de rate-limit por ruta (5 req/min por IP, sobre el global de
+  `@fastify/rate-limit`) y (b) campo honeypot `website`: si llega relleno se
+  responde un `201` indistinguible del éxito real pero no se persiste ni se
+  publica evento.
+
+### Fixed
+- **`trustProxy` en los 4 monolitos públicos** (`platform-core`,
+  `platform-marketplace`, `platform-restaurant`, `platform-appointments`).
+  Detrás de NGINX/Cloudflare `req.ip` era la IP del proxy, lo que colapsaba el
+  rate-limit por IP en un único bucket compartido y guardaba la IP del proxy en
+  `leads.ip`/`inquiries.ip`. Ahora se honra `X-Forwarded-For`.
 - **`platform/chat` — ampliación de features (bloques A+B+C+D).** Sobre el
   módulo base se añadió: **threads** (sub-respuestas), **forward**, **pins**,
   **@menciones** ampliadas (`@all`/`@here`, por rol de conversación, y por rol

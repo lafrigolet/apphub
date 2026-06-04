@@ -34,7 +34,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Dev-stub: cuando no hay API key configurada, el email se loguea en stdout en lugar de enviarse (no bloquea el arranque ni los tests).
 - ✅ `Reply-To` opcional por mensaje (usado en flujos inquiry para enrutar respuestas directamente entre user ↔ admin).
 - 🔧 Sin reintentos automáticos: si Resend devuelve error se loguea y se abandona. No hay cola de reintentos ni dead-letter.
-- 🔧 Sin `send_log` persistido: la tabla `send_log` existe en DB pero ningún sender la escribe; los registros de envío son solo logs de pino.
+- ✅ `send_log` persistido: los tres senders (email/sms/push) escriben cada intento con status `sent|failed|skipped` (migración 0021; push con tenant context completo, email/sms con scope NULL hasta el pipeline tenant-aware de TODO-resend).
 - ❌ Sin soporte de adjuntos (`attachments`) en el payload de Resend (API lo soporta).
 - ❌ Sin soporte de CC / BCC.
 - ❌ Sin failover automático a un proveedor secundario (SES, Postmark, Mailgun) cuando Resend falla.
@@ -256,7 +256,7 @@ Eventos **NO subscritos** aún con módulos implementados:
 
 ## 16. Registro de envíos y auditoría (send_log)
 
-- 🔧 Tabla `send_log(app_id, tenant_id, user_id, channel, template, recipient, status, error, sent_at)` creada en migration 0001 pero **ningún sender la escribe**; los registros solo existen como logs de pino en stdout.
+- ✅ Tabla `send_log(app_id, tenant_id, user_id, channel, template, recipient, status, error, sent_at)` escrita por los tres senders (best-effort, nunca tumba el envío); consulta staff vía `GET /v1/notifications/admin/send-log` con filtros channel/template/status.
 - ❌ Sin persistencia de registro de envío en DB para trazabilidad, auditoría o soporte al usuario.
 - ❌ Sin deduplicación basada en `send_log` (idempotency check: "¿ya envié este evento a este usuario?").
 - ❌ Sin `idempotency_key` en el payload del evento para evitar dobles envíos en caso de reentrega de Redis Pub/Sub.

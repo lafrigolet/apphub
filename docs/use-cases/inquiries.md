@@ -30,9 +30,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Bloqueo `422` si el tenant no tiene `contact_inbox_email` configurado — el módulo no promete un contrato que no puede cumplir.
 - ✅ Validación de formato (Zod): email RFC, longitudes máximas, tipos.
 - ✅ Captura de `ip` y `user_agent` para triaje posterior.
-- ❌ Rate limiting / throttling por IP en el endpoint público (anti-spam, ej. max 5/min por IP).
+- ✅ Rate limiting por IP en el endpoint público (override por ruta de `@fastify/rate-limit`: 5/min por IP; requiere `trustProxy`, ya activado en los monolitos).
 - ❌ CAPTCHA / hCaptcha / Cloudflare Turnstile en el endpoint de envío.
-- ❌ Honeypot field (campo oculto que los bots rellenan, rechazar si viene con valor).
+- ✅ Honeypot field `website` (campo oculto; si llega relleno → 201 fake sin persistir ni publicar evento).
 - ❌ Validación de email real (MX lookup, detección de dominios desechables/disposable, role-based `info@`/`noreply@`).
 - ❌ Validación/normalización de teléfono (E.164, código de país).
 - ❌ Detección de spam por contenido (heurísticas, listas negras de palabras, scoring).
@@ -158,10 +158,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Captura de `ip` + `user_agent` para triaje manual.
 - ✅ Estado `spam` con transición desde `new` o `contacted` — el admin puede marcar manualmente.
-- ❌ Rate limiting por IP a nivel de Fastify (plugin `@fastify/rate-limit` en el endpoint público).
+- ✅ Rate limiting por IP a nivel de Fastify (override por ruta: 5/min sobre el plugin global).
 - ❌ Rate limiting por `(app_id, tenant_id)` para proteger la bandeja de un tenant frente a flood.
 - ❌ CAPTCHA / Turnstile en el payload (token verificado en el servidor antes de persistir).
-- ❌ Honeypot field: campo oculto en el form; si llega con valor → rechazar silenciosamente (200 falso).
+- ✅ Honeypot field `website`: campo oculto en el form; si llega con valor → descarte silencioso con 201 indistinguible del real.
 - ❌ Lista negra de IPs / dominios de email bloqueados por tenant o globalmente.
 - ❌ Lista negra de palabras/patrones en el mensaje.
 - ❌ Auto-spam: clasificación automática y transición directa a `spam` si supera umbral de score.

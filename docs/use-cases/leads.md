@@ -26,8 +26,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Captura de `ip` y `user_agent` para triaje de abuso.
 - ✅ Validación de formato (Zod: email, longitudes, enum industry).
-- ❌ Rate limiting / throttling por IP en el endpoint público (anti-spam).
-- ❌ CAPTCHA / hCaptcha / Turnstile / honeypot.
+- ✅ Rate limiting por IP en el endpoint público (override por ruta de `@fastify/rate-limit`: 5/min por IP; `trustProxy` activado para que `req.ip` sea la IP real tras NGINX/Cloudflare).
+- 🔧 Honeypot `website` implementado (201 fake sin persistir); CAPTCHA/hCaptcha/Turnstile pendientes.
 - ❌ Validación de email real (MX check, desechables/disposable, role-based `info@`).
 - ❌ Validación/normalización de teléfono (E.164, país).
 - ❌ Detección de spam por contenido (heurísticas, listas negras, scoring).

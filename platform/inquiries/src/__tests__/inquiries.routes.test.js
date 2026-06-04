@@ -133,6 +133,35 @@ describe('POST /v1/inquiries — público', () => {
   })
 })
 
+describe('POST /v1/inquiries — honeypot anti-bot', () => {
+  it('website relleno → 201 fake, NO persiste', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/inquiries/',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { ...validBody, website: 'http://spam.example' },
+    })
+    expect(res.statusCode).toBe(201)
+    // Respuesta indistinguible de un alta real: reference + id + createdAt.
+    expect(res.json().data.reference).toBeTruthy()
+    expect(res.json().data.id).toBeTruthy()
+    expect(res.json().data.createdAt).toBeTruthy()
+    expect(service.create).not.toHaveBeenCalled()
+  })
+
+  it('website vacío (string) → flujo normal, sí persiste', async () => {
+    service.create.mockResolvedValue({ id: 'iq1', reference: 'R', created_at: '' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/inquiries/',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { ...validBody, website: '' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.create).toHaveBeenCalledTimes(1)
+    // El campo honeypot nunca llega al servicio.
+    expect(service.create.mock.calls[0][1]).not.toHaveProperty('website')
+  })
+})
+
 describe('admin — role gating', () => {
   it('GET /admin sin Bearer → 401', async () => {
     const res = await app.inject({ method: 'GET', url: '/v1/inquiries/admin/' })

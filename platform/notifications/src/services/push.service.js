@@ -23,6 +23,7 @@ import { pool, withTenantTransaction } from '../lib/db.js'
 import * as configRepo from '../repositories/config.repository.js'
 import * as pushRepo from '../repositories/push-devices.repository.js'
 import { renderTemplate } from './template-renderer.js'
+import { logSend } from './send-log.service.js'
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const SEND_URL  = (projectId) => `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`
@@ -135,8 +136,24 @@ async function sendOne({ token, title, body, data }, cfg, accessToken) {
 
 export async function sendPushToUser(ctx, userId, { title, body, data }) {
   const cfg = await loadCfg()
+
+  // Audit best-effort hacia send_log — push sí tiene tenant context (ctx)
+  // así que app_id/tenant_id/user_id van completos. template = data.type
+  // (los wrappers lo fijan al event key).
+  const audit = (status, error) => logSend({
+    appId:     ctx?.appId,
+    tenantId:  ctx?.tenantId,
+    userId,
+    channel:   'push',
+    template:  data?.type,
+    recipient: userId,
+    status,
+    error,
+  })
+
   if (isStubMode(cfg)) {
     logger.info({ userId, title }, '[stub] push not sent — FCM not configured (or NODE_ENV=development)')
+    await audit('skipped')
     return { stub: true }
   }
 
@@ -145,12 +162,16 @@ export async function sendPushToUser(ctx, userId, { title, body, data }) {
   const tokens = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
     pushRepo.tokensForUser(c, userId),
   )
-  if (tokens.length === 0) return { sent: 0 }
+  if (tokens.length === 0) {
+    await audit('skipped', 'no registered devices')
+    return { sent: 0 }
+  }
 
   let accessToken
   try { accessToken = await getAccessToken(cfg.serviceAccount) }
   catch (err) {
     logger.error({ err, userId }, 'FCM token fetch failed')
+    await audit('failed', err.message)
     return { error: err.message }
   }
 
@@ -170,6 +191,9 @@ export async function sendPushToUser(ctx, userId, { title, body, data }) {
     finally { client.release() }
     logger.info({ userId, removed: dead.length }, 'pruned dead FCM tokens')
   }
+  // 'sent' si al menos un device lo recibió; 'failed' si todos fallaron.
+  if (sent > 0) await audit('sent')
+  else await audit('failed', `0/${tokens.length} devices reached`)
   return { sent, dead: dead.length }
 }
 

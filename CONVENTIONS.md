@@ -97,6 +97,29 @@ EXPECTED_APP_ID=aikikan       // or split-pay, etc.
 - Pagination uses cursor-based pagination: `?cursor=...&limit=20`
 - Dates are ISO 8601 UTC strings
 
+## Public (unauthenticated) endpoints
+
+Endpoints marked `config: { public: true }` (contact forms, lead capture)
+must ship with anti-abuse from day one:
+
+- **Per-route rate-limit override** on top of the global `@fastify/rate-limit`:
+  `config: { public: true, rateLimit: { max: 5, timeWindow: '1 minute' } }`.
+  This relies on `trustProxy: true` in each monolith's `Fastify()` options so
+  `req.ip` is the real client IP behind NGINX/Cloudflare — never remove it.
+- **Honeypot field `website`** in the body schema: hidden in the form, humans
+  leave it empty. When it arrives non-empty, reply with a `201` that is
+  indistinguishable from a real success (fake id/reference) but do NOT persist
+  or publish events. See `platform/leads/src/routes/leads.routes.js`.
+
+## Notification senders
+
+Every sender in `platform/notifications` (email/SMS/push) must record each
+attempt in `platform_notifications.send_log` via
+`services/send-log.service.js#logSend` with status `sent | failed | skipped`.
+The write is best-effort: a logging failure must never break the send.
+Template keys travel from `compose()` to `send()` as `templateKey` — when
+adding a new sender wrapper, pass the template key through.
+
 ## Database
 
 - Column names: `snake_case`

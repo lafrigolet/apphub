@@ -4,6 +4,7 @@ import { logger } from '../lib/logger.js'
 import { pool } from '../lib/db.js'
 import * as configRepo from '../repositories/config.repository.js'
 import { renderTemplate } from './template-renderer.js'
+import { logSend } from './send-log.service.js'
 
 // Resolve runtime config: prefer DB rows (set by staff via console),
 // fall back to env var. Cached for 30s to avoid hammering Postgres on
@@ -45,11 +46,25 @@ async function send(msg) {
   // compose base sets that even in prod and it would mute real emails.
   const skip = !cfg.resendApiKey || env.NODE_ENV === 'test'
 
+  // Cada intento acaba en send_log (best-effort, no propaga). compose()
+  // adjunta templateKey; msg.meta (appId/tenantId/userId) llega de los
+  // callers que ya tienen tenant context — el resto queda NULL hasta el
+  // refactor tenant-aware del pipeline (TODO-resend).
+  const audit = (status, error) => logSend({
+    ...msg.meta,
+    channel:   'email',
+    template:  msg.templateKey,
+    recipient: Array.isArray(msg.to) ? msg.to.join(',') : msg.to,
+    status,
+    error,
+  })
+
   if (skip) {
     logger.info(
       { to: msg.to, subject: msg.subject, replyTo: msg.replyTo, text: msg.text },
       '[dev] Email not sent — logged only',
     )
+    await audit('skipped')
     return
   }
   // Resend expects `from` as "Name <email@domain>" or just "email@domain".
@@ -72,11 +87,14 @@ async function send(msg) {
     const { data, error } = await resend.emails.send(payload)
     if (error) {
       logger.error({ err: error, to: msg.to }, 'Failed to send email')
+      await audit('failed', error.message ?? JSON.stringify(error))
       return
     }
     logger.info({ to: msg.to, subject: msg.subject, messageId: data?.id }, 'Email sent')
+    await audit('sent')
   } catch (err) {
     logger.error({ err, to: msg.to }, 'Failed to send email')
+    await audit('failed', err.message)
   }
 }
 
@@ -85,17 +103,21 @@ async function send(msg) {
 // `locale` is forwarded to renderTemplate which falls back to 'es' when the
 // requested locale has no row.
 async function compose(key, vars, defaults, locale) {
+  // templateKey viaja con el resultado para que send() lo registre en
+  // send_log — los helpers hacen `send({ to, ...tmpl })` y lo arrastran
+  // sin cambios en sus firmas.
   const fromDb = await renderTemplate(key, vars, 'email', locale)
-  if (!fromDb) return defaults
+  if (!fromDb) return { ...defaults, templateKey: key }
   // Fallback PER FIELD: si la plantilla en DB tiene algún campo
   // (subject/text/html) en NULL, sustituimos por el hardcoded default.
   // Antes hacíamos "fromDb ?? defaults" y un body_html=NULL llegaba a
   // Resend como literal null → 'string expected for html'.
   return {
-    subject: fromDb.subject ?? defaults.subject,
-    text:    fromDb.text    ?? defaults.text,
-    html:    fromDb.html    ?? defaults.html,
-    locale:  fromDb.locale,
+    subject:     fromDb.subject ?? defaults.subject,
+    text:        fromDb.text    ?? defaults.text,
+    html:        fromDb.html    ?? defaults.html,
+    locale:      fromDb.locale,
+    templateKey: key,
   }
 }
 
