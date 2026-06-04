@@ -6,11 +6,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import Fastify from 'fastify'
 
 vi.mock('../services/telehealth.service.js', () => ({
-  createRoom: vi.fn(),
-  getRoom:    vi.fn(),
-  issueToken: vi.fn(),
-  endRoom:    vi.fn(),
-  cancelRoom: vi.fn(),
+  createRoom:           vi.fn(),
+  getRoom:              vi.fn(),
+  issueToken:           vi.fn(),
+  endRoom:              vi.fn(),
+  cancelRoom:           vi.fn(),
+  listRoomEvents:       vi.fn(),
+  setRecordingConsent:  vi.fn(),
+  createNote:           vi.fn(),
+  listNotes:            vi.fn(),
+  updateNote:           vi.fn(),
+  signNote:             vi.fn(),
 }))
 
 import { telehealthRoutes } from '../routes/telehealth.routes.js'
@@ -123,5 +129,80 @@ describe('POST /v1/telehealth/rooms/:id/cancel', () => {
     const res = await app.inject({ method: 'POST', url: '/v1/telehealth/rooms/room1/cancel' })
     expect(res.statusCode).toBe(200)
     expect(service.cancelRoom).toHaveBeenCalledWith(expect.anything(), 'room1')
+  })
+})
+
+describe('GET /v1/telehealth/rooms/:id/events', () => {
+  it('devuelve { data } de listRoomEvents', async () => {
+    service.listRoomEvents.mockResolvedValue([{ id: 'e1' }])
+    const res = await app.inject({ method: 'GET', url: '/v1/telehealth/rooms/room1/events' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual([{ id: 'e1' }])
+    expect(service.listRoomEvents).toHaveBeenCalledWith(expect.anything(), 'room1')
+  })
+})
+
+describe('POST /v1/telehealth/rooms/:id/recording-consent', () => {
+  it('delega en setRecordingConsent con body parseado', async () => {
+    service.setRecordingConsent.mockResolvedValue({ id: 'room1', recording_consent_status: 'granted' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/telehealth/rooms/room1/recording-consent',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { status: 'granted', text: 'consent' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.setRecordingConsent).toHaveBeenCalledWith(
+      expect.objectContaining({ appId: 'yoga' }), 'room1',
+      expect.objectContaining({ status: 'granted', text: 'consent' }),
+    )
+  })
+
+  it('rechaza status fuera del enum', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/telehealth/rooms/room1/recording-consent',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { status: 'maybe' },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.setRecordingConsent).not.toHaveBeenCalled()
+  })
+})
+
+describe('clinical notes routes', () => {
+  it('POST rooms/:id/notes → 201 createNote', async () => {
+    service.createNote.mockResolvedValue({ id: 'n1' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/telehealth/rooms/room1/notes',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { subjective: 'S', plan: 'P' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createNote).toHaveBeenCalledWith(expect.anything(), 'room1',
+      expect.objectContaining({ subjective: 'S', plan: 'P' }))
+  })
+
+  it('GET rooms/:id/notes → { data }', async () => {
+    service.listNotes.mockResolvedValue([{ id: 'n1' }])
+    const res = await app.inject({ method: 'GET', url: '/v1/telehealth/rooms/room1/notes' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual([{ id: 'n1' }])
+  })
+
+  it('PATCH notes/:noteId → updateNote', async () => {
+    service.updateNote.mockResolvedValue({ id: 'n1', plan: 'P2' })
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/telehealth/notes/n1',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { plan: 'P2' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.updateNote).toHaveBeenCalledWith(expect.anything(), 'n1', expect.objectContaining({ plan: 'P2' }))
+  })
+
+  it('POST notes/:noteId/sign → signNote', async () => {
+    service.signNote.mockResolvedValue({ id: 'n1', signed_at: 'now' })
+    const res = await app.inject({ method: 'POST', url: '/v1/telehealth/notes/n1/sign' })
+    expect(res.statusCode).toBe(200)
+    expect(service.signNote).toHaveBeenCalledWith(expect.anything(), 'n1')
   })
 })

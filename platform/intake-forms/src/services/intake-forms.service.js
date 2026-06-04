@@ -2,7 +2,9 @@ import { pool, withTenantTransaction } from '../lib/db.js'
 import { publish, subscribe } from '../lib/redis.js'
 import { logger } from '../lib/logger.js'
 import * as repo from '../repositories/intake-forms.repository.js'
-import { ConflictError, NotFoundError } from '../utils/errors.js'
+import { decodeSubmissionRow } from '../lib/answers-codec.js'
+import { validateAnswers } from '../lib/schema-validation.js'
+import { ConflictError, NotFoundError, ValidationError } from '../utils/errors.js'
 
 export async function createTemplate(ctx, body) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
@@ -37,9 +39,10 @@ export async function createSubmission(ctx, body) {
     const t = await repo.findTemplateById(c, ctx.appId, ctx.tenantId, body.templateId)
     if (!t) throw new NotFoundError('template')
     if (!t.is_published) throw new ConflictError('template is not published')
-    return repo.insertSubmission(c, ctx.appId, ctx.tenantId, {
+    const s = await repo.insertSubmission(c, ctx.appId, ctx.tenantId, {
       ...body, clientUserId: body.clientUserId ?? ctx.userId,
     })
+    return decodeSubmissionRow(s)
   })
 }
 
@@ -47,15 +50,30 @@ export async function getSubmission(ctx, id) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     const s = await repo.findSubmissionById(c, ctx.appId, ctx.tenantId, id)
     if (!s) throw new NotFoundError('submission')
-    return s
+    return decodeSubmissionRow(s)
   })
 }
 
-export async function submitAnswers(ctx, id, body) {
-  const s = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
-    repo.submitAnswers(c, ctx.appId, ctx.tenantId, id, body),
+// Staff listing with filters + pagination (use-case #2).
+export async function listSubmissions(ctx, opts) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listSubmissions(c, ctx.appId, ctx.tenantId, opts),
   )
-  if (!s) throw new NotFoundError('submission')
+}
+
+export async function submitAnswers(ctx, id, body) {
+  const s = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const existing = await repo.findSubmissionById(c, ctx.appId, ctx.tenantId, id)
+    if (!existing) throw new NotFoundError('submission')
+    if (existing.erased_at) throw new ConflictError('submission has been erased')
+
+    // Server-side required-field validation against the template schema (#4).
+    const template = await repo.findTemplateById(c, ctx.appId, ctx.tenantId, existing.template_id)
+    const errors = validateAnswers(template?.schema, body.answers)
+    if (errors.length) throw new ValidationError('answers do not satisfy the form schema', { errors })
+
+    return repo.submitAnswers(c, ctx.appId, ctx.tenantId, id, body)
+  })
   await publish({
     type: 'intake.submitted',
     payload: {
@@ -63,7 +81,24 @@ export async function submitAnswers(ctx, id, body) {
       bookingId: s.booking_id, templateId: s.template_id, clientUserId: s.client_user_id,
     },
   })
-  return s
+  return decodeSubmissionRow(s)
+}
+
+// Right to erasure (use-case #5): anonymise a submission, keep the audit
+// skeleton, publish `intake.erased` for downstream consumers.
+export async function eraseSubmission(ctx, id) {
+  const s = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.eraseSubmission(c, ctx.appId, ctx.tenantId, id, ctx.userId),
+  )
+  if (!s) throw new NotFoundError('submission')
+  await publish({
+    type: 'intake.erased',
+    payload: {
+      appId: ctx.appId, tenantId: ctx.tenantId, submissionId: id,
+      bookingId: s.booking_id, templateId: s.template_id, clientUserId: s.client_user_id,
+    },
+  })
+  return decodeSubmissionRow(s)
 }
 
 export async function reviewSubmission(ctx, id) {
@@ -126,8 +161,9 @@ import { createTextPdf } from '@apphub/platform-sdk/simple-pdf'
 
 export async function exportSubmissionPdf(ctx, id) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
-    const submission = await repo.findSubmissionById(c, ctx.appId, ctx.tenantId, id)
-    if (!submission) throw new NotFoundError('submission')
+    const raw = await repo.findSubmissionById(c, ctx.appId, ctx.tenantId, id)
+    if (!raw) throw new NotFoundError('submission')
+    const submission = decodeSubmissionRow(raw)
     const template = await repo.findTemplateById(c, ctx.appId, ctx.tenantId, submission.template_id)
 
     const lines = []

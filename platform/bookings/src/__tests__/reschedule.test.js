@@ -39,6 +39,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   withTenantTransaction.mockImplementation(async (_p, _a, _t, _s, fn) => fn(mockClient()))
   repo.setStatus.mockResolvedValue({ id: OLD, status: 'rescheduled' })
+  // El clon ahora pasa por el overlap-guard (insertBookingAtomic) cuando hay
+  // recursos; insertBooking sólo se usa para bookings sin recursos.
+  repo.insertBookingAtomic.mockResolvedValue({ id: NEW, status: 'confirmed' })
   repo.insertBooking.mockResolvedValue({ id: NEW, status: 'confirmed' })
   repo.listResources.mockResolvedValue(['res-1', 'res-2'])
   // loadFull al final lee el clon completo.
@@ -102,16 +105,29 @@ describe('reschedule — happy path', () => {
     )
   })
 
-  it('clona el booking — nueva fila status=confirmed con parentBookingId=OLD', async () => {
+  it('clona el booking — nueva fila status=confirmed con parentBookingId=OLD (vía guard atómico)', async () => {
     await reschedule(ctx, OLD, slots)
-    expect(repo.insertBooking).toHaveBeenCalledWith(
+    expect(repo.insertBookingAtomic).toHaveBeenCalledWith(
       expect.anything(), ctx.appId, ctx.tenantId,
       expect.objectContaining({
         status: 'confirmed', parentBookingId: OLD,
         startsAt: slots.startsAt, endsAt: slots.endsAt,
         serviceId: 'svc-1', clientUserId: 'cli-1', clientEmail: 'ana@x',
+        resourceIds: ['res-1', 'res-2'],
       }),
     )
+  })
+
+  it('clon sobre slot ya ocupado → 409 (overlap-guard en reschedule)', async () => {
+    repo.insertBookingAtomic.mockResolvedValueOnce(null)
+    await expect(reschedule(ctx, OLD, slots)).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('booking sin recursos → usa insertBooking legacy (no atomic)', async () => {
+    repo.listResources.mockResolvedValue([])
+    await reschedule(ctx, OLD, slots)
+    expect(repo.insertBooking).toHaveBeenCalled()
+    expect(repo.insertBookingAtomic).not.toHaveBeenCalled()
   })
 
   it('copia los resources del original al clon (attachResource × N)', async () => {
@@ -141,11 +157,12 @@ describe('reschedule — happy path', () => {
     await reschedule(ctx, OLD, slots)
     expect(publish).toHaveBeenCalledWith({
       type: 'booking.rescheduled',
-      payload: {
+      payload: expect.objectContaining({
         appId: ctx.appId, tenantId: ctx.tenantId,
         oldBookingId: OLD, newBookingId: NEW,
         startsAt: slots.startsAt, endsAt: slots.endsAt,
-      },
+        serviceId: 'svc-1', resourceIds: ['res-1', 'res-2'],
+      }),
     })
   })
 

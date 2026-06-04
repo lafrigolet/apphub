@@ -25,7 +25,7 @@ vi.mock('../repositories/availability.repository.js')
 
 import * as service from '../services/availability.service.js'
 import { withTenantTransaction } from '../lib/db.js'
-import { publish } from '../lib/redis.js'
+import { publish, redis } from '../lib/redis.js'
 import * as repo from '../repositories/availability.repository.js'
 import { ConflictError, NotFoundError, ValidationError } from '@apphub/platform-sdk/errors'
 
@@ -129,6 +129,106 @@ describe('listSlots', () => {
       startsAt: '2026-05-01T09:15:00.000Z',
       endsAt:   '2026-05-01T09:45:00.000Z',
     })
+  })
+})
+
+describe('booking window (min_advance_minutes / max_advance_days)', () => {
+  // Full work window all week so slots exist whenever the window allows.
+  const allWeek = Array.from({ length: 7 }, (_, dow) => ({ day_of_week: dow, start_minute: 0, end_minute: 1440 }))
+  function svc(extra) {
+    return { id: SVC_ID, duration_minutes: 30, buffer_before_minutes: 0, buffer_after_minutes: 0, capacity: 1, ...extra }
+  }
+  beforeEach(() => {
+    repo.getResourcesForService.mockResolvedValue([{ id: RES_ID }])
+    repo.getWorkHours.mockResolvedValue(allWeek)
+    repo.getExceptions.mockResolvedValue([])
+    repo.getBusyBookings.mockResolvedValue([])
+    repo.getActiveHolds.mockResolvedValue([])
+  })
+
+  it('returns [] when the requested range is entirely too soon (min_advance_minutes)', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-05-01T08:00:00Z'))
+    repo.getServiceById.mockResolvedValue(svc({ min_advance_minutes: 1440 })) // 24h advance
+    const slots = await service.listSlots(ctx, {
+      serviceId: SVC_ID, from: '2026-05-01T08:00:00Z', to: '2026-05-01T20:00:00Z',
+    })
+    expect(slots).toEqual([])
+    vi.useRealTimers()
+  })
+
+  it('drops slots before now + min_advance_minutes but keeps later ones', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-05-01T08:00:00Z'))
+    repo.getServiceById.mockResolvedValue(svc({ min_advance_minutes: 120 })) // not before 10:00
+    const slots = await service.listSlots(ctx, {
+      serviceId: SVC_ID, from: '2026-05-01T08:00:00Z', to: '2026-05-01T12:00:00Z',
+    })
+    const starts = slots.map((s) => s.startsAt)
+    expect(starts.every((s) => s >= '2026-05-01T10:00:00.000Z')).toBe(true)
+    expect(starts).toContain('2026-05-01T10:00:00.000Z')
+    vi.useRealTimers()
+  })
+
+  it('caps the range at now + max_advance_days', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-05-01T00:00:00Z'))
+    repo.getServiceById.mockResolvedValue(svc({ max_advance_days: 1 })) // only ~24h ahead
+    const slots = await service.listSlots(ctx, {
+      serviceId: SVC_ID, from: '2026-05-01T00:00:00Z', to: '2026-05-10T00:00:00Z',
+    })
+    const starts = slots.map((s) => s.startsAt)
+    expect(starts.every((s) => s <= '2026-05-02T00:00:00.000Z')).toBe(true)
+    vi.useRealTimers()
+  })
+})
+
+describe('nextAvailable', () => {
+  it('rejects an invalid after timestamp', async () => {
+    await expect(service.nextAvailable(ctx, { serviceId: SVC_ID, after: 'not-a-date' }))
+      .rejects.toThrow(ValidationError)
+  })
+
+  it('returns the earliest slot scanning forward across windows', async () => {
+    // Anchor on a Monday (2026-05-04, dow 1) so the first 7-day window has no
+    // matching hours and the search must roll forward to the next window.
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-05-04T00:00:00Z'))
+    repo.getServiceById.mockResolvedValue({ id: SVC_ID, duration_minutes: 30, buffer_before_minutes: 0, buffer_after_minutes: 0, capacity: 1 })
+    repo.getResourcesForService.mockResolvedValue([{ id: RES_ID }])
+    // Only Saturday (dow 6) has hours. First slot lands 2026-05-09 (Sat),
+    // which is in the 2nd 7-day window (starts 2026-05-11).
+    repo.getWorkHours.mockResolvedValue([{ day_of_week: 6, start_minute: 600, end_minute: 660 }])
+    repo.getExceptions.mockResolvedValue([])
+    repo.getBusyBookings.mockResolvedValue([])
+    repo.getActiveHolds.mockResolvedValue([])
+    const slot = await service.nextAvailable(ctx, { serviceId: SVC_ID })
+    expect(slot).toMatchObject({ resourceId: RES_ID, startsAt: '2026-05-09T10:00:00.000Z' })
+    vi.useRealTimers()
+  })
+
+  it('returns null when no slot exists within the horizon', async () => {
+    repo.getServiceById.mockResolvedValue({ id: SVC_ID, duration_minutes: 30, buffer_before_minutes: 0, buffer_after_minutes: 0, capacity: 1 })
+    repo.getResourcesForService.mockResolvedValue([{ id: RES_ID }])
+    repo.getWorkHours.mockResolvedValue([]) // never any hours
+    repo.getExceptions.mockResolvedValue([])
+    repo.getBusyBookings.mockResolvedValue([])
+    repo.getActiveHolds.mockResolvedValue([])
+    const slot = await service.nextAvailable(ctx, { serviceId: SVC_ID, after: '2026-05-01T00:00:00Z' })
+    expect(slot).toBeNull()
+  })
+})
+
+describe('invalidateResourceCache', () => {
+  it('bumps the resource version key', async () => {
+    await service.invalidateResourceCache(APP_ID, TENANT_ID, RES_ID)
+    expect(redis.incr).toHaveBeenCalledWith(expect.stringContaining(`availability:rv:${APP_ID}:${TENANT_ID}:${RES_ID}`))
+  })
+
+  it('is a no-op when required ids are missing', async () => {
+    await service.invalidateResourceCache(APP_ID, TENANT_ID, null)
+    expect(redis.incr).not.toHaveBeenCalled()
+  })
+
+  it('swallows redis errors', async () => {
+    redis.incr.mockRejectedValueOnce(new Error('redis down'))
+    await expect(service.invalidateResourceCache(APP_ID, TENANT_ID, RES_ID)).resolves.toBeUndefined()
   })
 })
 

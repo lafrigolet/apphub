@@ -87,7 +87,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
   4. Registra dos `booking_events`: original `from→rescheduled` + clon `null→confirmed`.
   5. Publica `booking.rescheduled` con `oldBookingId + newBookingId + startsAt + endsAt`.
 - ✅ Validaciones: `endsAt > startsAt`; no permite reschedule si `status in [cancelled, no_show, completed, rescheduled]` → 409.
-- 🔧 El nuevo booking creado en reschedule no pasa por el guard atómico de recursos (`insertBooking` legacy), por lo que un reschedule sobre un slot ya ocupado podría no detectar solapamiento.
+- ✅ El nuevo booking creado en reschedule pasa por el guard atómico de recursos (`insertBookingAtomic`) cuando tiene recursos: un reschedule sobre un slot ya ocupado devuelve 409. Sólo cae al `insertBooking` legacy cuando la booking no tiene recursos (eventos sin sala, donde el guard por recurso no aplica). Los recursos del original se leen antes de marcarlo `rescheduled` para que el guard vea el slot como liberado.
 - ❌ Reglas de reschedule configurable por servicio (p.ej. sólo se puede reprogramar con ≥24h de antelación, máximo N reprogramaciones por booking, fee de reprogramación).
 - ❌ Reschedule iniciado por el cliente vs por el staff con distintas restricciones.
 - ❌ Notificación automática al cliente/practitioner del cambio de horario (el evento se publica; la lógica debe estar en `platform/notifications`).
@@ -117,7 +117,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Campo `recurrence_id` en bookings para agrupar todas las instancias de una serie recurrente.
 - ✅ Job `booking-recurrence-expander` en `platform-scheduler` (cada hora) — materializa instancias futuras de bookings recurrentes 30 días por adelantado.
 - ✅ Campo `source: 'recurrence'` para identificar bookings creadas por el expander.
-- 🔧 El endpoint de creación de recurrences (`insertRecurrence` en el repositorio) existe pero no hay ruta REST expuesta para crearlas o listarlas — hoy sólo el scheduler las consume.
+- ✅ Rutas REST de recurrences expuestas: `POST /v1/bookings/recurrences` (crea la serie), `GET /v1/bookings/recurrences` (lista por tenant) y `GET /v1/bookings/recurrences/:id` (detalle). El scheduler sigue consumiendo la tabla; ahora el staff puede crear/consultar series vía API.
 - ❌ Editar una sola instancia de la serie ("este y siguientes" vs "solo este" vs "todos") — patrón RFC-5545 `EXDATE` / `DTSTART` amendment.
 - ❌ Cancelación de toda la serie desde un endpoint único.
 - ❌ Vista agrupada de series recurrentes en la UI de admin.
@@ -131,8 +131,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `POST /v1/bookings/waitlist/:id/notify` — marca entrada como `notified`, publica `booking.waitlist.notified` con `clientPhone` (para que `platform/notifications` envíe SMS/push).
 - ✅ `clientUserId` del body o fallback a `ctx.userId`; admin puede enrolar a un tercero.
 - ✅ Evento `booking.waitlist.added` publicado al alta.
-- 🔧 La promoción automática de waitlist → booking (cuando se libera un slot por cancelación o reprogramación) no está implementada — sólo se notifica manualmente y el cliente debe crear la booking por su cuenta.
-- ❌ Promoción automática: al publicarse `booking.cancelled` o `booking.rescheduled`, buscar la entrada más antigua `status='waiting'` para ese `serviceId/resourceId` y promoverla (`status='notified'` + publicar `booking.waitlist.notified`).
+- ✅ Promoción automática de waitlist → oferta de hueco: el subscriber `events/waitlist-promotion.handler.js` reacciona a `booking.cancelled` y `booking.rescheduled`, busca la entrada `waiting` más antigua del mismo `serviceId` (y `resourceId` liberado; entradas sin recurso son elegibles para cualquier hueco del servicio) y la promueve a `notified`, publicando `booking.waitlist.notified`. La promoción es atómica (`promoteOldestWaiting` con `FOR UPDATE SKIP LOCKED`) para no ofrecer el mismo hueco dos veces. Los payloads de cancelación/reprogramación se enriquecieron con `serviceId` + `resourceIds` para el matching. El cliente sigue creando la booking real por su cuenta (no auto-reserva).
 - ❌ Límite de tiempo en la oferta de hueco (p.ej. si el cliente no responde en 2h, pasar al siguiente de la lista).
 - ❌ Prioridad configurable en la lista de espera (FIFO estricto, VIP, antigüedad de socio).
 - ❌ Waitlist por `session_id` (para eventos llenos, no sólo por servicio genérico).
@@ -187,8 +186,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Guard atómico de recurso con `tstzrange(starts_at, ends_at, '[)') && …` en el INSERT de bookings individuales — el INSERT falla si hay solapamiento activo para el mismo recurso.
 - ✅ Defence in depth: el overlap-guard corre incluso cuando hay hold válido.
 - ✅ Estados excluidos del guard: `cancelled | no_show | rescheduled | completed` — los slots liberados quedan disponibles inmediatamente.
-- 🔧 El guard NO corre en reschedule (usa `insertBooking` legacy en lugar de `insertBookingAtomic`).
-- ❌ Guard de doble inscripción del mismo cliente a la misma sesión (hoy un cliente puede inscribirse dos veces al mismo evento).
+- ✅ El guard corre en reschedule (usa `insertBookingAtomic` cuando hay recursos).
+- ✅ Guard de doble inscripción del mismo cliente a la misma sesión: check explícito `clientAlreadyEnrolled` en `createBookingForSession` (409) + índice único parcial `uq_platform_bookings_session_client_active` sobre `(app_id, tenant_id, session_id, client_user_id)` para inscripciones vivas (defensa en profundidad ante carreras).
 - ❌ Detección de solapamiento desde la perspectiva del cliente (dos citas en distintos servicios a la misma hora).
 
 ## 16. Historial del cliente y vista 360º
@@ -258,11 +257,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Promoción automática de waitlist → booking al cancelar** (`booking.cancelled` → busca `waiting` del mismo `serviceId/resourceId` → `notifyWaitlist`) — cierra el ciclo de waitlist con un suscriptor de evento pequeño; alto impacto para plataformas de citas con mucha demanda.
-2. **Cobro real al reservar** (REUSE `platform/payments`: `booking.confirmed` → PaymentIntent) + **consumo de sesiones de bono** (REUSE `platform/packages`: deducción en `createBooking` tx) — monetización bloqueada hoy; los campos ya están en el schema.
-3. **Fix del overlap-guard en reschedule** — usar `insertBookingAtomic` en lugar de `insertBooking` legacy para evitar doble-booking en reprogramaciones.
-4. **Exposición del endpoint de recurrencias** (`POST/GET /v1/bookings/recurrences`) — `insertRecurrence` existe en el repo pero sin ruta REST; el scheduler ya consume la tabla.
-5. **Guard de doble inscripción por cliente en la misma sesión** — `UNIQUE (session_id, client_user_id)` a nivel DB o check en `countBookingsForSession` + `clientUserId`.
+1. ✅ ~~**Promoción automática de waitlist → booking al cancelar**~~ (subscriber `waitlist-promotion.handler.js` reacciona a `booking.cancelled`/`booking.rescheduled`, promueve la entrada `waiting` más antigua del `serviceId/resourceId` a `notified` con `FOR UPDATE SKIP LOCKED` y publica `booking.waitlist.notified`).
+2. **Cobro real al reservar** (REUSE `platform/payments`: `booking.confirmed` → PaymentIntent) + **consumo de sesiones de bono** (REUSE `platform/packages`: deducción en `createBooking` tx) — monetización bloqueada hoy; los campos ya están en el schema. *(cross-cutting: requiere payments/packages — fuera de alcance backend-only de bookings).*
+3. ✅ ~~**Fix del overlap-guard en reschedule**~~ (el clon usa `insertBookingAtomic` cuando hay recursos → 409 si el slot destino está ocupado; fallback a `insertBooking` legacy sólo sin recursos).
+4. ✅ ~~**Exposición del endpoint de recurrencias**~~ (`POST/GET /v1/bookings/recurrences` + `GET /v1/bookings/recurrences/:id`).
+5. ✅ ~~**Guard de doble inscripción por cliente en la misma sesión**~~ (check `clientAlreadyEnrolled` en `createBookingForSession` → 409 + índice único parcial `uq_platform_bookings_session_client_active`).
 6. **Integración con `platform/intake-forms`** — al confirmar, solicitar el formulario previo; bloquear `in_progress` si está pendiente de firma.
 7. **Follow-up post-cita** (REUSE `platform/scheduler` + `platform/reviews`) — `booking.completed` → programa solicitud de reseña T+Nh.
 8. **Comisiones al practitioner** (REUSE `platform/practitioner-payouts`) — `booking.completed` → acumulación; `booking.fee.charged` → ajuste.

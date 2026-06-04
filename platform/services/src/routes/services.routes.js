@@ -2,6 +2,15 @@ import { z } from 'zod'
 import * as service from '../services/services.service.js'
 import * as sessions from '../services/service-sessions.service.js'
 
+// Canonical cancellation policy. Extra keys are allowed (.passthrough) for
+// app-specific flags; the service layer validates the canonical numeric
+// ranges and the DB CHECK guards them defensively.
+const cancellationPolicySchema = z.object({
+  hours_before_cancel: z.number().min(0).optional(),
+  refund_pct:          z.number().min(0).max(100).optional(),
+  no_show_fee_cents:   z.number().int().min(0).optional(),
+}).passthrough()
+
 const serviceBody = z.object({
   code:                 z.string().min(1).max(64),
   name:                 z.string().min(1).max(256),
@@ -13,7 +22,7 @@ const serviceBody = z.object({
   bufferAfterMinutes:   z.number().int().min(0).optional(),
   priceCents:           z.number().int().min(0).optional(),
   currency:             z.string().length(3).optional(),
-  cancellationPolicy:   z.record(z.any()).optional(),
+  cancellationPolicy:   cancellationPolicySchema.optional(),
   requiresIntakeForm:   z.boolean().optional(),
   intakeFormId:         z.string().uuid().optional(),
   capacity:             z.number().int().min(1).optional(),
@@ -26,6 +35,12 @@ const serviceBody = z.object({
   // Si TRUE, las sesiones de este servicio aparecen en el listado
   // público /v1/services/sessions/upcoming (consumido por landings).
   publicCatalog:        z.boolean().optional(),
+  // Ventana de reserva. min_advance_minutes evita reservas de último
+  // minuto; max_advance_days limita cuán lejos en el futuro se reserva.
+  // platform/services SÓLO almacena/valida; el rechazo en el momento de
+  // reservar lo aplica platform/bookings leyendo estas columnas.
+  minAdvanceMinutes:    z.number().int().min(0).optional(),
+  maxAdvanceDays:       z.number().int().positive().optional(),
 })
 
 const sessionBody = z.object({
@@ -46,11 +61,15 @@ const sessionUpdateBody = sessionBody.partial().extend({
 })
 
 const sessionIdParams = z.object({ sessionId: z.string().uuid() })
+const localeSchema = z.string().regex(/^[a-z]{2}(-[a-z0-9]{2,8})?$/i)
 const publicUpcomingQuery = z.object({
   appId:    z.string().min(1),
   tenantId: z.string().uuid(),
   kind:     z.enum(['appointment', 'event']).optional(),
   limit:    z.coerce.number().int().min(1).max(500).optional(),
+  // Devuelve name/description en este locale si hay traducción; si no,
+  // cae al texto base del servicio.
+  locale:   localeSchema.optional(),
 })
 
 const updateBody = serviceBody.partial().omit({ code: true })
@@ -76,13 +95,22 @@ const tierBody = z.object({
 })
 
 const quoteQuery   = z.object({ at: z.string().datetime() })
+const bookingWindowQuery = z.object({ at: z.string().datetime() })
 const idParams     = z.object({ id: z.string().uuid() })
 const imageIdParams = z.object({ id: z.string().uuid(), imageId: z.string().uuid() })
 const tierIdParams  = z.object({ id: z.string().uuid(), tierId: z.string().uuid() })
+const localeParams  = z.object({ id: z.string().uuid(), locale: localeSchema })
+
+const translationBody = z.object({
+  locale:      localeSchema,
+  name:        z.string().min(1).max(256).optional(),
+  description: z.string().max(2048).optional(),
+})
 
 const tags         = ['services']
 const galleryTags  = ['services · gallery']
 const pricingTags  = ['services · pricing']
+const i18nTags     = ['services · i18n']
 
 function ctxFromRequest(req) {
   return {
@@ -192,6 +220,44 @@ export async function servicesRoutes(fastify) {
     return service.quotePrice(ctxFromRequest(req), req.params.id, at)
   })
 
+  // ── Booking window check ─────────────────────────────────────────────
+  // Evaluates min_advance_minutes / max_advance_days for a candidate start.
+  // platform/bookings (and portals) call this before creating a booking;
+  // the actual rejection is enforced by bookings. Returns { ok, reason }.
+  fastify.get('/v1/services/:id/booking-window', {
+    schema: {
+      tags,
+      summary: 'Check whether a candidate start respects the service booking window (min_advance/max_advance)',
+      params: idParams,
+    },
+  }, async (req) => {
+    const { at } = bookingWindowQuery.parse(req.query ?? {})
+    return service.evaluateBookingWindow(ctxFromRequest(req), req.params.id, at)
+  })
+
+  // ── i18n translations ────────────────────────────────────────────────
+  fastify.get('/v1/services/:id/translations', {
+    schema: { tags: i18nTags, summary: 'List a service translations', params: idParams },
+  }, async (req) => ({ data: await service.listTranslations(ctxFromRequest(req), req.params.id) }))
+
+  fastify.put('/v1/services/:id/translations', {
+    schema: {
+      tags: i18nTags,
+      summary: 'Create or replace a service translation for a locale',
+      params: idParams, body: translationBody,
+    },
+  }, async (req, reply) => {
+    const body = translationBody.parse(req.body)
+    return reply.status(201).send(await service.upsertTranslation(ctxFromRequest(req), req.params.id, body))
+  })
+
+  fastify.delete('/v1/services/:id/translations/:locale', {
+    schema: { tags: i18nTags, summary: 'Delete a service translation for a locale', params: localeParams },
+  }, async (req, reply) => {
+    await service.removeTranslation(ctxFromRequest(req), req.params.id, req.params.locale)
+    return reply.status(204).send()
+  })
+
   // ── Service sessions (instancias fechadas; pieza para "eventos") ─────
   const sessionTags = ['services · sessions']
 
@@ -206,8 +272,8 @@ export async function servicesRoutes(fastify) {
     },
     config: { public: true },
   }, async (req) => {
-    const { appId, tenantId, kind, limit } = publicUpcomingQuery.parse(req.query ?? {})
-    return { data: await sessions.listPublicUpcoming({ appId, tenantId }, { kind, limit }) }
+    const { appId, tenantId, kind, limit, locale } = publicUpcomingQuery.parse(req.query ?? {})
+    return { data: await sessions.listPublicUpcoming({ appId, tenantId }, { kind, limit, locale }) }
   })
 
   fastify.post('/v1/services/:id/sessions', {

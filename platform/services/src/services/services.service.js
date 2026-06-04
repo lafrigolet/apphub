@@ -1,9 +1,54 @@
 import { pool, withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import * as repo from '../repositories/services.repository.js'
-import { ConflictError, NotFoundError } from '../utils/errors.js'
+import { ConflictError, NotFoundError, ValidationError } from '../utils/errors.js'
+
+// Canonical cancellation_policy shape. The column stays free-form JSONB for
+// backward compatibility, but when the caller adopts any of the canonical
+// keys we validate the whole set: refund_pct ∈ [0,100], hours_before_cancel
+// >= 0, no_show_fee_cents a non-negative integer. Unknown extra keys are
+// allowed (apps may stash custom flags). Throws ValidationError on a bad
+// shape so the API returns 400 instead of a raw DB CHECK violation.
+const CANCELLATION_KEYS = ['hours_before_cancel', 'refund_pct', 'no_show_fee_cents']
+
+export function validateCancellationPolicy(policy) {
+  if (policy == null) return
+  if (typeof policy !== 'object' || Array.isArray(policy)) {
+    throw new ValidationError('cancellationPolicy must be an object')
+  }
+  const hasCanonical = CANCELLATION_KEYS.some((k) => k in policy)
+  if (!hasCanonical) return // legacy free-form policy, leave as-is
+
+  const { hours_before_cancel: hbc, refund_pct: pct, no_show_fee_cents: fee } = policy
+  if (hbc !== undefined && (!Number.isFinite(hbc) || hbc < 0)) {
+    throw new ValidationError('cancellationPolicy.hours_before_cancel must be a number >= 0')
+  }
+  if (pct !== undefined && (!Number.isFinite(pct) || pct < 0 || pct > 100)) {
+    throw new ValidationError('cancellationPolicy.refund_pct must be a number in [0, 100]')
+  }
+  if (fee !== undefined && (!Number.isInteger(fee) || fee < 0)) {
+    throw new ValidationError('cancellationPolicy.no_show_fee_cents must be an integer >= 0')
+  }
+}
+
+// Pure: is `startsAt` within this service's booking window relative to `now`?
+// Returns { ok, reason }. reason ∈ 'too_soon' | 'too_far' | null. Used by
+// the /booking-window endpoint and reusable by platform/bookings, which is
+// where the booking is actually rejected (cross-module enforcement).
+export function checkBookingWindow(service, startsAt, now = new Date()) {
+  const start = new Date(startsAt)
+  if (Number.isNaN(+start)) throw new ValidationError('invalid startsAt')
+  const minAdvance = Number(service.min_advance_minutes ?? 0)
+  const maxDays    = service.max_advance_days == null ? null : Number(service.max_advance_days)
+
+  const diffMinutes = (start.getTime() - now.getTime()) / 60000
+  if (diffMinutes < minAdvance) return { ok: false, reason: 'too_soon' }
+  if (maxDays != null && diffMinutes > maxDays * 24 * 60) return { ok: false, reason: 'too_far' }
+  return { ok: true, reason: null }
+}
 
 export async function createService(ctx, body) {
+  validateCancellationPolicy(body.cancellationPolicy)
   const s = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     try {
       return await repo.insert(c, ctx.appId, ctx.tenantId, { ...body, subTenantId: ctx.subTenantId })
@@ -36,11 +81,21 @@ export async function listServices(ctx, opts) {
 }
 
 export async function updateService(ctx, id, patch) {
+  if (patch.cancellationPolicy !== undefined) validateCancellationPolicy(patch.cancellationPolicy)
   const updated = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
     repo.update(c, ctx.appId, ctx.tenantId, id, patch),
   )
   if (!updated) throw new NotFoundError('service')
   return updated
+}
+
+// Resolves the service then evaluates its booking window for `atIso`.
+export async function evaluateBookingWindow(ctx, id, atIso) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const s = await repo.findById(c, ctx.appId, ctx.tenantId, id)
+    if (!s) throw new NotFoundError('service')
+    return checkBookingWindow(s, atIso)
+  })
 }
 
 export async function deactivateService(ctx, id) {
@@ -115,6 +170,33 @@ export async function removePricingTier(ctx, tierId) {
     repo.deletePricingTier(c, ctx.appId, ctx.tenantId, tierId),
   )
   if (!ok) throw new NotFoundError('tier')
+}
+
+// ── i18n translations ─────────────────────────────────────────────────────
+
+export async function listTranslations(ctx, serviceId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const s = await repo.findById(c, ctx.appId, ctx.tenantId, serviceId)
+    if (!s) throw new NotFoundError('service')
+    return repo.listTranslations(c, ctx.appId, ctx.tenantId, serviceId)
+  })
+}
+
+export async function upsertTranslation(ctx, serviceId, body) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const s = await repo.findById(c, ctx.appId, ctx.tenantId, serviceId)
+    if (!s) throw new NotFoundError('service')
+    return repo.upsertTranslation(c, ctx.appId, ctx.tenantId, serviceId, {
+      ...body, locale: body.locale.toLowerCase(),
+    })
+  })
+}
+
+export async function removeTranslation(ctx, serviceId, locale) {
+  const ok = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.deleteTranslation(c, ctx.appId, ctx.tenantId, serviceId, locale.toLowerCase()),
+  )
+  if (!ok) throw new NotFoundError('translation')
 }
 
 // Pure: pick the most-specific tier whose day + minute window contains

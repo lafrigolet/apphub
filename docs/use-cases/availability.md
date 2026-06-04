@@ -139,15 +139,15 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 14. Primer hueco disponible ("next available")
 
-- ❌ No hay endpoint dedicado. El cliente debe llamar a `GET /v1/availability/slots` con un rango amplio y tomar el primer elemento de la respuesta.
-- ❌ Búsqueda del primer hueco en rolling-forward (p.ej. "cuándo es lo antes que puedo reservar este servicio con cualquier practitioner").
-- ❌ Parámetro `limit=1` + `nextAvailableOnly=true` para minimizar el cómputo y el tamaño de respuesta.
+- ✅ `GET /v1/availability/next?serviceId=…&resourceId?=…&after?=…` — devuelve `{ slot }` con el primer hueco disponible (o `{ slot: null }`).
+- ✅ Búsqueda rolling-forward en ventanas de 7 días desde `after` (default `now`), acotada a 90 días máximo; respeta la misma ventana de reserva (`min_advance_minutes`/`max_advance_days`) que `listSlots`.
+- ✅ Reduce de N a 1 las llamadas del widget: no necesita pedir un rango amplio ni filtrar en el cliente.
 
 ## 15. Antelación mínima y ventana máxima de reserva
 
-- ❌ `lead_time_hours` (antelación mínima): no se implementa bloqueo de slots "demasiado próximos al momento actual". Si el servicio exige reserva con 24h de antelación y alguien pide slots de hoy, el motor devuelve los slots disponibles sin filtrar.
-- ❌ `booking_window_days` (ventana máxima): el motor acepta cualquier rango `from…to` sin limitar cuánto al futuro se puede consultar.
-- ❌ Ambas restricciones existen como campo en `platform_services.services` → `cancellation_policy JSONB`, pero el módulo de availability no las lee ni aplica.
+- ✅ Antelación mínima (`min_advance_minutes`): `listSlots` lee la columna de `platform_services.services` y descarta cualquier slot que empiece antes de `now + min_advance_minutes` (vía `applyBookingWindow`). Si el rango entero es demasiado próximo → `[]`.
+- ✅ Ventana máxima (`max_advance_days`): `listSlots` recorta el `to` efectivo a `now + max_advance_days × 24h`; consultas más lejanas se truncan en silencio (no error).
+- ✅ Ambas restricciones se leen de columnas reales de `platform_services.services` (`min_advance_minutes`, `max_advance_days`, migración `0005` de services) — no del JSONB `cancellation_policy`.
 
 ## 16. Caché de resultados en Redis
 
@@ -159,7 +159,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Fallo de Redis (GET o SET) no propaga error — fall-through transparente al cómputo normal.
 - 🔧 El TTL de 60 s es fijo: en entornos de alto volumen podría ser demasiado largo si hay muchos holds/releases; en entornos de bajo volumen podría ser innecesariamente corto.
 - ❌ Caché configurable por tenant o por servicio (TTL variable).
-- ❌ Invalidación de caché activa cuando se modifica un horario de trabajo o una excepción del recurso (hoy sólo se invalida ante holds/releases; un cambio de `work_hours` no bumpa la versión).
+- 🔧 Invalidación de caché por eventos: el módulo se suscribe a `platform.events` y, al recibir `resource.unavailable` (nueva excepción creada en `platform/resources`), bumpa la versión del recurso → invalida su caché de slots. **Pendiente cross-cutting**: los cambios de `work_hours` no emiten ningún evento desde `platform/resources`, así que un cambio de horario aún no invalida la caché (sólo expira por TTL de 60 s).
 - ❌ Pre-warming de caché (calcular los slots del día siguiente durante la madrugada vía scheduler).
 
 ## 17. Multi-tenant y aislamiento
@@ -177,14 +177,14 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Solapamiento en la CTE evaluado con `tstzrange(starts_at, ends_at, '[)') && tstzrange($4, $5, '[)')` — operador nativo de Postgres, más robusto que una comparación de fechas manual.
 - ✅ El `pool` usa `withTenantTransaction` que abre una transacción Postgres explícita, garantizando atomicidad read-then-write.
 - ✅ Tests que simulan dos `holdSlot` concurrentes contra el mismo slot: sólo uno gana (mock del doble INSERT atómico).
-- 🔧 El nivel de aislamiento de la transacción depende del `Pool` configurado en `platform-sdk/db` (probablemente `READ COMMITTED`). En `READ COMMITTED`, la CTE NOT EXISTS puede tener ventana de race condition en instancias de alta concurrencia — se debería usar `SERIALIZABLE` o un advisory lock.
-- ❌ Advisory lock PostgreSQL sobre `(resource_id, starts_at)` como capa adicional de exclusión mutua en cargas extremas.
+- ✅ Advisory lock PostgreSQL transaccional (`pg_advisory_xact_lock(hash(resource_id), hash(starts_at|ends_at))`) tomado al inicio de `insertHoldAtomic`, ANTES del CTE: serializa a los competidores por el mismo recurso+slot, de modo que bajo `READ COMMITTED` el perdedor ya ve la fila del ganador en su `NOT EXISTS`. Se libera automáticamente en COMMIT/ROLLBACK (siempre dentro de `withTenantTransaction`).
+- ✅ Cierra la ventana de race condition residual que tenía la CTE pura en alta concurrencia (venta de entradas / clases populares) sin necesidad de subir el nivel de aislamiento a SERIALIZABLE.
 
 ## 19. API pública para widgets de reserva (frontend)
 
 - ✅ `GET /v1/availability/slots` — consumible desde el portal de reservas del cliente sin necesidad de lógica en frontend.
 - ✅ Todos los endpoints están protegidos con el guard de identidad JWT (`appGuard` de `@apphub/platform-sdk`).
-- 🔧 No se declara `schema: { tags, summary, … }` en las rutas con Fastify (faltan anotaciones OpenAPI) — la ruta no aparece en `/docs` del servicio platform-appointments.
+- ✅ Todas las rutas declaran `schema: { tags, summary, body/querystring/params }` (zod) — aparecen en `/docs` de platform-appointments con su contrato completo.
 - ❌ Endpoint público (sin JWT) para embeds o widgets de terceros que no requieren login (p.ej. botón "Reserva ahora" en la web del negocio).
 - ❌ Paginación / cursor para respuestas grandes.
 - ❌ Respuesta enriquecida con metadatos del servicio y del recurso (nombre, foto, precio) para evitar un segundo request desde el widget.
@@ -236,12 +236,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Anotaciones OpenAPI en rutas** — `schema: { tags, summary, body, params }` en `availability.routes.js`: coste mínimo, desbloquea `/docs` y generación de cliente tipado.
-2. **Antelación mínima y ventana máxima** (`lead_time_hours`, `booking_window_days`) — REUSE del campo `cancellation_policy` de `platform_services` o columnas nuevas; el filtro en el service es trivial (2–5 líneas). Valor alto: evita bookings de último minuto no gestionables.
-3. **Invalidación de caché ante cambios de `work_hours`/`exceptions`** — REUSE del evento `platform.events`; cuando `platform/resources` publica `resource.updated`, el handler en availability bumpa las versiones de todos los recursos afectados.
-4. **Zona horaria por tenant/recurso** — añadir `timezone TEXT` en `platform_resources.resources`; ajustar `workingWindows` para convertir `start_minute`/`end_minute` desde hora local a UTC. Crítico para tenants fuera de UTC.
-5. **Endpoint "next available"** — `GET /v1/availability/next?serviceId=…&after=…` con rolling-forward limitado (p.ej. máximo 90 días): reduce el número de llamadas del widget de booking de N a 1.
-6. **Nivel de aislamiento SERIALIZABLE o advisory lock** en `insertHoldAtomic` para eliminar el race condition residual en alta concurrencia (especialmente relevante para sistemas de venta de entradas o clases populares).
+1. ✅ ~~**Anotaciones OpenAPI en rutas**~~ — `schema: { tags, summary, querystring/body/params }` (zod) en las 4 rutas de `availability.routes.js`. Desbloquea `/docs`.
+2. ✅ ~~**Antelación mínima y ventana máxima**~~ — `min_advance_minutes`/`max_advance_days` leídos de `platform_services.services` (columnas reales de la migración `0005` de services) y aplicados en `listSlots` vía `applyBookingWindow`.
+3. 🔧 ~~**Invalidación de caché ante cambios de `work_hours`/`exceptions`**~~ — implementada para `exceptions`: el módulo se suscribe a `resource.unavailable` y bumpa la versión del recurso. **Cross-cutting pendiente**: `platform/resources` debe publicar también un evento al modificar/borrar `work_hours` (p.ej. `resource.schedule_changed { appId, tenantId, resourceId }`) para invalidar caché ante cambios de horario.
+4. **Zona horaria por tenant/recurso** — añadir `timezone TEXT` en `platform_resources.resources`; ajustar `workingWindows` para convertir `start_minute`/`end_minute` desde hora local a UTC. Crítico para tenants fuera de UTC. (Fuera de alcance backend-only: requiere columna en schema `platform_resources`.)
+5. ✅ ~~**Endpoint "next available"**~~ — `GET /v1/availability/next?serviceId=…&after=…`, rolling-forward en ventanas de 7 días con tope de 90; respeta la ventana de reserva.
+6. ✅ ~~**Nivel de aislamiento SERIALIZABLE o advisory lock**~~ — `pg_advisory_xact_lock` transaccional por `(resource_id, starts_at|ends_at)` al inicio de `insertHoldAtomic`, eliminando el race residual sin subir a SERIALIZABLE.
 7. **Evento `availability.hold_expired`** desde la purga del scheduler — permite cerrar el ciclo de checkout abandonado (REUSE `platform/notifications` para avisar al usuario).
 8. **Endpoint público sin JWT** (o con token de widget firmado) para embeds de terceros — permite el CTA "Reserva ahora" en la web del negocio sin requerir que el visitante esté autenticado.
 9. **Servicio multi-recurso (intersección)** — diseño más complejo; justificado cuando al menos un app necesita reservar sala + equipo + practitioner de forma atómica en un solo slot.

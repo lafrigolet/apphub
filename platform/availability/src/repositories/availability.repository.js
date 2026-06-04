@@ -4,8 +4,11 @@
 const SCHEMA = 'platform_availability'
 
 export async function getServiceById(client, appId, tenantId, serviceId) {
+  // min_advance_minutes / max_advance_days drive the booking window
+  // (recommendation #2): how soon and how far ahead a slot may be booked.
   const { rows } = await client.query(
-    `SELECT id, duration_minutes, buffer_before_minutes, buffer_after_minutes, capacity, modality, step_minutes
+    `SELECT id, duration_minutes, buffer_before_minutes, buffer_after_minutes, capacity, modality, step_minutes,
+            min_advance_minutes, max_advance_days
      FROM platform_services.services
      WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
     [appId, tenantId, serviceId],
@@ -70,7 +73,22 @@ export async function getActiveHolds(client, appId, tenantId, resourceId, fromIs
 }
 
 // Atomic hold insert — only succeeds if no overlapping non-expired hold or booking exists.
+//
+// Recommendation #6: under READ COMMITTED the bare INSERT … WHERE NOT EXISTS
+// CTE still has a residual race window when two requests for the SAME slot
+// arrive simultaneously (both can pass NOT EXISTS before either inserts).
+// We close it with a transaction-scoped advisory lock keyed on
+// (resource_id, starts_at): concurrent holders of the same resource+start
+// serialize through pg_advisory_xact_lock, so the NOT EXISTS check the loser
+// runs already sees the winner's row. The lock is released automatically at
+// COMMIT/ROLLBACK (we always run inside withTenantTransaction).
 export async function insertHoldAtomic(client, appId, tenantId, h) {
+  await client.query(
+    `SELECT pg_advisory_xact_lock(
+       hashtextextended($1::text, 0),
+       hashtextextended($2::text || '|' || $3::text, 0))`,
+    [h.resourceId, h.startsAt, h.endsAt],
+  )
   const { rows } = await client.query(
     `WITH overlapping_holds AS (
        SELECT 1 FROM ${SCHEMA}.holds

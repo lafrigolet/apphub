@@ -18,6 +18,10 @@ vi.mock('../repositories/settings.repository.js', () => ({
   listForAdmin: (...a) => listForAdmin(...a),
   upsertValue: (...a) => upsertValue(...a),
 }))
+const { expireStaleRooms } = vi.hoisted(() => ({ expireStaleRooms: vi.fn() }))
+vi.mock('../services/telehealth.service.js', () => ({
+  expireStaleRooms: (...a) => expireStaleRooms(...a),
+}))
 
 vi.mock('@apphub/platform-sdk/app-guard', async () => {
   const { default: fp } = await import('fastify-plugin')
@@ -141,5 +145,27 @@ describe('PATCH /config', () => {
     })
     expect(res.statusCode).toBe(403)
     expect(upsertValue).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /rooms/expire-stale', () => {
+  it('staff → expireStaleRooms con ctx del identity; devuelve conteo + ids', async () => {
+    expireStaleRooms.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }])
+    const res = await app.inject({
+      method: 'POST', url: '/v1/telehealth/admin/rooms/expire-stale',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ expired: 2, roomIds: ['r1', 'r2'] })
+    expect(expireStaleRooms).toHaveBeenCalledWith(expect.objectContaining({ appId: 'platform', tenantId: 't1' }))
+  })
+
+  it('user normal → 403', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/telehealth/admin/rooms/expire-stale',
+      headers: { Authorization: 'Bearer user-token' },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(expireStaleRooms).not.toHaveBeenCalled()
   })
 })

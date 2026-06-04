@@ -32,11 +32,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Transición a `cancelled` vía `POST /v1/telehealth/rooms/:id/cancel`.
 - ✅ Guardia en `issueToken`: rechaza emisión de token si la sala está en estado terminal (`ended`, `cancelled`, `expired`).
 - 🔧 El estado `active` existe en el esquema pero no hay lógica que lo establezca automáticamente (p. ej. al entrar el primer participante o al llegar `starts_at`).
-- 🔧 El estado `expired` está definido en el CHECK de BD pero no hay job de scheduler que transite salas caducadas (`expires_at < now()`) a `expired`.
+- 🔧 La transición a `expired` ya está implementada en backend (`expireStaleRooms` en repo/service + admin `POST /v1/telehealth/admin/rooms/expire-stale`, idempotente, publica `telehealth.room.expired` por sala); falta solo el job de scheduler que la dispare periódicamente (cross-cutting).
 - ❌ Transición automática `created → active` al inicio de la cita (REUSE `platform/scheduler`).
 - ❌ Transición automática `active → ended` al finalizar la cita si nadie la cerró manualmente.
 - ❌ Purga o archivo de salas terminadas antiguas (REUSE `platform/scheduler`).
-- ❌ Historial de transiciones de estado de la sala con actor y motivo.
+- ✅ Historial de transiciones de estado de la sala con actor y motivo (tabla `room_events`, RLS; `GET /v1/telehealth/rooms/:id/events`; toda transición — end/cancel/expire/reschedule/consent — escribe una fila).
 - ❌ Reapertura de sala cancelada o terminada por error.
 
 ## 3. Generación y gestión de tokens de acceso
@@ -73,9 +73,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Escucha `booking.confirmed` via Redis y auto-provisiona sala para modalidades `telehealth`/`hybrid`.
 - ✅ Consulta `platform_services.services.modality` (cross-schema SELECT con GRANT explícito) para filtrar solo citas telehealth.
 - ✅ `booking_id` almacenado en la sala para trazabilidad.
-- ❌ Escucha `booking.cancelled` → cancelar sala automáticamente si estaba en `created`.
-- ❌ Escucha `booking.rescheduled` → actualizar `starts_at`/`ends_at`/`expires_at` de la sala.
-- ❌ Escucha `booking.no_show` → marcar sala como `expired` o añadir noción de no-presentación.
+- ✅ Escucha `booking.cancelled` → cancela la sala automáticamente si no está en estado terminal (publica `telehealth.room.cancelled`).
+- ✅ Escucha `booking.rescheduled` → actualiza `starts_at`/`ends_at`/`expires_at` de la sala (re-deriva la gracia de 30 min; publica `telehealth.room.rescheduled`).
+- ✅ Escucha `booking.no_show` → marca la sala como `expired` con motivo `booking.no_show` (publica `telehealth.room.expired`).
 - ❌ Enlace inverso: la sala no actualiza al booking cuando termina (`telehealth.room.ended` publicado pero `platform/bookings` no lo consume).
 - ❌ Soporte para `sub_tenant_id` en el auto-provisioning (hoy se pasa `null`).
 
@@ -109,8 +109,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 8. Grabación de la sesión
 
 - ✅ `recording_enabled BOOLEAN` en la tabla `rooms` (`FALSE` por defecto).
-- ❌ Consentimiento de grabación: captura de aceptación explícita del paciente antes de grabar (RGPD Art. 9 — datos de salud).
-- ❌ Texto de consentimiento configurable por tenant.
+- ✅ Consentimiento de grabación: captura de aceptación explícita (`recording_consent_status` pending/granted/denied + `recording_consent_by`/`_at`/`_text`) vía `POST /v1/telehealth/rooms/:id/recording-consent`; cada decisión queda auditada en `room_events` (RGPD Art. 9 — datos de salud).
+- 🔧 Texto de consentimiento: se almacena por sala (`recording_consent_text`); falta la plantilla configurable por tenant.
 - ❌ Activación de grabación en el proveedor de vídeo (Daily SDK `record: true`, Twilio `RecordParticipantsOnConnect`…).
 - ❌ Almacenamiento de la grabación (REUSE `platform/storage` — MinIO/S3): recibir URL de la grabación del webhook del proveedor y guardarla.
 - ❌ Listado de grabaciones por sala/cita para el profesional.
@@ -155,10 +155,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 13. Notas clínicas post-sesión
 
-- ❌ Formulario de notas clínicas / SOAP disponible al profesional al finalizar la sesión (REUSE `platform/intake-forms` o tabla propia).
-- ❌ Vinculación de notas al `booking_id` y a la sala de vídeo.
+- ✅ Formulario de notas clínicas / SOAP disponible al profesional al finalizar la sesión (tabla propia `session_notes` con campos `subjective`/`objective`/`assessment`/`plan` + `body` libre; `POST/GET /v1/telehealth/rooms/:id/notes`, `PATCH /v1/telehealth/notes/:noteId`).
+- ✅ Vinculación de notas al `booking_id` (heredado de la sala si no se especifica) y a la sala de vídeo (`room_id`).
 - ❌ Plantillas de notas configurables por tipo de servicio o especialidad.
-- ❌ Firma digital del profesional en las notas (RGPD / normativa sanitaria española: LBCSS).
+- 🔧 Firma digital del profesional en las notas: sello inmutable (`signed_at`) vía `POST /v1/telehealth/notes/:noteId/sign` — una nota firmada no puede editarse; falta la firma criptográfica real (RGPD / LBCSS).
 - ❌ Acceso del paciente a sus propias notas (portal del paciente).
 - ❌ Exportación de notas en PDF o en formato interoperable (HL7 FHIR R4).
 - ❌ Historial de notas por paciente/cliente a lo largo de múltiples sesiones.
@@ -188,7 +188,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Base legal de tratamiento por sala (consentimiento explícito del paciente registrado antes de la primera sesión).
 - ❌ Registro de actividades de tratamiento (RAT) que incluya las sesiones de telesalud.
 - ❌ Derecho de supresión: borrado de sala, tokens, grabaciones y notas de un paciente concreto.
-- ❌ Selección de región de datos del proveedor de vídeo (UE obligatorio — CLOUD Act compliance): configuración de región por tenant (`eu-west` en Daily/Twilio).
+- 🔧 Selección de región de datos del proveedor de vídeo (`rooms.data_region`, CHECK `eu-west`/`eu-central`/`us-east`/`ap-southeast`, **default `eu-west`**, settable en `POST /v1/telehealth/rooms`); falta el default configurable por tenant y el cableado real al proveedor.
 - ❌ Subprocesador: DPA (Data Processing Agreement) con el proveedor de vídeo gestionado en la configuración.
 - ❌ Auditoría de acceso a datos sensibles (quién consultó qué sala/token y cuándo).
 - ❌ Retención y purga automática de salas y tokens antiguos según política por tenant (REUSE `platform/scheduler`).
@@ -220,10 +220,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 1. **Integración real con Daily.co** (o LiveKit si se prefiere auto-alojar en UE) — es el bloqueador de producción. La abstracción ya está preparada; solo hay que implementar `provisionRoom` y `provisionToken` para el proveedor elegido.
 2. **Notificación del enlace al cliente y al profesional** — REUSE `platform/notifications` consumiendo `telehealth.room.created`. Sin esto el cliente no sabe cómo unirse.
 3. **Recordatorio pre-cita con enlace** (T-24h, T-1h) — REUSE `platform/scheduler` + `platform/notifications`. Alto impacto en no-shows.
-4. **Escucha `booking.cancelled` / `booking.rescheduled`** — cancelar o actualizar la sala automáticamente cuando la cita cambia. Evita salas huérfanas.
-5. **Transición automática `expired`** — job en `platform/scheduler` que marque salas caducadas; sin esto el estado `expired` es decorativo.
-6. **Consentimiento de grabación + almacenamiento** — REUSE `platform/storage`. Requisito legal (RGPD Art. 9) antes de activar `recording_enabled`.
-7. **Selección de región UE del proveedor de vídeo** — obligatorio para cumplir RGPD con datos de salud antes de ir a producción con clientes reales.
+4. ✅ ~~**Escucha `booking.cancelled` / `booking.rescheduled`**~~ — implementado (también `booking.no_show`): la sala se cancela / re-agenda / expira automáticamente cuando la cita cambia, con auditoría en `room_events` y eventos publicados.
+5. 🔧 ~~**Transición automática `expired`**~~ — núcleo implementado (`expireStaleRooms` + admin endpoint, idempotente); falta solo el job en `platform/scheduler` que lo dispare (cross-cutting).
+6. 🔧 ~~**Consentimiento de grabación**~~ — captura y auditoría del consentimiento implementadas (`recording_consent_*` + endpoint); el almacenamiento de la grabación en sí (REUSE `platform/storage`) sigue pendiente.
+7. 🔧 ~~**Selección de región UE del proveedor de vídeo**~~ — `rooms.data_region` (default `eu-west`) implementado; falta el cableado al proveedor real y el default por tenant.
 8. **Sala de espera virtual** — diferenciador de producto en el mercado de telesalud; impacto directo en satisfacción del profesional.
 9. **Verificación de pago antes de emitir token** — REUSE `platform/packages` (balance de sesiones). Necesario para monetizar correctamente las citas.
-10. **Notas clínicas post-sesión** — REUSE `platform/intake-forms` o tabla `platform_telehealth.session_notes`. Completa el ciclo clínico y es un requisito regulatorio en muchas especialidades.
+10. ✅ ~~**Notas clínicas post-sesión**~~ — implementado: tabla `platform_telehealth.session_notes` (SOAP + body libre), CRUD + firma inmutable (`signed_at`), vinculadas a `room_id`/`booking_id`.

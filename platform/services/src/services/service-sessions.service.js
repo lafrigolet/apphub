@@ -86,7 +86,25 @@ export async function cancelSession(ctx, id) {
 // automáticamente y la query devuelve vacío.
 export async function listPublicUpcoming({ appId, tenantId }, opts = {}) {
   if (!appId || !tenantId) throw new ValidationError('appId and tenantId required')
-  return withTenantTransaction(pool, appId, tenantId, null, (c) =>
-    repo.listUpcomingPublic(c, appId, tenantId, opts),
-  )
+  const { locale, ...listOpts } = opts
+  return withTenantTransaction(pool, appId, tenantId, null, async (c) => {
+    const rows = await repo.listUpcomingPublic(c, appId, tenantId, listOpts)
+    if (!locale || rows.length === 0) return rows
+    // Overlay the requested locale onto service_name/service_description.
+    // Falls back to the base (tenant-default) text when a translation is
+    // missing for a given service.
+    const serviceIds = [...new Set(rows.map((r) => r.service_id))]
+    const tr = await servicesRepo.translationsForServices(
+      c, appId, tenantId, serviceIds, locale.toLowerCase(),
+    )
+    return rows.map((r) => {
+      const t = tr.get(r.service_id)
+      if (!t) return r
+      return {
+        ...r,
+        service_name:        t.name ?? r.service_name,
+        service_description: t.description ?? r.service_description,
+      }
+    })
+  })
 }

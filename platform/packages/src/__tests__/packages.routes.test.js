@@ -18,6 +18,12 @@ vi.mock('../services/packages.service.js', () => ({
   listTransfers:       vi.fn(),
   setAutoRenew:        vi.fn(),
   renewPackage:        vi.fn(),
+  adjustBalance:       vi.fn(),
+  freezePackage:       vi.fn(),
+  unfreezePackage:     vi.fn(),
+  extendExpiry:        vi.fn(),
+  listFreezes:         vi.fn(),
+  cancelPackage:       vi.fn(),
 }))
 
 import { packagesRoutes } from '../routes/packages.routes.js'
@@ -210,5 +216,75 @@ describe('renewal routes', () => {
     const res = await app.inject({ method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/renew` })
     expect(res.statusCode).toBe(201)
     expect(service.renewPackage).toHaveBeenCalledWith(expect.anything(), PKG_ID)
+  })
+})
+
+describe('priority routes (#8/#9/#4)', () => {
+  it('POST adjust delega adjustBalance', async () => {
+    service.adjustBalance.mockResolvedValue({ id: PKG_ID })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/adjust`,
+      payload: { delta: 2, note: 'goodwill' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.adjustBalance).toHaveBeenCalledWith(expect.anything(), PKG_ID, expect.objectContaining({ delta: 2 }))
+  })
+
+  it('POST adjust con delta no-entero → 400', async () => {
+    const res = await app.inject({
+      method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/adjust`,
+      payload: { delta: 1.5 },
+    })
+    expect([400, 500]).toContain(res.statusCode)
+    expect(service.adjustBalance).not.toHaveBeenCalled()
+  })
+
+  it('POST freeze delega freezePackage', async () => {
+    service.freezePackage.mockResolvedValue({ id: PKG_ID, status: 'frozen' })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/freeze`,
+      payload: { reason: 'vacaciones' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.freezePackage).toHaveBeenCalledWith(expect.anything(), PKG_ID, expect.objectContaining({ reason: 'vacaciones' }))
+  })
+
+  it('POST freeze con body vacío funciona', async () => {
+    service.freezePackage.mockResolvedValue({ id: PKG_ID })
+    const res = await app.inject({ method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/freeze`, payload: {} })
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('POST unfreeze delega unfreezePackage', async () => {
+    service.unfreezePackage.mockResolvedValue({ id: PKG_ID, status: 'active' })
+    const res = await app.inject({ method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/unfreeze` })
+    expect(res.statusCode).toBe(200)
+    expect(service.unfreezePackage).toHaveBeenCalledWith(expect.anything(), PKG_ID)
+  })
+
+  it('POST extend delega extendExpiry', async () => {
+    service.extendExpiry.mockResolvedValue({ id: PKG_ID })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/extend`,
+      payload: { days: 14 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.extendExpiry).toHaveBeenCalledWith(expect.anything(), PKG_ID, expect.objectContaining({ days: 14 }))
+  })
+
+  it('GET freezes → { data }', async () => {
+    service.listFreezes.mockResolvedValue([{ id: 'f1' }])
+    const res = await app.inject({ method: 'GET', url: `/v1/packages/purchases/${PKG_ID}/freezes` })
+    expect(res.json().data).toEqual([{ id: 'f1' }])
+  })
+
+  it('POST cancel delega cancelPackage', async () => {
+    service.cancelPackage.mockResolvedValue({ id: PKG_ID, refundCents: 16000 })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/packages/purchases/${PKG_ID}/cancel`,
+      payload: { penaltyPct: 25 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.cancelPackage).toHaveBeenCalledWith(expect.anything(), PKG_ID, expect.objectContaining({ penaltyPct: 25 }))
   })
 })

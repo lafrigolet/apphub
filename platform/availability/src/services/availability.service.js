@@ -33,6 +33,19 @@ async function bumpResourceVersion(appId, tenantId, resourceId) {
   await redis.incr(resourceVersionKey(appId, tenantId, resourceId))
 }
 
+// Event-driven cache invalidation (recommendation #3). When platform/resources
+// publishes `resource.unavailable` (a new exception was created) the cached
+// slot grid for that resource is stale, so we bump its version. Failures are
+// swallowed: a missed bump only means slots stay cached up to the 60s TTL.
+export async function invalidateResourceCache(appId, tenantId, resourceId) {
+  if (!appId || !tenantId || !resourceId) return
+  try { await bumpResourceVersion(appId, tenantId, resourceId) } catch (_e) {}
+}
+
+// Max horizon a single "next available" rolling-forward search may scan,
+// independent of any per-service booking window (recommendation #5).
+const NEXT_AVAILABLE_MAX_DAYS = 90
+
 function startOfDayUTC(d) {
   const x = new Date(d); x.setUTCHours(0, 0, 0, 0); return x
 }
@@ -55,15 +68,46 @@ function workingWindows(workHours, dayDate) {
     }))
 }
 
+// Clamp [from,to] to the service's booking window (recommendation #2):
+//   - min_advance_minutes: a slot may not start sooner than now + N minutes
+//     (forbids unmanageable last-minute bookings).
+//   - max_advance_days: a slot may not start further than now + N days
+//     (caps how far ahead the calendar is open).
+// Returns the effective window, or null when the window collapses to empty
+// (e.g. the whole requested range is too soon or too far) so the caller can
+// short-circuit to [].
+function applyBookingWindow(svc, fromDate, toDate, now = new Date()) {
+  const minAdvance = Number(svc.min_advance_minutes ?? 0)
+  const maxDays    = svc.max_advance_days == null ? null : Number(svc.max_advance_days)
+  let effFrom = fromDate
+  let effTo   = toDate
+  if (minAdvance > 0) {
+    const earliest = addMinutes(now, minAdvance)
+    if (earliest > effFrom) effFrom = earliest
+  }
+  if (maxDays != null) {
+    const latest = addMinutes(now, maxDays * 24 * 60)
+    if (latest < effTo) effTo = latest
+  }
+  if (!(effFrom < effTo)) return null
+  return { effFrom, effTo }
+}
+
 export async function listSlots(ctx, { serviceId, resourceId, from, to }) {
   if (!from || !to) throw new ValidationError('from/to required')
-  const fromDate = new Date(from)
-  const toDate   = new Date(to)
-  if (!(fromDate < toDate)) throw new ValidationError('from must be before to')
+  const reqFrom = new Date(from)
+  const reqTo   = new Date(to)
+  if (!(reqFrom < reqTo)) throw new ValidationError('from must be before to')
 
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     const svc = await repo.getServiceById(c, ctx.appId, ctx.tenantId, serviceId)
     if (!svc) throw new NotFoundError('service')
+
+    // Booking window (#2): narrow the requested range before computing.
+    const win = applyBookingWindow(svc, reqFrom, reqTo)
+    if (!win) return []
+    const fromDate = win.effFrom
+    const toDate   = win.effTo
 
     const baseResources = resourceId
       ? await repo.getResourcesForService(c, ctx.appId, ctx.tenantId, serviceId)
@@ -139,6 +183,38 @@ export async function listSlots(ctx, { serviceId, resourceId, from, to }) {
     try { await redis.set(cacheKey, JSON.stringify(slots), 'EX', SLOT_CACHE_TTL_SECONDS) } catch (_e) {}
     return slots
   })
+}
+
+// Recommendation #5: "next available" rolling-forward search. Instead of the
+// widget pulling a wide slot grid and taking the first element, this scans
+// forward in 7-day windows from `after` (default now) and returns the single
+// earliest slot. listSlots already clamps each window to the service booking
+// window (min_advance_minutes / max_advance_days), so once the service's
+// max_advance_days is exceeded every window yields [] and the loop stops at
+// the NEXT_AVAILABLE_MAX_DAYS hard cap.
+export async function nextAvailable(ctx, { serviceId, resourceId, after }) {
+  const afterDate = after ? new Date(after) : new Date()
+  if (Number.isNaN(afterDate.getTime())) throw new ValidationError('after must be a valid datetime')
+
+  // Walk forward in 7-day windows so a single listSlots call computes a
+  // bounded grid; stop at the first non-empty window.
+  const chunkDays = 7
+  let cursorFrom = afterDate
+  const hardEnd = addMinutes(afterDate, NEXT_AVAILABLE_MAX_DAYS * 24 * 60)
+  while (cursorFrom < hardEnd) {
+    const cursorTo = new Date(Math.min(
+      addMinutes(cursorFrom, chunkDays * 24 * 60).getTime(),
+      hardEnd.getTime(),
+    ))
+    const slots = await listSlots(ctx, {
+      serviceId, resourceId,
+      from: cursorFrom.toISOString(),
+      to:   cursorTo.toISOString(),
+    })
+    if (slots.length) return slots[0]
+    cursorFrom = cursorTo
+  }
+  return null
 }
 
 export async function holdSlot(ctx, { serviceId, resourceId, startsAt, endsAt, ttlSeconds = 300 }) {

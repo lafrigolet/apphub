@@ -108,7 +108,7 @@ describe('markPayoutPaid / getPayout', () => {
   it('markPayoutPaid sets paid + emits payout.paid', async () => {
     repo.setPayoutStatus.mockResolvedValue({ id: PAY_ID, status: 'paid' })
     await service.markPayoutPaid(ctx, PAY_ID, 'txn-abc')
-    expect(repo.setPayoutStatus).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, PAY_ID, 'paid', 'txn-abc')
+    expect(repo.setPayoutStatus).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, PAY_ID, 'paid', 'txn-abc', { expectedStatus: 'pending' })
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'payout.paid' }))
   })
 

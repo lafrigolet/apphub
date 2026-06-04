@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-CRUD de servicios (`code`, `name`, `description`, `category`, `modality`, `duration_minutes`, `buffer_before/after`, `price_cents`, `currency`, `cancellation_policy`, `requires_intake_form`, `intake_form_id`, `capacity`, `min_age`, `metadata`, `is_active`, `kind`, `public_catalog`, `step_minutes`); categorías de agrupación; galería de imágenes (referencia a `platform_storage`); tarifas dinámicas por franja horaria + día de semana (`service_pricing_tiers`); motor de cotización (`/quote`) con regla de especificidad más-específico-gana; sesiones fechadas (`service_sessions`) para servicios tipo `event`; catálogo público sin JWT (`GET /v1/services/sessions/upcoming` con `public_catalog=TRUE`); cancelación de sesión con evento `service.session.cancelled`; RLS por `(app_id, tenant_id)`; multi-sub_tenant; eventos `service.published` y `service.deprecated` en `platform.events`.
+CRUD de servicios (`code`, `name`, `description`, `category`, `modality`, `duration_minutes`, `buffer_before/after`, `price_cents`, `currency`, `cancellation_policy`, `requires_intake_form`, `intake_form_id`, `capacity`, `min_age`, `metadata`, `is_active`, `kind`, `public_catalog`, `step_minutes`); categorías de agrupación; galería de imágenes (referencia a `platform_storage`); tarifas dinámicas por franja horaria + día de semana (`service_pricing_tiers`); motor de cotización (`/quote`) con regla de especificidad más-específico-gana; sesiones fechadas (`service_sessions`) para servicios tipo `event`; catálogo público sin JWT (`GET /v1/services/sessions/upcoming` con `public_catalog=TRUE`); cancelación de sesión con evento `service.session.cancelled`; RLS por `(app_id, tenant_id)`; multi-sub_tenant; eventos `service.published` y `service.deprecated` en `platform.events`; ventana de reserva (`min_advance_minutes` / `max_advance_days`) con endpoint `booking-window`; `cancellation_policy` con esquema canónico validado; i18n (`service_translations`) con catálogo público localizado (migración `0005`).
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -37,7 +37,7 @@ Un mismo tenant puede tener entradas en ambos módulos si, por ejemplo, vende ta
 - ✅ Activar / desactivar (`is_active` + endpoint `POST /deactivate`); evento `service.deprecated` al desactivar.
 - ✅ `kind`: `appointment` (flujo clásico: availability + slots) o `event` (solo se reserva contra `service_sessions`, sin grid de slots).
 - ✅ `public_catalog`: bandera booleana que controla si las sesiones del servicio aparecen en el endpoint público sin autenticación.
-- 🔧 `cancellation_policy` almacenada como JSONB libre — sin esquema validado ni motor que la aplique automáticamente.
+- 🔧 `cancellation_policy` almacenada como JSONB libre — esquema canónico (`hours_before_cancel`, `refund_pct`, `no_show_fee_cents`) ✅ validado en el service layer + CHECK defensivo en BD (migración `0005`); el motor que la aplica automáticamente al cancelar sigue pendiente en `platform/bookings` (cross-cutting).
 - ❌ Versiones / historial de cambios del servicio (audit trail de quién cambió precio/duración/cuándo).
 - ❌ Duplicar / clonar un servicio existente como punto de partida.
 - ❌ Archivado (soft-delete completo con conservación de histórico de reservas).
@@ -132,6 +132,7 @@ Un mismo tenant puede tener entradas en ambos módulos si, por ejemplo, vende ta
 - ✅ `GET /v1/services/sessions/upcoming` sin autenticación — listado de sesiones próximas para landings; recibe `appId + tenantId` por query string; RLS garantiza el aislamiento.
 - ✅ Filtro por `kind` en el endpoint público (ver solo `event` o solo `appointment`).
 - ✅ Límite configurable de resultados (1–500).
+- ✅ Locale opcional (`?locale=<bcp47>`) que devuelve `name`/`description` traducidos vía `service_translations`, con fallback al texto base (ver §17).
 - 🔧 El listado público sólo devuelve sesiones (`service_sessions`), no servicios de tipo `appointment` sin sesiones (las citas individuales no tienen representación pública propia).
 - ❌ Página de detalle de servicio en el catálogo público (endpoint `GET /v1/services/sessions/:sessionId` requiere JWT actualmente — `config.public` no está aplicado).
 - ❌ Ordenación configurable del catálogo público (por precio, popularidad, nombre, proximidad).
@@ -165,15 +166,15 @@ Un mismo tenant puede tener entradas en ambos módulos si, por ejemplo, vende ta
 ## 12. Política de cancelación por servicio
 
 - ✅ `cancellation_policy JSONB` almacenada por servicio (sin esquema fijo — formato libre).
-- ❌ Esquema validado de política: `hours_before_cancel`, `refund_pct`, `no_show_fee_cents` (actualmente JSONB sin validación).
+- ✅ Esquema validado de política: `hours_before_cancel`, `refund_pct` (0–100), `no_show_fee_cents` — validado en `validateCancellationPolicy` (create/update) + CHECK `chk_cancellation_policy_shape` en BD (migración `0005`). Claves extra permitidas (passthrough) para flags específicos de cada app; políticas legacy sin las claves canónicas siguen siendo válidas.
 - ❌ Motor que aplique la política automáticamente al cancelar una reserva (REUSE `platform/bookings`): calcular reembolso proporcional, aplicar penalización de no-show.
 - ❌ Política de cancelación heredada de la categoría o del tenant (sin tener que configurarla en cada servicio).
 - ❌ Aviso al cliente de la política en el momento de reservar (REUSE `platform/notifications`).
 
 ## 13. Restricciones temporales y ventana de reserva
 
-- ❌ `min_advance_minutes` — tiempo mínimo de antelación requerido para reservar (p. ej. "no se puede reservar con menos de 2 horas de antelación").
-- ❌ `max_advance_days` — ventana máxima de reserva hacia adelante (p. ej. "solo se puede reservar con hasta 30 días de antelación").
+- ✅ `min_advance_minutes` — tiempo mínimo de antelación requerido para reservar (columna `services.min_advance_minutes`, migración `0005`). `platform/services` almacena/valida y expone `GET /v1/services/:id/booking-window?at=<ISO>` (+ helper puro `checkBookingWindow`); el rechazo en el momento de reservar lo aplica `platform/bookings` leyendo la columna (cross-cutting pendiente).
+- ✅ `max_advance_days` — ventana máxima de reserva hacia adelante (columna `services.max_advance_days`, migración `0005`); misma frontera de enforcement que `min_advance_minutes`.
 - ❌ Restricción de días / horas en que el servicio se puede reservar (independiente del horario del practitioner — p. ej. "clases solo lunes, miércoles y viernes").
 - ❌ Bloqueo temporal de un servicio (sin desactivarlo permanentemente) — p. ej. durante vacaciones del centro.
 
@@ -200,8 +201,8 @@ Un mismo tenant puede tener entradas en ambos módulos si, por ejemplo, vende ta
 
 ## 17. Internacionalización (i18n)
 
-- ❌ `name` y `description` sin soporte multiidioma (un sólo valor en el locale del tenant).
-- ❌ Tabla `service_translations` con `(service_id, locale, name, description)`.
+- ✅ `name` y `description` con soporte multiidioma vía `service_translations`. El catálogo público (`GET /v1/services/sessions/upcoming?locale=<bcp47>`) superpone la traducción al `service_name` / `service_description` y cae al texto base cuando falta la traducción del locale.
+- ✅ Tabla `service_translations` con `(service_id, locale, name, description)` (migración `0005`), unique por `(app_id, tenant_id, service_id, locale)`, RLS por `(app_id, tenant_id)`. CRUD: `GET/PUT /v1/services/:id/translations`, `DELETE /v1/services/:id/translations/:locale` (PUT es upsert por locale).
 - ❌ `category` sin traducción — la tabla de categorías tampoco tiene i18n.
 - ❌ `alt_text` de imágenes sin variantes por idioma.
 - ❌ Servicio de detección de idioma del cliente para devolver la traducción correcta en el catálogo público.
@@ -222,11 +223,11 @@ Un mismo tenant puede tener entradas en ambos módulos si, por ejemplo, vende ta
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
 1. **Política de cancelación con esquema validado + motor en bookings** — JSONB ya está; sólo falta validar el esquema y wirizar la lógica de reembolso proporcional en `platform/bookings`. Impacto inmediato en todos los apps de citas.
-2. **`min_advance_minutes` + `max_advance_days`** — dos columnas y una validación en el endpoint de creación de reserva; evita reservas de último minuto o demasiado anticipadas sin control por el tenant.
+2. ✅ ~~**`min_advance_minutes` + `max_advance_days`**~~ (columnas `services.min_advance_minutes` / `max_advance_days` en migración `0005`, validación de schema en el body, helper puro `checkBookingWindow` + endpoint `GET /v1/services/:id/booking-window`; el rechazo en el momento de reservar queda en `platform/bookings` — cross-cutting).
 3. **Wiring `service.session.cancelled` → cancelación en cascada de bookings** (Fase 2 identificada en el código) — el evento ya se emite, falta el subscriber en `platform/bookings`.
 4. **Recurrencia de sesiones** (job en `platform/scheduler`) — generar sesiones semanales/mensuales automáticamente es el flujo principal para clases regulares y exámenes periódicos.
-5. **Esquema validado de `cancellation_policy`** + herencia desde tenant / categoría — ahorra configuración repetitiva cuando todos los servicios tienen la misma política.
-6. **i18n básico** (`service_translations`) — necesario en cuanto un tenant opera en más de un idioma; coste bajo si se hace antes de que haya datos masivos.
+5. 🔧 **Esquema validado de `cancellation_policy`** ✅ ~~(esquema canónico validado en service layer + CHECK en BD, migración `0005`)~~ + ❌ herencia desde tenant / categoría (pendiente) — ahorra configuración repetitiva cuando todos los servicios tienen la misma política.
+6. ✅ ~~**i18n básico** (`service_translations`)~~ (tabla + CRUD `GET/PUT/DELETE /v1/services/:id/translations` + overlay localizado en el catálogo público vía `?locale=`, migración `0005`).
 7. **Duración variable / variantes** — clave para masajistas y consultas de diferente extensión; evita proliferación de servicios casi-duplicados.
 8. **`min_advance_minutes` + catálogo público mejorado** (filtros por categoría, búsqueda full-text, slug SEO) — desbloquea el uso de `GET /sessions/upcoming` como página de reservas autónoma sin frontend adicional.
 9. **Contador de reservas + tasa de ocupación** (analytics básico cruzando con `platform/bookings`) — valor inmediato para el admin del tenant, sin schema nuevo.

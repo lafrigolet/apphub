@@ -16,8 +16,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Campos opcionales: `email`, `phone`, `bio` (hasta 2 048 chars), `capacity`, `internal_rate_cents`, `metadata JSONB`.
 - ✅ Vincular recurso a un `user_id` de plataforma (para practitioners que tienen cuenta).
 - ✅ Asignar recurso a un `sub_tenant_id` (sede/sucursal dentro del tenant).
-- 🔧 PATCH/actualización de recurso no implementado — solo `POST` (crear) y `GET`.
-- ❌ Activar/desactivar recurso vía endpoint dedicado (`PATCH /v1/resources/:id/active`).
+- ✅ PATCH/actualización de recurso (`PATCH /v1/resources/:id`; `kind` inmutable, resto de campos editables incl. `timezone`).
+- ✅ Activar/desactivar recurso vía endpoint dedicado (`PATCH /v1/resources/:id/active`; publica `resource.schedule_changed`).
 - ❌ Soft-delete con `deleted_at` (hoy `is_active=false` es la única forma de ocultarlo).
 - ❌ Foto/avatar del practitioner (REUSE `platform/storage` — presigned URL + `avatar_storage_key` en `metadata`).
 - ❌ Galería de imágenes para salas/equipos (referencia a objetos en `platform/storage`).
@@ -41,7 +41,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Múltiples franjas en el mismo día (turno partido: mañana + tarde).
 - ✅ Listar horario semanal de un recurso (`GET /v1/resources/:id/work-hours`).
 - ✅ Eliminar una franja concreta (`DELETE /v1/resources/work-hours/:id`).
-- 🔧 No hay PATCH — para corregir una franja hay que borrarla y recrearla.
+- ✅ PATCH de franja (`PATCH /v1/resources/work-hours/:id`; publica `resource.schedule_changed`).
 - ❌ Copia/clonación de horario entre recursos (útil cuando varios practitioners tienen el mismo turno).
 - ❌ Horario con zona horaria explícita por recurso — hoy los minutos son UTC y el motor asume UTC. Recursos en zonas horarias distintas al tenant provocarían desfases.
 - ❌ Plantillas de horario reutilizables (template de turno mañana, tarde, fin de semana) aplicables a N recursos de un click.
@@ -55,9 +55,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Campo `reason` libre para justificar la excepción.
 - ✅ Listar excepciones de un recurso con filtro de rango temporal (`from`/`to`).
 - ✅ Evento Redis `resource.unavailable` al crear excepción (el scheduler de appointments y el módulo de bookings pueden reaccionar).
-- 🔧 No hay endpoint para eliminar una excepción — solo creación y listado.
-- 🔧 No hay PATCH de excepción (corrección de fechas requiere eliminar + recrear, pero no existe DELETE).
-- ❌ Festivos globales / festivos por tenant aplicados automáticamente a todos los recursos (en vez de crearlos uno a uno).
+- ✅ Eliminar una excepción (`DELETE /v1/resources/exceptions/:id`; publica `resource.schedule_changed`).
+- ✅ PATCH de excepción (`PATCH /v1/resources/exceptions/:id`; corrige fechas/tipo/motivo).
+- ✅ Festivos globales / festivos por tenant aplicados automáticamente a todos los recursos activos (`POST /v1/resources/holidays`; filtros opcionales por `kind`/`subTenantId`).
 - ❌ Bloqueos parciales de día: reunión, descanso, formación de 2h a las 10:00 (el modelo permite sub-día, pero no hay UX para ello).
 - ❌ Excepciones recurrentes (e.g. todos los lunes primer mes del año = festivo) — hoy solo one-shot.
 - ❌ Propagación de aviso `resource.unavailable` a clientes con bookings en el rango bloqueado (REUSE `platform/notifications`).
@@ -154,7 +154,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 14. Zonas horarias
 
 - 🔧 El módulo almacena minutos de día sin zona horaria explícita. El motor de availability opera en UTC y confía en que el frontend envíe rangos correctos.
-- ❌ Campo `timezone` en el recurso (practitioner en zona horaria diferente al tenant central).
+- 🔧 Campo `timezone` (IANA) en el recurso, persistido y editable vía POST/PATCH. La **conversión** `local → UTC` en `platform/availability` sigue pendiente (cross-cutting).
 - ❌ Campo `timezone` en el tenant, heredado por sus recursos salvo override.
 - ❌ Conversión automática `local → UTC` al generar slots para clientes que están en otra zona horaria.
 - ❌ Display de horarios en la zona del recurso para el administrador y en la zona del cliente para el usuario final.
@@ -166,7 +166,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `GET /v1/resources/by-service/:serviceId` es el endpoint que `platform/availability` usa para obtener los recursos que pueden dar un servicio.
 - ✅ Capacidad del recurso (`capacity`) propagada al slot (`remaining = min(svc.capacity, r.capacity) - bookings_activos`).
 - 🔧 `effective_from`/`effective_until` en work_hours están modelados en BD y los lee `availability.service.js`, pero no hay endpoint para gestionar horarios estacionales en la UI.
-- ❌ Invalidación del caché de slots en `platform/availability` cuando cambia el horario de un recurso (hoy solo se invalida cuando hay un hold/release). Un cambio de work_hours o excepción debería publicar `resource.schedule_changed` para que el módulo de availability bumpe la versión del recurso en Redis.
+- 🔧 `platform/resources` ya publica `resource.schedule_changed` en `platform.events` cuando cambian work_hours (create/update/delete), excepciones (create/update/delete/bulk holidays) o el `is_active` del recurso. **Pendiente (cross-cutting en `platform/availability`)**: suscribirse al evento y bumpear la versión del recurso en Redis para invalidar el caché de slots.
 - ❌ Soporte de recursos compuestos en `platform/availability`: si un servicio requiere practitioner + sala, el motor debe garantizar ambos libres simultáneamente.
 
 ## 16. Calendarios externos (sincronización)
@@ -184,7 +184,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Aislamiento garantizado: un practitioner de un tenant nunca aparece en la lista de otro.
 - 🔧 `sub_tenant_id` en el recurso, pero la RLS de las tablas solo filtra por `(app_id, tenant_id)` — no hay aislamiento RLS por `sub_tenant_id` (la lógica de sede es aplicativa).
 - ❌ Tenant-level defaults: configurar work_hours estándar para todos los recursos nuevos del tenant.
-- ❌ Festivos globales por tenant que se propaguen automáticamente como excepciones a todos sus recursos (`holiday` masivo).
+- ✅ Festivos globales por tenant que se propagan automáticamente como excepciones a todos sus recursos activos (`holiday` masivo vía `POST /v1/resources/holidays`).
 - ❌ Límite configurable de número de recursos activos por tenant (control de plan/tier).
 - ❌ Dashboard de ocupación global del tenant: todos los recursos, todos los días, en una vista de calor.
 
@@ -204,12 +204,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **PATCH de recurso + DELETE de excepción** — funcionalidad CRUD básica ausente; bloquea operativas cotidianas sin gran coste de implementación.
-2. **Invalidación de caché de availability al cambiar horario** — publicar `resource.schedule_changed` en Redis cuando cambia `work_hours` o `exceptions`, para que `platform/availability` bumpe la versión del recurso y no sirva slots caducados; riesgo operativo real hoy.
+1. ✅ ~~**PATCH de recurso + DELETE de excepción**~~ (implementado: `PATCH /v1/resources/:id`, `PATCH /v1/resources/:id/active`, `PATCH /v1/resources/work-hours/:id`, `PATCH` y `DELETE /v1/resources/exceptions/:id`).
+2. 🔧 ~~**Invalidación de caché de availability al cambiar horario**~~ — `platform/resources` ya publica `resource.schedule_changed` en cada cambio de work_hours/excepciones/`is_active`. Falta el consumidor en `platform/availability` (cross-cutting).
 3. **Foto de practitioner** (REUSE `platform/storage`) + **endpoint público de lista** — desbloquea el portal de cliente de cualquier app de citas (aikikan, health, …) con coste bajo porque el storage ya está implementado.
 4. **Agenda del practitioner** (`GET /v1/resources/:id/agenda`) — cruce de work_hours + exceptions + bookings; muy valorado por practitioners y no requiere nuevas tablas.
-5. **Festivos masivos por tenant** — crear excepciones en todos los recursos de un tenant en un solo POST; evita trabajo manual repetitivo en lanzamientos y temporadas.
-6. **Zona horaria por recurso** — necesario en cuanto haya apps con practitioners en múltiples países; el campo es trivial de añadir, pero la lógica de conversión requiere coordinación con `platform/availability`.
+5. ✅ ~~**Festivos masivos por tenant**~~ (implementado: `POST /v1/resources/holidays`, crea una excepción en todos los recursos activos del tenant, con filtros opcionales por `kind`/`subTenantId`).
+6. 🔧 ~~**Zona horaria por recurso**~~ — campo `timezone` IANA añadido y editable; la lógica de conversión `local → UTC` queda en `platform/availability` (cross-cutting).
 7. **Recursos compuestos** (practitioner + sala simultáneos) — requiere cambio en `platform/availability`; alto valor para gimnasios, clínicas y estudios donde la sala es cuello de botella.
 8. **Reseñas de practitioner** (REUSE `platform/reviews` con `entity_type='resource'`) — impacto directo en conversión; el módulo ya existe, solo falta la integración.
 9. **Sincronización Google Calendar** (export iCal primero, import después) — el export es bajo coste y muy demandado por practitioners que ya usan Google Calendar.

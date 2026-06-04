@@ -81,10 +81,15 @@ async function ensureRedeemAllowed(client, ctx, packageId) {
 export async function redeem(ctx, { packageId, bookingId }) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     await ensureRedeemAllowed(c, ctx, packageId)
+    // #5 Idempotencia: si este booking ya consumió una sesión, no repetir.
+    if (bookingId && await repo.redeemExistsForBooking(c, ctx.appId, ctx.tenantId, bookingId)) {
+      return repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    }
     const updated = await repo.decrementSessions(c, ctx.appId, ctx.tenantId, packageId, -1)
     if (!updated) throw new ConflictError('package has no remaining sessions or is invalid')
     await repo.insertRedemption(c, ctx.appId, ctx.tenantId, {
       packageId, bookingId, delta: -1, reason: 'redeem',
+      redeemerUserId: ctx.role === 'system' ? null : ctx.userId,
     })
     if (updated.status === 'exhausted') {
       await publish({
@@ -225,6 +230,133 @@ export async function refundSession(ctx, { packageId, bookingId }) {
   })
 }
 
+// ── #8 Manual balance adjustment (staff only) ───────────────────────────
+// Applies an arbitrary delta to remaining_sessions with reason='adjust'.
+// Positive adds sessions, negative removes (clamped at 0 by decrementSessions).
+export async function adjustBalance(ctx, packageId, { delta, note, bookingId }) {
+  if (!['staff', 'super_admin'].includes(ctx.role)) {
+    throw new ConflictError('only staff can manually adjust a package balance')
+  }
+  if (!Number.isInteger(delta) || delta === 0) {
+    throw new ConflictError('delta must be a non-zero integer')
+  }
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    const updated = await repo.decrementSessions(c, ctx.appId, ctx.tenantId, packageId, delta)
+    if (!updated) throw new ConflictError('adjustment would push balance below zero or above total')
+    // Re-activate an exhausted package if sessions were added back.
+    if (delta > 0 && pkg.status === 'exhausted') {
+      await repo.setStatus(c, ctx.appId, ctx.tenantId, packageId, 'active')
+    }
+    await repo.insertRedemption(c, ctx.appId, ctx.tenantId, {
+      packageId, bookingId: bookingId ?? null, delta, reason: 'adjust',
+      redeemerUserId: ctx.userId,
+    })
+    return repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+  })
+}
+
+// ── #9 Freeze / unfreeze / extend validity (staff only) ──────────────────
+function ensureStaff(ctx, action) {
+  if (!['staff', 'super_admin'].includes(ctx.role)) {
+    throw new ConflictError(`only staff can ${action} a package`)
+  }
+}
+
+export async function freezePackage(ctx, packageId, body = {}) {
+  ensureStaff(ctx, 'freeze')
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    const updated = await repo.freezePackage(c, ctx.appId, ctx.tenantId, packageId)
+    if (!updated) throw new ConflictError('only an active package can be frozen')
+    await repo.insertFreeze(c, ctx.appId, ctx.tenantId, {
+      packageId, reason: body.reason, actorUserId: ctx.userId,
+    })
+    await publish({
+      type: 'package.frozen',
+      payload: { appId: ctx.appId, tenantId: ctx.tenantId, packageId, clientUserId: updated.client_user_id },
+    })
+    return updated
+  })
+}
+
+export async function unfreezePackage(ctx, packageId) {
+  ensureStaff(ctx, 'unfreeze')
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    const updated = await repo.unfreezePackage(c, ctx.appId, ctx.tenantId, packageId)
+    if (!updated) throw new ConflictError('package is not frozen')
+    const daysAdded = updated.frozen_days_total - (pkg.frozen_days_total ?? 0)
+    await repo.closeFreeze(c, ctx.appId, ctx.tenantId, packageId, daysAdded)
+    await publish({
+      type: 'package.unfrozen',
+      payload: { appId: ctx.appId, tenantId: ctx.tenantId, packageId, clientUserId: updated.client_user_id, daysAdded },
+    })
+    return updated
+  })
+}
+
+export async function extendExpiry(ctx, packageId, { days }) {
+  ensureStaff(ctx, 'extend')
+  if (!Number.isInteger(days) || days <= 0) throw new ConflictError('days must be a positive integer')
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    const updated = await repo.extendExpiry(c, ctx.appId, ctx.tenantId, packageId, days)
+    if (!updated) throw new ConflictError('package cannot be extended in its current status')
+    return updated
+  })
+}
+
+export async function listFreezes(ctx, packageId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    return repo.listFreezes(c, ctx.appId, ctx.tenantId, packageId)
+  })
+}
+
+// ── #4 Cancellation with proportional monetary refund ────────────────────
+// Marks the package status='refunded', computes the proportional refund amount
+// for the unused sessions and publishes `package.refunded` so platform/payments
+// can issue the actual Stripe refund. This module never calls Stripe directly.
+export async function cancelPackage(ctx, packageId, body = {}) {
+  ensureStaff(ctx, 'cancel')
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const pkg = await repo.findPurchaseById(c, ctx.appId, ctx.tenantId, packageId)
+    if (!pkg) throw new NotFoundError('package')
+    if (['refunded', 'cancelled'].includes(pkg.status)) {
+      throw new ConflictError('package is already cancelled or refunded')
+    }
+    const penaltyPct = Number.isFinite(body.penaltyPct) ? Math.min(Math.max(body.penaltyPct, 0), 100) : 0
+    const unused = pkg.remaining_sessions
+    const grossRefund = pkg.total_sessions > 0
+      ? Math.round((unused / pkg.total_sessions) * Number(pkg.price_paid_cents))
+      : 0
+    const refundCents = Math.round(grossRefund * (1 - penaltyPct / 100))
+
+    const updated = await repo.setStatus(c, ctx.appId, ctx.tenantId, packageId, 'refunded')
+    await repo.insertRedemption(c, ctx.appId, ctx.tenantId, {
+      packageId, bookingId: null, delta: 0, reason: 'adjust',
+      redeemerUserId: ctx.userId,
+    })
+    await publish({
+      type: 'package.refunded',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId, packageId,
+        clientUserId: pkg.client_user_id,
+        unusedSessions: unused, totalSessions: pkg.total_sessions,
+        pricePaidCents: Number(pkg.price_paid_cents),
+        refundCents, penaltyPct, currency: pkg.currency,
+      },
+    })
+    return { ...updated, refundCents, unusedSessions: unused, penaltyPct }
+  })
+}
+
 // Event consumer: when a booking is completed and references a package, redeem one session.
 // When a booking is cancelled and was paid via package, refund one session.
 export async function handleEvent(event) {
@@ -235,23 +367,49 @@ export async function handleEvent(event) {
 
     await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
       const { rows } = await c.query(
-        `SELECT package_id FROM platform_bookings.bookings
-         WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+        `SELECT package_id, client_user_id, service_id
+           FROM platform_bookings.bookings
+          WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
         [ctx.appId, ctx.tenantId, p.bookingId],
       )
-      const packageId = rows[0]?.package_id
+      const booking = rows[0]
+      if (!booking) return
+
+      let packageId = booking.package_id
+      // #1 FIFO fallback: if the booking isn't explicitly linked to a package
+      // but its client owns an active package for the service, auto-select the
+      // one expiring soonest (findActivePackageFor orders by expires_at ASC).
+      if (!packageId
+          && event.type === 'booking.completed'
+          && booking.client_user_id && booking.service_id) {
+        const pkg = await repo.findActivePackageFor(
+          c, ctx.appId, ctx.tenantId, booking.client_user_id, booking.service_id,
+        )
+        packageId = pkg?.id
+      }
       if (!packageId) return
 
       if (event.type === 'booking.completed') {
-        await repo.decrementSessions(c, ctx.appId, ctx.tenantId, packageId, -1)
+        // #5 Idempotencia: un booking.completed duplicado no consume dos veces.
+        if (await repo.redeemExistsForBooking(c, ctx.appId, ctx.tenantId, p.bookingId)) return
+        const updated = await repo.decrementSessions(c, ctx.appId, ctx.tenantId, packageId, -1)
+        if (!updated) return
         await repo.insertRedemption(c, ctx.appId, ctx.tenantId, {
           packageId, bookingId: p.bookingId, delta: -1, reason: 'redeem',
+          redeemerUserId: booking.client_user_id ?? null,
         })
+        if (updated.status === 'exhausted') {
+          await publish({
+            type: 'package.exhausted',
+            payload: { appId: ctx.appId, tenantId: ctx.tenantId, packageId, clientUserId: updated.client_user_id },
+          })
+        }
       } else if (event.type === 'booking.cancelled' || event.type === 'booking.no_show') {
         // Cancellation refund only when no_show=false, in this MVP we refund both.
         await repo.decrementSessions(c, ctx.appId, ctx.tenantId, packageId, +1)
         await repo.insertRedemption(c, ctx.appId, ctx.tenantId, {
           packageId, bookingId: p.bookingId, delta: +1, reason: 'refund',
+          redeemerUserId: booking.client_user_id ?? null,
         })
       }
     })

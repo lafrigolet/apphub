@@ -10,10 +10,11 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { runMigrations } from '../../lib/migrate.js'
 import {
-  createResource, getResource, listResources, listResourcesForService,
+  createResource, updateResource, setResourceActive,
+  getResource, listResources, listResourcesForService,
   attachService, detachService,
-  setWorkHour, listWorkHours, deleteWorkHour,
-  createException, listExceptions,
+  setWorkHour, updateWorkHour, listWorkHours, deleteWorkHour,
+  createException, updateException, deleteException, createTenantHolidays, listExceptions,
 } from '../../services/resources.service.js'
 import { NotFoundError } from '../../utils/errors.js'
 
@@ -152,6 +153,80 @@ describe('exceptions', () => {
     await createException(ctx(), { resourceId: r.id, startsAt: '2026-06-01T00:00:00Z', endsAt: '2026-06-02T00:00:00Z', kind: 'vacation' })
     const may = await listExceptions(ctx(), r.id, { from: '2026-05-01T00:00:00Z', to: '2026-05-31T00:00:00Z' })
     expect(may).toHaveLength(1)
+  })
+})
+
+describe('resource update / active toggle', () => {
+  it('PATCH updates mutable fields and timezone, leaves others intact', async () => {
+    const r = await createResource(ctx(), { kind: 'practitioner', displayName: 'Old', capacity: 1 })
+    const upd = await updateResource(ctx(), r.id, { displayName: 'New', capacity: 4, timezone: 'Europe/Madrid' })
+    expect(upd.display_name).toBe('New')
+    expect(upd.capacity).toBe(4)
+    expect(upd.timezone).toBe('Europe/Madrid')
+    expect(upd.kind).toBe('practitioner')
+  })
+
+  it('updateResource throws NotFoundError when missing', async () => {
+    await expect(updateResource(ctx(), uuidv4(), { displayName: 'X' })).rejects.toThrow(NotFoundError)
+  })
+
+  it('setResourceActive deactivates and removes it from default list', async () => {
+    const r = await createResource(ctx(), { kind: 'room', displayName: 'Sala' })
+    await setResourceActive(ctx(), r.id, false)
+    const active = await listResources(ctx(), {})
+    expect(active.find((x) => x.id === r.id)).toBeFalsy()
+    const all = await listResources(ctx(), { onlyActive: false })
+    expect(all.find((x) => x.id === r.id)).toBeTruthy()
+  })
+})
+
+describe('work hours update', () => {
+  it('PATCH a slot in place', async () => {
+    const r = await createResource(ctx(), { kind: 'practitioner', displayName: 'A' })
+    const w = await setWorkHour(ctx(), { resourceId: r.id, dayOfWeek: 1, startMinute: 540, endMinute: 720 })
+    const upd = await updateWorkHour(ctx(), w.id, { endMinute: 900 })
+    expect(upd.end_minute).toBe(900)
+    expect(upd.start_minute).toBe(540)
+  })
+})
+
+describe('exception update / delete', () => {
+  it('PATCH and DELETE an exception', async () => {
+    const r = await createResource(ctx(), { kind: 'practitioner', displayName: 'A' })
+    const e = await createException(ctx(), {
+      resourceId: r.id, startsAt: '2026-07-01T00:00:00Z', endsAt: '2026-07-02T00:00:00Z', kind: 'vacation',
+    })
+    const upd = await updateException(ctx(), e.id, { reason: 'corrected', kind: 'sick' })
+    expect(upd.reason).toBe('corrected')
+    expect(upd.kind).toBe('sick')
+    await deleteException(ctx(), e.id)
+    const left = await listExceptions(ctx(), r.id, {})
+    expect(left.find((x) => x.id === e.id)).toBeFalsy()
+  })
+
+  it('deleteException throws NotFoundError when missing', async () => {
+    await expect(deleteException(ctx(), uuidv4())).rejects.toThrow(NotFoundError)
+  })
+})
+
+describe('bulk tenant holidays', () => {
+  it('creates one exception per active resource and skips inactive / kind-filtered', async () => {
+    const p1 = await createResource(ctx(), { kind: 'practitioner', displayName: 'P1' })
+    const room = await createResource(ctx(), { kind: 'room', displayName: 'R1' })
+    const inactive = await createResource(ctx(), { kind: 'practitioner', displayName: 'P2' })
+    await setResourceActive(ctx(), inactive.id, false)
+
+    const res = await createTenantHolidays(ctx(), {
+      startsAt: '2026-12-25T00:00:00Z', endsAt: '2026-12-26T00:00:00Z', reason: 'Xmas', kind: 'practitioner',
+    })
+    expect(res.created).toBe(1) // only active practitioner p1
+
+    const p1Exc = await listExceptions(ctx(), p1.id, {})
+    expect(p1Exc.some((e) => e.kind === 'holiday')).toBe(true)
+    const roomExc = await listExceptions(ctx(), room.id, {})
+    expect(roomExc.some((e) => e.kind === 'holiday')).toBe(false)
+    const inactiveExc = await listExceptions(ctx(), inactive.id, {})
+    expect(inactiveExc).toHaveLength(0)
   })
 })
 

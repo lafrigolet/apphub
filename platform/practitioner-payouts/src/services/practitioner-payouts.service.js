@@ -31,6 +31,17 @@ export async function listAccruals(ctx, opts) {
 }
 
 // ── Payouts ─────────────────────────────────────────────────────────
+// Apply an IRPF-style withholding to a gross commission. Returns the integer
+// cents withheld and the net (gross - withheld). Negative gross (net advances
+// / deductions dominating) yields zero withholding and a negative net.
+export function applyWithholding(grossCents, withholdingPct) {
+  const gross = Number(grossCents)
+  const pct = Number(withholdingPct ?? 0)
+  if (gross <= 0 || pct <= 0) return { withholdingCents: 0, netCents: gross }
+  const withholdingCents = Math.round(gross * (pct / 100))
+  return { withholdingCents, netCents: gross - withholdingCents }
+}
+
 export async function closePeriod(ctx, { practitionerId, periodStart, periodEnd, currency }) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
     const accruals = await repo.listAccruals(c, ctx.appId, ctx.tenantId, {
@@ -38,9 +49,19 @@ export async function closePeriod(ctx, { practitionerId, periodStart, periodEnd,
     })
     if (!accruals.length) throw new ConflictError('no accruals in period')
     const total = accruals.reduce((s, a) => s + Number(a.commission_cents), 0)
+
+    // IRPF withholding: per-practitioner override wins over tenant default.
+    const withholdingPct = await repo.resolveWithholdingPct(c, ctx.appId, ctx.tenantId, practitionerId)
+    const { withholdingCents, netCents } = applyWithholding(total, withholdingPct)
+
     const payout = await repo.insertPayout(c, ctx.appId, ctx.tenantId, {
       practitionerId, periodStart, periodEnd,
-      totalCommissionCents: total, currency: currency ?? 'EUR',
+      totalCommissionCents: total,
+      grossCommissionCents: total,
+      withholdingPct,
+      withholdingCents,
+      netCommissionCents: netCents,
+      currency: currency ?? 'EUR',
     })
     await repo.attachAccrualsToPayout(c, ctx.appId, ctx.tenantId, payout.id, practitionerId, periodStart, periodEnd)
     await publish({
@@ -48,6 +69,7 @@ export async function closePeriod(ctx, { practitionerId, periodStart, periodEnd,
       payload: {
         appId: ctx.appId, tenantId: ctx.tenantId, payoutId: payout.id,
         practitionerId, totalCommissionCents: total,
+        withholdingCents, netCommissionCents: netCents,
       },
     })
     return payout
@@ -55,10 +77,15 @@ export async function closePeriod(ctx, { practitionerId, periodStart, periodEnd,
 }
 
 export async function markPayoutPaid(ctx, id, externalRef) {
-  const updated = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
-    repo.setPayoutStatus(c, ctx.appId, ctx.tenantId, id, 'paid', externalRef),
-  )
-  if (!updated) throw new NotFoundError('payout')
+  const updated = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    // Guard: only a 'pending' payout can transition to 'paid'. If the row
+    // exists but isn't pending (already paid / cancelled) → ConflictError.
+    const ok = await repo.setPayoutStatus(c, ctx.appId, ctx.tenantId, id, 'paid', externalRef, { expectedStatus: 'pending' })
+    if (ok) return ok
+    const existing = await repo.findPayoutById(c, ctx.appId, ctx.tenantId, id)
+    if (!existing) throw new NotFoundError('payout')
+    throw new ConflictError(`payout not pending (status=${existing.status})`)
+  })
   await publish({
     type: 'payout.paid',
     payload: { appId: ctx.appId, tenantId: ctx.tenantId, payoutId: id, externalRef },
@@ -78,6 +105,56 @@ export async function listPayouts(ctx, opts) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
     repo.listPayouts(c, ctx.appId, ctx.tenantId, opts),
   )
+}
+
+// ── Withholding (IRPF) settings ─────────────────────────────────────────
+export async function listWithholdingSettings(ctx) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listWithholdingSettings(c, ctx.appId, ctx.tenantId),
+  )
+}
+
+export async function upsertWithholdingSetting(ctx, body) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.upsertWithholdingSetting(c, ctx.appId, ctx.tenantId, body),
+  )
+}
+
+// ── Payout schedules CRUD ───────────────────────────────────────────────
+export async function createSchedule(ctx, body) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.insertSchedule(c, ctx.appId, ctx.tenantId, body),
+  )
+}
+
+export async function listSchedules(ctx, opts) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listSchedules(c, ctx.appId, ctx.tenantId, opts),
+  )
+}
+
+export async function getSchedule(ctx, id) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const s = await repo.findScheduleById(c, ctx.appId, ctx.tenantId, id)
+    if (!s) throw new NotFoundError('schedule')
+    return s
+  })
+}
+
+export async function updateSchedule(ctx, id, patch) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const existing = await repo.findScheduleById(c, ctx.appId, ctx.tenantId, id)
+    if (!existing) throw new NotFoundError('schedule')
+    return repo.updateSchedule(c, ctx.appId, ctx.tenantId, id, patch)
+  })
+}
+
+export async function deleteSchedule(ctx, id) {
+  const deleted = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.deleteSchedule(c, ctx.appId, ctx.tenantId, id),
+  )
+  if (!deleted) throw new NotFoundError('schedule')
+  return { id: deleted.id }
 }
 
 // Compute commission for a (gross, rule) pair — extracted for reuse + testing.
@@ -169,11 +246,45 @@ export async function handleEvent(event) {
         }
       })
     } else if (event.type === 'booking.cancelled' || event.type === 'booking.no_show') {
-      // Reverse any previously-accrued commission for this booking.
+      // Reverse (if not yet liquidated) or clawback (if already paid) the
+      // commission accrued for this booking.
       await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
         const accrual = await repo.findAccrualByBooking(c, ctx.appId, ctx.tenantId, p.bookingId)
-        if (accrual && accrual.status === 'accrued') {
+        if (!accrual) return
+        if (accrual.status === 'accrued') {
           await repo.reverseAccrual(c, ctx.appId, ctx.tenantId, accrual.id)
+          await publish({
+            type: 'accrual.reversed',
+            payload: {
+              appId: ctx.appId, tenantId: ctx.tenantId, accrualId: accrual.id,
+              practitionerId: accrual.practitioner_id, bookingId: p.bookingId, mode: 'reversed',
+            },
+          })
+        } else if (accrual.status === 'paid') {
+          // Already liquidated → cannot reverse the closed payout. Create a
+          // negative 'adjustment' clawback accrual that deducts the same
+          // commission from the NEXT period close.
+          const clawback = await repo.insertAccrual(c, ctx.appId, ctx.tenantId, {
+            practitionerId:  accrual.practitioner_id,
+            serviceId:       accrual.service_id,
+            bookingId:       p.bookingId,
+            grossCents:      -Number(accrual.gross_cents),
+            commissionCents: -Number(accrual.commission_cents),
+            type:            'adjustment',
+            metadata: {
+              reason: `clawback for ${event.type}`,
+              source_accrual_id: accrual.id,
+              source_payout_id: accrual.payout_id ?? null,
+            },
+          })
+          await publish({
+            type: 'accrual.reversed',
+            payload: {
+              appId: ctx.appId, tenantId: ctx.tenantId, accrualId: accrual.id,
+              clawbackAccrualId: clawback.id, practitionerId: accrual.practitioner_id,
+              bookingId: p.bookingId, mode: 'clawback',
+            },
+          })
         }
       })
     }
@@ -211,15 +322,22 @@ export async function exportPayoutPdf(ctx, payoutId) {
     lines.push(`Estado: ${payout.status}`)
     if (payout.external_ref) lines.push(`Referencia externa: ${payout.external_ref}`)
     lines.push(`Moneda: ${payout.currency ?? 'EUR'}`)
+    // Prefer the real payout columns; fall back to legacy aliases for safety.
+    const grossCents = payout.gross_commission_cents ?? payout.gross_amount_cents ?? payout.total_commission_cents
+    const netCents   = payout.net_commission_cents   ?? payout.net_amount_cents   ?? payout.total_commission_cents
     lines.push('')
-    lines.push(`Total bruto: ${fmtAmount(payout.gross_amount_cents, payout.currency)}`)
-    lines.push(`Total neto: ${fmtAmount(payout.net_amount_cents,   payout.currency)}`)
+    lines.push(`Total bruto: ${fmtAmount(grossCents, payout.currency)}`)
+    if (payout.withholding_cents != null && Number(payout.withholding_cents) > 0) {
+      lines.push(`Retención IRPF (${Number(payout.withholding_pct ?? 0)}%): -${fmtAmount(payout.withholding_cents, payout.currency)}`)
+    }
+    lines.push(`Total neto: ${fmtAmount(netCents, payout.currency)}`)
     lines.push('')
     lines.push(`Devengos del periodo (${accruals.length}):`)
     lines.push('-'.repeat(70))
     for (const a of accruals) {
-      const at = new Date(a.created_at).toLocaleDateString('es-ES')
-      lines.push(`${at} · booking ${a.booking_id?.slice(0, 8) ?? '—'} · ${fmtAmount(a.amount_cents, payout.currency)} · ${a.status}`)
+      const at = new Date(a.occurred_at ?? a.created_at).toLocaleDateString('es-ES')
+      const amount = a.commission_cents ?? a.amount_cents
+      lines.push(`${at} · booking ${a.booking_id?.slice(0, 8) ?? '—'} · ${fmtAmount(amount, payout.currency)} · ${a.status}`)
     }
 
     return {

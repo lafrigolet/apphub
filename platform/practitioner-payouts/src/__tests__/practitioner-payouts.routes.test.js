@@ -13,6 +13,13 @@ vi.mock('../services/practitioner-payouts.service.js', () => ({
   getPayout:       vi.fn(),
   listPayouts:     vi.fn(),
   exportPayoutPdf: vi.fn(),
+  listWithholdingSettings: vi.fn(),
+  upsertWithholdingSetting: vi.fn(),
+  createSchedule:  vi.fn(),
+  listSchedules:   vi.fn(),
+  getSchedule:     vi.fn(),
+  updateSchedule:  vi.fn(),
+  deleteSchedule:  vi.fn(),
 }))
 
 import { payoutsRoutes } from '../routes/practitioner-payouts.routes.js'
@@ -23,10 +30,19 @@ const PAY  = '22222222-2222-2222-2222-222222222222'
 
 const identity = { appId: 'clinic', tenantId: 't1', subTenantId: null, userId: 'u1', role: 'admin' }
 
-async function buildApp() {
+async function buildApp(role = 'admin') {
   const app = Fastify({ logger: false })
+  const zodCompiler = ({ schema }) => (data) => {
+    if (schema?.safeParse) {
+      const r = schema.safeParse(data)
+      return r.success ? { value: r.data } : { error: new Error('VALIDATION') }
+    }
+    return { value: data }
+  }
+  app.setValidatorCompiler(zodCompiler)
+  app.setSerializerCompiler(() => (data) => JSON.stringify(data))
   app.decorateRequest('identity', null)
-  app.addHook('onRequest', async (req) => { req.identity = { ...identity } })
+  app.addHook('onRequest', async (req) => { req.identity = { ...identity, role } })
   await app.register(payoutsRoutes)
   app.setErrorHandler((err, req, reply) => {
     if (err.statusCode) return reply.status(err.statusCode).send({ error: { code: err.code } })
@@ -146,5 +162,106 @@ describe('GET /payouts/:id/pdf', () => {
     expect(res.headers['content-type']).toMatch(/application\/pdf/)
     expect(res.headers['content-disposition']).toMatch(/payout-abc\.pdf/)
     expect(service.exportPayoutPdf).toHaveBeenCalledWith(expect.anything(), PAY)
+  })
+})
+
+describe('role guard (requireRole)', () => {
+  it('rol no autorizado → 403 y NO llama al service', async () => {
+    const userApp = await buildApp('user')
+    const res = await userApp.inject({ method: 'GET', url: '/v1/practitioner-payouts/payouts' })
+    expect(res.statusCode).toBe(403)
+    expect(service.listPayouts).not.toHaveBeenCalled()
+    await userApp.close()
+  })
+
+  it('staff autorizado → pasa el guard', async () => {
+    const staffApp = await buildApp('staff')
+    service.listPayouts.mockResolvedValue([])
+    const res = await staffApp.inject({ method: 'GET', url: '/v1/practitioner-payouts/payouts' })
+    expect(res.statusCode).toBe(200)
+    await staffApp.close()
+  })
+})
+
+describe('withholding settings endpoints', () => {
+  it('GET delega listWithholdingSettings', async () => {
+    service.listWithholdingSettings.mockResolvedValue([])
+    const res = await app.inject({ method: 'GET', url: '/v1/practitioner-payouts/withholding-settings' })
+    expect(res.statusCode).toBe(200)
+    expect(service.listWithholdingSettings).toHaveBeenCalled()
+  })
+
+  it('PUT delega upsertWithholdingSetting (tenant default)', async () => {
+    service.upsertWithholdingSetting.mockResolvedValue({ id: 'w1' })
+    const res = await app.inject({
+      method: 'PUT', url: '/v1/practitioner-payouts/withholding-settings',
+      payload: { withholdingPct: 15 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.upsertWithholdingSetting).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ withholdingPct: 15 }))
+  })
+
+  it('PUT con pct inválido → 400/500', async () => {
+    const res = await app.inject({
+      method: 'PUT', url: '/v1/practitioner-payouts/withholding-settings',
+      payload: { withholdingPct: 200 },
+    })
+    expect([400, 500]).toContain(res.statusCode)
+  })
+})
+
+describe('schedules CRUD endpoints', () => {
+  const SCH = '33333333-3333-3333-3333-333333333333'
+
+  it('POST → 201 createSchedule', async () => {
+    service.createSchedule.mockResolvedValue({ id: SCH })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/practitioner-payouts/schedules',
+      payload: { practitionerId: PRAC, period: 'monthly', nextRunAt: '2026-07-01T00:00:00.000Z' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createSchedule).toHaveBeenCalled()
+  })
+
+  it('GET lista pasa filtros', async () => {
+    service.listSchedules.mockResolvedValue([])
+    await app.inject({ method: 'GET', url: `/v1/practitioner-payouts/schedules?practitionerId=${PRAC}&isActive=true` })
+    expect(service.listSchedules).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ practitionerId: PRAC, isActive: true }))
+  })
+
+  it('GET :id delega getSchedule', async () => {
+    service.getSchedule.mockResolvedValue({ id: SCH })
+    const res = await app.inject({ method: 'GET', url: `/v1/practitioner-payouts/schedules/${SCH}` })
+    expect(res.statusCode).toBe(200)
+    expect(service.getSchedule).toHaveBeenCalledWith(expect.anything(), SCH)
+  })
+
+  it('PATCH :id delega updateSchedule (pausa)', async () => {
+    service.updateSchedule.mockResolvedValue({ id: SCH, is_active: false })
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/practitioner-payouts/schedules/${SCH}`,
+      payload: { isActive: false },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.updateSchedule).toHaveBeenCalledWith(expect.anything(), SCH, expect.objectContaining({ isActive: false }))
+  })
+
+  it('DELETE :id delega deleteSchedule', async () => {
+    service.deleteSchedule.mockResolvedValue({ id: SCH })
+    const res = await app.inject({ method: 'DELETE', url: `/v1/practitioner-payouts/schedules/${SCH}` })
+    expect(res.statusCode).toBe(200)
+    expect(service.deleteSchedule).toHaveBeenCalledWith(expect.anything(), SCH)
+  })
+})
+
+describe('POST /accruals admite type adjustment + cents negativos', () => {
+  it('201 manual adjustment con commission negativo', async () => {
+    service.createAccrual.mockResolvedValue({ id: 'adj1' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/practitioner-payouts/accruals',
+      payload: { practitionerId: PRAC, grossCents: -1000, commissionCents: -300, type: 'adjustment' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createAccrual).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'adjustment', commissionCents: -300 }))
   })
 })

@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-Plantillas versionadas con esquema JSONB libre (`code, name, description, schema, version, is_published, requires_signature`); publicación de plantillas; envíos (`submissions`) vinculados a `booking_id` y `client_user_id` con ciclo `pending → submitted → reviewed`; firma electrónica con `signature_url`/`signature_object_id` (REUSE `platform/storage`); guardado parcial de respuestas + envío final; revisión por practitioner; autocreación de submission al detectar `booking.confirmed`/`booking.requested` en servicios con `requires_intake_form = TRUE` vía Redis (cross-schema read a `platform_services`); eventos `intake.requested` e `intake.submitted`; exportación a PDF (`GET /submissions/:id/pdf`) con `@apphub/platform-sdk/simple-pdf`; RLS por `(app_id, tenant_id)` en ambas tablas.
+Plantillas versionadas con esquema JSONB libre (`code, name, description, schema, version, is_published, requires_signature`); publicación de plantillas; envíos (`submissions`) vinculados a `booking_id` y `client_user_id` con ciclo `pending → submitted → reviewed`; firma electrónica con `signature_url`/`signature_object_id` (REUSE `platform/storage`); guardado parcial de respuestas + envío final; revisión por practitioner; autocreación de submission al detectar `booking.confirmed`/`booking.requested` en servicios con `requires_intake_form = TRUE` vía Redis (cross-schema read a `platform_services`); eventos `intake.requested` e `intake.submitted`; exportación a PDF (`GET /submissions/:id/pdf`) con `@apphub/platform-sdk/simple-pdf`; RLS por `(app_id, tenant_id)` en ambas tablas. **Añadido (priorización #1/#2/#4/#5):** cifrado en reposo de `answers` (AES-256-GCM, columna `answers_encrypted`); listado staff `GET /submissions` con filtros + paginación; validación server-side de respuestas contra `schema.fields[]` al enviar; consentimiento RGPD (`consent_*`/`legal_basis`) + derecho de supresión (`POST /submissions/:id/erase`, evento `intake.erased`).
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -94,9 +94,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 9. Validación y campos obligatorios
 
 - 🔧 Validación de formato del body (Zod) para campos del sistema; no hay validación de las respuestas contra el schema del formulario.
-- ❌ Validación server-side: comprobar que todos los campos `required: true` del schema tienen valor en `answers`.
-- ❌ Bloquear el `submit` si faltan campos obligatorios, con lista de errores por campo.
-- ❌ Validación de tipos: número en rango, fecha válida, longitud máxima de texto, formato de email/teléfono.
+- ✅ Validación server-side: comprobar que todos los campos `required: true` del schema (`schema.fields[]`) tienen valor en `answers` (`lib/schema-validation.js`).
+- ✅ Bloquear el `submit` si faltan campos obligatorios → `422 VALIDATION_ERROR` con lista `details.errors[]` por campo.
+- ✅ Validación de tipos: número/scale en rango (`min`/`max`), longitud de texto (`min`/`max`), formato de email, opciones permitidas (`select`/`radio`/`multiselect`).
 - ❌ Validación condicional: campo obligatorio solo si otro campo tiene cierto valor.
 
 ## 10. Respuestas almacenadas y vinculadas a la cita/cliente
@@ -105,9 +105,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `booking_id` vinculado en la submission (nullable para formularios fuera de reserva).
 - ✅ `client_user_id` en la submission.
 - ✅ Obtener submission por `id` con toda la información.
-- ❌ Listar submissions del tenant (staff): `GET /submissions?status=&clientUserId=&bookingId=&templateId=&from=&to=` con paginación.
-- ❌ Listar submissions de un cliente concreto (historial del paciente/cliente).
-- ❌ Listar submissions vinculadas a una reserva (`GET /bookings/:id/intake-submission` o similar).
+- ✅ Listar submissions del tenant (staff): `GET /submissions?status=&clientUserId=&bookingId=&templateId=&from=&to=&limit=&offset=` con paginación (`{ items, total, limit, offset }`). El listado NO incluye `answers` (no descifrado masivo de datos de salud).
+- ✅ Listar submissions de un cliente concreto (historial): filtro `clientUserId` en `GET /submissions`.
+- ✅ Listar submissions vinculadas a una reserva: filtro `bookingId` en `GET /submissions`.
 - ❌ Búsqueda full-text en respuestas.
 - ❌ Exportación masiva de submissions (CSV/XLSX) para informes clínicos o auditoría.
 
@@ -133,12 +133,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 13. Datos clínicos sensibles — cifrado y RGPD/categoría especial
 
-- 🔧 `answers` JSONB sin cifrado en reposo — los datos de salud (categoría especial, art. 9 RGPD) se guardan en texto plano en la BD.
-- ❌ Cifrado en reposo de `answers` con `encryptSecret`/`decryptSecret` de `@apphub/platform-sdk/crypto` o cifrado a nivel de columna (pg_crypto).
-- ❌ Base legal registrada para el tratamiento (`legal_basis`: consentimiento, ejecución de contrato médico, interés vital).
-- ❌ Consentimiento explícito con texto + versión + timestamp antes de acceder al formulario (art. 7 RGPD).
-- ❌ Derecho de acceso: endpoint para que el cliente descargue sus propias respuestas.
-- ❌ Derecho de supresión: borrado/anonimización de respuestas a petición del cliente (mantener esqueleto de submission para auditoría).
+- ✅ Cifrado en reposo de `answers` con `encryptSecret`/`decryptSecret` de `@apphub/platform-sdk/crypto` (columna `answers_encrypted BYTEA = iv||tag||ciphertext`; plaintext `answers` blanqueado a `'{}'`; descifrado transparente en lectura vía `lib/answers-codec.js`; filas legacy siguen funcionando).
+- ✅ Base legal registrada para el tratamiento (`legal_basis`: `consent`/`contract`/`vital_interest`/`legal_obligation`) en la submission.
+- ✅ Consentimiento explícito con texto + versión + timestamp antes de acceder al formulario (`consent_text`/`consent_version`/`consent_accepted_at`, art. 7 RGPD).
+- 🔧 Derecho de acceso: el cliente puede recuperar sus respuestas vía `GET /submissions/:id` (descifrado) y `GET /submissions?clientUserId=`; falta endpoint self-service dedicado por rol.
+- ✅ Derecho de supresión: `POST /submissions/:id/erase` anonimiza respuestas + firma (`answers_encrypted=NULL`, `signature_*=NULL`) y conserva el esqueleto (`erased_at`/`erased_by_user_id`) para auditoría; publica `intake.erased`.
 - ❌ Portabilidad: exportación de datos del cliente en formato estructurado (JSON/PDF).
 - ❌ Retención configurable por tenant (`retention_days`) + purga automática vía `platform/scheduler`.
 - ❌ Audit log de acceso a submissions (quién y cuándo consultó datos de un cliente).
@@ -208,7 +207,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `GET /submissions/:id` — detalle de una submission individual.
 - ✅ `POST /submissions/:id/review` — marcar como revisado.
-- ❌ `GET /submissions` — listado con filtros (`status`, `templateId`, `clientUserId`, `bookingId`, fechas) y paginación.
+- ✅ `GET /submissions` — listado con filtros (`status`, `templateId`, `clientUserId`, `bookingId`, `from`/`to`) y paginación (`limit`/`offset`, `total`).
 - ❌ `GET /submissions` para cliente autenticado — solo sus propias submissions.
 - ❌ Dashboard de staff: submissions pendientes de revisión, tasa de completado, tiempo medio de respuesta.
 - ❌ Acciones masivas: marcar como revisadas varias submissions a la vez.
@@ -219,11 +218,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Cifrado de `answers` en reposo** — los datos de salud son categoría especial (art. 9 RGPD); cifrar con `encryptSecret` de `@apphub/platform-sdk/crypto` es obligatorio antes de producción clínica.
-2. **Listado de submissions para staff** (`GET /submissions` con filtros + paginación) — sin esto el módulo no es operable desde el panel de administración.
-3. **Recordatorio automático vía `platform/scheduler`** — job `intake-reminder-pending` que publique `intake.reminder.due` para formularios en `pending` a T-24h y T-2h de la cita; REUSE directo del patrón `booking-reminders`.
-4. **Validación server-side de respuestas obligatorias** — bloquear `submit` si el schema del template tiene campos `required` vacíos; evita formularios incompletos que llegan a revisión.
-5. **Consentimiento explícito RGPD + derecho de supresión** — texto/versión/timestamp antes de rellenar + endpoint de borrado/anonimización; obligatorio para datos de salud.
+1. ✅ ~~**Cifrado de `answers` en reposo**~~ (`answers_encrypted BYTEA` AES-256-GCM vía `@apphub/platform-sdk/crypto`; codec transparente `lib/answers-codec.js`; el listado nunca descifra en masa).
+2. ✅ ~~**Listado de submissions para staff**~~ (`GET /submissions` con filtros `status`/`templateId`/`clientUserId`/`bookingId`/`from`/`to` + paginación `limit`/`offset`/`total`; sin `answers` en el índice).
+3. **Recordatorio automático vía `platform/scheduler`** — job `intake-reminder-pending` que publique `intake.reminder.due` para formularios en `pending` a T-24h y T-2h de la cita; REUSE directo del patrón `booking-reminders`. *(cross-cutting: el job vive en `platform/scheduler`, fuera de este módulo.)*
+4. ✅ ~~**Validación server-side de respuestas obligatorias**~~ (`lib/schema-validation.js`: `required` + tipos number/scale/text/email + opciones; el `submit` falla con `422 VALIDATION_ERROR` y `details.errors[]`).
+5. ✅ ~~**Consentimiento explícito RGPD + derecho de supresión**~~ (campos `consent_text`/`consent_version`/`consent_accepted_at`/`legal_basis` en la submission + `POST /submissions/:id/erase` que anonimiza y conserva esqueleto de auditoría; publica `intake.erased`).
 6. **Versionado real de plantillas** — snapshot inmutable al publicar + referencia de versión en cada submission; imprescindible para auditoría clínica y trazabilidad legal.
 7. **Pre-relleno de respuestas previas** — alto valor para clientes recurrentes (no repetir datos demográficos/alergias); moderado coste con `findSubmissionByClientUserId` + merge de answers.
 8. **PDF mejorado con imagen de firma** — descargar el objeto de `platform/storage` y embeber en el PDF; el esqueleto ya existe, solo falta la integración de imagen.

@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-Plantillas de bono (`package_templates`) con código único por tenant, asociadas a un `service_id` de `platform/services`, precio en céntimos y validez en días; compra (`purchased_packages`) con saldo atómico (`remaining_sessions`), RLS por `(app_id, tenant_id)`, historial de movimientos en `redemptions` (`redeem/refund/adjust`); redención manual (`POST /v1/packages/redeem`) y automática vía eventos `booking.completed/cancelled/no_show` de `platform/bookings`; devolución de sesión (`POST /v1/packages/refund`); compartición familiar (`package_authorized_users`); transferencia y regalo a otro usuario (`package_transfers` + cambio de `client_user_id`); toggle de renovación automática y renovación manual (`renewPackage`); jobs del scheduler: `package-expiry-warning` (T-30d/T-7d, idempotente) y `package-expiry-transition` (active → expired); eventos publicados en `platform.events`: `package.purchased`, `package.exhausted`, `package.transferred`, `package.renewed`, `package.expiring`, `package.expired`.
+Plantillas de bono (`package_templates`) con código único por tenant, asociadas a un `service_id` de `platform/services`, precio en céntimos y validez en días; compra (`purchased_packages`) con saldo atómico (`remaining_sessions`), RLS por `(app_id, tenant_id)`, historial de movimientos en `redemptions` (`redeem/refund/adjust`); redención manual (`POST /v1/packages/redeem`) y automática vía eventos `booking.completed/cancelled/no_show` de `platform/bookings`; devolución de sesión (`POST /v1/packages/refund`); compartición familiar (`package_authorized_users`); transferencia y regalo a otro usuario (`package_transfers` + cambio de `client_user_id`); toggle de renovación automática y renovación manual (`renewPackage`); jobs del scheduler: `package-expiry-warning` (T-30d/T-7d, idempotente) y `package-expiry-transition` (active → expired); idempotencia de redención (índice único sobre `booking_id`); `redeemer_user_id` en `redemptions`; ajuste manual de saldo staff (`reason='adjust'`); congelación/extensión de validez (status `frozen`, `package_freezes`); cancelación con reembolso proporcional (`status='refunded'` + cálculo de importe); FIFO fallback en el consumo automático; eventos publicados en `platform.events`: `package.purchased`, `package.exhausted`, `package.transferred`, `package.renewed`, `package.expiring`, `package.expired`, `package.refunded`, `package.frozen`, `package.unfrozen`.
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -62,11 +62,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Devolución manual: `POST /v1/packages/refund` — incrementa `remaining_sessions` y re-activa el bono si estaba `exhausted`.
 - 🔧 `booking.no_show` devuelve la sesión (mismo tratamiento que cancelación) — en algunos modelos de negocio el no-show no debería reembolsarse.
 - ❌ Política de cancelación configurable por plantilla: no reembolsar sesión si cancelación es tardía o no-show.
-- ❌ Selección automática de bono FIFO al reservar (encontrar el bono activo que caduca antes para consumir primero — `findActivePackageFor` existe pero no se llama desde bookings automáticamente).
+- 🔧 Selección automática de bono FIFO al consumir: `handleEvent(booking.completed)` ahora hace fallback a `findActivePackageFor` (bono que caduca antes) cuando el booking no trae `package_id` explícito. Pendiente: que `platform/bookings` lo seleccione/marque ya en la creación de la cita (cross-cutting).
 - ❌ Múltiples sesiones por redención (p. ej. clase en pareja: restar 2 sesiones por reserva).
 - ❌ Redención parcial: bonos de tiempo (horas) en lugar de sesiones enteras.
-- ❌ Verificación de que el `booking_id` no fue ya redimido (idempotencia de redención — duplicados posibles si el evento llega dos veces).
-- ❌ Ajuste manual de saldo (`reason='adjust'`) — el tipo existe en la tabla `redemptions` pero no hay ruta API para ello.
+- ✅ Verificación de que el `booking_id` no fue ya redimido (idempotencia de redención): índice único parcial `(app_id,tenant_id,booking_id) WHERE reason='redeem'` + chequeo `redeemExistsForBooking` en `redeem` y en `handleEvent(booking.completed)`.
+- ✅ Ajuste manual de saldo (`reason='adjust'`): `POST /v1/packages/purchases/:id/adjust` (staff only), delta entero ≠ 0, re-activa bono `exhausted` si se suman sesiones.
 - ❌ Notificación al cliente cuando consume una sesión (REUSE `platform/notifications`).
 - ❌ Notificación cuando el bono llega a N sesiones restantes (umbral configurable, p. ej. "te quedan 2 sesiones").
 
@@ -137,11 +137,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 10. Congelación / pausa de la validez
 
-- ❌ Congelar bono: pausar el conteo de `expires_at` cuando el cliente no puede usarlo (enfermedad, vacaciones).
-- ❌ Historial de congelaciones con fechas de inicio/fin y motivo.
+- ✅ Congelar bono: `POST /v1/packages/purchases/:id/freeze` (staff) pasa status `active→frozen` y sella `frozen_at`. `POST .../unfreeze` vuelve a `active` y extiende `expires_at` por la duración congelada (acumula `frozen_days_total`).
+- ✅ Historial de congelaciones con fechas de inicio/fin y motivo: tabla `package_freezes` + `GET /v1/packages/purchases/:id/freezes`.
 - ❌ Límite de días congelados por año / por bono.
-- ❌ Aprobación de staff para congelar (o autoservicio hasta un máximo de días).
-- ❌ Extensión manual de `expires_at` por staff sin pasar por el flujo de congelación.
+- 🔧 Aprobación de staff para congelar: hoy freeze/unfreeze son staff-only; falta autoservicio del cliente hasta un máximo de días.
+- ✅ Extensión manual de `expires_at` por staff sin pasar por el flujo de congelación: `POST /v1/packages/purchases/:id/extend` con `{ days }` (staff only).
 - ❌ Extensión automática: si el tenant cierra por festivo/vacaciones, extender la caducidad de todos los bonos activos.
 
 ## 11. Bonos de tiempo (horas) vs. bonos de sesiones
@@ -170,8 +170,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 14. Devolución / reembolso monetario de sesiones no usadas
 
 - ✅ Devolución de sesión (incremento de saldo): `POST /v1/packages/refund` — se devuelve 1 sesión al saldo, razón `refund`.
-- ❌ Reembolso monetario proporcional: calcular el valor de las sesiones no usadas y emitir una devolución Stripe (REUSE `platform/payments`) por `(remaining_sessions / total_sessions) * price_paid_cents`.
-- ❌ Cancelación completa del bono (`status='refunded'`): marcar el bono como reembolsado tras procesar la devolución en Stripe.
+- 🔧 Reembolso monetario proporcional: `POST /v1/packages/purchases/:id/cancel` calcula `(remaining_sessions/total_sessions)*price_paid_cents` (con `penaltyPct` opcional) y publica `package.refunded` con el importe. Pendiente: que `platform/payments` consuma el evento y ejecute la devolución Stripe real (cross-cutting).
+- ✅ Cancelación completa del bono (`status='refunded'`): la ruta `cancel` (staff only) marca el bono como `refunded` y emite el evento; idempotente (rechaza si ya `refunded`/`cancelled`).
 - ❌ Política de reembolso configurable por plantilla: plazo máximo, porcentaje de penalización.
 - ❌ Reembolso a crédito interno (wallet) en lugar de devolución a la tarjeta.
 - ❌ Notificación de reembolso al cliente (REUSE `platform/notifications`).
@@ -180,8 +180,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Tabla `redemptions`: registra cada movimiento (`redeem`/`refund`/`adjust`) con `delta`, `booking_id` y `created_at`.
 - ✅ `getPurchase` devuelve el bono junto con su array de `redemptions`.
-- 🔧 `redemptions` no registra el `user_id` que redimió (solo `booking_id`) — no se sabe qué miembro del grupo usó la sesión.
-- ❌ `user_id` del redimidor en `redemptions` (quién de la familia consumió).
+- ✅ `redemptions.redeemer_user_id`: cada redención registra quién consumió (owner / miembro autorizado / staff en ajustes); en redención automática se usa el `client_user_id` del booking.
+- ✅ `user_id` del redimidor en `redemptions` (quién de la familia consumió).
 - ❌ Endpoint de historial de redenciones a nivel de tenant (para staff): ver todos los movimientos de todos los bonos.
 - ❌ Línea de tiempo de actividad del cliente: compras, consumos, transferencias, avisos en una sola vista.
 - ❌ Export CSV/XLSX de historial de movimientos.
@@ -219,8 +219,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `package.expiring` — publicado por el scheduler (T-30d / T-7d).
 - ✅ `package.expired` — publicado por el scheduler al caducar.
 - ✅ Suscripción a `booking.completed`, `booking.cancelled`, `booking.no_show` para redención/devolución automática.
-- ❌ `package.refunded` — evento al reembolso monetario de sesiones.
-- ❌ `package.frozen` / `package.unfrozen` — si se implementa congelación.
+- ✅ `package.refunded` — publicado por `cancel` con el importe proporcional a devolver (lo consume `platform/payments`, pendiente).
+- ✅ `package.frozen` / `package.unfrozen` — publicados al congelar / descongelar (este último incluye `daysAdded`).
 - ❌ `package.shared` / `package.unshared` — evento al añadir/quitar usuario autorizado.
 - ❌ Consumidor en `platform/notifications` de todos los eventos `package.*` para enviar emails/push al cliente.
 - ❌ Integración con `platform/pos`: registrar venta de bono desde TPV físico.
@@ -231,13 +231,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Consumo FIFO automático desde `platform/bookings`** — conectar `findActivePackageFor` al flujo de reserva para que el bono se seleccione y descuente sin intervención del cliente; desbloquea el caso de uso principal end-to-end.
-2. **Job `package-auto-renew`** en el scheduler + cobro via `platform/payments` — completa el ciclo de renovación automática; la infraestructura de `auto_renew` ya está en la BD.
-3. **Consumidores en `platform/notifications`** de `package.expiring` / `package.expired` / `package.purchased` — añadir emails/push al cliente usando la infraestructura ya construida; impacto alto, coste bajo (solo un listener + plantilla de email).
-4. **Reembolso monetario proporcional** (`platform/payments` + `status='refunded'`) — cierra el flujo de cancelación de bono; obligatorio para cumplir con derechos del consumidor.
-5. **Idempotencia de redención** — guardar `booking_id` como clave única en `redemptions` para evitar doble consumo si el evento `booking.completed` llega dos veces.
-6. **`user_id` redimidor en `redemptions`** — trazabilidad de qué miembro del grupo usó cada sesión; necesario para bonos compartidos en producción.
-7. **Integración con `platform/payments`** en la compra (Stripe PaymentIntent → confirmación → emisión del bono) — sin esto el módulo es solo de contabilidad, no un sistema de venta real.
-8. **Ajuste manual de saldo** (`reason='adjust'` por staff) — ruta API sencilla que activa el tipo ya previsto en la tabla `redemptions`; resuelve correcciones operativas.
-9. **Congelación / extensión de `expires_at`** por staff — operativa frecuente en centros de bienestar; coste bajo (columna + endpoint + lógica en el scheduler).
+1. 🔧 **Consumo FIFO automático desde `platform/bookings`** — núcleo implementado: `handleEvent(booking.completed)` hace fallback a `findActivePackageFor` cuando el booking no trae `package_id`. Pendiente la parte en `platform/bookings` (cross-cutting): seleccionar/persistir el bono al crear la cita.
+2. **Job `package-auto-renew`** en el scheduler + cobro via `platform/payments` — completa el ciclo de renovación automática; la infraestructura de `auto_renew` ya está en la BD. (Fuera: requiere scheduler + payments.)
+3. **Consumidores en `platform/notifications`** de `package.expiring` / `package.expired` / `package.purchased` — añadir emails/push al cliente. (Fuera: requiere `platform/notifications`.)
+4. 🔧 ~~**Reembolso monetario proporcional** (`platform/payments` + `status='refunded'`)~~ — cancelación + cálculo proporcional + evento `package.refunded` implementados en packages; falta que `platform/payments` ejecute la devolución Stripe (cross-cutting).
+5. ✅ ~~**Idempotencia de redención**~~ — índice único parcial sobre `booking_id` (`reason='redeem'`) + chequeo en `redeem` y `handleEvent`.
+6. ✅ ~~**`user_id` redimidor en `redemptions`**~~ — columna `redeemer_user_id` poblada en redenciones manuales, automáticas y ajustes.
+7. **Integración con `platform/payments`** en la compra — (Fuera: requiere `platform/payments`.)
+8. ✅ ~~**Ajuste manual de saldo** (`reason='adjust'` por staff)~~ — `POST /v1/packages/purchases/:id/adjust`.
+9. ✅ ~~**Congelación / extensión de `expires_at`** por staff~~ — `freeze` / `unfreeze` / `extend` + tabla `package_freezes` + eventos `package.frozen` / `package.unfrozen`.
 10. **Informes básicos de breakage y bonos activos** — export CSV y métricas en el portal de admin; valor comercial inmediato para el negocio.

@@ -18,6 +18,9 @@ vi.mock('../services/bookings.service.js', () => ({
   addToWaitlist: vi.fn(),
   listWaitlist: vi.fn(),
   notifyWaitlist: vi.fn(),
+  createRecurrence: vi.fn(),
+  listRecurrences: vi.fn(),
+  getRecurrence: vi.fn(),
 }))
 
 import { bookingsRoutes } from '../routes/bookings.routes.js'
@@ -217,5 +220,45 @@ describe('waitlist', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(service.notifyWaitlist).toHaveBeenCalledWith(expect.anything(), BID)
+  })
+})
+
+describe('recurrences', () => {
+  const RID = '66666666-6666-6666-6666-666666666666'
+
+  it('POST /recurrences → 201', async () => {
+    service.createRecurrence.mockResolvedValue({ id: RID })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/bookings/recurrences', headers: json,
+      payload: { rrule: { freq: 'WEEKLY' }, startsOn: '2026-06-01' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createRecurrence).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ rrule: { freq: 'WEEKLY' }, startsOn: '2026-06-01' }),
+    )
+  })
+
+  it('POST /recurrences body inválido (sin rrule) → 422', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/bookings/recurrences', headers: json,
+      payload: { startsOn: '2026-06-01' },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.createRecurrence).not.toHaveBeenCalled()
+  })
+
+  it('GET /recurrences → 200', async () => {
+    service.listRecurrences.mockResolvedValue([{ id: RID }])
+    const res = await app.inject({ method: 'GET', url: '/v1/bookings/recurrences', headers: auth })
+    expect(res.statusCode).toBe(200)
+    expect(service.listRecurrences).toHaveBeenCalled()
+  })
+
+  it('GET /recurrences/:id → 200', async () => {
+    service.getRecurrence.mockResolvedValue({ id: RID })
+    const res = await app.inject({ method: 'GET', url: `/v1/bookings/recurrences/${RID}`, headers: auth })
+    expect(res.statusCode).toBe(200)
+    expect(service.getRecurrence).toHaveBeenCalledWith(expect.anything(), RID)
   })
 })

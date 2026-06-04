@@ -170,7 +170,7 @@ describe('insertRedemption', () => {
     await repo.insertRedemption(c, APP, TEN, { packageId: PKG, delta: -1, reason: 'redeem' })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_packages\.redemptions/)
-    expect(params).toEqual([APP, TEN, PKG, null, -1, 'redeem'])
+    expect(params).toEqual([APP, TEN, PKG, null, -1, 'redeem', null])
   })
 
   it('respeta bookingId explícito', async () => {
@@ -299,5 +299,73 @@ describe('insertRenewal', () => {
       APP, TEN, 'tpl1', USER, SVC, 8, 5000, 'EUR', '90', true, 'old1',
     ])
     expect(r).toEqual({ id: 'new1' })
+  })
+})
+
+describe('redeemExistsForBooking (#5 idempotency)', () => {
+  it('returns false immediately when bookingId is null', async () => {
+    const c = mockClient([])
+    expect(await repo.redeemExistsForBooking(c, APP, TEN, null)).toBe(false)
+    expect(c.query).not.toHaveBeenCalled()
+  })
+  it('queries scoped by app/tenant/booking + reason=redeem', async () => {
+    const c = mockClient([{ '?column?': 1 }])
+    expect(await repo.redeemExistsForBooking(c, APP, TEN, 'b1')).toBe(true)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/reason='redeem'/)
+    expect(params).toEqual([APP, TEN, 'b1'])
+  })
+})
+
+describe('freeze / unfreeze / extend (#9)', () => {
+  it('freezePackage only flips active rows', async () => {
+    const c = mockClient([{ id: PKG, status: 'frozen' }])
+    await repo.freezePackage(c, APP, TEN, PKG)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/status='frozen'/)
+    expect(sql).toMatch(/status='active'/)
+    expect(params).toEqual([APP, TEN, PKG])
+  })
+  it('unfreezePackage extends expiry by frozen duration', async () => {
+    const c = mockClient([{ id: PKG }])
+    await repo.unfreezePackage(c, APP, TEN, PKG)
+    const [sql] = c.query.mock.calls[0]
+    expect(sql).toMatch(/expires_at = expires_at \+ \(now\(\) - frozen_at\)/)
+    expect(sql).toMatch(/frozen_days_total/)
+  })
+  it('extendExpiry adds N days', async () => {
+    const c = mockClient([{ id: PKG }])
+    await repo.extendExpiry(c, APP, TEN, PKG, 14)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/expires_at \+ \(\$4 \|\| ' days'\)::interval/)
+    expect(params).toEqual([APP, TEN, PKG, '14'])
+  })
+  it('insertFreeze records audit row', async () => {
+    const c = mockClient([{ id: 'f1' }])
+    await repo.insertFreeze(c, APP, TEN, { packageId: PKG, reason: 'x', actorUserId: 'a1' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_packages\.package_freezes/)
+    expect(params).toEqual([APP, TEN, PKG, 'x', 'a1'])
+  })
+  it('closeFreeze stamps unfrozen_at on the open row', async () => {
+    const c = mockClient([{ id: 'f1' }])
+    await repo.closeFreeze(c, APP, TEN, PKG, 5)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/unfrozen_at=now\(\)/)
+    expect(params).toEqual([APP, TEN, PKG, 5])
+  })
+  it('listFreezes scoped by package', async () => {
+    const c = mockClient([{ id: 'f1' }])
+    const r = await repo.listFreezes(c, APP, TEN, PKG)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, PKG])
+    expect(r).toEqual([{ id: 'f1' }])
+  })
+})
+
+describe('insertRedemption redeemer_user_id (#6)', () => {
+  it('passes redeemerUserId as 7th param', async () => {
+    const c = mockClient([])
+    await repo.insertRedemption(c, APP, TEN, { packageId: PKG, delta: -1, reason: 'redeem', redeemerUserId: USER })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, PKG, null, -1, 'redeem', USER])
   })
 })
