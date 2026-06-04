@@ -33,13 +33,16 @@ vi.mock('../services/email.service.js', () => emailMock)
 
 const smsMock = vi.hoisted(() => Object.fromEntries(
   ['sendBookingReminderSms', 'sendReservationReminderSms', 'sendBookingConfirmedSms',
-    'sendBookingCancelledSms', 'sendBookingRescheduledSms', 'sendReservationCancelledSms']
+    'sendBookingCancelledSms', 'sendBookingRescheduledSms', 'sendReservationCancelledSms',
+    'sendWaitlistNotifiedSms', 'sendBookingWaitlistNotifiedSms']
     .map((n) => [n, vi.fn()]),
 ))
 vi.mock('../services/sms.service.js', () => smsMock)
 
 const pushMock = vi.hoisted(() => Object.fromEntries(
-  ['sendBookingReminderPush', 'sendBookingConfirmedPush', 'sendReservationReminderPush', 'sendPushToUser']
+  ['sendBookingReminderPush', 'sendBookingConfirmedPush', 'sendReservationReminderPush', 'sendPushToUser',
+    'sendReviewRepliedPush', 'sendDisputeOpenedPush', 'sendDisputeWithdrawnPush',
+    'sendPackageFrozenPush', 'sendPackageUnfrozenPush', 'sendPackageRefundedPush']
     .map((n) => [n, vi.fn()]),
 ))
 vi.mock('../services/push.service.js', () => pushMock)

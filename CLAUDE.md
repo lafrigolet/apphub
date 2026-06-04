@@ -450,6 +450,11 @@ the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
 | `chat-retention-purge` | `30 3 * * *` | delete chat messages past each tenant's `retention_days` |
 | `chat-support-sla` | `*/15 * * * *` | publish `chat.support.sla_breached` (no agent reply within SLA) |
 | `lead-retention-purge` | `45 4 * * *` | delete closed leads (won/lost/closed) past `LEADS_RETENTION_DAYS` (GDPR) |
+| `scheduler-runs-purge` | `0 4 * * *` | delete scheduler run history past `SCHEDULER_RUNS_RETENTION_DAYS` |
+| `auth-token-purge` | `30 3 * * *` | delete expired magic-links / password-resets / activation tokens |
+| `notification-send-log-purge` | `0 5 * * *` | delete send_log entries past `NOTIFICATIONS_SEND_LOG_RETENTION_DAYS` |
+| `messaging-sla` | `*/15 * * * *` | publish `messaging.vendor.sla_breached` (no vendor first reply within SLA) |
+| `telehealth-expire-stale` | `* * * * *` | flip stale telehealth rooms to expired + publish `telehealth.room.expired` |
 
 ### Planned
 

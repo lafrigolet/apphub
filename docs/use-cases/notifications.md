@@ -54,7 +54,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Config Twilio dinámica en DB (`twilio_account_sid`, `twilio_api_key_sid`, `twilio_api_key_secret` cifrado, `twilio_messaging_service_sid`, `twilio_default_sender`), caché 30s.
 - ✅ Dev-stub: cuando faltan credenciales se loguea el SMS en lugar de enviarse.
 - ✅ Endpoint admin `POST /sms/test` para smoke-test de la configuración Twilio.
-- ✅ SMS implementado para: recordatorio de cita (T-24h / T-2h), cita confirmada, cancelada, reprogramada; recordatorio de reserva, reserva cancelada.
+- ✅ SMS implementado para: recordatorio de cita (T-24h / T-2h), cita confirmada, cancelada, reprogramada; recordatorio de reserva, reserva cancelada; promoción de lista de espera (`waitlist.notified` restaurante + `booking.waitlist.notified` citas — destinatarios anónimos, teléfono únicamente).
 - 🔧 Sin reintentos ni dead-letter para SMS fallidos.
 - 🔧 Sin validación de número E.164 antes del envío (Twilio rechaza formatos inválidos sin feedback útil para el usuario).
 - ✅ Rastreo de estado de entrega: `POST /v1/notifications/webhooks/twilio` consume el StatusCallback (form-encoded) y sella `delivery_status` (`delivered`/`failed`/`undelivered`/`sent`/…) en la fila `send_log` correlada por `MessageSid` (migración 0024 + `webhook.service.js`). Firma `X-Twilio-Signature` (HMAC-SHA1) verificada cuando hay `twilio_api_key_secret` configurado; dev-stub en su ausencia.
@@ -69,7 +69,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Config FCM dinámica en DB (`fcm_project_id`, `fcm_service_account_json` cifrado), caché 30s.
 - ✅ Envío a todos los tokens registrados del usuario (multi-device); limpieza automática de tokens muertos (FCM UNREGISTERED / INVALID_ARGUMENT → `pushRepo.deleteByToken`).
 - ✅ `data` payload adicional por mensaje (todos los valores serializados como `string` según requisito FCM v1).
-- ✅ Push implementado para: recordatorio de cita, cita confirmada, recordatorio de reserva; nueva notificación de chat, mención en chat, asignación de ticket soporte, SLA de soporte incumplido.
+- ✅ Push implementado para: recordatorio de cita, cita confirmada, recordatorio de reserva; nueva notificación de chat, mención en chat, asignación de ticket soporte, SLA de soporte incumplido; respuesta a reseña (`review.replied`), reclamación abierta/retirada (`dispute.opened`/`dispute.withdrawn`), bono congelado/reactivado/reembolsado (`package.frozen`/`unfrozen`/`refunded`).
 - 🔧 Slots APNs reservados en config (`apns_team_id/key_id/bundle_id/p8_key/apns_environment`) pero sin implementación de APNs HTTP/2 nativo (hoy iOS va por FCM con APNs auth key de Firebase).
 - 🔧 Sin payload `notification.imageUrl` ni `android`/`apns`/`webpush` override blocks de FCM v1.
 - ❌ Sin soporte de notificaciones silenciosas (data-only) para background sync.
@@ -198,15 +198,38 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 | `chat.mention.created` | push | chat |
 | `chat.support.assigned` | push | chat |
 | `chat.support.sla_breached` | push | chat |
+| `review.replied` | push | reviews |
+| `dispute.opened` | push | disputes |
+| `dispute.withdrawn` | push | disputes |
+| `package.frozen` | push | packages |
+| `package.unfrozen` | push | packages |
+| `package.refunded` | push | packages |
+| `waitlist.notified` | SMS | reservations |
+| `booking.waitlist.notified` | SMS | bookings |
 | `notifications.digest.flush` | (flush interno) | scheduler |
 
-Eventos **NO subscritos** aún con módulos implementados:
-- ❌ `lead.created` (leads) — notificación interna a staff sin wiring en notifications.
+Eventos cableados en esta ola (✅ con wiring):
+- ✅ `review.replied` (reviews) → push al buyer (`buyerUserId`). Reviews no porta email (lo posee auth), así que el canal resoluble es push.
+- ✅ `dispute.opened` → push de confirmación al buyer (`buyerUserId`).
+- ✅ `dispute.withdrawn` → push de confirmación al buyer (`withdrawnByUserId`).
+- ✅ `package.frozen` / `package.unfrozen` / `package.refunded` → push al cliente (`clientUserId`); `unfrozen` incluye `daysAdded`, `refunded` incluye `refundCents`+`currency`.
+- ✅ `waitlist.notified` (reservations) → SMS al `guestPhone` (entrada de lista de espera anónima: nombre + teléfono, sin cuenta).
+- ✅ `booking.waitlist.notified` (bookings) → SMS al `clientPhone` (mismo patrón anónimo).
+
+Plantillas editables sembradas para los anteriores en la migración
+`0025_waitlist_dispute_review_package_templates.sql` (push es/en para review/dispute/package; SMS es/en para los dos waitlist). Fallbacks hardcoded en
+`push.service.js` / `sms.service.js` garantizan entrega aunque se desactive la fila.
+
+Eventos **NO subscritos** aún (descartados por falta de destinatario claro en el payload o por ser puramente internos/operativos):
+- ❌ `lead.created` (leads) — auto-respuesta YA cableada como `lead.acknowledged`; la notificación *interna a staff* sigue sin wiring (sin destinatario fijo definido). Eventos `lead.status_changed` / `lead.assigned` son CRM-internos: NO se notifica al prospecto.
+- ❌ `dispute.resolved`, `dispute.message` — el payload no porta un `userId` de destinatario (solo `senderRole` / importe), así que no hay a quién notificar sin cruzar esquemas.
+- ❌ `payment.succeeded` / `payment.failed` / `payment.refunded` (payments) — son eventos de infraestructura; el payload solo lleva `transactionId`/importe, sin email ni userId. Las notificaciones de cara al usuario salen de `order.*` / `donation.*`.
+- ❌ `shipping.shipment.created` — payload solo con `shipmentId`/`orderId`/`estimatedDeliveryDate`, sin email/userId del comprador. La notificación de envío al comprador ya existe vía `order.shipped`.
+- ❌ `delivery.delivered` y demás `delivery.*` — payload con `deliveryId`/`orderId`/`carrier`/GPS, sin email/userId del cliente.
+- ❌ `telehealth.room.created` / `telehealth.room.rescheduled` — payload con `roomId`/`bookingId`/`joinUrl`, sin destinatario; resolverlo exigiría cruzar a `platform_bookings`.
+- ❌ `inventory.low_stock`, `inventory.out_of_stock` — sin destinatario staff/vendor claro en el payload.
 - ❌ `chat.reaction.created`, `chat.message.pinned`, `chat.dm_request` — chat events sin notificaciones.
-- ❌ `inventory.low_stock`, `inventory.out_of_stock` — sin notificación a staff/vendor.
-- ❌ `review.created`, `review.reply` — sin notificación al vendedor.
-- ❌ `dispute.opened`, `dispute.resolved` — solo `dispute.sla_breached` notificado; los transicionales no.
-- ❌ `shipping.tracking_updated` — sin notificación de tracking al comprador.
+- ❌ `inquiry.csat_submitted` — ignorable (telemetría interna).
 - ❌ `subscription.*` — módulo en estado `planned`.
 
 ## 11. Dominios de envío por tenant (Resend branded domains)

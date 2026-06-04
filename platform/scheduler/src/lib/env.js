@@ -28,10 +28,28 @@ const envSchema = z.object({
   JOB_CHAT_RETENTION_PURGE_ENABLED:            z.coerce.boolean().default(true),
   JOB_CHAT_SUPPORT_SLA_ENABLED:                z.coerce.boolean().default(true),
   JOB_LEAD_RETENTION_PURGE_ENABLED:            z.coerce.boolean().default(true),
+  JOB_SCHEDULER_RUNS_PURGE_ENABLED:            z.coerce.boolean().default(true),
+  JOB_AUTH_TOKEN_PURGE_ENABLED:                z.coerce.boolean().default(true),
+  JOB_NOTIFICATION_SEND_LOG_PURGE_ENABLED:     z.coerce.boolean().default(true),
+  JOB_MESSAGING_SLA_ENABLED:                   z.coerce.boolean().default(true),
+  JOB_TELEHEALTH_EXPIRE_STALE_ENABLED:         z.coerce.boolean().default(true),
 
   // GDPR — días que se conservan los leads cerrados (won/lost/closed) sin
   // actividad antes de purgarlos. 1095 = 3 años (plazo prudencial LOPDGDD).
   LEADS_RETENTION_DAYS:                        z.coerce.number().int().positive().default(1095),
+
+  // Retención de la tabla de auditoría del propio scheduler (runs). 90 días.
+  SCHEDULER_RUNS_RETENTION_DAYS:               z.coerce.number().int().positive().default(90),
+  // Retención del send_log de notifications. 90 días.
+  NOTIFICATIONS_SEND_LOG_RETENTION_DAYS:       z.coerce.number().int().positive().default(90),
+  // SLA de primera respuesta del vendor en messaging buyer↔vendor. 24h.
+  MESSAGING_SLA_HOURS:                         z.coerce.number().int().positive().default(24),
+
+  // Bloque A — dead-man switch / reintentos con backoff en el jobRunner.
+  // Nº de reintentos ante fallo del run antes de registrar status='error'.
+  JOB_MAX_RETRIES:                             z.coerce.number().int().nonnegative().default(0),
+  // Backoff base (ms) — el delay del intento n es JOB_RETRY_BACKOFF_MS * 2^(n-1).
+  JOB_RETRY_BACKOFF_MS:                        z.coerce.number().int().nonnegative().default(500),
 })
 
 const parsed = envSchema.safeParse(process.env)

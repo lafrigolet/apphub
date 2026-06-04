@@ -180,3 +180,27 @@ export async function sendReservationCancelledSms(to, { reservedFor, locale = 'e
   }, locale)
   return send({ to, body: tmpl.text, templateKey: 'reservation.cancelled' })
 }
+
+// ── Waitlist SMS senders (anonymous guests/clients — phone-only) ───────────
+// A table / slot freed up and this waitlisted party is up next. The waitlist
+// entries are typically created without a user account (just a name + phone),
+// so SMS is the only resolvable channel.
+
+export async function sendWaitlistNotifiedSms(to, { guestName, locale = 'es' } = {}) {
+  const namePrefix = guestName ? ' ' + guestName : ''
+  const tmpl = await compose('waitlist.notified', { namePrefix }, {
+    text: locale === 'en'
+      ? `Hi${namePrefix}, a table just opened up. Reply or call us soon to claim it before it's offered to the next party.`
+      : `Hola${namePrefix}, se ha quedado una mesa libre. Contáctanos pronto para confirmarla antes de que se ofrezca al siguiente.`,
+  }, locale)
+  return send({ to, body: tmpl.text, templateKey: 'waitlist.notified' })
+}
+
+export async function sendBookingWaitlistNotifiedSms(to, { locale = 'es' } = {}) {
+  const tmpl = await compose('booking.waitlist.notified', {}, {
+    text: locale === 'en'
+      ? 'A slot just opened up for the service you were waiting for. Book it soon before it is offered to the next person.'
+      : 'Se ha liberado un hueco para el servicio en el que estabas en lista de espera. Resérvalo pronto antes de que se ofrezca al siguiente.',
+  }, locale)
+  return send({ to, body: tmpl.text, templateKey: 'booking.waitlist.notified' })
+}

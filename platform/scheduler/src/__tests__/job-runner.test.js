@@ -10,7 +10,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../lib/env.js', () => ({
-  env: { NODE_ENV: 'test', LOG_LEVEL: 'error', DATABASE_URL_SCHEDULER: 'postgresql://x@y/z', REDIS_URL: 'redis://localhost' },
+  env: {
+    NODE_ENV: 'test', LOG_LEVEL: 'error', DATABASE_URL_SCHEDULER: 'postgresql://x@y/z', REDIS_URL: 'redis://localhost',
+    JOB_MAX_RETRIES: 0, JOB_RETRY_BACKOFF_MS: 0,
+  },
 }))
 const { poolQueryMock, poolConnectMock, lockClient, redisMock, publishMock } = vi.hoisted(() => {
   const client = { query: vi.fn().mockResolvedValue({ rows: [{ got: true }] }), release: vi.fn() }
@@ -34,9 +37,13 @@ vi.mock('../lib/logger.js', () => ({
 }))
 
 import { jobRunner } from '../lib/job-runner.js'
+import { env } from '../lib/env.js'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // reset retry/backoff to defaults; individual tests override.
+  env.JOB_MAX_RETRIES = 0
+  env.JOB_RETRY_BACKOFF_MS = 0
   // default: lock granted, INSERT/UPDATE success
   lockClient.query.mockReset()
   lockClient.query.mockResolvedValue({ rows: [{ got: true }] })
@@ -158,5 +165,55 @@ describe('cleanup', () => {
     const runFn = vi.fn().mockResolvedValue({})
     await jobRunner({ name: 'job-x' }, runFn)
     expect(lockClient.release).toHaveBeenCalled()         // SIEMPRE
+  })
+})
+
+// ── Block A: retry with backoff + dead-man event ─────────────────────
+
+describe('retry with backoff', () => {
+  it('reintenta JOB_MAX_RETRIES veces antes de éxito y registra attempts', async () => {
+    env.JOB_MAX_RETRIES = 2
+    env.JOB_RETRY_BACKOFF_MS = 0
+    poolQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 'run-1' }] })  // INSERT
+      .mockResolvedValueOnce({ rows: [] })                  // UPDATE success
+    const runFn = vi.fn()
+      .mockRejectedValueOnce(new Error('flaky'))
+      .mockResolvedValueOnce({ rowsAffected: 1 })
+    const r = await jobRunner({ name: 'job-x' }, runFn)
+    expect(r.rowsAffected).toBe(1)
+    expect(runFn).toHaveBeenCalledTimes(2)
+    const meta = poolQueryMock.mock.calls[1][1][2]
+    expect(meta.attempts).toBe(2)
+  })
+
+  it('agota reintentos → status=error + publica scheduler.job.failed', async () => {
+    env.JOB_MAX_RETRIES = 1
+    env.JOB_RETRY_BACKOFF_MS = 0
+    poolQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 'run-9' }] })   // INSERT
+      .mockResolvedValueOnce({ rows: [] })                   // UPDATE error
+    const runFn = vi.fn().mockRejectedValue(new Error('always down'))
+    const r = await jobRunner({ name: 'job-y' }, runFn)
+    expect(r).toEqual({ error: 'always down' })
+    expect(runFn).toHaveBeenCalledTimes(2)  // 1 + 1 retry
+    const updateCall = poolQueryMock.mock.calls[1]
+    expect(updateCall[0]).toMatch(/status = 'error'/)
+    expect(updateCall[1][2]).toBe(JSON.stringify({ attempts: 2 }))
+    expect(publishMock).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'scheduler.job.failed',
+      payload: expect.objectContaining({ jobName: 'job-y', attempts: 2, error: 'always down' }),
+    }))
+  })
+
+  it('si la publicación del dead-man falla, el runner igual retorna {error}', async () => {
+    env.JOB_MAX_RETRIES = 0
+    poolQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 'run-3' }] })
+      .mockResolvedValueOnce({ rows: [] })
+    publishMock.mockRejectedValueOnce(new Error('redis down'))
+    const runFn = vi.fn().mockRejectedValue(new Error('boom'))
+    const r = await jobRunner({ name: 'job-z' }, runFn)
+    expect(r).toEqual({ error: 'boom' })
   })
 })

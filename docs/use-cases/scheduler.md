@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-16 jobs registrados en `src/jobs/index.js`; habilitables/deshabilitables por variable de entorno sin redeploy. Historial de ejecuciones en `platform_scheduler.runs`. Advisory lock por job (hash MD5 del nombre → bigint). Publicación de eventos vía Redis `platform.events`. Tres endpoints admin: listar jobs, listar runs, disparar un job on-demand. Graceful shutdown (SIGTERM/SIGINT). Fastify mínimo con `/health` público. Migraciones propias + grants cross-schema idempotentes con `ALTER DEFAULT PRIVILEGES`.
+22 jobs registrados en `src/jobs/index.js`; habilitables/deshabilitables por variable de entorno sin redeploy. Historial de ejecuciones en `platform_scheduler.runs`. Advisory lock por job (hash MD5 del nombre → bigint). Publicación de eventos vía Redis `platform.events`. Tres endpoints admin: listar jobs, listar runs, disparar un job on-demand. Graceful shutdown (SIGTERM/SIGINT). Fastify mínimo con `/health` público. Migraciones propias + grants cross-schema idempotentes con `ALTER DEFAULT PRIVILEGES`.
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -49,7 +49,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Las filas `running` que quedan huérfanas (crash antes de `recordError`) son detectables consultando `status='running' AND started_at < now()-interval '…'`.
 - 🔧 `metadata` contiene `durationMs` más cualquier campo que el job devuelva — no hay esquema fijo; dificulta la agregación.
 - 🔧 No hay paginación por cursor en `GET /v1/scheduler/runs` — con `limit` fijo puede perderse histórico ante volumen alto.
-- ❌ Purga automática de runs antiguos — la tabla crece sin límite; sin job `scheduler-runs-purge` ni política de retención.
+- ✅ Purga automática de runs antiguos — job `scheduler-runs-purge` (`0 4 * * *`) borra runs con `started_at < now() - SCHEDULER_RUNS_RETENTION_DAYS` (default 90d).
 - ❌ Estadísticas agregadas por job: p50/p95 de duración, tasa de error, filas procesadas/tick — no hay endpoint de métricas.
 - ❌ Exportación de runs a sistema externo (Prometheus, Datadog, CloudWatch).
 
@@ -70,7 +70,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Publicación vía `redis.publish('platform.events', …)` usando `@apphub/platform-sdk/redis`.
 - ✅ Payload normalizado: `{ type, payload: { appId, tenantId, … } }` — consistent con el contrato del resto de módulos.
-- ✅ Jobs que publican eventos: `booking-reminders` (`booking.reminder.due`), `booking-recurrence-expander` (no publica, escribe directo), `reservation-reminders` (`reservation.reminder.due`), `package-expiry-warning` (`package.expiring`), `package-expiry-transition` (`package.expired`), `practitioner-payout-close` (`payout.period_due`), `dispute-sla` (`dispute.sla_breached`), `basket-abandoned` (`basket.abandoned`), `storage-retention-purge` (`storage.object.deleted`), `chat-scheduled-send` (`chat.scheduled.due`), `chat-support-sla` (`chat.support.sla_breached`), `notification-digest` (`notifications.digest.flush`).
+- ✅ Jobs que publican eventos: `booking-reminders` (`booking.reminder.due`), `booking-recurrence-expander` (no publica, escribe directo), `reservation-reminders` (`reservation.reminder.due`), `package-expiry-warning` (`package.expiring`), `package-expiry-transition` (`package.expired`), `practitioner-payout-close` (`payout.period_due`), `dispute-sla` (`dispute.sla_breached`), `basket-abandoned` (`basket.abandoned`), `storage-retention-purge` (`storage.object.deleted`), `chat-scheduled-send` (`chat.scheduled.due`), `chat-support-sla` (`chat.support.sla_breached`), `notification-digest` (`notifications.digest.flush`), `messaging-sla` (`messaging.vendor.sla_breached`), `telehealth-expire-stale` (`telehealth.room.expired`). Además el propio `jobRunner` publica `scheduler.job.failed` cuando un job agota sus reintentos (dead-man / alerting signal).
 - 🔧 La publicación es best-effort: si Redis falla durante un tick, el job arroja error y el evento se pierde (no hay reintentos de publicación).
 - ❌ Acuse de recibo / confirmación de que el evento fue procesado por el consumidor destino.
 - ❌ Dead-letter queue para eventos que no tienen consumidor activo o cuyo consumidor falló (Redis Streams / XADD no usado).
@@ -211,14 +211,24 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Segundo nivel de SLA (si sigue sin respuesta tras la primera brecha, nueva escalada).
 - ❌ Purga de archivos adjuntos de mensajes eliminados por retención (hoy sólo se borra la fila del mensaje).
 
+## 19b. Jobs de mantenimiento + SLA cross-cutting (wave 2)
+
+- ✅ **`scheduler-runs-purge`** — cron `0 4 * * *`: `DELETE FROM platform_scheduler.runs WHERE started_at < now() - SCHEDULER_RUNS_RETENTION_DAYS` (default 90d). Opera sobre el schema propio del scheduler — sin grant cross-schema.
+- ✅ **`auth-token-purge`** — cron `30 3 * * *`: `DELETE … WHERE expires_at < now()` en `platform_auth.password_resets`, `magic_links` y `activation_tokens` (un DELETE por tabla; BYPASSRLS → cross-tenant). Grant 0007.
+- ✅ **`notification-send-log-purge`** — cron `0 5 * * *`: `DELETE FROM platform_notifications.send_log WHERE sent_at < now() - NOTIFICATIONS_SEND_LOG_RETENTION_DAYS` (default 90d). Grant 0007.
+- ✅ **`messaging-sla`** — cron `*/15 * * * *`: detecta threads buyer↔vendor `status='open'` con `first_reply_at IS NULL` que cruzaron el SLA (`MESSAGING_SLA_HOURS`, default 24) en el último tick, vía el patrón de ventana de los reminders (no toca el schema de messaging — sólo SELECT, idempotencia por ventana en vez de centinela). Publica `messaging.vendor.sla_breached`. Grant 0007 (SELECT).
+- ✅ **`telehealth-expire-stale`** — cron `* * * * *`: réplica cross-tenant del `expireStaleRooms` del módulo — `UPDATE rooms SET status='expired' WHERE status IN ('created','active') AND expires_at < now()`, publica `telehealth.room.expired` por sala. No escribe `room_events` (sólo SELECT/UPDATE sobre rooms). Grant 0007.
+- 🔧 `messaging-sla` usa ventana en vez de centinela porque el scheduler sólo tiene SELECT sobre messaging; si un tick se pierde por completo, esa cohorte de threads no se re-evalúa (los reminders tienen el mismo trade-off).
+- ❌ `auth-token-purge` no publica evento de qué tokens se purgaron (no hay consumidor interesado en V1).
+
 ## 20. Resiliencia, reintentos y dead-man switch
 
 - ✅ Un job que lanza excepción → el error se registra en `runs` (`status='error', error=stack`) → el proceso no se cae (catch en `jobRunner` devuelve `{ error }` sin rethrow).
 - ✅ El advisory lock siempre se libera en `finally`, incluso ante fallos.
 - ✅ Ticks perdidos no se encolan: cada nuevo tick es independiente — si un tick falla, el siguiente intenta ejecutar de cero.
 - 🔧 Reintentos automáticos ante fallo no implementados — si falla el INSERT de reminder, el run siguiente lo reintentará porque `sent_at IS NULL` aún (idempotencia por diseño, no por retry explícito).
-- ❌ Backoff exponencial / política de retry configurable por job.
-- ❌ Dead-man switch: alerta si un job no corre en N periodos consecutivos (ej. detector externo de "heartbeat" via Healthchecks.io o equivalente).
+- ✅ Backoff exponencial / política de retry en el `jobRunner`: `JOB_MAX_RETRIES` reintentos (default 0 = comportamiento original) con delay `JOB_RETRY_BACKOFF_MS * 2^(n-1)` entre intentos; `runs.metadata.attempts` registra cuántos intentos hubo. Idempotencia por diseño de cada job hace seguro el reintento.
+- ✅ Dead-man / alerting via evento: agotados los reintentos, el `jobRunner` publica `scheduler.job.failed` (`{ jobName, runId, attempts, error }`) en `platform.events` para que notifications lo convierta en email/Slack a ops. (Pendiente aún el detector de "no ha corrido en N periodos" — esto cubre el caso de fallo ruidoso, no el del silencio.)
 - ❌ Alerta si el porcentaje de runs `error` supera un umbral en ventana deslizante.
 - ❌ Alerta si un tick tarda más de N segundos (`durationMs` está en metadata pero no hay umbral).
 - ❌ Notificación a staff (Slack, email) cuando un job falla — el error sólo queda en logs y en la tabla `runs`.
@@ -309,13 +319,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Dead-man switch** — alerta si un job no corre N periodos consecutivos o si el porcentaje de `error` supera umbral. Implementable con un check externo (Healthchecks.io / UptimeRobot) apuntando a `/health`, más una lógica en la consola que consulte `runs` — coste muy bajo, riesgo operativo alto sin él.
-2. **Purga automática de la tabla `runs`** — añadir un job `scheduler-runs-purge` (`0 4 * * *`) que borre runs con `started_at < now()-interval '90 days'` para evitar que la tabla crezca sin límite.
+1. 🔧 ~~**Dead-man switch**~~ — *parcial*: el `jobRunner` ya publica `scheduler.job.failed` ante fallo agotados los reintentos (cubre el caso "job falla ruidosamente" → email/Slack via notifications). Queda pendiente el caso "job no ha corrido en N periodos" (silencio), que requiere un check externo (Healthchecks.io / UptimeRobot) apuntando a `/health` o una query agregada sobre `runs`.
+2. ✅ ~~**Purga automática de la tabla `runs`**~~ — implementado: job `scheduler-runs-purge` (`0 4 * * *`) borra runs con `started_at < now() - SCHEDULER_RUNS_RETENTION_DAYS` (default 90d).
 3. **Toggle de jobs en caliente** (`PATCH /v1/scheduler/jobs/:name`) + persistencia en `platform_scheduler.job_definitions` — desactivar un job defectuoso sin reiniciar el contenedor.
 4. **UI en la consola admin** — vistas de listado de jobs, historial de runs con estado/duración, botón "Ejecutar ahora" — REUSE directo de los tres endpoints ya implementados.
 5. **Audit log de disparos manuales** — registrar `triggered_by` (`user_id`, `email`) en `runs.metadata` cuando el origen es el endpoint on-demand; coste mínimo, imprescindible para compliance.
-6. **Alertas por fallo de job** — evento `scheduler.job.failed` publicado por `jobRunner` ante `status='error'`, que el módulo notifications convierte en email/Slack al equipo de operaciones.
-7. **Backoff / retry configurable por job** — reintentar N veces con backoff exponencial antes de registrar `status='error'`; crítico para jobs como `practitioner-payout-close` donde un evento perdido implica un cierre de periodo perdido.
+6. ✅ ~~**Alertas por fallo de job**~~ — implementado: el `jobRunner` publica `scheduler.job.failed` ante `status='error'` (agotados los reintentos), que el módulo notifications convierte en email/Slack al equipo de operaciones.
+7. ✅ ~~**Backoff / retry configurable por job**~~ — implementado en el `jobRunner`: `JOB_MAX_RETRIES` reintentos con backoff exponencial (`JOB_RETRY_BACKOFF_MS * 2^(n-1)`) antes de registrar `status='error'`. Default 0 = comportamiento original. `runs.metadata.attempts` registra los intentos.
 8. **Configuración de parámetros por tenant** (ventanas de reminder, umbral SLA, timezone de digest) — requiere `platform_scheduler.job_config` y endpoints admin de config; desbloquea personalización sin redeploy.
 9. **Jobs one-shot con `run_at` futuro** (delayed jobs) — `POST /v1/scheduler/enqueue { jobName, payload, runAt }` — permite que módulos como `bookings` programen un evento futuro sin acoplar a una expresión cron global.
 10. **Métricas Prometheus** (`/metrics`) — exportar `job_duration_seconds`, `job_runs_total{status}`, `rows_affected_total` para integración con Grafana/Alertmanager sin depender de consultas ad-hoc a `runs`.

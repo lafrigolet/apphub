@@ -13,6 +13,7 @@ import {
   sendBookingReminderSms, sendReservationReminderSms,
   sendBookingConfirmedSms, sendBookingCancelledSms, sendBookingRescheduledSms,
   sendReservationCancelledSms,
+  sendWaitlistNotifiedSms, sendBookingWaitlistNotifiedSms,
 } from './sms.service.js'
 import { checkRateLimit } from './rate-limit.service.js'
 import { claimEvent } from './idempotency.service.js'
@@ -21,6 +22,8 @@ import { shouldDigest, enqueueDigest } from './digest.service.js'
 import {
   sendBookingReminderPush, sendBookingConfirmedPush, sendReservationReminderPush,
   sendPushToUser,
+  sendReviewRepliedPush, sendDisputeOpenedPush, sendDisputeWithdrawnPush,
+  sendPackageFrozenPush, sendPackageUnfrozenPush, sendPackageRefundedPush,
 } from './push.service.js'
 
 // Rate-limit + preference gate: skip the send when the user opted out of this
@@ -520,6 +523,86 @@ export function startEventConsumer() {
           await gated(assignedAgentUserId, event.type, 'push', () => sendPushToUser(ctx, assignedAgentUserId, {
             title: 'Support SLA breached', body: '', data: { type: 'chat.support.sla_breached', conversationId },
           }))
+        }
+      }
+
+      // ── reviews ─────────────────────────────────────────────────────────
+      // The vendor replied to the buyer's review. Payload carries buyerUserId
+      // (reviews own no email — auth does), so push is the resolvable channel.
+      if (event.type === 'review.replied') {
+        const { appId, tenantId, buyerUserId, reviewId } = event.payload ?? {}
+        if (buyerUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: buyerUserId, role: 'system' }
+          await gated(buyerUserId, event.type, 'push', () => sendReviewRepliedPush(ctx, buyerUserId, { reviewId, locale }), ctx)
+        }
+      }
+
+      // ── disputes ────────────────────────────────────────────────────────
+      // dispute.opened / dispute.withdrawn carry the acting buyer's userId.
+      // dispute.resolved / dispute.message carry no recipient userId (only a
+      // role / amount) so they are intentionally not wired here.
+      if (event.type === 'dispute.opened') {
+        const { appId, tenantId, buyerUserId, disputeId, orderId } = event.payload ?? {}
+        if (buyerUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: buyerUserId, role: 'system' }
+          await gated(buyerUserId, event.type, 'push', () => sendDisputeOpenedPush(ctx, buyerUserId, { disputeId, orderId, locale }), ctx)
+        }
+      }
+      if (event.type === 'dispute.withdrawn') {
+        const { appId, tenantId, withdrawnByUserId, disputeId } = event.payload ?? {}
+        if (withdrawnByUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: withdrawnByUserId, role: 'system' }
+          await gated(withdrawnByUserId, event.type, 'push', () => sendDisputeWithdrawnPush(ctx, withdrawnByUserId, { disputeId, locale }), ctx)
+        }
+      }
+
+      // ── packages (admin actions) ─────────────────────────────────────────
+      // freeze / unfreeze / cancel(=refund) carry clientUserId → push channel.
+      if (event.type === 'package.frozen') {
+        const { appId, tenantId, clientUserId, packageId } = event.payload ?? {}
+        if (clientUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
+          await gated(clientUserId, event.type, 'push', () => sendPackageFrozenPush(ctx, clientUserId, { packageId, locale }), ctx)
+        }
+      }
+      if (event.type === 'package.unfrozen') {
+        const { appId, tenantId, clientUserId, packageId, daysAdded } = event.payload ?? {}
+        if (clientUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
+          await gated(clientUserId, event.type, 'push', () => sendPackageUnfrozenPush(ctx, clientUserId, { packageId, daysAdded, locale }), ctx)
+        }
+      }
+      if (event.type === 'package.refunded') {
+        const { appId, tenantId, clientUserId, packageId, refundCents, currency } = event.payload ?? {}
+        if (clientUserId) {
+          const ctx = { appId, tenantId, subTenantId: null, userId: clientUserId, role: 'system' }
+          await gated(clientUserId, event.type, 'push', () => sendPackageRefundedPush(ctx, clientUserId, { packageId, refundCents, currency, locale }), ctx)
+        }
+      }
+
+      // ── waitlist promotions (anonymous guests/clients — SMS only) ─────────
+      // A table / slot freed up and this party is next. Waitlist entries are
+      // typically created without a user account (name + phone only), so SMS
+      // is the resolvable channel. No userId → no rate-limit gate (send direct,
+      // same as inquiry/lead). Errors are swallowed by the sms sender itself.
+      if (event.type === 'waitlist.notified') {
+        const { guestPhone, guestName } = event.payload ?? {}
+        if (guestPhone) {
+          try {
+            await sendWaitlistNotifiedSms(guestPhone, { guestName, locale })
+          } catch (err) {
+            logger.error({ err }, 'sendWaitlistNotifiedSms failed')
+          }
+        }
+      }
+      if (event.type === 'booking.waitlist.notified') {
+        const { clientPhone } = event.payload ?? {}
+        if (clientPhone) {
+          try {
+            await sendBookingWaitlistNotifiedSms(clientPhone, { locale })
+          } catch (err) {
+            logger.error({ err }, 'sendBookingWaitlistNotifiedSms failed')
+          }
         }
       }
     } catch (err) {
