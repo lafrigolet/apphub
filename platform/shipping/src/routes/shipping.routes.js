@@ -8,14 +8,38 @@ const zoneBody = z.object({
   regionCodes:  z.array(z.string()).optional(),
 })
 
+const serviceLevelEnum = z.enum(['economy', 'standard', 'express', 'overnight', 'in_store_pickup'])
+
 const rateBody = z.object({
-  zoneId:       z.string().uuid().optional(),
-  name:         z.string().min(1).max(128),
-  priceCents:   z.number().int().min(0),
-  minWeightG:   z.number().int().min(0).optional(),
-  maxWeightG:   z.number().int().min(0).optional(),
-  etaDaysMin:   z.number().int().min(0).optional(),
-  etaDaysMax:   z.number().int().min(0).optional(),
+  zoneId:         z.string().uuid().optional(),
+  name:           z.string().min(1).max(128),
+  priceCents:     z.number().int().min(0),
+  minWeightG:     z.number().int().min(0).optional(),
+  maxWeightG:     z.number().int().min(0).optional(),
+  etaDaysMin:     z.number().int().min(0).optional(),
+  etaDaysMax:     z.number().int().min(0).optional(),
+  freeAboveCents: z.number().int().min(0).optional(),
+  serviceLevel:   serviceLevelEnum.optional(),
+  active:         z.boolean().optional(),
+})
+
+const zonePatchBody = z.object({
+  name:         z.string().min(1).max(128).optional(),
+  countryCodes: z.array(z.string().length(2)).optional(),
+  regionCodes:  z.array(z.string()).optional(),
+})
+
+const ratePatchBody = z.object({
+  zoneId:         z.string().uuid().nullable().optional(),
+  name:           z.string().min(1).max(128).optional(),
+  priceCents:     z.number().int().min(0).optional(),
+  minWeightG:     z.number().int().min(0).optional(),
+  maxWeightG:     z.number().int().min(0).nullable().optional(),
+  etaDaysMin:     z.number().int().min(0).nullable().optional(),
+  etaDaysMax:     z.number().int().min(0).nullable().optional(),
+  freeAboveCents: z.number().int().min(0).nullable().optional(),
+  serviceLevel:   serviceLevelEnum.optional(),
+  active:         z.boolean().optional(),
 })
 
 const shipmentBody = z.object({
@@ -49,7 +73,19 @@ const eventBody = z.object({
   location:    z.string().max(256).optional(),
 })
 
-const quoteQuery = z.object({ country: z.string().length(2).optional() })
+const quoteQuery = z.object({
+  country:         z.string().length(2).optional(),
+  weightG:         z.coerce.number().int().min(0).optional(),
+  orderValueCents: z.coerce.number().int().min(0).optional(),
+})
+
+const shipmentListQuery = z.object({
+  status:       z.string().max(32).optional(),
+  carrier:      z.string().max(64).optional(),
+  orderId:      z.string().uuid().optional(),
+  createdSince: z.string().datetime().optional(),
+  limit:        z.coerce.number().int().min(1).max(200).optional(),
+})
 
 function ctxFromRequest(req) {
   return {
@@ -110,6 +146,15 @@ export async function shippingRoutes(fastify) {
       const z = zoneBody.parse(req.body)
       return reply.status(201).send(await service.createZone(ctxFromRequest(req), z))
     })
+  fastify.patch('/v1/shipping/zones/:id', {
+    schema: { tags, summary: 'Update a shipping zone', params: idParams, body: zonePatchBody },
+  }, async (req) => {
+    const body = zonePatchBody.parse(req.body ?? {})
+    return service.updateZone(ctxFromRequest(req), req.params.id, body)
+  })
+  fastify.delete('/v1/shipping/zones/:id', {
+    schema: { tags, summary: 'Delete a shipping zone', params: idParams },
+  }, async (req) => service.deleteZone(ctxFromRequest(req), req.params.id))
 
   fastify.get('/v1/shipping/rates', { schema: { tags, summary: 'List shipping rates (optionally filtered by zone)' } },
     async (req) => service.listRates(ctxFromRequest(req), req.query?.zoneId))
@@ -118,9 +163,19 @@ export async function shippingRoutes(fastify) {
       const r = rateBody.parse(req.body)
       return reply.status(201).send(await service.createRate(ctxFromRequest(req), r))
     })
+  fastify.patch('/v1/shipping/rates/:id', {
+    schema: { tags, summary: 'Update a shipping rate (price, weight band, ETA, free-shipping threshold, active flag)', params: idParams, body: ratePatchBody },
+  }, async (req) => {
+    const body = ratePatchBody.parse(req.body ?? {})
+    return service.updateRate(ctxFromRequest(req), req.params.id, body)
+  })
+  fastify.delete('/v1/shipping/rates/:id', {
+    schema: { tags, summary: 'Delete a shipping rate', params: idParams },
+  }, async (req) => service.deleteRate(ctxFromRequest(req), req.params.id))
 
-  fastify.get('/v1/shipping/quote', { schema: { tags, summary: 'Quote shipping for a destination country' } },
-    async (req) => service.quote(ctxFromRequest(req), quoteQuery.parse(req.query)))
+  fastify.get('/v1/shipping/quote', {
+    schema: { tags, summary: 'Quote shipping for a destination (country + cart weight + order value)', querystring: quoteQuery },
+  }, async (req) => service.quote(ctxFromRequest(req), quoteQuery.parse(req.query)))
 
   fastify.post('/v1/shipping/shipments', {
     schema: { tags, summary: 'Create a shipment', body: shipmentBody },
@@ -128,6 +183,10 @@ export async function shippingRoutes(fastify) {
     const s = shipmentBody.parse(req.body)
     return reply.status(201).send(await service.createShipment(ctxFromRequest(req), s))
   })
+
+  fastify.get('/v1/shipping/shipments', {
+    schema: { tags, summary: 'List shipments (filter by status / carrier / orderId / createdSince)', querystring: shipmentListQuery },
+  }, async (req) => ({ data: await service.listShipments(ctxFromRequest(req), shipmentListQuery.parse(req.query ?? {})) }))
 
   fastify.get('/v1/shipping/shipments/:id', {
     schema: { tags, summary: 'Get a shipment with its event log', params: idParams },

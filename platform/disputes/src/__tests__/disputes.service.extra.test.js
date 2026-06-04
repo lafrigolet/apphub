@@ -51,10 +51,11 @@ describe('resolve — auto-refund branch', () => {
     }))
   })
 
-  it('ya estaba resolved_buyer → no re-dispara refund (idempotente)', async () => {
+  it('ya estaba resolved_buyer (terminal) → ConflictError, no re-dispara refund', async () => {
     repo.findById.mockResolvedValue({ id: ID, status: 'resolved_buyer' })
-    repo.updateStatus.mockResolvedValue({ id: ID, order_id: ORD, status: 'resolved_buyer', resolution_amount_cents: 500 })
-    await service.resolve(staffCtx, ID, { status: 'resolved_buyer', resolutionAmountCents: 500 })
+    await expect(service.resolve(staffCtx, ID, { status: 'resolved_buyer', resolutionAmountCents: 500 }))
+      .rejects.toThrow(/already resolved_buyer/)
+    expect(repo.updateStatus).not.toHaveBeenCalled()
     expect(repo.markRefundRequested).not.toHaveBeenCalled()
   })
 
@@ -149,6 +150,6 @@ describe('postMessage — attachments default branch', () => {
     repo.findById.mockResolvedValue({ id: ID, buyer_user_id: 'b1' })
     repo.insertMessage.mockResolvedValue({ id: 'm1' })
     await service.postMessage(buyerCtx, ID, 'hola')
-    expect(repo.insertMessage).toHaveBeenCalledWith(expect.anything(), APP, TEN, ID, 'b1', 'buyer', 'hola', [])
+    expect(repo.insertMessage).toHaveBeenCalledWith(expect.anything(), APP, TEN, ID, 'b1', 'buyer', 'hola', [], false)
   })
 })

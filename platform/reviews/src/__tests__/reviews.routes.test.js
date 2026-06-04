@@ -18,6 +18,10 @@ vi.mock('../services/reviews.service.js', () => ({
   listMedia:           vi.fn(),
   attachMedia:         vi.fn(),
   detachMedia:         vi.fn(),
+  listForModeration:   vi.fn(),
+  report:              vi.fn(),
+  listReports:         vi.fn(),
+  setReportStatus:     vi.fn(),
 }))
 
 import { reviewsRoutes } from '../routes/reviews.routes.js'
@@ -25,9 +29,12 @@ import * as service from '../services/reviews.service.js'
 
 const UUID  = '11111111-1111-1111-1111-111111111111'
 const UUID2 = '22222222-2222-2222-2222-222222222222'
-const IDENTITY = { appId: 'shop', tenantId: 't1', subTenantId: null, userId: 'u1', role: 'buyer' }
+// Default identity is a moderator-capable role so the guarded reply/status/
+// delete/moderation routes succeed; role-gating itself is covered by dedicated
+// 403 tests below using a buyer identity.
+const IDENTITY = { appId: 'shop', tenantId: 't1', subTenantId: null, userId: 'u1', role: 'staff' }
 
-async function buildApp() {
+async function buildApp(identity = IDENTITY) {
   const app = Fastify({ logger: false })
   // zod-aware passthrough compiler so route-level schema.{body,params} validate.
   const zodCompiler = ({ schema }) => (data) => {
@@ -40,7 +47,7 @@ async function buildApp() {
   app.setValidatorCompiler(zodCompiler)
   app.setSerializerCompiler(() => (d) => JSON.stringify(d))
   app.decorateRequest('identity', null)
-  app.addHook('onRequest', async (req) => { req.identity = IDENTITY })
+  app.addHook('onRequest', async (req) => { req.identity = identity })
   app.setErrorHandler((err, req, reply) => {
     if (err.name === 'ZodError' || err.validation) {
       return reply.status(400).send({ error: { code: 'BAD_REQUEST' } })
@@ -158,7 +165,15 @@ describe('PATCH /v1/reviews/:id/status', () => {
       method: 'PATCH', url: `/v1/reviews/${UUID}/status`, payload: { status: 'hidden' },
     })
     expect(res.statusCode).toBe(200)
-    expect(service.setStatus).toHaveBeenCalledWith(expect.anything(), UUID, 'hidden')
+    expect(service.setStatus).toHaveBeenCalledWith(expect.anything(), UUID, 'hidden', null)
+  })
+
+  it('forwards moderationReason', async () => {
+    service.setStatus.mockResolvedValue({ id: UUID, status: 'hidden' })
+    await app.inject({
+      method: 'PATCH', url: `/v1/reviews/${UUID}/status`, payload: { status: 'hidden', moderationReason: 'spam' },
+    })
+    expect(service.setStatus).toHaveBeenCalledWith(expect.anything(), UUID, 'hidden', 'spam')
   })
 })
 
@@ -222,5 +237,115 @@ describe('media routes', () => {
     const res = await app.inject({ method: 'DELETE', url: `/v1/reviews/${UUID}/media/${UUID2}` })
     expect(res.statusCode).toBe(204)
     expect(service.detachMedia).toHaveBeenCalledWith(expect.anything(), UUID2)
+  })
+})
+
+describe('role guards (recommendation #1)', () => {
+  const BUYER = { appId: 'shop', tenantId: 't1', subTenantId: null, userId: 'u1', role: 'buyer' }
+  let buyerApp
+  beforeEach(async () => { buyerApp = await buildApp(BUYER) })
+  afterEach(async () => { await buyerApp.close() })
+
+  it('buyer cannot reply (403)', async () => {
+    const res = await buyerApp.inject({ method: 'POST', url: `/v1/reviews/${UUID}/reply`, payload: { body: 'x' } })
+    expect(res.statusCode).toBe(403)
+    expect(service.reply).not.toHaveBeenCalled()
+  })
+
+  it('buyer cannot moderate status (403)', async () => {
+    const res = await buyerApp.inject({ method: 'PATCH', url: `/v1/reviews/${UUID}/status`, payload: { status: 'hidden' } })
+    expect(res.statusCode).toBe(403)
+    expect(service.setStatus).not.toHaveBeenCalled()
+  })
+
+  it('buyer cannot delete (403)', async () => {
+    const res = await buyerApp.inject({ method: 'DELETE', url: `/v1/reviews/${UUID}` })
+    expect(res.statusCode).toBe(403)
+    expect(service.remove).not.toHaveBeenCalled()
+  })
+
+  it('buyer cannot read moderation queue (403)', async () => {
+    const res = await buyerApp.inject({ method: 'GET', url: '/v1/reviews/moderation/queue' })
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('buyer CAN report a review (201)', async () => {
+    service.report.mockResolvedValue({ id: 'rep1' })
+    const res = await buyerApp.inject({
+      method: 'POST', url: `/v1/reviews/${UUID}/report`, payload: { reason: 'spam' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.report).toHaveBeenCalledWith(expect.anything(), UUID, 'spam', undefined)
+  })
+})
+
+describe('sort + service target (recommendations #4, #6)', () => {
+  it('GET /v1/reviews forwards sort=helpful', async () => {
+    service.listByTarget.mockResolvedValue([])
+    const res = await app.inject({ method: 'GET', url: '/v1/reviews?targetType=product&targetId=sku&sort=helpful' })
+    expect(res.statusCode).toBe(200)
+    expect(service.listByTarget).toHaveBeenCalledWith(
+      expect.anything(), expect.objectContaining({ sort: 'helpful' }),
+    )
+  })
+
+  it('GET /v1/reviews rejects unknown sort', async () => {
+    const res = await app.inject({ method: 'GET', url: '/v1/reviews?targetType=product&targetId=sku&sort=bogus' })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('POST /v1/reviews accepts target_type=service', async () => {
+    service.createReview.mockResolvedValue({ id: UUID })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/reviews', payload: { targetType: 'service', targetId: 'svc1', rating: 4 },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createReview).toHaveBeenCalledWith(
+      expect.anything(), expect.objectContaining({ targetType: 'service' }),
+    )
+  })
+})
+
+describe('moderation queue + reports (recommendations #7, #9)', () => {
+  it('GET /moderation/queue wraps in { data } and forwards status', async () => {
+    service.listForModeration.mockResolvedValue([{ id: UUID }])
+    const res = await app.inject({ method: 'GET', url: '/v1/reviews/moderation/queue?status=pending&limit=10' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ data: [{ id: UUID }] })
+    expect(service.listForModeration).toHaveBeenCalledWith(
+      expect.anything(), expect.objectContaining({ status: 'pending', limit: 10 }),
+    )
+  })
+
+  it('POST /report → 201 with reason + detail', async () => {
+    service.report.mockResolvedValue({ id: 'rep1', openCount: 1 })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reviews/${UUID}/report`, payload: { reason: 'fake', detail: 'bot' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.report).toHaveBeenCalledWith(expect.anything(), UUID, 'fake', 'bot')
+  })
+
+  it('POST /report rejects unknown reason', async () => {
+    const res = await app.inject({
+      method: 'POST', url: `/v1/reviews/${UUID}/report`, payload: { reason: 'whatever' },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('GET /reports wraps in { data }', async () => {
+    service.listReports.mockResolvedValue([{ id: 'rep1' }])
+    const res = await app.inject({ method: 'GET', url: '/v1/reviews/reports?status=open' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ data: [{ id: 'rep1' }] })
+  })
+
+  it('PATCH /reports/:reportId forwards status', async () => {
+    service.setReportStatus.mockResolvedValue({ id: 'rep1', status: 'dismissed' })
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/reviews/reports/${UUID}`, payload: { status: 'dismissed' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.setReportStatus).toHaveBeenCalledWith(expect.anything(), UUID, 'dismissed')
   })
 })

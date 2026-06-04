@@ -20,6 +20,7 @@ vi.mock('../lib/env.js', () => ({
   env: { NODE_ENV: 'test', LOG_LEVEL: 'error', DATABASE_URL: 'postgresql://x@y/z', REDIS_URL: 'redis://localhost' },
 }))
 vi.mock('../lib/db.js', () => ({ pool: {}, withTenantTransaction: vi.fn() }))
+vi.mock('../lib/events.js', () => ({ emitCatalogEvent: vi.fn() }))
 vi.mock('../repositories/items.repository.js')
 
 import {
@@ -46,7 +47,7 @@ describe('happy paths', () => {
     repo.findAll.mockResolvedValue([{ id: 'i1' }])
     const r = await listItems({ ...ctx, activeOnly: true })
     expect(r).toEqual([{ id: 'i1' }])
-    expect(repo.findAll).toHaveBeenCalledWith(expect.anything(), { activeOnly: true })
+    expect(repo.findAll).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ activeOnly: true }))
   })
 
   it('createItem delega a repo.create con scope + fields', async () => {

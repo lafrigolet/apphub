@@ -6,15 +6,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../lib/env.js', () => ({
-  env: { NODE_ENV: 'test', LOG_LEVEL: 'error', REDIS_URL: 'redis://localhost' },
+  env: {
+    NODE_ENV: 'test', LOG_LEVEL: 'error', REDIS_URL: 'redis://localhost',
+    BASKET_TTL_AUTH_SECONDS: 2_592_000, BASKET_TTL_GUEST_SECONDS: 604_800,
+  },
 }))
 vi.mock('../lib/redis.js', () => {
   const store = new Map()
+  const counters = new Map()
   return {
     redis: {
+      // set(k, v) or set(k, v, 'EX', n) or set(k, v, 'KEEPTTL')
       get: vi.fn(async (k) => store.get(k) ?? null),
       set: vi.fn(async (k, v) => { store.set(k, v); return 'OK' }),
-      del: vi.fn(async (k) => { store.delete(k); return 1 }),
+      del: vi.fn(async (k) => { store.delete(k); counters.delete(k); return 1 }),
+      incr: vi.fn(async (k) => { const n = (counters.get(k) ?? 0) + 1; counters.set(k, n); return n }),
+      decr: vi.fn(async (k) => { const n = (counters.get(k) ?? 0) - 1; counters.set(k, n); return n }),
+      expire: vi.fn(async () => 1),
+      __counters: counters,
       mget: vi.fn(async (...keys) => keys.map((k) => store.get(k) ?? null)),
       // Implementación mínima de SCAN: pagina en bloques para ejercitar el
       // loop do/while del listPromos. Cursor textual "0" → fin.
@@ -28,7 +37,7 @@ vi.mock('../lib/redis.js', () => {
         return [next, slice]
       }),
       __store: store,
-      __reset: () => store.clear(),
+      __reset: () => { store.clear(); counters.clear() },
     },
   }
 })
@@ -294,5 +303,65 @@ describe('branch coverage residual', () => {
   it('clearPromo sin basket en Redis (raw falsy) → {items:[]}', async () => {
     const r = await clearPromo({ appId: APP, tenantId: TENANT, userId: USER })
     expect(r.basket.items).toEqual([])
+  })
+})
+
+// ── maxUsesPerUser (contador Redis atómico) ──────────────────────────────
+
+describe('maxUsesPerUser enforcement', () => {
+  const usageKey = `basket:promo-usage:${APP}:${TENANT}:ONCE:${USER}`
+
+  it('aplica el promo la primera vez e incrementa el contador', async () => {
+    await upsertPromo({ appId: APP, tenantId: TENANT, code: 'once', def: { type: 'percent', value: 1000, maxUsesPerUser: 1 } })
+    seedBasket([item('a', 1000, 2)])
+    const r = await applyPromo({ appId: APP, tenantId: TENANT, userId: USER, code: 'ONCE' })
+    expect(r.summary.discountCents).toBe(200)
+    expect(redis.__counters.get(usageKey)).toBe(1)
+  })
+
+  it('segundo uso (tras clear) por encima del límite → rechazado y contador revertido', async () => {
+    await upsertPromo({ appId: APP, tenantId: TENANT, code: 'once', def: { type: 'percent', value: 1000, maxUsesPerUser: 1 } })
+    seedBasket([item('a', 1000, 2)])
+    await applyPromo({ appId: APP, tenantId: TENANT, userId: USER, code: 'ONCE' })
+    await clearPromo({ appId: APP, tenantId: TENANT, userId: USER })          // libera la reserva → 0
+    // Forzamos un uso ya consumido para simular un uso previo agotado.
+    redis.__counters.set(usageKey, 1)
+    seedBasket([item('a', 1000, 2)])
+    const r = await applyPromo({ appId: APP, tenantId: TENANT, userId: USER, code: 'ONCE' })
+    expect(r.summary.error).toContain('usage limit reached')
+    expect(redis.__counters.get(usageKey)).toBe(1)   // INCR→2 luego DECR→1 (rollback)
+  })
+
+  it('re-aplicar el mismo código ya aplicado es idempotente (no doble cuenta)', async () => {
+    await upsertPromo({ appId: APP, tenantId: TENANT, code: 'once', def: { type: 'percent', value: 1000, maxUsesPerUser: 1 } })
+    seedBasket([item('a', 1000, 2)], { appliedPromo: 'ONCE' })
+    redis.__counters.set(usageKey, 1)
+    const r = await applyPromo({ appId: APP, tenantId: TENANT, userId: USER, code: 'ONCE' })
+    expect(r.summary.discountCents).toBe(200)
+    expect(redis.__counters.get(usageKey)).toBe(1)   // sin cambios
+  })
+
+  it('clearPromo de un promo con maxUsesPerUser libera la reserva', async () => {
+    await upsertPromo({ appId: APP, tenantId: TENANT, code: 'once', def: { type: 'percent', value: 1000, maxUsesPerUser: 1 } })
+    seedBasket([item('a', 1000, 2)])
+    await applyPromo({ appId: APP, tenantId: TENANT, userId: USER, code: 'ONCE' })
+    await clearPromo({ appId: APP, tenantId: TENANT, userId: USER })
+    expect(redis.__counters.has(usageKey)).toBe(false)   // DECR→0 → del
+  })
+
+  it('promo sin maxUsesPerUser → no toca contador', async () => {
+    await upsertPromo({ appId: APP, tenantId: TENANT, code: 'free', def: { type: 'percent', value: 500 } })
+    seedBasket([item('a', 1000, 1)])
+    const r = await applyPromo({ appId: APP, tenantId: TENANT, userId: USER, code: 'FREE' })
+    expect(r.summary.error).toBeUndefined()
+    expect(redis.incr).not.toHaveBeenCalled()
+  })
+
+  it('promo con expiresAt → fija TTL en el contador en el primer uso', async () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString()
+    await upsertPromo({ appId: APP, tenantId: TENANT, code: 'once', def: { type: 'percent', value: 1000, maxUsesPerUser: 2, expiresAt: future } })
+    seedBasket([item('a', 1000, 1)])
+    await applyPromo({ appId: APP, tenantId: TENANT, userId: USER, code: 'ONCE' })
+    expect(redis.expire).toHaveBeenCalledWith(usageKey, expect.any(Number))
   })
 })

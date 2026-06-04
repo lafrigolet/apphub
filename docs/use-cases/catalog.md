@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-Tabla `platform_catalog.items` con `(app_id, tenant_id, sub_tenant_id, name, description, price_cents, currency, category, metadata JSONB, active, status, version_number, published_at)` protegida por RLS por `(app_id, tenant_id)`. Galería de imágenes en `item_images` (referencia a `platform_storage.objects`). Historial de versiones publicadas en `item_versions` (snapshot JSONB, `actor_user_id`). CRUD completo + búsqueda básica por texto (ILIKE). Transición de estado `draft/published/archived` con snapshot automático. Import/export CSV. Guard `appGuard` + identidad JWT. Sin eventos Redis.
+Tabla `platform_catalog.items` con `(app_id, tenant_id, sub_tenant_id, name, description, price_cents, currency, category, metadata JSONB, active, status, version_number, published_at)` protegida por RLS por `(app_id, tenant_id)`. Galería de imágenes en `item_images` (referencia a `platform_storage.objects`). Historial de versiones publicadas en `item_versions` (snapshot JSONB, `actor_user_id`). CRUD completo + búsqueda básica por texto (ILIKE). Transición de estado `draft/published/archived` con snapshot automático. Import/export CSV. Guard `appGuard` + identidad JWT. Eventos de dominio Redis (`catalog.item.created/updated/published/archived/deleted`) en `platform.events`. Paginación `?limit/?offset`. Soft-delete (`deleted_at`) + restore. SEO básico (`slug` único, `meta_title`, `meta_description`). Discriminador `item_type`. Categorías jerárquicas (`categories.parent_id`) + relación M:N `item_categories`.
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -18,8 +18,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Actualizar ítem parcial (`PATCH /v1/items/:id`): nombre, descripción, precio, moneda, categoría, metadata, activo.
 - ✅ Eliminar ítem (`DELETE /v1/items/:id`) — hard delete.
 - ✅ Aislamiento multi-tenant: RLS por `(app_id, tenant_id)`; `sub_tenant_id` nullable admite dos niveles de jerarquía.
-- ❌ Soft-delete (borrado lógico) con `deleted_at` para preservar referencias en pedidos históricos.
-- ❌ Restauración de ítems eliminados.
+- ✅ Soft-delete (borrado lógico) con `deleted_at` (`POST /v1/items/:id/soft-delete`) para preservar referencias en pedidos históricos; las lecturas excluyen borrados salvo `?includeDeleted=true`.
+- ✅ Restauración de ítems eliminados (`POST /v1/items/:id/restore`).
 - ❌ Auditoría de quién creó/modificó/eliminó (`actor_user_id` solo en versiones publicadas).
 
 ## 2. Ciclo de vida editorial — estados
@@ -61,7 +61,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Búsqueda básica por texto `?q=` sobre `name ILIKE` y `description ILIKE`.
 - ✅ Filtro `activeOnly` (activo/todos).
 - 🔧 Búsqueda ILIKE sin índice `pg_trgm` — rendimiento degradado con catálogos grandes; comentario en repo lo señala.
-- 🔧 Paginación ausente — lista completa sin `limit/offset/cursor`.
+- ✅ Paginación `?limit/?offset` en `GET /v1/items` (devuelve `{ data, total, limit, offset }`); sin `limit` mantiene la lista plana (back compat).
 - ❌ Búsqueda full-text con pesos diferenciados (nombre > descripción) usando `tsvector/tsquery`.
 - ❌ Búsqueda difusa (fuzzy) con `pg_trgm` / Trigram.
 - ❌ Filtro por categoría, estado, rango de precio, moneda, `active`.
@@ -73,13 +73,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 6. Categorías y colecciones
 
-- 🔧 `category` existe como campo `TEXT` libre por ítem — sin tabla de categorías normalizada.
-- ❌ Tabla `categories` con `id, name, slug, parent_id` (árbol jerárquico — catálogo / subcategoría / sub-subcategoría).
-- ❌ Múltiples categorías por ítem (relación M:N `item_categories`).
+- 🔧 `category` existe como campo `TEXT` libre por ítem — coexiste con la tabla normalizada (no se eliminó por compatibilidad).
+- ✅ Tabla `categories` con `id, name, slug, parent_id` (árbol jerárquico). CRUD vía `GET/POST /v1/categories`, `PATCH/DELETE /v1/categories/:id`. Borrar una categoría re-parenta sus hijos a `NULL`.
+- ✅ Múltiples categorías por ítem (relación M:N `item_categories`): `GET/POST /v1/items/:id/categories`, `DELETE /v1/items/:id/categories/:categoryId`, y `GET /v1/categories/:id/items`.
 - ❌ Colecciones / listas curadas (selección manual de ítems para homepage, promociones, temporadas).
 - ❌ Orden de ítems dentro de una colección (`display_order`).
-- ❌ Slugs de categoría para URLs amigables y SEO.
-- ❌ Imagen y descripción de categoría.
+- ✅ Slugs de categoría únicos por `(app_id, tenant_id)` para URLs amigables y SEO.
+- ✅ `description` de categoría (`display_order` también disponible). Imagen de categoría: ❌ pendiente.
 - ❌ Herencia de atributos / impuestos desde la categoría.
 
 ## 7. Variantes, SKU y opciones configurables
@@ -126,8 +126,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 11. SEO — slugs, meta y descripción rica
 
-- ❌ `slug` único por `(app_id, tenant_id)` para URLs amigables (`/tienda/zapatillas-running-pro`).
-- ❌ `meta_title` y `meta_description` por ítem.
+- ✅ `slug` único por `(app_id, tenant_id)` para URLs amigables (`/tienda/zapatillas-running-pro`); validado kebab-case en la API.
+- ✅ `meta_title` y `meta_description` por ítem (en create/update).
 - ❌ `og:image` / Open Graph tags.
 - ❌ `canonical_url`.
 - ❌ Schema.org `Product` / `Offer` JSON-LD.
@@ -147,8 +147,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 13. Tipos de ítem — físico, digital y servicio
 
-- 🔧 El modelo es genérico (sirve para producto físico, digital o servicio) pero sin discriminador de tipo.
-- ❌ Campo `item_type`: `physical | digital | service | bundle | subscription`.
+- 🔧 El modelo es genérico (sirve para producto físico, digital o servicio).
+- ✅ Campo `item_type`: `physical | digital | service | bundle | subscription` (default `physical`; validado en create/update). El cableado downstream (descarga/agenda/suscripción) sigue ❌.
 - ❌ Ítems digitales: enlace de descarga / licencia protegida post-compra (integrar con `platform/storage`).
 - ❌ Ítems de tipo servicio: vinculación a `platform/services` (duración, modalidad, agenda).
 - ❌ Ítems de tipo suscripción: vinculación a `platform/subscriptions`.
@@ -176,12 +176,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 16. Eventos de dominio (Redis pub/sub)
 
-- ❌ `catalog.item.created` — ítem nuevo creado (para indexar en búsqueda, notificar integraciones…).
-- ❌ `catalog.item.updated` — ítem modificado (cache-busting, re-indexación).
-- ❌ `catalog.item.published` — transición a estado publicado (notificar suscriptores, feed RSS).
-- ❌ `catalog.item.archived` — ítem retirado del catálogo.
-- ❌ `catalog.item.deleted` — ítem eliminado (limpieza en basket, wishlists).
-- ❌ Consumidores de estos eventos en `platform/basket`, `platform/orders`, `platform/inventory`.
+- ✅ `catalog.item.created` — ítem nuevo creado (para indexar en búsqueda, notificar integraciones…).
+- ✅ `catalog.item.updated` — ítem modificado (cache-busting, re-indexación); incluye restore y transiciones de estado no-publicación.
+- ✅ `catalog.item.published` — transición a estado publicado (notificar suscriptores, feed RSS).
+- ✅ `catalog.item.archived` — ítem retirado del catálogo.
+- ✅ `catalog.item.deleted` — ítem eliminado (limpieza en basket, wishlists); flag `hard:true|false` distingue hard de soft delete.
+- ❌ Consumidores de estos eventos en `platform/basket`, `platform/orders`, `platform/inventory` (cross-cutting, fuera de `platform/catalog`).
 
 ## 17. Importación / exportación masiva
 
@@ -240,13 +240,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Paginación** (`limit/offset`) en `GET /v1/items` — imprescindible antes de que cualquier tenant tenga >100 ítems; cambio mínimo en repositorio y ruta.
-2. **Eventos Redis** (`catalog.item.created/updated/published/archived`) — desbloquea cache-busting, re-indexación y comunicación con `platform/basket`; patrón ya establecido en otros módulos.
-3. **Tabla `categories`** con `parent_id` (árbol) + relación M:N `item_categories` — base de toda navegación y filtrado por categoría.
-4. **`slug` único por `(app_id, tenant_id)`** + `meta_title / meta_description` — SEO básico sin coste de modelo elevado.
-5. **`item_type` discriminador** (`physical/digital/service/bundle`) — desbloquea flujos downstream (envío, descarga, agenda) sin romper compatibilidad actual.
-6. **Índice `pg_trgm`** sobre `name` y activación de búsqueda fuzzy — mejora inmediata de rendimiento de búsqueda.
-7. **Variantes (`item_variants`)** con SKU y `price_delta_cents` + enlace a `platform/inventory` — bloquea la mayoría de casos de uso de e-commerce reales.
+1. ✅ ~~**Paginación** (`limit/offset`) en `GET /v1/items`~~ (implementado: `{ data, total, limit, offset }`, sin `limit` mantiene lista plana).
+2. ✅ ~~**Eventos Redis** (`catalog.item.created/updated/published/archived`)~~ (implementado en `platform.events`, incluye `catalog.item.deleted` con flag `hard`).
+3. ✅ ~~**Tabla `categories`** con `parent_id` (árbol) + relación M:N `item_categories`~~ (implementado: CRUD de categorías + asignación item↔categoría + listado por categoría).
+4. ✅ ~~**`slug` único por `(app_id, tenant_id)`** + `meta_title / meta_description`~~ (implementado: slug validado kebab-case, único por tenant).
+5. ✅ ~~**`item_type` discriminador** (`physical/digital/service/bundle`)~~ (implementado: columna + validación; cableado downstream pendiente).
+6. **Índice `pg_trgm`** sobre `name` y activación de búsqueda fuzzy — mejora inmediata de rendimiento de búsqueda. (Pendiente: requiere `CREATE EXTENSION pg_trgm`, cross-cutting de infra/superuser.)
+7. **Variantes (`item_variants`)** con SKU y `price_delta_cents` + enlace a `platform/inventory` — bloquea la mayoría de casos de uso de e-commerce reales. (Pendiente: cambio grande; ver nota.)
 8. **Precios multi-moneda** (`item_prices`) — necesario para cualquier tenant con presencia internacional.
-9. **Soft-delete** (`deleted_at`) en lugar de hard delete — preserva referencias históricas en pedidos y estadísticas.
+9. ✅ ~~**Soft-delete** (`deleted_at`) en lugar de hard delete~~ (implementado: `POST .../soft-delete` + `.../restore`; el `DELETE` original se mantiene como hard delete explícito).
 10. **Feed Google Shopping** — alto valor comercial para tenants con tienda física/online; coste de implementación moderado sobre datos ya disponibles.

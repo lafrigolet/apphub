@@ -19,7 +19,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Obtener el carrito actual (`GET /v1/basket`); devuelve `{ items: [] }` si vacío.
 - 🔧 `upsertItem` no verifica disponibilidad de stock antes de añadir — falta integración con `platform/inventory`.
 - 🔧 `priceCents` lo aporta el cliente — no se valida contra el catálogo (`platform/catalog`) en el momento de añadir.
-- ❌ Incremento/decremento atómico de cantidad (`PATCH /v1/basket/items/:itemId/quantity +N`) — hoy requiere leer + escribir el objeto entero.
+- ✅ Incremento/decremento atómico de cantidad (`PATCH /v1/basket/items/:itemId/quantity` con `delta`, resultado clamped ≥1).
 - ❌ Límite máximo de cantidad por ítem (e.g. no superar 10 unidades de un mismo producto).
 - ❌ Límite máximo de líneas de carrito (e.g. no más de 100 SKUs distintos).
 - ❌ Sugerencias de ítems relacionados / cross-sell al añadir.
@@ -27,11 +27,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 2. Persistencia, TTL y expiración
 
 - ✅ Estado persistido en Redis mediante `SET` sin TTL explícito — el carrito sobrevive reinicios del proceso.
-- 🔧 Sin TTL activo en las claves `basket:*` — un carrito inactivo ocupa Redis indefinidamente si el job de abandonados no lo limpió.
+- ✅ TTL deslizante en las claves `basket:*` — cada mutación refresca la expiración (`SET … EX`). Configurable por `BASKET_TTL_AUTH_SECONDS` (30d) y `BASKET_TTL_GUEST_SECONDS` (7d); `0` desactiva el TTL para esa clase.
 - 🔧 El job `basket-abandoned` detecta idleness via `OBJECT IDLETIME` pero **no** borra la clave al emitir el evento — la clave persiste hasta que el usuario vacía el carrito o convierte a pedido.
 - ❌ TTL configurable por tenant (e.g. carritos de guest expiran en 7 días, autenticados en 30 días).
-- ❌ Limpieza periódica de claves vacías (`items: []`) y de carritos de usuarios eliminados.
-- ❌ Renovación automática del TTL con cada operación (sliding expiry).
+- 🔧 Limpieza de claves vacías: un carrito que queda `items: []` (sin promo) se **borra** en la propia mutación (`writeBasket`); igual la lista saved-for-later vacía. Falta aún la limpieza de carritos de usuarios eliminados.
+- ✅ Renovación automática del TTL con cada operación (sliding expiry) — implementado vía `SET … EX` en cada mutación; `applyPromo`/`clearPromo` usan `KEEPTTL` para no alterar la ventana.
 
 ## 3. Carrito de sesión anónima (invitado)
 
@@ -91,7 +91,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Validaciones en la aplicación: promo `enabled`, `expiresAt`, `minSubtotalCents`.
 - ✅ Código promo persistido en el JSON del carrito — `GET /v1/basket/summary` lo re-evalúa en cada llamada.
 - ✅ Si el promo fue eliminado o deshabilitado tras ser aplicado, `basketSummary` lo descarta automáticamente.
-- 🔧 `maxUsesPerUser` definida en el modelo pero **no implementada** — la validación solo comprueba enabled/expired/min-subtotal.
+- ✅ `maxUsesPerUser` implementada con contador Redis atómico (`INCR`/`DECR`) en `basket:promo-usage:<app>:<tenant>:<CODE>:<user>`: `applyPromo` reserva un uso (rollback si excede el límite → error `usage limit reached`); re-aplicar el mismo código ya aplicado es idempotente; `clearPromo` libera la reserva; el contador hereda el `expiresAt` del promo.
 - 🔧 Un solo promo activo por carrito — no se pueden combinar múltiples códigos.
 - ❌ Límite total de usos del código (`maxUsesTotal`).
 - ❌ Contador de usos real en Redis o Postgres para hacer cumplir `maxUsesPerUser`.
@@ -156,7 +156,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 13. Eventos del sistema (`basket.updated`, `basket.abandoned`)
 
 - ✅ `basket.abandoned` publicado por el scheduler job (ver § 12).
-- ❌ `basket.updated` publicado en `platform.events` tras cada mutación (upsertItem, removeItem, clearBasket, merge).
+- ✅ `basket.updated` publicado en `platform.events` tras cada mutación (`upsertItem`, `patchQuantity`, `removeItem`, `clearBasket`, `mergeBaskets`, `saveForLater`) con `{ type, appId, tenantId, userId, action, itemCount, lineCount, at }`. Best-effort: un fallo de publish no rompe la escritura del carrito.
 - ❌ `basket.checkout_started` al iniciar el proceso de pago.
 - ❌ `basket.checkout_completed` tras crear el pedido con éxito.
 - ❌ Suscripción de otros módulos a `basket.updated` para invalidar cachés o recalcular stock reservado.
@@ -189,8 +189,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `GET /v1/basket` devuelve el carrito completo con todos los campos necesarios para renderizar un mini-cart.
 - ✅ `GET /v1/basket/summary` devuelve los totales listos para mostrar en el resumen de pago.
-- 🔧 No hay endpoint de recuento rápido (`GET /v1/basket/count`) para el badge del mini-cart sin cargar todos los ítems.
-- ❌ Endpoint de "mini-cart" optimizado que devuelva solo `{ itemCount, subtotalCents, appliedPromo }`.
+- ✅ Endpoint de recuento rápido (`GET /v1/basket/count`) para el badge del mini-cart sin serializar todos los ítems.
+- ✅ Endpoint de "mini-cart" optimizado — `GET /v1/basket/count` devuelve `{ itemCount, lineCount, subtotalCents, appliedPromo }`.
 - ❌ WebSocket / SSE para sincronización en tiempo real del carrito entre tabs/dispositivos del mismo usuario.
 - ❌ Versioning / ETag para invalidación de caché en cliente.
 
@@ -207,13 +207,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **TTL configurado en las claves** (`EX 30d` para autenticados, `EX 7d` para invitados) + limpieza de claves vacías — evita fuga de memoria Redis; coste mínimo.
-2. **Consumidor de `basket.abandoned` en `platform/notifications`** — email de recuperación de carrito; REUSE directo de infraestructura existente, alto impacto en ingresos.
-3. **Validación de `maxUsesPerUser`** con contador Redis atómico (`INCR`) — cierra la brecha de seguridad del modelo de promos actual.
+1. ✅ ~~**TTL configurado en las claves**~~ (`EX 30d` autenticados / `EX 7d` invitados, sliding + `KEEPTTL` en promos) + borrado de claves vacías en cada mutación — implementado.
+2. **Consumidor de `basket.abandoned` en `platform/notifications`** — email de recuperación de carrito; REUSE directo de infraestructura existente, alto impacto en ingresos. *(Cross-cutting: requiere cambios en `platform/notifications`.)*
+3. ✅ ~~**Validación de `maxUsesPerUser`**~~ con contador Redis atómico (`INCR`/`DECR`, reserva+rollback, idempotente, liberación en `clearPromo`) — implementado.
 4. **Re-validación de `priceCents` contra `platform/catalog`** al calcular el summary — imprescindible para integridad financiera en marketplaces reales.
 5. **Verificación de stock en `upsertItem`** (REUSE `platform/inventory`) y advertencia en summary si stock insuficiente — desbloquea el checkout seguro.
 6. **Endpoint de checkout** (`POST /v1/basket/checkout`) que crea el pedido via `platform/orders` y vacía el carrito — cierra el ciclo compra completo.
-7. **`basket.updated` event** tras cada mutación — desbloquea reservas de stock en tiempo real y sincronización multi-device.
-8. **Recuento rápido** (`GET /v1/basket/count`) — mejora de UX de bajo coste para el badge del mini-cart.
+7. ✅ ~~**`basket.updated` event**~~ tras cada mutación (upsert/patch/remove/clear/merge/save) en `platform.events` — implementado (best-effort).
+8. ✅ ~~**Recuento rápido**~~ (`GET /v1/basket/count` → `{ itemCount, lineCount, subtotalCents, appliedPromo }`) — implementado.
 9. **Impuestos en el summary** (`taxCents`, tipo por línea) — obligatorio para mercados con IVA/GST visible en el precio final.
 10. **Sub-carritos por vendedor** — necesario antes de habilitar el marketplace multi-vendedor; requiere modelo de datos en `metadata` + agrupación en el motor.

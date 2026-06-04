@@ -256,3 +256,97 @@ describe('updatePaymentIntent', () => {
     expect(params).toEqual([APP, TEN, OID, 'pi_123'])
   })
 })
+
+describe('post-creation item editing', () => {
+  it('insertItem INSERT ... RETURNING scoped', async () => {
+    const c = mockClient([{ id: 'it1' }])
+    const r = await repo.insertItem(c, OID, APP, TEN, { sku: 'B', productName: 'Banana', qty: 2, unitPriceCents: 50 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_orders\.order_items/)
+    expect(sql).toMatch(/RETURNING \*/)
+    expect(params).toEqual([APP, TEN, OID, 'B', 'Banana', 2, 50, null, {}])
+    expect(r).toEqual({ id: 'it1' })
+  })
+
+  it('findItemById scoped por order_id + id; sin row → null', async () => {
+    const c = mockClient([{ id: 'it1' }])
+    const r = await repo.findItemById(c, APP, TEN, OID, 'it1')
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, OID, 'it1'])
+    expect(r).toEqual({ id: 'it1' })
+    expect(await repo.findItemById(mockClient([]), APP, TEN, OID, 'gh')).toBeNull()
+  })
+
+  it('deleteItem scoped; devuelve rowCount', async () => {
+    const c = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) }
+    const n = await repo.deleteItem(c, APP, TEN, OID, 'it1')
+    expect(c.query.mock.calls[0][0]).toMatch(/DELETE FROM platform_orders\.order_items/)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, OID, 'it1'])
+    expect(n).toBe(1)
+  })
+
+  it('updateItemQty SET qty + updated_at scoped', async () => {
+    const c = mockClient([{ id: 'it1', qty: 3 }])
+    const r = await repo.updateItemQty(c, APP, TEN, OID, 'it1', 3)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET qty = \$5, updated_at = now\(\)/)
+    expect(params).toEqual([APP, TEN, OID, 'it1', 3])
+    expect(r).toEqual({ id: 'it1', qty: 3 })
+  })
+
+  it('updateTotals SET subtotal/tax/shipping/total scoped', async () => {
+    const c = mockClient([{ id: OID }])
+    await repo.updateTotals(c, APP, TEN, OID, { subtotalCents: 1000, taxCents: 100, shippingCents: 50, totalCents: 1150 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET subtotal_cents = \$4, tax_cents = \$5, shipping_cents = \$6,/)
+    expect(params).toEqual([APP, TEN, OID, 1000, 100, 50, 1150])
+  })
+
+  it('updateShipment SET shipment_id scoped', async () => {
+    const c = mockClient([{ id: OID, shipment_id: 'shp1' }])
+    const r = await repo.updateShipment(c, APP, TEN, OID, 'shp1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET shipment_id = \$4/)
+    expect(params).toEqual([APP, TEN, OID, 'shp1'])
+    expect(r).toEqual({ id: OID, shipment_id: 'shp1' })
+  })
+})
+
+describe('listOrders / exportOrders — filtros avanzados', () => {
+  it('listOrders con date/amount/vendor → WHERE + EXISTS subquery scoped', async () => {
+    const c = mockClient([])
+    await repo.listOrders(c, APP, TEN, {
+      createdAfter: '2026-01-01', createdBefore: '2026-02-01',
+      totalMinCents: 100, totalMaxCents: 5000, vendorTenantId: 'v1',
+      limit: 10, offset: 5,
+    })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/created_at >= \$3/)
+    expect(sql).toMatch(/created_at <= \$4/)
+    expect(sql).toMatch(/total_cents >= \$5/)
+    expect(sql).toMatch(/total_cents <= \$6/)
+    expect(sql).toMatch(/EXISTS \(SELECT 1 FROM platform_orders\.order_items oi/)
+    expect(sql).toMatch(/oi\.vendor_tenant_id = \$7/)
+    // EXISTS subquery is scoped by the same $1/$2 app/tenant
+    expect(sql).toMatch(/oi\.app_id = \$1 AND oi\.tenant_id = \$2/)
+    expect(params).toEqual([APP, TEN, '2026-01-01', '2026-02-01', 100, 5000, 'v1', 10, 5])
+  })
+
+  it('exportOrders sin LIMIT/OFFSET pero con cap de filas', async () => {
+    const c = mockClient([{ id: OID }])
+    await repo.exportOrders(c, APP, TEN, { status: 'paid' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/status = \$3/)
+    expect(sql).toMatch(/LIMIT \$4/)
+    expect(sql).not.toMatch(/OFFSET/)
+    expect(params).toEqual([APP, TEN, 'paid', 50000])
+  })
+
+  it('exportOrders respeta maxRows pero lo capa a 50000', async () => {
+    const c = mockClient([])
+    await repo.exportOrders(c, APP, TEN, { maxRows: 999999 })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 50000])
+    const c2 = mockClient([])
+    await repo.exportOrders(c2, APP, TEN, { maxRows: 10 })
+    expect(c2.query.mock.calls[0][1]).toEqual([APP, TEN, 10])
+  })
+})

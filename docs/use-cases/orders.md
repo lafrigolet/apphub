@@ -33,7 +33,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `metadata JSONB` por ítem (variantes, opciones, personalizaciones).
 - 🔧 `product_name` se persiste como texto libre (snapshot en el momento del pedido) — no hay vínculo formal con `platform/catalog` ni validación de existencia del producto.
 - ❌ Variantes de producto (talla, color, atributos) modeladas estructuralmente — solo existe `metadata` libre.
-- ❌ Modificación de ítems post-creación con recalculo de totales via la API pública: el tipo `item_added/item_removed/item_qty_changed` está en el CHECK de `order_modifications`, pero no hay servicio ni ruta que lo implemente.
+- ✅ Modificación de ítems post-creación con recalculo de totales via la API pública: `POST /v1/orders/:id/items`, `PATCH /v1/orders/:id/items/:itemId` (qty), `DELETE /v1/orders/:id/items/:itemId` — registran `item_added/item_removed/item_qty_changed` + `totals_adjusted` y publican `order.modified` (solo en `pending`/`paid`).
 - ❌ Precio con descuento por ítem (campo `discount_cents` o `original_price_cents`).
 - ❌ Precio de coste o margen registrado en el ledger.
 - ❌ Bundle / kit (un ítem que desglosa en sub-ítems).
@@ -113,7 +113,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Consumo del evento `shipping.shipment.delivered` → transiciona automáticamente a `delivered`.
 - ✅ `shipping_cents` almacenado en el ledger del pedido.
 - ❌ Creación de envío en `platform/shipping` al transicionar a `fulfilled` (publicar `order.fulfilled` para que shipping reaccione, o llamada HTTP directa).
-- ❌ Enlace `shipment_id` en el pedido para trazabilidad.
+- ✅ Enlace `shipment_id` en el pedido para trazabilidad (columna en `orders` + consumo de `shipping.shipment.created` → `linkShipment` → publica `order.modified` con `modificationType=shipment_linked`). `order.fulfilled` ya lo publica la FSM al transicionar.
 - ❌ Tracking de envío visible en el contexto del pedido (URL / número de seguimiento).
 - ❌ Pedidos con múltiples envíos parciales (fulfillment parcial por lote o por vendedor).
 - ❌ Recálculo de `shipping_cents` al cambiar la dirección post-creación.
@@ -166,11 +166,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Tabla `order_modifications` con tipos: `item_added`, `item_removed`, `item_qty_changed`, `shipping_address_changed`, `note_added`, `totals_adjusted`.
 - ✅ Cambio de dirección de envío implementado (`changeShippingAddress`) con guard de estado mutable (`pending`/`paid`).
 - ✅ Notas internas implementadas (`addOrderNote`).
-- 🔧 Tipos `item_added`, `item_removed`, `item_qty_changed`, `totals_adjusted` definidos en el CHECK de la tabla pero sin servicio ni ruta que los genere — infraestructura lista, lógica pendiente.
-- ❌ Añadir ítems post-creación con recalculo de totales.
-- ❌ Eliminar ítems post-creación con recalculo de totales.
-- ❌ Cambiar cantidad de un ítem con recalculo.
-- ❌ Ajuste manual de totales (descuento o cargo adicional por staff) con `totals_adjusted`.
+- ✅ Tipos `item_added`, `item_removed`, `item_qty_changed`, `totals_adjusted` generados por el servicio de edición de ítems (`addItem`/`removeItem`/`changeItemQty`).
+- ✅ Añadir ítems post-creación con recalculo de totales (`POST /v1/orders/:id/items`).
+- ✅ Eliminar ítems post-creación con recalculo de totales (`DELETE /v1/orders/:id/items/:itemId`).
+- ✅ Cambiar cantidad de un ítem con recalculo (`PATCH /v1/orders/:id/items/:itemId`).
+- 🔧 Ajuste manual de totales: cada edición de ítem emite un `totals_adjusted` (recalculo automático); el ajuste manual independiente (descuento/cargo arbitrario por staff sin tocar ítems) sigue pendiente.
 - ❌ Aprobación de modificación por el comprador (flujo de confirmación de cambio).
 
 ## 14. Marketplace multi-vendedor (split de pedido)
@@ -226,7 +226,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `order.<status>` (paid, fulfilled, shipped, delivered, completed, cancelled, refunded) — payload incluye `buyerEmail` hidratado desde `platform_auth`.
 - ✅ `order.modified` — publicado en cambio de dirección de envío con `modificationType` y `modificationId`.
 - ✅ Consumo de `splitpay.payment.completed` → `paid`.
+- ✅ Consumo de `shipping.shipment.created` → backfill de `shipment_id` (sin avanzar estado).
 - ✅ Consumo de `shipping.shipment.delivered` → `delivered`.
+- ✅ `order.modified` con `modificationType` `item_added`/`item_removed`/`item_qty_changed`/`shipment_linked` (edición de ítems + enlace de envío).
 - ✅ Errores en el consumidor se absorben sin crashear el subscriber.
 - ❌ `order.expired` — pedido eliminado por timeout de pago (no existe el job en `platform/scheduler`).
 - ❌ `order.item_modified` — para cambios de ítems (no implementado).
@@ -239,13 +241,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `GET /v1/orders` con filtros por `buyerUserId`, `status`, `limit`, `offset`.
 - ✅ Paginación con `limit` (default 50) y `offset`.
 - ✅ Ordenado por `created_at DESC`.
-- ❌ Filtro por rango de fechas (`created_after`, `created_before`).
-- ❌ Filtro por `vendor_tenant_id` (vista vendedor).
-- ❌ Filtro por rango de importe (`total_min_cents`, `total_max_cents`).
+- ✅ Filtro por rango de fechas (`createdAfter`, `createdBefore`) en `GET /v1/orders` y en el export.
+- ✅ Filtro por `vendorTenantId` (vista vendedor) vía subquery `EXISTS` sobre `order_items` (scoped por app/tenant).
+- ✅ Filtro por rango de importe (`totalMinCents`, `totalMaxCents`).
 - ❌ Búsqueda full-text por nombre de producto, SKU, o datos del comprador.
 - ❌ Paginación por cursor (keyset pagination) para conjuntos grandes.
 - ❌ Aggregaciones: ingresos por periodo, pedidos por estado, AOV (average order value), tasa de cancelación.
-- ❌ Export CSV / XLSX de pedidos para contabilidad o remisión a terceros.
+- ✅ Export CSV de pedidos para contabilidad o remisión a terceros (`GET /v1/orders/export.csv`, mismos filtros, cap de 50 000 filas). XLSX sigue pendiente.
 - ❌ Informes de vendedor: ventas propias, comisiones, devoluciones.
 - ❌ Dashboard de operaciones (órdenes pendientes de fulfill, SLA de envío, etc.).
 
@@ -285,10 +287,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 1. **Checkout desde basket + reserva de stock** (REUSE `platform/basket` + `platform/inventory`) — completa el flujo de compra extremo a extremo y es el prerequisito de casi todo lo demás.
 2. **Crear PaymentIntent en Stripe al crear el pedido** — conecta el ledger de pedidos con el módulo de pagos; `stripe_payment_intent_id` y `updatePaymentIntent` ya están listos en el repositorio.
 3. **Notificaciones al comprador** via `platform/notifications` suscribiéndose a `order.paid`, `order.shipped`, `order.delivered`, `order.cancelled` — alto valor percibido, coste casi nulo (el event bus ya publica los eventos con `buyerEmail` hidratado).
-4. **Modificación de ítems post-creación** (`item_added`, `item_removed`, `item_qty_changed`, `totals_adjusted`) — la infraestructura de `order_modifications` ya existe; solo falta la lógica de servicio y las rutas.
-5. **Creación de envío en `platform/shipping`** al transicionar a `fulfilled` + vinculación de `shipment_id` en el pedido — cierra el loop de eventos `order.fulfilled → shipment → order.delivered`.
+4. ✅ ~~**Modificación de ítems post-creación**~~ (`item_added`, `item_removed`, `item_qty_changed`, `totals_adjusted`) — implementado: servicio `addItem`/`removeItem`/`changeItemQty` + rutas `POST/PATCH/DELETE /v1/orders/:id/items` con recalculo de totales y publicación de `order.modified`.
+5. 🔧 **Creación de envío en `platform/shipping`** al transicionar a `fulfilled` + vinculación de `shipment_id` en el pedido — núcleo dentro de `orders` implementado: columna `shipment_id`, consumo de `shipping.shipment.created` (`linkShipment`) y `order.fulfilled` ya lo publica la FSM. **Pendiente (cross-cutting)**: que `platform/shipping` consuma `order.fulfilled` y cree el shipment + emita `shipping.shipment.created`.
 6. **Reembolso proporcional con Splitpay** al marcar `refunded` — obligatorio para marketplace multi-vendedor; seguir la regla de reversals proporcionales del ADR/CLAUDE.md.
 7. **Expiración de pedidos `pending` sin pago** (REUSE `platform/scheduler` — job `order-expiry`) — evita pedidos zombis y libera stock.
-8. **Export CSV de pedidos** filtrado por rango de fechas — desbloquea operaciones, contabilidad y cumplimiento fiscal.
+8. ✅ ~~**Export CSV de pedidos**~~ filtrado por rango de fechas — implementado: `GET /v1/orders/export.csv` con filtros de fecha/importe/vendor/estado/comprador (cap de 50 000 filas), y los mismos filtros añadidos a `GET /v1/orders`.
 9. **Facturación vía `platform/verifactu`** al completar el pedido — obligatorio en España para cualquier comercio digital sujeto a TicketBAI / Verifactu.
 10. **GDPR**: anonimización de PII + purga por retención (`platform/scheduler`) — obligatorio en España/UE.

@@ -44,9 +44,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Marcado de lectura individual por mensaje (`POST …/messages/:mid/read`); `read_at = COALESCE(read_at, now())` (idempotente).
 - ✅ Evento `message.created` publicado en `platform.events` con `messageId`, `threadId`, `senderUserId`, `recipientUserId`, `orderId` — consumer externo puede disparar notificación push/email (REUSE `platform/notifications`).
-- 🔧 Lectura individual por mensaje: no hay marcado masivo de "marcar todo el hilo como leído".
+- ✅ Marcado masivo "marcar todo el hilo como leído" (`POST …/threads/:id/read-all`): flip de `read_at` de los mensajes ajenos no leídos del hilo; idempotente; emite `thread.read` con `marked` cuando algo cambió.
 - 🔧 `read_at` solo en la tabla `messages` (no hay tabla de "lectura por usuario" — si dos users leen el mismo mensaje no se registra de forma independiente).
-- ❌ Contador de mensajes no leídos por hilo (badge).
+- ✅ Contador de mensajes no leídos por hilo (badge): `GET …/threads/:id/unread-count` (un hilo) y `GET /v1/messages/unread-counts` (total + desglose por hilo de toda la bandeja del usuario). Respaldado por índice parcial `read_at IS NULL`.
 - ❌ Indicador de estado de entrega: `sent → delivered → read` (modelo de recibos).
 - ❌ Notificación directa desde el módulo al destinatario (hoy solo evento en bus; el subscriber debe implementar el envío).
 - ❌ Preferencias de notificación por usuario (mute de hilo, frecuencia de digest).
@@ -60,7 +60,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Endpoint para adjuntar un objeto ya subido a `platform/storage` a un mensaje existente (`POST …/attachments`).
 - ✅ Borrado de adjunto: solo el emisor original del mensaje o staff/super_admin puede eliminar (`DELETE …/attachments/:attachmentId`).
 - ✅ Prevención de cross-thread leak: se valida que el `message_id` pertenece al `thread_id` de la ruta.
-- 🔧 Doble vía de adjuntos (JSONB legacy + tabla nueva): la respuesta del listado de mensajes no unifica las dos fuentes — el cliente debe consultar ambos endpoints.
+- ✅ Adjuntos unificados en `listMessages`: cada mensaje incluye un campo `attachments` normalizado `[{ id, objectId, kind, displayOrder }]` resuelto desde `message_attachments` (preferido), con fallback a la columna JSONB legacy — elimina la segunda llamada por mensaje. La columna `messages.attachments` deja de ser fuente de verdad para nuevos adjuntos.
 - ❌ Presigned URL de descarga resuelta en la respuesta de listado de adjuntos (hoy solo se devuelve `object_id` — el cliente debe resolver la URL en `platform/storage`).
 - ❌ Restricción de tipos MIME permitidos por tenant (imágenes sí, ejecutables no).
 - ❌ Límite de tamaño de adjunto por mensaje / por hilo configurable.
@@ -71,9 +71,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `redactPii`: emails (`[email oculto]`) y teléfonos con ≥ 9 dígitos (`[teléfono oculto]`) enmascarados automáticamente antes de persistir el cuerpo del mensaje.
 - ✅ El texto almacenado y servido nunca contiene email ni teléfono del emisor/receptor.
-- 🔧 Solo emails y teléfonos — no se detectan URLs externas, nombres de usuario de redes sociales, referencias a apps de mensajería (WhatsApp, Telegram, Signal, WeChat).
+- ✅ Detección extendida en `redactPii`: además de emails/teléfonos, enmascara URLs (`http(s)://`, `www.`) como `[enlace oculto]`, y menciones a apps de mensajería externas (WhatsApp, Telegram, Signal, WeChat, Viber, Line, Skype) + handles de redes sociales (Instagram, Facebook, Twitter, TikTok, Snapchat) y `@handle` sueltos como `[contacto externo oculto]`.
 - 🔧 La redacción es unidireccional (escritura) — no hay re-evaluación de mensajes históricos si el patrón mejora.
-- ❌ Detección de intención de salir de plataforma: URLs con dominios de mensajería, expresiones del tipo "escríbeme por…".
+- ✅ Detección de intención de salir de plataforma: URLs y referencias a apps de mensajería externas se enmascaran (vía `redactPii` extendido).
 - ❌ Palabras prohibidas / lista negra configurable por tenant (vocabulario ofensivo, spam).
 - ❌ Clasificador de spam / phishing automático.
 - ❌ Cuarentena de mensajes sospechosos (estado `pending_review`) para moderación manual antes de entrega.
@@ -113,9 +113,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 9. Tiempo de respuesta del vendedor y SLA
 
-- ❌ Registro del tiempo de primera respuesta del vendor (`first_reply_at`) en el hilo.
+- ✅ Registro del tiempo de primera respuesta del vendor (`first_reply_at`) en el hilo: columna en `threads`, sellada una sola vez (keep-first vía COALESCE/`IS NULL`) cuando el vendor publica su primer mensaje; emite evento one-shot `thread.first_reply`.
 - ❌ SLA configurable por tenant: tiempo máximo de respuesta del vendor (ej. 24 h, 48 h).
-- ❌ Job de scheduler (`messaging-sla`) para detectar hilos sin respuesta del vendor más allá del SLA y publicar evento `messaging.vendor.sla_breached`.
+- 🔧 Job de scheduler (`messaging-sla`): núcleo de datos listo (`first_reply_at` + evento `thread.first_reply`); falta el job en `platform/scheduler` que escanee `status='open' AND first_reply_at IS NULL AND created_at < now()-sla` y publique `messaging.vendor.sla_breached` (cross-cutting pendiente).
 - ❌ Badge de "tiempo de respuesta habitual" en el perfil del vendedor (calculado sobre hilos históricos).
 - ❌ Alerta interna a staff cuando un hilo lleva N días sin respuesta.
 - ❌ Auto-cierre o archivado de hilos inactivos tras período configurable.
@@ -185,19 +185,20 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Evento `message.created` publicado en `platform.events` tras cada mensaje enviado, con payload completo (`messageId`, `threadId`, `senderUserId`, `recipientUserId`, `orderId`).
 - ❌ Evento `thread.created` al abrir un nuevo hilo.
 - ❌ Evento `thread.archived` / `thread.closed` al cambiar el estado del hilo.
-- ❌ Evento `message.read` al marcar un mensaje como leído.
+- 🔧 Evento `thread.read` al marcar todo el hilo como leído (bulk read-all); falta el evento por mensaje individual en `markRead`.
+- ✅ Evento `thread.first_reply` al registrar la primera respuesta del vendor (base de métricas de SLA).
 - ❌ Métricas de negocio: mensajes por día, hilos activos, tasa de respuesta del vendor, tiempo medio de primera respuesta — exportables a Prometheus o a un endpoint admin.
 - ❌ Trazabilidad de redacción PII: contador/log de cuántos mensajes fueron redactados y qué tipo de PII se ocultó (sin exponer el contenido).
 
 ## 18. Modelo de datos y deuda técnica
 
 - ✅ Tablas `threads`, `messages`, `message_attachments` con PK UUID, `app_id`+`tenant_id` en cada fila.
-- 🔧 Dualidad de adjuntos: `messages.attachments JSONB` (legacy) + tabla `message_attachments` — doble fuente de verdad; la antigua columna no debería usarse en código nuevo pero persiste "por compatibilidad hacia atrás" sin plan de migración.
+- 🔧 Dualidad de adjuntos: `messages.attachments JSONB` (legacy) + tabla `message_attachments`. Ya unificadas en lectura (`listMessages` sirve un único campo `attachments` priorizando la tabla y cayendo al JSONB legacy); falta la migración de datos legacy→tabla y el DROP COLUMN final.
 - 🔧 El listado `listThreadsForUser` tiene LIMIT 100 hardcoded — no paginado.
 - ❌ `thread.status` tiene solo `open` / `archived` — sin `closed`, `in_dispute`, `escalated`.
 - ❌ `sub_tenant_id` ausente en las tablas (presente solo en el contexto de runtime).
 - ❌ Índice de full-text search en `messages.body` (GIN tsvector).
-- ❌ Índice en `messages.read_at IS NULL` para consultas de "no leídos".
+- ✅ Índice parcial `messages (app_id, tenant_id, thread_id, sender_user_id) WHERE read_at IS NULL` para consultas de "no leídos".
 - ❌ Tabla `thread_participants` para soportar más de dos actores por hilo (staff, agente de disputas, sub-vendedor).
 - ❌ Tabla `message_reactions` o `message_edits` si se decide soportar edición/reacciones.
 - ❌ Soft-delete en mensajes y adjuntos (`deleted_at TIMESTAMPTZ`).
@@ -207,13 +208,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Contador de no leídos + marcado masivo del hilo** — desbloquea la UX básica de bandeja de entrada. Requiere índice en `read_at IS NULL` y un endpoint `POST …/threads/:id/read-all`.
-2. **Presigned URL resuelta en lista de adjuntos** — el cliente hoy no puede mostrar adjuntos sin una segunda llamada a `platform/storage`; unificar en la respuesta elimina N+1 del frontend.
-3. **Validación del `order_id` contra `platform/orders`** (via HTTP interno al crear el hilo) — cierra la brecha de integridad referencial y previene hilos con `order_id` inventados.
-4. **Cierre automático de hilos** al completar/cancelar una orden — REUSE evento `order.completed`/`order.cancelled` + job en `platform/scheduler`.
-5. **Migración y deprecación de `messages.attachments` JSONB** — eliminar deuda dual de adjuntos: migrar a `message_attachments`, servir la columna unificada en `listMessages`, luego drop column.
-6. **SLA de respuesta del vendor** (`first_reply_at` + job `messaging-sla` en `platform/scheduler`) — métrica crítica para confianza en el marketplace.
-7. **Detección de off-platform** más robusta: URLs de mensajería externa, handles de redes sociales — extiende `redactPii`.
+1. ✅ ~~**Contador de no leídos + marcado masivo del hilo**~~ (índice parcial `read_at IS NULL` + `GET /v1/messages/unread-counts`, `GET …/threads/:id/unread-count`, `POST …/threads/:id/read-all` con evento `thread.read`).
+2. **Presigned URL resuelta en lista de adjuntos** — el cliente hoy no puede mostrar adjuntos sin una segunda llamada a `platform/storage`; unificar en la respuesta elimina N+1 del frontend. *(Cross-cutting: requiere llamada HTTP a `platform/storage`, que vive en otro contenedor — no implementable solo dentro de `platform/messaging`.)*
+3. **Validación del `order_id` contra `platform/orders`** (via HTTP interno al crear el hilo) — cierra la brecha de integridad referencial y previene hilos con `order_id` inventados. *(Cross-cutting: requiere HTTP a `platform/orders`.)*
+4. **Cierre automático de hilos** al completar/cancelar una orden — REUSE evento `order.completed`/`order.cancelled` + job en `platform/scheduler`. *(Cross-cutting: requiere consumer de eventos + scheduler.)*
+5. ✅ ~~**Unificación en lectura de `messages.attachments` JSONB**~~ (`listMessages` sirve un único campo `attachments` priorizando `message_attachments` con fallback al JSONB legacy). *Pendiente solo la migración de datos legacy→tabla y el `DROP COLUMN` final.*
+6. 🔧 **SLA de respuesta del vendor** — núcleo implementado (`first_reply_at` + evento `thread.first_reply`). Pendiente el job `messaging-sla` en `platform/scheduler` (cross-cutting).
+7. ✅ ~~**Detección de off-platform** más robusta: URLs de mensajería externa, handles de redes sociales~~ (extendido `redactPii`: URLs, apps de mensajería y handles sociales).
 8. **Escalado a disputas** (endpoint + `dispute_id` en hilo) — REUSE `platform/disputes`; cierra el flujo de resolución de conflictos.
 9. **Búsqueda full-text** en mensajes (GIN tsvector en `body`) — necesario para compliance y moderación a escala.
 10. **Política de retención GDPR** via `platform/scheduler` + soft-delete — obligatorio en España/UE; bajo coste si se añade `deleted_at` primero.

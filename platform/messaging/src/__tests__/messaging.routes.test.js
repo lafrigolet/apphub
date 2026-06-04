@@ -11,6 +11,9 @@ vi.mock('../services/messaging.service.js', () => ({
   listMessages:           vi.fn(),
   postMessage:            vi.fn(),
   markRead:               vi.fn(),
+  markThreadRead:         vi.fn(),
+  getThreadUnreadCount:   vi.fn(),
+  getUnreadCounts:        vi.fn(),
   listMessageAttachments: vi.fn(),
   attachToMessage:        vi.fn(),
   detachFromMessage:      vi.fn(),
@@ -148,6 +151,35 @@ describe('POST .../messages/:mid/read', () => {
     const res = await app.inject({ method: 'POST', url: `/v1/messages/threads/${TH}/messages/${MID}/read` })
     expect(res.statusCode).toBe(204)
     expect(service.markRead).toHaveBeenCalledWith(expect.anything(), TH, MID)
+  })
+})
+
+describe('GET /v1/messages/unread-counts', () => {
+  it('delega getUnreadCounts con ctx', async () => {
+    service.getUnreadCounts.mockResolvedValue({ total: 3, threads: [] })
+    const res = await app.inject({ method: 'GET', url: '/v1/messages/unread-counts' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ total: 3, threads: [] })
+    expect(service.getUnreadCounts).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }))
+  })
+})
+
+describe('GET /v1/messages/threads/:id/unread-count', () => {
+  it('delega getThreadUnreadCount con el id', async () => {
+    service.getThreadUnreadCount.mockResolvedValue({ threadId: TH, unread: 1 })
+    const res = await app.inject({ method: 'GET', url: `/v1/messages/threads/${TH}/unread-count` })
+    expect(res.statusCode).toBe(200)
+    expect(service.getThreadUnreadCount).toHaveBeenCalledWith(expect.anything(), TH)
+  })
+})
+
+describe('POST /v1/messages/threads/:id/read-all', () => {
+  it('delega markThreadRead y devuelve { marked }', async () => {
+    service.markThreadRead.mockResolvedValue({ marked: 4 })
+    const res = await app.inject({ method: 'POST', url: `/v1/messages/threads/${TH}/read-all` })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ marked: 4 })
+    expect(service.markThreadRead).toHaveBeenCalledWith(expect.anything(), TH)
   })
 })
 

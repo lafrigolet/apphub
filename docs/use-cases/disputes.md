@@ -4,7 +4,9 @@
 
 ## Estado actual (implementado)
 
-Apertura de disputa por el comprador referenciando un `order_id`; unicidad por pedido (una disputa activa a la vez); FSM `open → investigating → resolved_buyer | resolved_vendor | escalated_chargeback`; hilo de mensajes con inferencia de rol (`buyer / vendor / staff`); subida de evidencias JSONB; resolución exclusiva de staff con auto-publicación del evento `dispute.refund.requested` (idempotente vía `refund_requested_at`); consumidor de evento `splitpay.chargeback.created` que vincula el `stripe_dispute_id` y eleva el estado; endpoint `submit-to-stripe` para reenviar evidencias al API de Stripe a través de splitpay; job `dispute-sla` en el scheduler (cada 30 min) que estampa `sla_breached_at` y publica `dispute.sla_breached` en los casos `open` sin respuesta de vendor tras 48 h; consumidor `handleSlaBreached` que mueve el estado a `investigating`; RLS por `(app_id, tenant_id)` en las tres tablas; OpenAPI completo en todos los endpoints.
+Apertura de disputa por el comprador referenciando un `order_id`; unicidad por pedido (una disputa activa a la vez); FSM `open → investigating → resolved_buyer | resolved_vendor | escalated_chargeback`; hilo de mensajes con inferencia de rol (`buyer / vendor / staff`); subida de evidencias JSONB; resolución exclusiva de staff con auto-publicación del evento `dispute.refund.requested` (idempotente vía `refund_requested_at`); consumidor de evento `splitpay.chargeback.created` que vincula el `stripe_dispute_id` y eleva el estado; endpoint `submit-to-stripe` para reenviar evidencias al API de Stripe a través de splitpay; job `dispute-sla` en el scheduler (cada 30 min) que estampa `sla_breached_at` y publica `dispute.sla_breached` en los casos `open` sin respuesta de vendor tras 48 h; consumidor `handleSlaBreached` que mueve el estado a `investigating`; RLS por `(app_id, tenant_id)` en las tablas; OpenAPI completo en todos los endpoints.
+
+**Añadido (prioridades 1, 3 y 4-parcial):** vocabulario controlado `reason_code` (enum con CHECK); tabla append-only `dispute_status_history` (actor + from/to + nota, con RLS) registrada en apertura/resolución/retirada y expuesta en `GET /:id`; notas internas de staff (`is_internal`, sólo staff, no publicadas al bus, ocultas a buyer/vendor); guardas FSM (no re-resolver un estado terminal; no mensajes de buyer/vendor sobre disputa cerrada); estado `withdrawn` + `PATCH /:id/withdraw` con evento `dispute.withdrawn`; escopado de visibilidad del lado comprador (listado forzado a sus propias disputas).
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -16,7 +18,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Unicidad por pedido: si ya existe una disputa para el `order_id` → 409 `ConflictError`.
 - ✅ `buyer_user_id` se toma del JWT del solicitante — el comprador no puede abrir disputas en nombre de otro.
 - ✅ Evento `dispute.opened` publicado en `platform.events` con `disputeId`, `orderId`, `buyerUserId`, `reason`.
-- 🔧 `reason` es texto libre — falta un vocabulario controlado (`not_received`, `not_as_described`, `damaged`, `unauthorized_charge`, `quantity_mismatch`…).
+- ✅ `reason` (texto libre) ahora acompañado de `reason_code` opcional con vocabulario controlado (`item_not_received`, `item_not_as_described`, `item_damaged`, `wrong_item`, `quantity_mismatch`, `unauthorized_transaction`, `duplicate_charge`, `service_not_rendered`, `other`); validado por enum en la ruta, persistido en columna propia e incluido en `dispute.opened`.
 - ❌ Validación de que el `order_id` pertenece realmente al comprador autenticado (hoy confía en el JWT del llamante; no verifica contra `platform/orders`).
 - ❌ Ventana temporal para abrir una disputa (por ejemplo, no permitir abrir tras N días de la entrega).
 - ❌ Límite de disputas simultáneas por usuario o por tenant.
@@ -24,8 +26,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 2. Tipos y motivos de disputa
 
-- 🔧 Campo `reason` TEXT sin vocabulario controlado — se almacena y se muestra pero no hay lógica diferenciada por motivo.
-- ❌ Enum de motivos estándar con mapeo a categoría: `item_not_received`, `item_not_as_described`, `item_damaged`, `wrong_item`, `quantity_mismatch`, `unauthorized_transaction`, `duplicate_charge`, `service_not_rendered`.
+- ✅ Enum de motivos estándar (`reason_code`): `item_not_received`, `item_not_as_described`, `item_damaged`, `wrong_item`, `quantity_mismatch`, `unauthorized_transaction`, `duplicate_charge`, `service_not_rendered`, `other` — CHECK en BD + validación zod en la ruta + filtro `reasonCode` en el listado. (El `reason` libre se conserva.)
 - ❌ Sub-motivos por categoría (por ej. `damaged` → `packaging_damaged`, `product_defective`).
 - ❌ Reglas de elegibilidad por motivo (plazos distintos, documentación requerida distinta).
 - ❌ Localización de los textos de motivo para múltiples idiomas.
@@ -37,10 +38,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Transición a `resolved_*` o `escalated_chargeback` sólo la ejecuta `staff` o `super_admin` (guarda `ForbiddenError` en caso contrario).
 - ✅ Evento `dispute.resolved` publicado en toda transición de resolución.
 - 🔧 La transición de `open` a `investigating` también debería dispararse cuando el vendor publica su primera respuesta (hoy solo la dispara el SLA job, no el postMessage del vendor).
-- ❌ Guardas explícitas de transición en el FSM: no todas las transiciones están protegidas (se puede llamar `resolve` sobre una disputa ya resuelta y sobreescribir el estado).
-- ❌ Historial de transiciones (`dispute_status_history`) con actor + timestamp por cada cambio.
+- ✅ Guardas explícitas de transición: `resolve` rechaza con `ConflictError` si la disputa ya está en estado terminal (`resolved_*` / `escalated_chargeback` / `withdrawn`) — no se sobreescribe un resultado cerrado.
+- ✅ Historial de transiciones (`dispute_status_history`) con `from_status`, `to_status`, `actor_user_id`, `actor_role`, `note`, timestamp y RLS por `(app_id, tenant_id)`; se registra en apertura, resolución y retirada; expuesto en `GET /v1/disputes/:id` como `statusHistory`.
 - ❌ Reapertura de disputas cerradas por apelación del comprador.
-- ❌ Estado `withdrawn` para que el comprador retire voluntariamente la reclamación.
+- ✅ Estado `withdrawn` para que el comprador retire voluntariamente la reclamación: `PATCH /v1/disputes/:id/withdraw` (sólo dueño o staff, sólo desde `open`/`investigating`), publica `dispute.withdrawn`.
 - ❌ Estado `pending_buyer_info` para solicitar documentación adicional al comprador antes de investigar.
 
 ## 4. SLA y plazos
@@ -61,9 +62,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Evento `dispute.message` publicado con `senderRole` para que otros módulos puedan reaccionar.
 - ✅ `GET /v1/disputes/:id` devuelve mensajes ordenados por `created_at ASC`.
 - 🔧 Adjuntos son JSONB libre (sin esquema) — falta integración formal con `platform/storage` (presigned URLs, tipos MIME, tamaño máximo).
-- ❌ Lectura de mensajes sólo para los participantes (hoy cualquier rol autenticado del tenant puede leer una disputa si conoce el `id`; falta restricción: comprador sólo ve sus disputas, vendor sólo las relacionadas con sus órdenes).
+- 🔧 Lectura de mensajes restringida del lado comprador: `GET /v1/disputes` fuerza `buyer_user_id = userId` para roles no-staff y `getDispute` oculta las notas internas; falta aún el scoping del vendor por propiedad de la orden (necesita `platform/orders` — ver §12, cross-cutting).
 - ❌ Paginación de mensajes (disputas con muchos mensajes devuelven todo de una vez).
-- ❌ Mensajes internos de staff (visibles sólo para `staff`/`super_admin`, no para buyer ni vendor).
+- ✅ Mensajes internos de staff: `is_internal` en `dispute_messages`; sólo `staff`/`super_admin` pueden publicarlos (`POST /messages` con `isInternal:true`), no se publican al bus y se ocultan a buyer/vendor en `getDispute`.
 - ❌ Notificaciones en tiempo real al interlocutor cuando llega un mensaje nuevo (REUSE `platform/chat` modo support, o `platform/notifications`).
 - ❌ Indicador de "leído / no leído" por participante.
 - ❌ Plantillas de respuesta (macros) para staff — respuestas frecuentes predefinidas.
@@ -88,7 +89,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Respuesta estructurada del vendor: `accept` (acepta reembolso), `reject` (rechaza la reclamación), `counter_offer` (propone reembolso parcial) con campo de importe.
 - ❌ Notificación al buyer cuando el vendor responde (REUSE `platform/notifications`).
 - ❌ Transición automática `open → investigating` cuando el vendor publica su primera respuesta (hoy sólo la dispara el SLA breach).
-- ❌ Bloqueo de la respuesta del vendor una vez la disputa está resuelta o escalada.
+- ✅ Bloqueo de mensajes de buyer/vendor una vez la disputa está en estado terminal (`resolved_*` / `escalated_chargeback` / `withdrawn`): `postMessage` lanza `ForbiddenError` para no-staff (staff sí puede seguir anotando).
 
 ## 8. Mediación por staff de plataforma
 
@@ -100,7 +101,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Cola de trabajo de staff: disputas sin asignar, ordenadas por antigüedad / prioridad.
 - ❌ SLA de respuesta del agente asignado (cuánto tiempo desde asignación hasta primera acción de staff).
 - ❌ Escalado interno entre niveles de staff (L1 → L2 → L3).
-- ❌ Notas internas de staff (campo `internal_notes` no visible para buyer/vendor, distinto de los mensajes públicos).
+- ✅ Notas internas de staff (mensajes con `is_internal=true`, no visibles para buyer/vendor, no publicados al bus).
 - ❌ Macros / respuestas predefinidas para agilizar la mediación.
 
 ## 9. Resolución — tipos y auto-refund
@@ -185,7 +186,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Consumidor: `dispute.sla_breached` (producido por scheduler) → mueve `open → investigating`.
 - ❌ `dispute.sla_breached` no es consumido por `platform/notifications` para alertar a comprador, vendor y staff.
 - ❌ `dispute.vendor_notified` — confirmación de que el vendor fue notificado de la apertura.
-- ❌ `dispute.withdrawn` — el comprador retira la disputa.
+- ✅ `dispute.withdrawn` — el comprador retira la disputa.
 - ❌ `dispute.appeal.opened` / `dispute.appeal.resolved` para el flujo de apelaciones.
 
 ## 17. Audit y trazabilidad
@@ -194,7 +195,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `uploaded_by` en evidencias referencia al usuario que las subió.
 - ✅ `sla_breached_at` estampado por el job (no borrable) registra el momento del incumplimiento.
 - ✅ `refund_requested_at` y `evidence_submitted_at` como marcas temporales de acciones críticas.
-- 🔧 No existe tabla `dispute_status_history` — los cambios de estado sobreescriben el campo `status` sin dejar traza del estado anterior, actor y timestamp.
+- ✅ Tabla `dispute_status_history` (append-only): registra `from_status`/`to_status`/`actor_user_id`/`actor_role`/`note`/`created_at` en apertura, resolución y retirada. RLS por `(app_id, tenant_id)`.
 - ❌ Audit log inmutable de todas las acciones (quién abrió, quién resolvió, quién subió evidencia, quién llamó a `submit-to-stripe`) con `actor_id`, `action`, `before`/`after`, timestamp.
 - ❌ Soft-delete: las disputas no se borran (correcto), pero tampoco hay campo `deleted_at` para el caso de purga GDPR controlada.
 
@@ -224,10 +225,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Vocabulario controlado de `reason`** (enum estándar) — coste mínimo (una migración + validación en rutas), habilita analítica, UI guiada y reglas automáticas por tipo de incidencia.
+1. ✅ ~~**Vocabulario controlado de `reason`** (enum estándar)~~ (migración `0004` con CHECK en `reason_code`, validación zod en rutas, filtro de listado e inclusión en `dispute.opened`).
 2. **Notificaciones a comprador y vendor** al abrir, al recibir mensaje y al resolver — REUSE directo de `platform/notifications` consumiendo los eventos ya publicados; máximo valor percibido con código mínimo.
-3. **Historial de estados (`dispute_status_history`)** + notas internas de staff — imprescindible para auditoría y mediación de calidad; una tabla adicional y un hook en `updateStatus`.
-4. **Restricción de visibilidad**: comprador sólo ve sus propias disputas; vendor sólo las de sus pedidos — evita fugas de información y es un fix de seguridad, no de feature.
+3. ✅ ~~**Historial de estados (`dispute_status_history`)** + notas internas de staff~~ (tabla con RLS + registro en apertura/resolución/retirada; `is_internal` en mensajes con guarda de rol y ocultación a buyer/vendor; además guardas FSM de transición terminal y estado `withdrawn`).
+4. 🔧 ~~**Restricción de visibilidad**~~ — lado comprador hecho (listado y notas internas escopados a no-staff); pendiente el scoping del vendor por propiedad de la orden (requiere `platform/orders`).
 5. **Resolución automática al vencer el SLA sin respuesta de vendor** (`open → resolved_buyer`) — completa el flujo automático que ya está casi terminado (el SLA job ya estampa el breach).
 6. **Validación de `resolutionAmountCents` vs. importe del pedido** (HTTP call a `platform/orders`) — previene errores operativos costosos.
 7. **GDPR**: anonimización / borrado de PII en disputas cerradas + job de retención (REUSE scheduler) — obligatorio para operación en España/UE.

@@ -38,13 +38,13 @@ beforeEach(() => vi.clearAllMocks())
 // ── quote(country) — el query crítico para el checkout ──────────────
 
 describe('quote — SQL shape', () => {
-  it('country presente → param $3 (anti-SQLi, no concat)', async () => {
+  it('country presente → param $3 (anti-SQLi, no concat); weight como $4', async () => {
     const c = mockClient([])
     await quote(ctx, { country: 'ES' })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/\$3/)
     expect(sql).toContain('ANY')
-    expect(params).toEqual([ctx.appId, ctx.tenantId, 'ES'])
+    expect(params).toEqual([ctx.appId, ctx.tenantId, 'ES', null])
   })
 
   it('country malicioso → se pasa como param, NO concat', async () => {
@@ -100,17 +100,21 @@ describe('createRate', () => {
       0,           // minWeightG default 0
       null,        // maxWeightG default null
       null, null,  // etaDaysMin / etaDaysMax
+      null,        // freeAboveCents default null
+      null,        // serviceLevel → COALESCE 'standard'
+      null,        // active → COALESCE TRUE
     ])
   })
 
-  it('zoneId + weight ranges + ETA propagan', async () => {
+  it('zoneId + weight ranges + ETA + free-shipping + service_level propagan', async () => {
     const c = mockClient([{ id: 'r1' }])
     await createRate(ctx, {
       zoneId: 'z1', name: 'Express ES', priceCents: 1200,
       minWeightG: 500, maxWeightG: 5000, etaDaysMin: 1, etaDaysMax: 3,
+      freeAboveCents: 5000, serviceLevel: 'express', active: false,
     })
     expect(c.query.mock.calls[0][1]).toEqual([
-      ctx.appId, ctx.tenantId, 'z1', 'Express ES', 1200, 500, 5000, 1, 3,
+      ctx.appId, ctx.tenantId, 'z1', 'Express ES', 1200, 500, 5000, 1, 3, 5000, 'express', false,
     ])
   })
 })

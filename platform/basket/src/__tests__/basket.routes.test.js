@@ -10,7 +10,9 @@ vi.mock('../lib/logger.js', () => ({
 
 vi.mock('../services/basket.service.js', () => ({
   getBasket:        vi.fn(),
+  getCount:         vi.fn(),
   upsertItem:       vi.fn(),
+  patchQuantity:    vi.fn(),
   removeItem:       vi.fn(),
   clearBasket:      vi.fn(),
   mergeBaskets:     vi.fn(),
@@ -39,6 +41,7 @@ vi.mock('@apphub/platform-sdk/app-guard', async () => {
         const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
         const role = token === 'staff-token' ? 'staff'
                   : token === 'admin-token' ? 'admin'
+                  : token === 'guest-token' ? 'guest'
                   : 'user'
         req.identity = { userId: 'u1', appId: 'aikikan', tenantId: 't1', role }
       })
@@ -87,6 +90,14 @@ describe('basket CRUD routes', () => {
     expect(basketService.getBasket).toHaveBeenCalledWith({ appId: 'aikikan', tenantId: 't1', userId: 'u1' })
   })
 
+  it('GET /v1/basket/count', async () => {
+    basketService.getCount.mockResolvedValue({ itemCount: 3, lineCount: 2, subtotalCents: 500, appliedPromo: null })
+    const res = await app.inject({ method: 'GET', url: '/v1/basket/count', headers: userHdr })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().itemCount).toBe(3)
+    expect(basketService.getCount).toHaveBeenCalledWith({ appId: 'aikikan', tenantId: 't1', userId: 'u1' })
+  })
+
   it('PUT /v1/basket/items', async () => {
     basketService.upsertItem.mockResolvedValue({ items: [{ itemId: 'p1' }] })
     const res = await app.inject({
@@ -94,7 +105,26 @@ describe('basket CRUD routes', () => {
       payload: { itemId: 'p1', quantity: 2, name: 'X', priceCents: 100 },
     })
     expect(res.statusCode).toBe(200)
-    expect(basketService.upsertItem).toHaveBeenCalledWith(expect.objectContaining({ itemId: 'p1', quantity: 2 }))
+    expect(basketService.upsertItem).toHaveBeenCalledWith(expect.objectContaining({ itemId: 'p1', quantity: 2, isGuest: false }))
+  })
+
+  it('PATCH /v1/basket/items/:itemId/quantity', async () => {
+    basketService.patchQuantity.mockResolvedValue({ items: [{ itemId: 'p1', quantity: 5 }] })
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/basket/items/p1/quantity', headers: { ...userHdr, 'Content-Type': 'application/json' },
+      payload: { delta: 3 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(basketService.patchQuantity).toHaveBeenCalledWith(expect.objectContaining({ itemId: 'p1', delta: 3, isGuest: false }))
+  })
+
+  it('PATCH /v1/basket/items/:itemId/quantity body inválido (delta no entero) → no llama service', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/basket/items/p1/quantity', headers: { ...userHdr, 'Content-Type': 'application/json' },
+      payload: { delta: 1.5 },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(basketService.patchQuantity).not.toHaveBeenCalled()
   })
 
   it('PUT /v1/basket/items body inválido → no llama service', async () => {
@@ -110,7 +140,17 @@ describe('basket CRUD routes', () => {
     basketService.removeItem.mockResolvedValue({ items: [] })
     const res = await app.inject({ method: 'DELETE', url: '/v1/basket/items/p1', headers: userHdr })
     expect(res.statusCode).toBe(200)
-    expect(basketService.removeItem).toHaveBeenCalledWith(expect.objectContaining({ itemId: 'p1' }))
+    expect(basketService.removeItem).toHaveBeenCalledWith(expect.objectContaining({ itemId: 'p1', isGuest: false }))
+  })
+
+  it('PUT /v1/basket/items con rol guest → isGuest:true', async () => {
+    basketService.upsertItem.mockResolvedValue({ items: [] })
+    const res = await app.inject({
+      method: 'PUT', url: '/v1/basket/items', headers: { Authorization: 'Bearer guest-token', 'Content-Type': 'application/json' },
+      payload: { itemId: 'p1', quantity: 1, name: 'X', priceCents: 100 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(basketService.upsertItem).toHaveBeenCalledWith(expect.objectContaining({ isGuest: true }))
   })
 
   it('DELETE /v1/basket → 204', async () => {
@@ -251,7 +291,7 @@ describe('defaults defensivos (?? {}) — handler directo', () => {
     const routes = []
     const rec = (m) => (p, o, h) => routes.push({ m, p, h: h ?? o })
     await basketRoutes({
-      get: rec('get'), put: rec('put'), post: rec('post'), delete: rec('delete'),
+      get: rec('get'), put: rec('put'), post: rec('post'), delete: rec('delete'), patch: rec('patch'),
       addHook: () => {},
     })
     return routes

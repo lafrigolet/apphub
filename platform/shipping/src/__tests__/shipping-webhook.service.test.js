@@ -83,12 +83,44 @@ describe('ingestCarrierWebhook', () => {
     expect(poolClient.release).toHaveBeenCalled()
   })
 
-  it('non-easypost → signatureValid null, persiste sin tracking', async () => {
+  it('fedex (Bearer, sin HMAC spec) → signatureValid null, persiste sin tracking', async () => {
     repo.insertWebhookEvent.mockResolvedValue({ id: 'w1' })
     repo.markWebhookProcessed.mockResolvedValue()
-    const r = await service.ingestCarrierWebhook('ups', { rawBody: '{}', payload: { id: 'ext1' }, signatureHeader: 'x' })
+    const r = await service.ingestCarrierWebhook('fedex', { rawBody: '{}', payload: { id: 'ext1' }, signatureHeader: 'x' })
     expect(r).toEqual({ id: 'w1', signatureValid: null })
     expect(repo.markWebhookProcessed).toHaveBeenCalledWith(poolClient, 'w1')
+  })
+
+  it('ups HMAC-SHA256 firma válida → signatureValid true', async () => {
+    const secret = 'ups-secret'
+    const rawBody = JSON.stringify({ id: 'ups1' })
+    const sig = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
+    configRepo.getValue.mockResolvedValue(secret)
+    repo.insertWebhookEvent.mockResolvedValue({ id: 'wups' })
+    repo.markWebhookProcessed.mockResolvedValue()
+    const r = await service.ingestCarrierWebhook('ups', { rawBody, payload: { id: 'ups1' }, signatureHeader: sig })
+    expect(configRepo.getValue).toHaveBeenCalledWith(poolClient, 'ups_client_secret')
+    expect(r.signatureValid).toBe(true)
+  })
+
+  it('dhl HMAC-SHA1 firma válida → signatureValid true', async () => {
+    const secret = 'dhl-secret'
+    const rawBody = JSON.stringify({ id: 'dhl1' })
+    const sig = crypto.createHmac('sha1', secret).update(rawBody).digest('hex')
+    configRepo.getValue.mockResolvedValue(secret)
+    repo.insertWebhookEvent.mockResolvedValue({ id: 'wdhl' })
+    repo.markWebhookProcessed.mockResolvedValue()
+    const r = await service.ingestCarrierWebhook('dhl', { rawBody, payload: { id: 'dhl1' }, signatureHeader: sig })
+    expect(configRepo.getValue).toHaveBeenCalledWith(poolClient, 'dhl_api_secret')
+    expect(r.signatureValid).toBe(true)
+  })
+
+  it('dhl firma inválida → signatureValid false', async () => {
+    configRepo.getValue.mockResolvedValue('dhl-secret')
+    repo.insertWebhookEvent.mockResolvedValue({ id: 'wdhl2' })
+    repo.markWebhookProcessed.mockResolvedValue()
+    const r = await service.ingestCarrierWebhook('dhl', { rawBody: '{}', payload: {}, signatureHeader: 'deadbeef' })
+    expect(r.signatureValid).toBe(false)
   })
 
   it('easypost firma válida → signatureValid true', async () => {

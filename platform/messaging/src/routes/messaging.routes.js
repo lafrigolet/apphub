@@ -81,6 +81,25 @@ export async function messagingRoutes(fastify) {
     return reply.status(204).send()
   })
 
+  // ── Unread counts + bulk thread read (inbox UX) ─────────────────────
+  fastify.get('/v1/messages/unread-counts', {
+    schema: { tags, summary: 'Unread message counts across all of the current user\'s threads' },
+  }, async (req) => {
+    return service.getUnreadCounts(ctxFromRequest(req))
+  })
+
+  fastify.get('/v1/messages/threads/:id/unread-count', {
+    schema: { tags, summary: 'Unread message count for one thread (current user)', params: idParams },
+  }, async (req) => {
+    return service.getThreadUnreadCount(ctxFromRequest(req), req.params.id)
+  })
+
+  fastify.post('/v1/messages/threads/:id/read-all', {
+    schema: { tags, summary: 'Mark all messages in a thread as read for the current user', params: idParams },
+  }, async (req) => {
+    return service.markThreadRead(ctxFromRequest(req), req.params.id)
+  })
+
   // ── Storage-backed attachments (preferred over the JSON column) ──────
   fastify.get('/v1/messages/threads/:id/messages/:mid/attachments', {
     schema: { tags: attachTags, summary: 'List storage-backed attachments for a message', params: midParams },

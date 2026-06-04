@@ -39,6 +39,32 @@ describe('redactPii — util', () => {
   })
 })
 
+// ── off-platform detection (recomendación #7) ──────────────────────────
+describe('redactPii — señales de off-platform', () => {
+  it('enmascara URLs (http/https y www.)', () => {
+    expect(redactPii('mira https://evil.example/x ahora')).toContain('[enlace oculto]')
+    expect(redactPii('visita www.evil.example')).toContain('[enlace oculto]')
+    expect(redactPii('mira https://evil.example/x')).not.toContain('evil.example')
+  })
+
+  it('enmascara menciones a apps de mensajería externas (con o sin handle)', () => {
+    expect(redactPii('escríbeme por WhatsApp')).toContain('[contacto externo oculto]')
+    expect(redactPii('telegram: @juan23')).toContain('[contacto externo oculto]')
+    expect(redactPii('telegram: @juan23')).not.toContain('juan23')
+    expect(redactPii('mándame un signal')).toContain('[contacto externo oculto]')
+  })
+
+  it('enmascara handles de redes sociales y @handle suelto', () => {
+    expect(redactPii('mi instagram es @tienda_x')).toContain('[contacto externo oculto]')
+    expect(redactPii('sígueme en @mihandle')).toContain('[contacto externo oculto]')
+    expect(redactPii('sígueme en @mihandle')).not.toContain('mihandle')
+  })
+
+  it('no toca texto normal sin señales', () => {
+    expect(redactPii('¿cuándo llega mi pedido?')).toBe('¿cuándo llega mi pedido?')
+  })
+})
+
 // ── aplicación en postMessage ──────────────────────────────────────────
 const { withTenantTransaction, insertMessageMock, findThreadMock, publishMock } = vi.hoisted(() => ({
   withTenantTransaction: vi.fn(),

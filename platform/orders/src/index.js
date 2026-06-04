@@ -19,7 +19,7 @@ export async function register({ app, db, redis, logger }) {
     subscribe(async (_channel, raw) => {
       let event
       try { event = JSON.parse(raw) } catch { return }
-      if (!['splitpay.payment.completed', 'shipping.shipment.delivered'].includes(event.type)) return
+      if (!['splitpay.payment.completed', 'shipping.shipment.created', 'shipping.shipment.delivered'].includes(event.type)) return
       await service.handleEvent(event)
     })
     logger?.info('orders subscribed to splitpay.* and shipping.* events')

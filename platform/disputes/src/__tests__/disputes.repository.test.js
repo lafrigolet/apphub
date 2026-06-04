@@ -15,18 +15,18 @@ const ID = 'd1'
 describe('insert', () => {
   it('INSERT en platform_disputes.disputes con scoping + COALESCE status', async () => {
     const c = mockClient([{ id: ID }])
-    const r = await repo.insert(c, APP, TEN, { orderId: 'o1', buyerUserId: 'b1', reason: 'not_received', description: 'desc', status: 'open' })
+    const r = await repo.insert(c, APP, TEN, { orderId: 'o1', buyerUserId: 'b1', reason: 'not_received', reasonCode: 'item_not_received', description: 'desc', status: 'open' })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_disputes\.disputes/)
-    expect(sql).toMatch(/COALESCE\(\$7,'open'\)/)
-    expect(params).toEqual([APP, TEN, 'o1', 'b1', 'not_received', 'desc', 'open'])
+    expect(sql).toMatch(/COALESCE\(\$8,'open'\)/)
+    expect(params).toEqual([APP, TEN, 'o1', 'b1', 'not_received', 'item_not_received', 'desc', 'open'])
     expect(r).toEqual({ id: ID })
   })
 
-  it('description/status ausentes → null', async () => {
+  it('description/status/reasonCode ausentes → null', async () => {
     const c = mockClient([{ id: ID }])
     await repo.insert(c, APP, TEN, { orderId: 'o1', buyerUserId: 'b1', reason: 'x' })
-    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'o1', 'b1', 'x', null, null])
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'o1', 'b1', 'x', null, null, null])
   })
 })
 
@@ -117,7 +117,7 @@ describe('insertMessage', () => {
     await repo.insertMessage(c, APP, TEN, ID, 'u1', 'buyer', 'hola', [{ url: 'x' }])
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_disputes\.dispute_messages/)
-    expect(params).toEqual([APP, TEN, ID, 'u1', 'buyer', 'hola', JSON.stringify([{ url: 'x' }])])
+    expect(params).toEqual([APP, TEN, ID, 'u1', 'buyer', 'hola', JSON.stringify([{ url: 'x' }]), false])
   })
 
   it('attachments por defecto → []', async () => {
@@ -128,14 +128,70 @@ describe('insertMessage', () => {
 })
 
 describe('listMessages', () => {
-  it('SELECT ordenado ASC scopeado', async () => {
+  it('SELECT ordenado ASC scopeado (incluye internas por defecto)', async () => {
     const c = mockClient([{ id: 'm1' }])
     const r = await repo.listMessages(c, APP, TEN, ID)
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/FROM platform_disputes\.dispute_messages/)
     expect(sql).toMatch(/ORDER BY created_at ASC/)
+    expect(sql).not.toMatch(/is_internal = false/)
     expect(params).toEqual([APP, TEN, ID])
     expect(r).toEqual([{ id: 'm1' }])
+  })
+
+  it('includeInternal=false → filtra notas internas', async () => {
+    const c = mockClient([])
+    await repo.listMessages(c, APP, TEN, ID, { includeInternal: false })
+    expect(c.query.mock.calls[0][0]).toMatch(/is_internal = false/)
+  })
+})
+
+describe('insertMessage — is_internal', () => {
+  it('persiste is_internal=true', async () => {
+    const c = mockClient([{ id: 'm1' }])
+    await repo.insertMessage(c, APP, TEN, ID, 'u1', 'staff', 'nota', [], true)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/is_internal/)
+    expect(params[7]).toBe(true)
+  })
+})
+
+describe('status history repo', () => {
+  it('insertStatusHistory scopea + persiste from/to/actor', async () => {
+    const c = mockClient([{ id: 'h1' }])
+    await repo.insertStatusHistory(c, APP, TEN, ID, {
+      fromStatus: 'open', toStatus: 'investigating', actorUserId: 'u1', actorRole: 'staff', note: 'n',
+    })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_disputes\.dispute_status_history/)
+    expect(params).toEqual([APP, TEN, ID, 'open', 'investigating', 'u1', 'staff', 'n'])
+  })
+
+  it('insertStatusHistory aplica null por defecto', async () => {
+    const c = mockClient([{ id: 'h1' }])
+    await repo.insertStatusHistory(c, APP, TEN, ID, { toStatus: 'open' })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, ID, null, 'open', null, null, null])
+  })
+
+  it('listStatusHistory ordena ASC + scopea', async () => {
+    const c = mockClient([{ id: 'h1' }])
+    const r = await repo.listStatusHistory(c, APP, TEN, ID)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/FROM platform_disputes\.dispute_status_history/)
+    expect(sql).toMatch(/ORDER BY created_at ASC/)
+    expect(params).toEqual([APP, TEN, ID])
+    expect(r).toEqual([{ id: 'h1' }])
+  })
+})
+
+describe('listByTenant — extra filters', () => {
+  it('aplica buyerUserId + reasonCode', async () => {
+    const c = mockClient([])
+    await repo.listByTenant(c, APP, TEN, { buyerUserId: 'b1', reasonCode: 'item_damaged' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/buyer_user_id = \$3/)
+    expect(sql).toMatch(/reason_code = \$4/)
+    expect(params.slice(0, 4)).toEqual([APP, TEN, 'b1', 'item_damaged'])
   })
 })
 

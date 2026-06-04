@@ -79,10 +79,18 @@ describe('reads', () => {
     await expect(service.getDispute(buyerCtx, DIS_ID)).rejects.toThrow(NotFoundError)
   })
 
-  it('listDisputes passes filters', async () => {
+  it('listDisputes passes filters (staff: unscoped)', async () => {
+    repo.listByTenant.mockResolvedValue([])
+    await service.listDisputes(staffCtx, { status: 'open' })
+    expect(repo.listByTenant).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, { status: 'open' })
+  })
+
+  it('listDisputes forces buyerUserId scope for buyers', async () => {
     repo.listByTenant.mockResolvedValue([])
     await service.listDisputes(buyerCtx, { status: 'open' })
-    expect(repo.listByTenant).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, { status: 'open' })
+    expect(repo.listByTenant).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID, { status: 'open', buyerUserId: BUYER },
+    )
   })
 })
 
@@ -93,7 +101,7 @@ describe('postMessage role inference', () => {
     repo.insertMessage.mockResolvedValue({ id: 'm1' })
     await service.postMessage(staffCtx, DIS_ID, 'staff note', [])
     expect(repo.insertMessage).toHaveBeenCalledWith(
-      expect.anything(), APP_ID, TENANT_ID, DIS_ID, 'staff1', 'staff', 'staff note', [],
+      expect.anything(), APP_ID, TENANT_ID, DIS_ID, 'staff1', 'staff', 'staff note', [], false,
     )
     expect(publish).toHaveBeenCalledWith(expect.objectContaining({
       payload: expect.objectContaining({ senderRole: 'staff' }),
@@ -105,7 +113,7 @@ describe('postMessage role inference', () => {
     repo.insertMessage.mockResolvedValue({ id: 'm2' })
     await service.postMessage(buyerCtx, DIS_ID, 'buyer says', [])
     expect(repo.insertMessage).toHaveBeenCalledWith(
-      expect.anything(), APP_ID, TENANT_ID, DIS_ID, BUYER, 'buyer', 'buyer says', [],
+      expect.anything(), APP_ID, TENANT_ID, DIS_ID, BUYER, 'buyer', 'buyer says', [], false,
     )
   })
 
@@ -114,7 +122,7 @@ describe('postMessage role inference', () => {
     repo.insertMessage.mockResolvedValue({ id: 'm3' })
     await service.postMessage(vendorCtx, DIS_ID, 'vendor reply', [])
     expect(repo.insertMessage).toHaveBeenCalledWith(
-      expect.anything(), APP_ID, TENANT_ID, DIS_ID, VENDOR, 'vendor', 'vendor reply', [],
+      expect.anything(), APP_ID, TENANT_ID, DIS_ID, VENDOR, 'vendor', 'vendor reply', [], false,
     )
   })
 
@@ -148,6 +156,7 @@ describe('resolve', () => {
   })
 
   it('updates and publishes dispute.resolved', async () => {
+    repo.findById.mockResolvedValue({ id: DIS_ID, status: 'investigating' })
     repo.updateStatus.mockResolvedValue({ id: DIS_ID, order_id: ORDER_ID, status: 'resolved_buyer', resolution_amount_cents: 500 })
     await service.resolve(staffCtx, DIS_ID, { status: 'resolved_buyer', resolutionAmountCents: 500 })
     expect(repo.updateStatus).toHaveBeenCalledWith(

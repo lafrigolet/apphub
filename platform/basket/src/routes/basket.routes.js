@@ -13,6 +13,7 @@ const upsertItemBody = z.object({
 const mergeBody = z.object({ guestUserId: z.string().min(1).max(128) })
 const itemIdBody = z.object({ itemId: z.string().min(1) })
 const itemIdParams = z.object({ itemId: z.string().min(1) })
+const patchQtyBody = z.object({ delta: z.number().int() })
 
 const promoApplyBody  = z.object({ code: z.string().min(1).max(64) })
 const promoUpsertBody = z.object({
@@ -34,6 +35,12 @@ function requireStaff(req, reply) {
   }
 }
 
+// Guests carry a client-minted userId and a `guest` role; their carts get the
+// shorter TTL window. Authenticated users get the long window.
+function isGuestReq(req) {
+  return req.identity?.role === 'guest'
+}
+
 const tags       = ['basket']
 const savedTags  = ['basket · saved-for-later']
 const promoTags  = ['basket · promotions']
@@ -46,19 +53,40 @@ export async function basketRoutes(fastify) {
     return basketService.getBasket({ appId, tenantId, userId })
   })
 
+  // Lightweight count for the mini-cart badge — avoids loading every line.
+  fastify.get('/v1/basket/count', {
+    schema: { tags, summary: 'Fast item/line count + subtotal for the mini-cart badge' },
+  }, async (req) => {
+    const { appId, tenantId, userId } = req.identity
+    return basketService.getCount({ appId, tenantId, userId })
+  })
+
   fastify.put('/v1/basket/items', {
     schema: { tags, summary: 'Upsert (add or replace) an item in the basket', body: upsertItemBody },
   }, async (req) => {
     const { appId, tenantId, userId } = req.identity
     const body = upsertItemBody.parse(req.body)
-    return basketService.upsertItem({ appId, tenantId, userId, ...body })
+    return basketService.upsertItem({ appId, tenantId, userId, ...body, isGuest: isGuestReq(req) })
+  })
+
+  // Atomic relative quantity change (delta may be negative; result clamped ≥1).
+  fastify.patch('/v1/basket/items/:itemId/quantity', {
+    schema: {
+      tags,
+      summary: 'Atomically increment/decrement an item quantity (clamped at 1)',
+      params: itemIdParams, body: patchQtyBody,
+    },
+  }, async (req) => {
+    const { appId, tenantId, userId } = req.identity
+    const { delta } = patchQtyBody.parse(req.body)
+    return basketService.patchQuantity({ appId, tenantId, userId, itemId: req.params.itemId, delta, isGuest: isGuestReq(req) })
   })
 
   fastify.delete('/v1/basket/items/:itemId', {
     schema: { tags, summary: 'Remove one item from the basket', params: itemIdParams },
   }, async (req) => {
     const { appId, tenantId, userId } = req.identity
-    return basketService.removeItem({ appId, tenantId, userId, itemId: req.params.itemId })
+    return basketService.removeItem({ appId, tenantId, userId, itemId: req.params.itemId, isGuest: isGuestReq(req) })
   })
 
   fastify.delete('/v1/basket', {
@@ -95,21 +123,21 @@ export async function basketRoutes(fastify) {
   }, async (req) => {
     const { appId, tenantId, userId } = req.identity
     const body = itemIdBody.parse(req.body)
-    return basketService.saveForLater({ appId, tenantId, userId, itemId: body.itemId })
+    return basketService.saveForLater({ appId, tenantId, userId, itemId: body.itemId, isGuest: isGuestReq(req) })
   })
 
   fastify.post('/v1/basket/saved/:itemId/move-back', {
     schema: { tags: savedTags, summary: 'Move a saved item back into the basket', params: itemIdParams },
   }, async (req) => {
     const { appId, tenantId, userId } = req.identity
-    return basketService.moveBackToBasket({ appId, tenantId, userId, itemId: req.params.itemId })
+    return basketService.moveBackToBasket({ appId, tenantId, userId, itemId: req.params.itemId, isGuest: isGuestReq(req) })
   })
 
   fastify.delete('/v1/basket/saved/:itemId', {
     schema: { tags: savedTags, summary: 'Remove an item from saved-for-later', params: itemIdParams },
   }, async (req) => {
     const { appId, tenantId, userId } = req.identity
-    return basketService.removeSaved({ appId, tenantId, userId, itemId: req.params.itemId })
+    return basketService.removeSaved({ appId, tenantId, userId, itemId: req.params.itemId, isGuest: isGuestReq(req) })
   })
 
   // ── Promotions: per-tenant CRUD + per-user apply/clear ──────────────

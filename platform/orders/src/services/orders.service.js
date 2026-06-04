@@ -195,6 +195,128 @@ export async function changeShippingAddress(ctx, id, address, reason) {
   })
 }
 
+// ── Post-creation item editing (recomputes totals) ──────────────────────
+//
+// Items can only be edited while the order is still mutable (pending/paid),
+// same guard as shipping-address changes. Every edit:
+//   1. mutates order_items in place,
+//   2. recomputes subtotal/total from the surviving rows (tax + shipping kept),
+//   3. records the change in order_modifications (append-only diff),
+//   4. records a `totals_adjusted` modification with the before/after totals,
+//   5. publishes order.modified so downstream consumers can react.
+
+function recomputeTotals(items, order) {
+  const subtotalCents = items.reduce((s, it) => s + Number(it.unit_price_cents) * it.qty, 0)
+  const taxCents      = Number(order.tax_cents) || 0
+  const shippingCents = Number(order.shipping_cents) || 0
+  return { subtotalCents, taxCents, shippingCents, totalCents: subtotalCents + taxCents + shippingCents }
+}
+
+function totalsSnapshot(order) {
+  return {
+    subtotalCents: Number(order.subtotal_cents),
+    taxCents:      Number(order.tax_cents),
+    shippingCents: Number(order.shipping_cents),
+    totalCents:    Number(order.total_cents),
+  }
+}
+
+async function applyItemEdit(ctx, id, modType, before, after, reason, mutate) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
+    const order = await repo.findOrderById(client, ctx.appId, ctx.tenantId, id)
+    if (!order) throw new NotFoundError('order')
+    ensureMutable(order)
+
+    const result = await mutate(client, order)
+
+    // Record the specific item modification.
+    const itemMod = await repo.insertModification(client, {
+      appId: ctx.appId, tenantId: ctx.tenantId, orderId: id,
+      type: modType, before, after, reason,
+      actorUserId: ctx.userId, actorRole: ctx.role,
+    })
+
+    // Recompute + persist totals from the surviving items.
+    const items = await repo.findItemsByOrderId(client, ctx.appId, ctx.tenantId, id)
+    const totalsBefore = totalsSnapshot(order)
+    const t = recomputeTotals(items, order)
+    const updated = await repo.updateTotals(client, ctx.appId, ctx.tenantId, id, t)
+    await repo.insertModification(client, {
+      appId: ctx.appId, tenantId: ctx.tenantId, orderId: id,
+      type: 'totals_adjusted',
+      before: totalsBefore, after: t, reason: reason ?? 'item edit',
+      actorUserId: ctx.userId, actorRole: ctx.role,
+    })
+
+    await publish({
+      type: 'order.modified',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId, orderId: id,
+        buyerUserId: order.buyer_user_id,
+        modificationType: modType, modificationId: itemMod.id,
+        totalCents: t.totalCents,
+      },
+    })
+
+    return { order: updated, modification: itemMod, item: result }
+  })
+}
+
+export async function addItem(ctx, id, item, reason) {
+  return applyItemEdit(
+    ctx, id, 'item_added', null, item, reason,
+    (client, order) => repo.insertItem(client, id, ctx.appId, ctx.tenantId, item),
+  )
+}
+
+export async function removeItem(ctx, id, itemId, reason) {
+  return applyItemEdit(
+    ctx, id, 'item_removed', null, null, reason,
+    async (client) => {
+      const existing = await repo.findItemById(client, ctx.appId, ctx.tenantId, id, itemId)
+      if (!existing) throw new NotFoundError('order item')
+      await repo.deleteItem(client, ctx.appId, ctx.tenantId, id, itemId)
+      return existing
+    },
+  ).then((res) => ({ ...res, removed: res.item }))
+}
+
+export async function changeItemQty(ctx, id, itemId, qty, reason) {
+  if (!Number.isInteger(qty) || qty < 1) throw new ValidationError('qty must be a positive integer')
+  return applyItemEdit(
+    ctx, id, 'item_qty_changed', null, { itemId, qty }, reason,
+    async (client) => {
+      const existing = await repo.findItemById(client, ctx.appId, ctx.tenantId, id, itemId)
+      if (!existing) throw new NotFoundError('order item')
+      return repo.updateItemQty(client, ctx.appId, ctx.tenantId, id, itemId, qty)
+    },
+  )
+}
+
+// ── Order export (CSV) ──────────────────────────────────────────────────
+
+const CSV_COLUMNS = [
+  'id', 'status', 'currency', 'buyer_user_id',
+  'subtotal_cents', 'tax_cents', 'shipping_cents', 'total_cents',
+  'stripe_payment_intent_id', 'shipment_id', 'created_at', 'updated_at',
+]
+
+function csvCell(value) {
+  if (value == null) return ''
+  const s = value instanceof Date ? value.toISOString() : String(value)
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+export async function exportOrdersCsv(ctx, opts = {}) {
+  const rows = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (client) =>
+    repo.exportOrders(client, ctx.appId, ctx.tenantId, opts),
+  )
+  const header = CSV_COLUMNS.join(',')
+  const lines = rows.map((r) => CSV_COLUMNS.map((c) => csvCell(r[c])).join(','))
+  return [header, ...lines].join('\n')
+}
+
 export async function addOrderNote(ctx, id, note) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
     const order = await repo.findOrderById(client, ctx.appId, ctx.tenantId, id)
@@ -208,12 +330,36 @@ export async function addOrderNote(ctx, id, note) {
   })
 }
 
+// ── Shipment linkage ────────────────────────────────────────────────────
+export async function linkShipment(ctx, id, shipmentId) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (client) => {
+    const order = await repo.findOrderById(client, ctx.appId, ctx.tenantId, id)
+    if (!order) throw new NotFoundError('order')
+    const updated = await repo.updateShipment(client, ctx.appId, ctx.tenantId, id, shipmentId)
+    await publish({
+      type: 'order.modified',
+      payload: {
+        appId: ctx.appId, tenantId: ctx.tenantId, orderId: id,
+        buyerUserId: order.buyer_user_id,
+        modificationType: 'shipment_linked', shipmentId,
+      },
+    })
+    return updated
+  })
+}
+
 // ── Event consumer: react to upstream events ─────────────────────────────
 export async function handleEvent(event) {
   try {
     if (event.type === 'splitpay.payment.completed' && event.payload?.orderId) {
       const ctx = { appId: event.payload.appId, tenantId: event.payload.tenantId, subTenantId: null, userId: null, role: 'system' }
       await changeStatus(ctx, event.payload.orderId, 'paid', 'splitpay payment completed')
+    } else if (event.type === 'shipping.shipment.created' && event.payload?.orderId && event.payload?.shipmentId) {
+      // Backfill the shipment_id link for traceability. The order.fulfilled
+      // event (published by the FSM) is what the shipping module reacts to;
+      // this closes the loop without advancing the order's status.
+      const ctx = { appId: event.payload.appId, tenantId: event.payload.tenantId, subTenantId: null, userId: null, role: 'system' }
+      await linkShipment(ctx, event.payload.orderId, event.payload.shipmentId)
     } else if (event.type === 'shipping.shipment.delivered' && event.payload?.orderId) {
       const ctx = { appId: event.payload.appId, tenantId: event.payload.tenantId, subTenantId: null, userId: null, role: 'system' }
       await changeStatus(ctx, event.payload.orderId, 'delivered', 'shipment delivered')

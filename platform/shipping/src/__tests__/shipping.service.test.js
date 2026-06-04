@@ -70,8 +70,98 @@ describe('quote', () => {
   it('queries rates by country', async () => {
     repo.findRatesForCountry.mockResolvedValue([{ id: 'r1', price_cents: 500 }])
     const rates = await service.quote(ctx, { country: 'ES' })
-    expect(repo.findRatesForCountry).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, 'ES')
+    expect(repo.findRatesForCountry).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID, expect.objectContaining({ country: 'ES' }),
+    )
     expect(rates).toHaveLength(1)
+    expect(rates[0].effective_price_cents).toBe(500)
+  })
+
+  it('passes weightG through to the repo filter', async () => {
+    repo.findRatesForCountry.mockResolvedValue([])
+    await service.quote(ctx, { country: 'ES', weightG: 1500 })
+    expect(repo.findRatesForCountry).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID, expect.objectContaining({ weightG: 1500 }),
+    )
+  })
+
+  it('free shipping applies when orderValueCents >= free_above_cents', async () => {
+    repo.findRatesForCountry.mockResolvedValue([{ id: 'r1', price_cents: 700, free_above_cents: 5000 }])
+    const rates = await service.quote(ctx, { country: 'ES', orderValueCents: 6000 })
+    expect(rates[0].effective_price_cents).toBe(0)
+    expect(rates[0].free_shipping_applied).toBe(true)
+  })
+
+  it('free shipping NOT applied below the threshold', async () => {
+    repo.findRatesForCountry.mockResolvedValue([{ id: 'r1', price_cents: 700, free_above_cents: 5000 }])
+    const rates = await service.quote(ctx, { country: 'ES', orderValueCents: 4000 })
+    expect(rates[0].effective_price_cents).toBe(700)
+    expect(rates[0].free_shipping_applied).toBe(false)
+  })
+
+  it('no free_above_cents → effective equals base price', async () => {
+    repo.findRatesForCountry.mockResolvedValue([{ id: 'r1', price_cents: 700, free_above_cents: null }])
+    const rates = await service.quote(ctx, { country: 'ES', orderValueCents: 99999 })
+    expect(rates[0].effective_price_cents).toBe(700)
+    expect(rates[0].free_shipping_applied).toBe(false)
+  })
+})
+
+// ── zone / rate CRUD (update + delete) ─────────────────────────────────
+describe('zone/rate update & delete', () => {
+  it('updateZone delegates and returns updated row', async () => {
+    repo.updateZone.mockResolvedValue({ id: ZONE_ID, name: 'EU2' })
+    const r = await service.updateZone(ctx, ZONE_ID, { name: 'EU2' })
+    expect(r.name).toBe('EU2')
+  })
+  it('updateZone missing → NotFoundError', async () => {
+    repo.updateZone.mockResolvedValue(null)
+    await expect(service.updateZone(ctx, ZONE_ID, { name: 'x' })).rejects.toThrow(NotFoundError)
+  })
+  it('deleteZone ok → { deleted: true }', async () => {
+    repo.deleteZone.mockResolvedValue(true)
+    expect(await service.deleteZone(ctx, ZONE_ID)).toEqual({ deleted: true })
+  })
+  it('deleteZone missing → NotFoundError', async () => {
+    repo.deleteZone.mockResolvedValue(false)
+    await expect(service.deleteZone(ctx, ZONE_ID)).rejects.toThrow(NotFoundError)
+  })
+  it('updateRate delegates', async () => {
+    repo.updateRate.mockResolvedValue({ id: 'r1', active: false })
+    const r = await service.updateRate(ctx, 'r1', { active: false })
+    expect(r.active).toBe(false)
+  })
+  it('updateRate missing → NotFoundError', async () => {
+    repo.updateRate.mockResolvedValue(null)
+    await expect(service.updateRate(ctx, 'r1', { active: false })).rejects.toThrow(NotFoundError)
+  })
+  it('deleteRate missing → NotFoundError', async () => {
+    repo.deleteRate.mockResolvedValue(false)
+    await expect(service.deleteRate(ctx, 'r1')).rejects.toThrow(NotFoundError)
+  })
+})
+
+// ── addBusinessDays helper ─────────────────────────────────────────────
+describe('addBusinessDays', () => {
+  it('skips weekends: Fri + 1 business day = Mon', () => {
+    // 2026-06-05 is a Friday (UTC)
+    expect(service.addBusinessDays(new Date('2026-06-05T00:00:00Z'), 1)).toBe('2026-06-08')
+  })
+  it('adds plain business days within a week', () => {
+    // 2026-06-01 is a Monday
+    expect(service.addBusinessDays(new Date('2026-06-01T00:00:00Z'), 3)).toBe('2026-06-04')
+  })
+})
+
+// ── listShipments ──────────────────────────────────────────────────────
+describe('listShipments', () => {
+  it('delegates filters to the repo', async () => {
+    repo.listShipments.mockResolvedValue([{ id: SHIP_ID }])
+    const r = await service.listShipments(ctx, { status: 'in_transit', carrier: 'ups' })
+    expect(repo.listShipments).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID, expect.objectContaining({ status: 'in_transit', carrier: 'ups' }),
+    )
+    expect(r).toHaveLength(1)
   })
 })
 
@@ -84,6 +174,26 @@ describe('createShipment', () => {
       type: 'shipping.shipment.created',
       payload: expect.objectContaining({ shipmentId: SHIP_ID, orderId: ORDER_ID }),
     }))
+  })
+
+  it('computes estimated_delivery_date from the rate eta_days_max', async () => {
+    repo.findRateById.mockResolvedValue({ id: 'r1', eta_days_max: 3 })
+    repo.insertShipment.mockResolvedValue({ id: SHIP_ID, order_id: ORDER_ID, estimated_delivery_date: '2026-06-08' })
+    await service.createShipment(ctx, { orderId: ORDER_ID, rateId: 'r1' })
+    expect(repo.insertShipment).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID,
+      expect.objectContaining({ estimatedDeliveryDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }),
+    )
+  })
+
+  it('does not override an explicit estimatedDeliveryDate (no rate lookup)', async () => {
+    repo.insertShipment.mockResolvedValue({ id: SHIP_ID, order_id: ORDER_ID })
+    await service.createShipment(ctx, { orderId: ORDER_ID, rateId: 'r1', estimatedDeliveryDate: '2026-12-01' })
+    expect(repo.findRateById).not.toHaveBeenCalled()
+    expect(repo.insertShipment).toHaveBeenCalledWith(
+      expect.anything(), APP_ID, TENANT_ID,
+      expect.objectContaining({ estimatedDeliveryDate: '2026-12-01' }),
+    )
   })
 })
 

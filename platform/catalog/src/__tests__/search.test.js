@@ -27,7 +27,7 @@ describe('service.searchItems — wiring', () => {
     repo.searchItems.mockResolvedValue([{ id: 'i1' }])
     const out = await searchService({ ...scope, q: '  barro  ', activeOnly: true })
     expect(out).toEqual([{ id: 'i1' }])
-    expect(repo.searchItems).toHaveBeenCalledWith(client, { q: 'barro', activeOnly: true })
+    expect(repo.searchItems).toHaveBeenCalledWith(client, expect.objectContaining({ q: 'barro', activeOnly: true }))
     expect(repo.findAll).not.toHaveBeenCalled()
   })
 
@@ -35,14 +35,14 @@ describe('service.searchItems — wiring', () => {
     repo.findAll.mockResolvedValue([{ id: 'all' }])
     const out = await searchService({ ...scope, q: '   ', activeOnly: true })
     expect(out).toEqual([{ id: 'all' }])
-    expect(repo.findAll).toHaveBeenCalledWith(client, { activeOnly: true })
+    expect(repo.findAll).toHaveBeenCalledWith(client, expect.objectContaining({ activeOnly: true }))
     expect(repo.searchItems).not.toHaveBeenCalled()
   })
 
   it('q undefined → listItems', async () => {
     repo.findAll.mockResolvedValue([])
     await searchService({ ...scope, activeOnly: false })
-    expect(repo.findAll).toHaveBeenCalledWith(client, { activeOnly: false })
+    expect(repo.findAll).toHaveBeenCalledWith(client, expect.objectContaining({ activeOnly: false }))
   })
 })
 

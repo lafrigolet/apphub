@@ -16,12 +16,18 @@
 // can re-derive totals without re-issuing the apply request.
 
 import { redis } from '../lib/redis.js'
+import { env } from '../lib/env.js'
 
 const PROMO_PREFIX = 'basket:promo:'
+const USAGE_PREFIX = 'basket:promo-usage:'   // per-user usage counter
 const APPLIED_FIELD = 'appliedPromo'      // sits inside the basket JSON
 
 function promoKey(appId, tenantId, code) {
   return `${PROMO_PREFIX}${appId}:${tenantId}:${code.toUpperCase()}`
+}
+
+function usageKey(appId, tenantId, code, userId) {
+  return `${USAGE_PREFIX}${appId}:${tenantId}:${code.toUpperCase()}:${userId}`
 }
 
 function basketKey(appId, tenantId, userId) {
@@ -125,8 +131,35 @@ async function readBasket(appId, tenantId, userId) {
   return raw ? JSON.parse(raw) : { items: [] }
 }
 
+// Persist the basket while preserving its sliding TTL (KEEPTTL). Applying or
+// clearing a promo must not extend or drop the cart's expiry set by mutations
+// in basket.service.js.
 async function writeBasket(appId, tenantId, userId, basket) {
-  await redis.set(basketKey(appId, tenantId, userId), JSON.stringify(basket))
+  await redis.set(basketKey(appId, tenantId, userId), JSON.stringify(basket), 'KEEPTTL')
+}
+
+// Atomic per-user usage counter. INCR returns the post-increment value; if it
+// exceeds maxUsesPerUser we roll it back (DECR) and report the cap was hit.
+// The counter shares the promo's expiry so it can't grow unbounded.
+async function tryReserveUsage(appId, tenantId, promo, userId) {
+  if (promo.maxUsesPerUser == null) return { ok: true }
+  const uKey = usageKey(appId, tenantId, promo.code, userId)
+  const used = await redis.incr(uKey)
+  if (used === 1 && promo.expiresAt) {
+    const ttl = Math.floor((new Date(promo.expiresAt).getTime() - Date.now()) / 1000)
+    if (ttl > 0) await redis.expire(uKey, ttl)
+  }
+  if (used > promo.maxUsesPerUser) {
+    await redis.decr(uKey)
+    return { ok: false }
+  }
+  return { ok: true }
+}
+
+async function releaseUsage(appId, tenantId, code, userId) {
+  const uKey = usageKey(appId, tenantId, code, userId)
+  const v = await redis.decr(uKey)
+  if (v <= 0) await redis.del(uKey)
 }
 
 export async function applyPromo({ appId, tenantId, userId, code }) {
@@ -136,11 +169,23 @@ export async function applyPromo({ appId, tenantId, userId, code }) {
     return { basket, summary: { ...evaluate(basket, null), error: 'promo not found' } }
   }
   const basket = await readBasket(appId, tenantId, userId)
+  // Re-applying the same code already on the basket is idempotent — never
+  // double-count usage.
+  const alreadyApplied = basket[APPLIED_FIELD] === promo.code.toUpperCase()
   const summary = evaluate(basket, promo)
   if (summary.error) {
     // Don't persist an unapplied promo, but echo the engine's reason so the
     // frontend can render the right toast.
     return { basket, summary }
+  }
+  if (!alreadyApplied) {
+    const reserved = await tryReserveUsage(appId, tenantId, promo, userId)
+    if (!reserved.ok) {
+      return {
+        basket,
+        summary: { ...evaluate(basket, null), error: `usage limit reached (max ${promo.maxUsesPerUser} per user)` },
+      }
+    }
   }
   basket[APPLIED_FIELD] = promo.code.toUpperCase()
   await writeBasket(appId, tenantId, userId, basket)
@@ -149,8 +194,14 @@ export async function applyPromo({ appId, tenantId, userId, code }) {
 
 export async function clearPromo({ appId, tenantId, userId }) {
   const basket = await readBasket(appId, tenantId, userId)
+  const prev = basket[APPLIED_FIELD]
   delete basket[APPLIED_FIELD]
   await writeBasket(appId, tenantId, userId, basket)
+  // Free the per-user reservation so the customer can re-apply later.
+  if (prev) {
+    const promo = await getPromo({ appId, tenantId, code: prev })
+    if (promo && promo.maxUsesPerUser != null) await releaseUsage(appId, tenantId, prev, userId)
+  }
   return { basket, summary: evaluate(basket, null) }
 }
 

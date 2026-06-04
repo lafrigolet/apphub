@@ -75,6 +75,7 @@ describe('create', () => {
     expect(sql).toMatch(/INSERT INTO platform_catalog\.items/)
     expect(params).toEqual([
       'shop', 't1', null, 'Jarra', 'desc', 1500, 'usd', 'pots', JSON.stringify({ color: 'red' }),
+      null, null, null, null,
     ])
   })
 
@@ -82,7 +83,7 @@ describe('create', () => {
     const c = mockClient([{ id: 'i1' }])
     await repo.create(c, { appId: 'shop', tenantId: 't1', name: 'X' })
     const params = c.query.mock.calls[0][1]
-    expect(params).toEqual(['shop', 't1', null, 'X', null, 0, 'eur', null, null])
+    expect(params).toEqual(['shop', 't1', null, 'X', null, 0, 'eur', null, null, null, null, null, null])
   })
 })
 
@@ -110,7 +111,7 @@ describe('update', () => {
   it('sin campos → delega a findById (no UPDATE)', async () => {
     const c = mockClient([{ id: 'i1' }])
     const out = await repo.update(c, 'i1', {})
-    expect(c.query.mock.calls[0][0]).toMatch(/SELECT .* FROM platform_catalog\.items WHERE id = \$1/s)
+    expect(c.query.mock.calls[0][0]).toMatch(/SELECT .* FROM platform_catalog\.items\s+WHERE id = \$1/s)
     expect(out).toEqual({ id: 'i1' })
   })
 

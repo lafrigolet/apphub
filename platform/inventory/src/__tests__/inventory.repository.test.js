@@ -17,6 +17,7 @@ describe('findBySku', () => {
     expect(await repo.findBySku(c, APP, TEN, 'SKU1')).toBeNull()
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/FROM platform_inventory\.inventory_items/)
+    expect(sql).toMatch(/qty_on_hand - qty_reserved\) AS qty_available/)
     expect(sql).toMatch(/WHERE app_id = \$1 AND tenant_id = \$2 AND sku = \$3/)
     expect(params).toEqual([APP, TEN, 'SKU1'])
   })
@@ -28,10 +29,11 @@ describe('findBySku', () => {
 })
 
 describe('listByTenant', () => {
-  it('defaults limit/offset; ORDER BY sku', async () => {
+  it('defaults limit/offset; ORDER BY sku; proyecta qty_available', async () => {
     const c = mockClient([{ sku: 'A' }])
     await repo.listByTenant(c, APP, TEN)
     const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/qty_on_hand - qty_reserved\) AS qty_available/)
     expect(sql).toMatch(/ORDER BY sku/)
     expect(sql).toMatch(/LIMIT \$3 OFFSET \$4/)
     expect(params).toEqual([APP, TEN, 100, 0])
@@ -41,6 +43,61 @@ describe('listByTenant', () => {
     const c = mockClient([])
     await repo.listByTenant(c, APP, TEN, { limit: 10, offset: 5 })
     expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 10, 5])
+  })
+
+  it('lowStock añade guarda de umbral', async () => {
+    const c = mockClient([])
+    await repo.listByTenant(c, APP, TEN, { lowStock: true })
+    expect(c.query.mock.calls[0][0]).toMatch(/\(qty_on_hand - qty_reserved\) <= low_stock_threshold/)
+  })
+
+  it('rootOnly filtra parent_sku IS NULL', async () => {
+    const c = mockClient([])
+    await repo.listByTenant(c, APP, TEN, { rootOnly: true })
+    expect(c.query.mock.calls[0][0]).toMatch(/parent_sku IS NULL/)
+  })
+
+  it('parentSku explícito → filtro parametrizado', async () => {
+    const c = mockClient([])
+    await repo.listByTenant(c, APP, TEN, { parentSku: 'P' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/parent_sku = \$3/)
+    expect(params).toEqual([APP, TEN, 'P', 100, 0])
+  })
+
+  it('search aplica ILIKE sobre sku y display_name', async () => {
+    const c = mockClient([])
+    await repo.listByTenant(c, APP, TEN, { search: 'shoe' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/sku ILIKE \$3 OR display_name ILIKE \$3/)
+    expect(params).toEqual([APP, TEN, '%shoe%', 100, 0])
+  })
+})
+
+describe('listMovements', () => {
+  it('defaults: scoped por app/tenant/sku, ORDER BY created_at DESC', async () => {
+    const c = mockClient([{ id: 'm1' }])
+    const r = await repo.listMovements(c, APP, TEN, 'SKU1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/FROM platform_inventory\.stock_movements/)
+    expect(sql).toMatch(/ORDER BY created_at DESC/)
+    expect(params).toEqual([APP, TEN, 'SKU1', 100, 0])
+    expect(r).toEqual([{ id: 'm1' }])
+  })
+
+  it('aplica todos los filtros con índices correlativos', async () => {
+    const c = mockClient([])
+    await repo.listMovements(c, APP, TEN, 'SKU1', {
+      reason: 'commit', refType: 'order', refId: 'ord1',
+      from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z', limit: 10, offset: 5,
+    })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/reason = \$4/)
+    expect(sql).toMatch(/ref_type = \$5/)
+    expect(sql).toMatch(/ref_id = \$6/)
+    expect(sql).toMatch(/created_at >= \$7/)
+    expect(sql).toMatch(/created_at <= \$8/)
+    expect(params).toEqual([APP, TEN, 'SKU1', 'commit', 'order', 'ord1', '2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z', 10, 5])
   })
 })
 

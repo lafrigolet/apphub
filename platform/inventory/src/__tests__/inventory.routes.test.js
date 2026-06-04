@@ -11,6 +11,8 @@ vi.mock('../services/inventory.service.js', () => ({
   reserveItem:  vi.fn(),
   releaseItem:  vi.fn(),
   commitItem:   vi.fn(),
+  restockItem:  vi.fn(),
+  listMovements: vi.fn(),
   listVariants: vi.fn(),
   addVariant:   vi.fn(),
 }))
@@ -165,6 +167,63 @@ describe('reserve / release / commit', () => {
     })
     expect([400, 422, 500]).toContain(res.statusCode)
     expect(service.reserveItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /v1/inventory filtros', () => {
+  it('parsea lowStock/rootOnly/search', async () => {
+    service.listItems.mockResolvedValue([])
+    await app.inject({ method: 'GET', url: '/v1/inventory?lowStock=true&rootOnly=true&search=shoe', headers: auth })
+    expect(service.listItems).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ lowStock: true, rootOnly: true, search: 'shoe' }),
+    )
+  })
+})
+
+describe('POST /v1/inventory/:sku/restock', () => {
+  it('delega body + sku', async () => {
+    service.restockItem.mockResolvedValue({ sku: 'SKU1', qty_on_hand: 7 })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/inventory/SKU1/restock', headers: auth,
+      payload: { qty: 2, reason: 'return' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.restockItem).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ sku: 'SKU1', qty: 2, reason: 'return' }),
+    )
+  })
+
+  it('reason inválido no llega al service', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/inventory/SKU1/restock', headers: auth,
+      payload: { qty: 2, reason: 'bogus' },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.restockItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /v1/inventory/:sku/movements', () => {
+  it('delega sku + filtros parseados', async () => {
+    service.listMovements.mockResolvedValue([{ id: 'm1' }])
+    const res = await app.inject({
+      method: 'GET', url: '/v1/inventory/SKU1/movements?reason=commit&limit=10', headers: auth,
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.listMovements).toHaveBeenCalledWith(
+      expect.anything(), 'SKU1',
+      expect.objectContaining({ reason: 'commit', limit: 10 }),
+    )
+  })
+
+  it('reason inválido no llega al service', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/v1/inventory/SKU1/movements?reason=bogus', headers: auth,
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.listMovements).not.toHaveBeenCalled()
   })
 })
 

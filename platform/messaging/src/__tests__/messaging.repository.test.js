@@ -79,13 +79,17 @@ describe('insertMessage', () => {
 })
 
 describe('listMessages', () => {
-  it('defaults limit/offset + ORDER BY created_at ASC', async () => {
-    const c = mockClient({ rows: [{ id: 'm1' }] })
+  it('defaults limit/offset + ORDER BY created_at ASC + attachments unificados', async () => {
+    const c = mockClient({ rows: [{ id: 'm1', attachments: [] }] })
     const r = await repo.listMessages(c, APP, TEN, 'th1')
     const [sql, params] = c.query.mock.calls[0]
-    expect(sql).toMatch(/ORDER BY created_at ASC/)
+    expect(sql).toMatch(/ORDER BY m\.created_at ASC/)
+    // Unifica message_attachments (preferido) con fallback a la columna legacy.
+    expect(sql).toMatch(/jsonb_agg/)
+    expect(sql).toMatch(/message_attachments/)
+    expect(sql).toMatch(/NULLIF\(m\.attachments, '\[\]'::jsonb\)/)
     expect(params).toEqual([APP, TEN, 'th1', 100, 0])
-    expect(r).toEqual([{ id: 'm1' }])
+    expect(r).toEqual([{ id: 'm1', attachments: [] }])
   })
 
   it('limit/offset explícitos', async () => {
@@ -105,6 +109,61 @@ describe('markRead', () => {
 
   it('rowCount=0 → false', async () => {
     expect(await repo.markRead(mockClient({ rowCount: 0 }), APP, TEN, 'gh')).toBe(false)
+  })
+})
+
+describe('markThreadRead', () => {
+  it('flip read_at de mensajes ajenos no leídos; devuelve rowCount', async () => {
+    const c = mockClient({ rowCount: 3 })
+    const n = await repo.markThreadRead(c, APP, TEN, 'th1', 'u1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/UPDATE platform_messaging\.messages/)
+    expect(sql).toMatch(/sender_user_id <> \$4/)
+    expect(sql).toMatch(/read_at IS NULL/)
+    expect(params).toEqual([APP, TEN, 'th1', 'u1'])
+    expect(n).toBe(3)
+  })
+})
+
+describe('countUnreadInThread', () => {
+  it('cuenta mensajes ajenos no leídos del thread', async () => {
+    const c = mockClient({ rows: [{ n: 2 }] })
+    const n = await repo.countUnreadInThread(c, APP, TEN, 'th1', 'u1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/count\(\*\)::int AS n/)
+    expect(sql).toMatch(/sender_user_id <> \$4/)
+    expect(params).toEqual([APP, TEN, 'th1', 'u1'])
+    expect(n).toBe(2)
+  })
+})
+
+describe('unreadCountsByThread', () => {
+  it('agrupa por thread, scoped a threads del usuario y al tenant', async () => {
+    const c = mockClient({ rows: [{ thread_id: 'th1', unread: 4 }] })
+    const r = await repo.unreadCountsByThread(c, APP, TEN, 'u1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/GROUP BY m\.thread_id/)
+    expect(sql).toMatch(/t\.buyer_user_id = \$3 OR t\.vendor_user_id = \$3/)
+    expect(sql).toMatch(/m\.app_id=\$1 AND m\.tenant_id=\$2/)
+    expect(params).toEqual([APP, TEN, 'u1'])
+    expect(r).toEqual([{ thread_id: 'th1', unread: 4 }])
+  })
+})
+
+describe('recordFirstReply', () => {
+  it('set first_reply_at solo si era NULL; true cuando lo setea', async () => {
+    const c = mockClient({ rows: [{ first_reply_at: 'now' }] })
+    const ok = await repo.recordFirstReply(c, APP, TEN, 'th1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET first_reply_at = now\(\)/)
+    expect(sql).toMatch(/first_reply_at IS NULL/)
+    expect(params).toEqual([APP, TEN, 'th1'])
+    expect(ok).toBe(true)
+  })
+
+  it('no devuelve rows (ya había reply) → false', async () => {
+    const c = mockClient({ rows: [] })
+    expect(await repo.recordFirstReply(c, APP, TEN, 'th1')).toBe(false)
   })
 })
 

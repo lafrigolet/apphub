@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-Creación de reseña con `target_type ∈ {product, vendor}`, `rating 1–5`, `title`, `body`, `order_id` opcional; verificación de compra (soft-fail contra `platform/orders` vía HTTP loopback); unicidad por `(app_id, tenant_id, buyer_user_id, target_type, target_id, order_id)`; ciclo de estado `pending | published | hidden | removed`; respuesta de vendedor/staff (`review_replies`); moderación (PATCH status); borrado por hard-delete en cascada; votos útil/no-útil (`review_votes`, upsert, una vez por usuario, auto-exclusión del propio autor); adjuntos foto/vídeo (`review_media`, referencias a `platform_storage`); agregados (`total`, `average`, `r1–r5`, `verified_count`); listado filtrable por `status + verifiedOnly` con paginación; endpoint JSON-LD Schema.org (SEO); RLS por `(app_id, tenant_id)`; eventos `review.created`, `review.replied`, `review.hidden` en `platform.events`.
+Creación de reseña con `target_type ∈ {product, vendor, service}`, `rating 1–5`, `title`, `body`, `order_id` opcional; verificación de compra (soft-fail contra `platform/orders` vía HTTP loopback); unicidad por `(app_id, tenant_id, buyer_user_id, target_type, target_id, order_id)`; ciclo de estado `pending | published | hidden | removed`; respuesta de vendedor/staff (`review_replies`); moderación con guards de rol (`requireRole`), `moderation_reason` y cola `pending`; borrado por hard-delete en cascada; reportes de abuso (`review_reports`, upsert por reporter, cola de triage, auto-hide por umbral, evento `review.reported`); votos útil/no-útil (`review_votes`, upsert, una vez por usuario, auto-exclusión del propio autor); adjuntos foto/vídeo (`review_media`, referencias a `platform_storage`); agregados (`total`, `average`, `r1–r5`, `verified_count`) con caché Redis cache-aside; listado filtrable por `status + verifiedOnly` y ordenable (`sort`) con paginación; endpoint JSON-LD Schema.org (SEO); RLS por `(app_id, tenant_id)`; eventos `review.created`, `review.replied`, `review.hidden`, `review.reported` en `platform.events`.
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -18,7 +18,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Unicidad garantizada por índice único `(app_id, tenant_id, buyer_user_id, target_type, target_id, COALESCE(order_id, '00000000…'))` — 409 si ya existe.
 - ✅ Evento `review.created` publicado en `platform.events` tras inserción exitosa.
 - 🔧 El comprador puede enviar `status: 'pending'` para diferir publicación, pero el flujo de auto-publicación tras revisión es manual (staff debe hacer PATCH).
-- ❌ `target_type: 'service'` no soportado — solo `product | vendor` (necesario para `platform/appointments`).
+- ✅ `target_type: 'service'` soportado (además de `product | vendor`) — desbloquea reseñas de `platform/appointments`.
 - ❌ Reseña de pedido multi-ítem: hoy es una reseña por `target_id`; no hay flujo de "puntúa cada producto de tu pedido".
 - ❌ Reseña de entrega / repartidor (tipo `delivery_driver`).
 - ❌ Fecha de experiencia (`date_of_experience`) independiente de `created_at`.
@@ -40,7 +40,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `target_type: 'product'` — reseña de producto del catálogo.
 - ✅ `target_type: 'vendor'` — reseña global del vendedor.
-- ❌ `target_type: 'service'` — reseña de servicio/cita (necesario para `platform/appointments`).
+- ✅ `target_type: 'service'` — reseña de servicio/cita (CHECK widened en `0004`, enum Zod actualizado; verificación de reserva sigue pendiente).
 - ❌ `target_type: 'experience'` / `'event'` — para apps de tipo experiencias/eventos.
 - ❌ Reseñas cruzadas: producto + vendedor desde el mismo pedido en una sola operación.
 - ❌ Reseña de la plataforma / del marketplace en sí.
@@ -51,7 +51,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Múltiples respuestas por reseña (tabla `review_replies`, sin límite).
 - ✅ `reply.body ≤ 4000` caracteres.
 - ✅ Evento `review.replied` con `buyerUserId` incluido (permite notificar al comprador).
-- 🔧 Sin restricción de rol en el endpoint de reply — cualquier usuario autenticado puede responder; idealmente sólo `vendor | staff | super_admin`.
+- ✅ `requireRole('vendor', 'staff', 'super_admin', 'admin')` en el endpoint de reply — sólo moderadores responden.
 - 🔧 No hay límite de número de respuestas por reseña.
 - ❌ Edición de una respuesta ya publicada.
 - ❌ Borrado de respuesta individual (sólo se borran en cascada al borrar la reseña).
@@ -61,12 +61,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 5. Moderación
 
-- ✅ `PATCH /v1/reviews/:id/status` con `status ∈ {pending, published, hidden, removed}`.
-- ✅ Evento `review.hidden` publicado cuando el nuevo estado es `hidden` o `removed`.
-- ✅ Hard-delete (`DELETE /v1/reviews/:id`) con cascade a `review_votes` y `review_media`.
-- 🔧 No hay guard de rol en PATCH status ni DELETE — cualquier usuario autenticado puede moderar; debería requerir `staff | super_admin | vendor`.
-- ❌ Cola de moderación: lista filtrada de reseñas en estado `pending` para revisión.
-- ❌ Motivo de ocultación / eliminación (`moderation_reason`).
+- ✅ `PATCH /v1/reviews/:id/status` con `status ∈ {pending, published, hidden, removed}` y `moderationReason` opcional.
+- ✅ Evento `review.hidden` publicado cuando el nuevo estado es `hidden` o `removed` (incluye `moderationReason`).
+- ✅ Hard-delete (`DELETE /v1/reviews/:id`) con cascade a `review_votes`, `review_media` y `review_reports`.
+- ✅ Guard de rol en PATCH status y DELETE — `requireRole('vendor', 'staff', 'super_admin', 'admin')`.
+- ✅ Cola de moderación: `GET /v1/reviews/moderation/queue` (default `status=pending`, paginada, sólo moderadores).
+- ✅ Motivo de ocultación / eliminación (`moderation_reason` en la fila + propagado al evento).
 - ❌ Audit log de acciones de moderación (quién cambió qué y cuándo).
 - ❌ Filtros automáticos de palabras prohibidas (lista negra configurable por tenant).
 - ❌ Detección de spam / duplicados por similitud de texto.
@@ -76,11 +76,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 6. Reporte / denuncia de reseña
 
-- ❌ `POST /v1/reviews/:id/report` por parte de cualquier usuario (comprador, vendedor, tercero).
-- ❌ Tipos de reporte: spam, fake, contenido inapropiado, información falsa, incentivada.
-- ❌ Cola de reportes para staff con conteo de señales.
-- ❌ Umbral de reportes para ocultación automática.
-- ❌ Notificación a moderadores al superar umbral (REUSE `platform/notifications`).
+- ✅ `POST /v1/reviews/:id/report` por parte de cualquier usuario autenticado (comprador, vendedor, tercero); upsert por `(review_id, reporter_user_id)`.
+- ✅ Tipos de reporte: `spam | fake | inappropriate | misinformation | incentivized | other`.
+- ✅ Cola de reportes para staff: `GET /v1/reviews/reports` (default `status=open`) + `PATCH /v1/reviews/reports/:reportId` (reviewed/dismissed), sólo moderadores.
+- ✅ Umbral de reportes para ocultación automática (≥3 reportes abiertos → `hidden` con `moderation_reason` automático).
+- 🔧 Evento `review.reported` publicado con `openCount` (consumidor en `platform/notifications` para avisar a moderadores sigue pendiente — cross-cutting).
 
 ## 7. Edición y borrado por el comprador
 
@@ -99,7 +99,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `DELETE /v1/reviews/:id/vote` — retira el voto.
 - ✅ Contadores `helpful_count` / `unhelpful_count` en la fila de la reseña, recomputados en el service layer (sin triggers).
 - 🔧 No hay evento publicado cuando se vota (no se puede reaccionar desde otros módulos).
-- ❌ Ordenación de listado por `helpful_count DESC` (por defecto se ordena por `created_at DESC`).
+- ✅ Ordenación de listado por `helpful_count DESC` (`sort=helpful`); ver § 11.
 - ❌ Peso del voto según perfil del votante (purchaser vs. no-purchaser).
 - ❌ Límite de votos por IP para prevenir abuso anónimo.
 
@@ -122,8 +122,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `GET /v1/reviews/aggregate` — devuelve `total`, `average` (float), `r1–r5` (distribución por estrella), `verified_count`.
 - ✅ Filtro `verifiedOnly` en el listado.
 - ✅ Solo se agregan reseñas con `status = 'published'`.
-- 🔧 El agregado se recalcula en cada consulta (sin caché); puede ser costoso para targets con miles de reseñas.
-- ❌ Caché del agregado en Redis con invalidación por evento `review.created` / `review.hidden` (REUSE `platform/events`).
+- ✅ El agregado se cachea en Redis (TTL 300 s) y se invalida en `createReview` / `setStatus` / `remove` / auto-hide por reportes; lectura `cache-aside` con fallback a DB si Redis cae.
 - ❌ Evolución temporal del rating (rating medio por mes/semana).
 - ❌ Comparativa del target vs. media de la categoría / del tenant.
 - ❌ Percentil de rating del vendedor respecto al resto del marketplace.
@@ -131,9 +130,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 11. Listado, ordenación y filtros
 
-- ✅ `GET /v1/reviews` con `targetType`, `targetId`, `status`, `verifiedOnly`, `limit` (máx 200), `offset`.
-- ✅ Ordenación por `created_at DESC` (única opción disponible).
-- 🔧 Sólo un criterio de ordenación; falta ordenar por `helpful_count DESC`, `rating ASC/DESC`.
+- ✅ `GET /v1/reviews` con `targetType`, `targetId`, `status`, `verifiedOnly`, `sort`, `limit` (máx 200), `offset`.
+- ✅ Ordenación configurable vía `sort ∈ {recent, oldest, helpful, rating_high, rating_low}` (whitelist server-side; default `recent`).
 - ❌ Filtro por rango de fechas (`from` / `to`).
 - ❌ Filtro por rango de rating (`ratingMin`, `ratingMax`).
 - ❌ Filtro por presencia de media.
@@ -183,7 +181,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `review.created` publicado en `platform.events` (incluye `targetType`, `targetId`, `rating`, `verifiedPurchase`).
 - ✅ `review.replied` publicado con `buyerUserId` (listo para notificar al comprador).
-- ✅ `review.hidden` / `review.removed` publicado con nuevo estado.
+- ✅ `review.hidden` / `review.removed` publicado con nuevo estado (incluye `moderationReason`).
+- ✅ `review.reported` publicado con `reason` + `openCount` (analítica / triage).
 - ❌ Consumidor en `platform/notifications` para enviar email/push al comprador cuando el vendedor responde.
 - ❌ Notificación al vendedor cuando llega una reseña nueva de uno de sus productos.
 - ❌ Alerta a staff cuando el rating medio de un target cae por debajo de umbral.
@@ -204,7 +203,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ RLS en las tres tablas (`reviews`, `review_replies`, `review_votes`, `review_media`) por `(app_id, tenant_id)`.
 - ✅ `appGuard` del SDK garantiza que el token pertenece al `app_id` correcto (no cross-app).
 - ✅ Sub-tenant (`sub_tenant_id`) propagado al contexto pero no aplicado en RLS (por diseño: las reseñas son a nivel tenant).
-- 🔧 Sin restricción de rol en los endpoints de moderación, respuesta y borrado — cualquier usuario autenticado puede ejecutarlos; falta guard por `role ∈ {vendor, staff, super_admin}`.
+- ✅ `requireRole('vendor', 'staff', 'super_admin', 'admin')` en reply, PATCH status, DELETE, cola de moderación y triage de reportes.
 - ❌ Visibilidad de reseñas en estado `pending` / `hidden` limitada a staff y al propio autor.
 - ❌ Endpoint admin con listado cross-target para gestión masiva de moderación.
 - ❌ Configuración por tenant de los estados de moderación por defecto (algunos pueden querer `pending` como estado inicial obligatorio).
@@ -213,13 +212,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Guards de rol en moderación y reply** — cualquier usuario autenticado puede hoy ocultar o borrar reseñas; añadir `requireRole('vendor', 'staff', 'super_admin')` es un parche de seguridad inmediato y de coste mínimo.
-2. **Notificación al comprador cuando el vendedor responde** — el evento `review.replied` ya existe; solo falta el consumidor en `platform/notifications` (REUSE directo).
-3. **Solicitud de reseña post-compra** — job en `platform/scheduler` que escucha `order.completed` y envía el correo (REUSE `platform/notifications + scheduler`); gran impacto en volumen de reseñas.
-4. **Ordenación por helpful_count DESC** — trivial de implementar; mejora notablemente la calidad del listado público.
-5. **Caché Redis de agregados** — invalidar en `review.created` / `review.hidden`; necesario antes de tráfico alto para no recomputar en cada petición de PDP.
-6. **`target_type: 'service'`** — desbloquea el uso del módulo por `platform/appointments`; el cambio es un `CHECK` en la migración + ajuste en la validación Zod.
-7. **Moderación básica**: guard de roles + cola `pending` + motivo de ocultación — cierra el ciclo operativo sin coste arquitectónico.
+1. ✅ ~~**Guards de rol en moderación y reply**~~ (`requireRole('vendor','staff','super_admin','admin')` en reply, PATCH status, DELETE, cola de moderación y triage de reportes).
+2. **Notificación al comprador cuando el vendedor responde** — el evento `review.replied` ya existe; solo falta el consumidor en `platform/notifications` (REUSE directo). *(Cross-cutting: requiere `platform/notifications`.)*
+3. **Solicitud de reseña post-compra** — job en `platform/scheduler` que escucha `order.completed` y envía el correo (REUSE `platform/notifications + scheduler`); gran impacto en volumen de reseñas. *(Cross-cutting: requiere `platform/scheduler` + `platform/notifications`.)*
+4. ✅ ~~**Ordenación por helpful_count DESC**~~ (parámetro `sort ∈ {recent, oldest, helpful, rating_high, rating_low}`, whitelist server-side).
+5. ✅ ~~**Caché Redis de agregados**~~ (cache-aside TTL 300 s, invalidación en create/setStatus/remove/auto-hide, fallback a DB).
+6. ✅ ~~**`target_type: 'service'`**~~ (`CHECK` ampliado en `0004` + enum Zod).
+7. ✅ ~~**Moderación básica**: guard de roles + cola `pending` + motivo de ocultación~~ (cola `GET /moderation/queue` + `moderation_reason` en fila y evento).
 8. **GDPR — anonimización por `buyer_user_id`** — consumir `user.deleted` y reemplazar IDs por un UUID nulo/anónimo; obligatorio en España/UE antes de producción pública.
-9. **Reporte de reseña** (`/report`) — sin él no hay mecanismo para que vendedores o compradores señalen abuso; coste bajo, impacto alto en confianza.
+9. ✅ ~~**Reporte de reseña** (`/report`)~~ (tipos spam/fake/…, cola de reportes + triage, auto-hide por umbral ≥3, evento `review.reported`).
 10. **Edición por el comprador** — ahora solo puede borrar; añadir PATCH con historial de edición mejora la experiencia y reduce el abuso post-reply.

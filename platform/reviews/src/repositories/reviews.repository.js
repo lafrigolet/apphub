@@ -23,19 +23,43 @@ export async function findById(client, appId, tenantId, id) {
   return rows[0] ?? null
 }
 
-export async function listByTarget(client, appId, tenantId, { targetType, targetId, status = 'published', verifiedOnly = false, limit = 50, offset = 0 }) {
+// Whitelisted ORDER BY clauses. Never interpolate caller input directly into
+// SQL — map a known `sort` token to a fixed, safe clause.
+const SORT_CLAUSES = {
+  recent:        'created_at DESC',
+  oldest:        'created_at ASC',
+  helpful:       'helpful_count DESC, created_at DESC',
+  rating_high:   'rating DESC, created_at DESC',
+  rating_low:    'rating ASC, created_at DESC',
+}
+
+export async function listByTarget(client, appId, tenantId, { targetType, targetId, status = 'published', verifiedOnly = false, sort = 'recent', limit = 50, offset = 0 }) {
   const filters = [
     'app_id=$1', 'tenant_id=$2', 'target_type=$3', 'target_id=$4', 'status=$5',
   ]
   const params = [appId, tenantId, targetType, targetId, status]
   if (verifiedOnly) filters.push('verified_purchase = TRUE')
+  const orderBy = SORT_CLAUSES[sort] ?? SORT_CLAUSES.recent
   params.push(limit, offset)
   const { rows } = await client.query(
     `SELECT * FROM ${SCHEMA}.reviews
      WHERE ${filters.join(' AND ')}
-     ORDER BY created_at DESC
+     ORDER BY ${orderBy}
      LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
+  )
+  return rows
+}
+
+// Moderation queue: reviews in a given status (default 'pending') for the
+// whole tenant, newest first — backs the staff triage screen.
+export async function listForModeration(client, appId, tenantId, { status = 'pending', limit = 50, offset = 0 }) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.reviews
+     WHERE app_id=$1 AND tenant_id=$2 AND status=$3
+     ORDER BY created_at DESC
+     LIMIT $4 OFFSET $5`,
+    [appId, tenantId, status, limit, offset],
   )
   return rows
 }
@@ -57,13 +81,13 @@ export async function aggregate(client, appId, tenantId, { targetType, targetId 
   return rows[0]
 }
 
-export async function setStatus(client, appId, tenantId, id, status) {
+export async function setStatus(client, appId, tenantId, id, status, moderationReason = null) {
   const { rows } = await client.query(
     `UPDATE ${SCHEMA}.reviews
-     SET status=$4, updated_at=now()
+     SET status=$4, moderation_reason=$5, updated_at=now()
      WHERE app_id=$1 AND tenant_id=$2 AND id=$3
      RETURNING *`,
-    [appId, tenantId, id, status],
+    [appId, tenantId, id, status, moderationReason],
   )
   return rows[0] ?? null
 }
@@ -161,4 +185,52 @@ export async function listReplies(client, appId, tenantId, reviewId) {
     [appId, tenantId, reviewId],
   )
   return rows
+}
+
+// ── Reports / abuse flags ───────────────────────────────────────────────
+
+export async function upsertReport(client, appId, tenantId, reviewId, reporterUserId, reason, detail) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.review_reports
+       (app_id, tenant_id, review_id, reporter_user_id, reason, detail)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (review_id, reporter_user_id) DO UPDATE
+       SET reason = EXCLUDED.reason, detail = EXCLUDED.detail,
+           status = 'open', created_at = now()
+     RETURNING *`,
+    [appId, tenantId, reviewId, reporterUserId, reason, detail ?? null],
+  )
+  return rows[0]
+}
+
+export async function countOpenReports(client, appId, tenantId, reviewId) {
+  const { rows } = await client.query(
+    `SELECT COUNT(*)::int AS count FROM ${SCHEMA}.review_reports
+       WHERE app_id=$1 AND tenant_id=$2 AND review_id=$3 AND status='open'`,
+    [appId, tenantId, reviewId],
+  )
+  return rows[0].count
+}
+
+// Staff triage: list reports for the tenant filtered by status, newest first.
+export async function listReports(client, appId, tenantId, { status = 'open', limit = 50, offset = 0 }) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.review_reports
+       WHERE app_id=$1 AND tenant_id=$2 AND status=$3
+       ORDER BY created_at DESC
+       LIMIT $4 OFFSET $5`,
+    [appId, tenantId, status, limit, offset],
+  )
+  return rows
+}
+
+export async function setReportStatus(client, appId, tenantId, reportId, status) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.review_reports
+       SET status=$4
+       WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+       RETURNING *`,
+    [appId, tenantId, reportId, status],
+  )
+  return rows[0] ?? null
 }

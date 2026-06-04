@@ -8,19 +8,29 @@ vi.mock('../lib/env.js', () => ({
 }))
 
 vi.mock('../services/items.service.js', () => ({
-  listItems:        vi.fn(),
-  searchItems:      vi.fn(),
-  getItem:          vi.fn(),
-  createItem:       vi.fn(),
-  updateItem:       vi.fn(),
-  deleteItem:       vi.fn(),
-  setItemStatus:    vi.fn(),
-  listItemVersions: vi.fn(),
-  listImages:       vi.fn(),
-  attachImage:      vi.fn(),
-  detachImage:      vi.fn(),
-  exportCsv:        vi.fn(),
-  importCsv:        vi.fn(),
+  listItems:           vi.fn(),
+  searchItems:         vi.fn(),
+  getItem:             vi.fn(),
+  createItem:          vi.fn(),
+  updateItem:          vi.fn(),
+  deleteItem:          vi.fn(),
+  softDeleteItem:      vi.fn(),
+  restoreItem:         vi.fn(),
+  setItemStatus:       vi.fn(),
+  listItemVersions:    vi.fn(),
+  listImages:          vi.fn(),
+  attachImage:         vi.fn(),
+  detachImage:         vi.fn(),
+  exportCsv:           vi.fn(),
+  importCsv:           vi.fn(),
+  listCategories:      vi.fn(),
+  createCategory:      vi.fn(),
+  updateCategory:      vi.fn(),
+  deleteCategory:      vi.fn(),
+  listItemsByCategory: vi.fn(),
+  listItemCategories:  vi.fn(),
+  assignCategory:      vi.fn(),
+  unassignCategory:    vi.fn(),
 }))
 
 // app-guard stub: inyecta identity en cada request (no role-gating aquí).
@@ -206,6 +216,156 @@ describe('POST /v1/items/import.csv', () => {
     expect(res.json()).toEqual({ rowsTotal: 1, inserted: 1, updated: 0, errors: 0 })
     expect(service.importCsv).toHaveBeenCalledWith(
       expect.objectContaining({ csv: 'name,price_cents\nJarra,1500\n' }),
+    )
+  })
+})
+
+// ── New: pagination ────────────────────────────────────────────────────
+describe('GET /v1/items pagination', () => {
+  it('?limit/?offset se pasan numéricos al service', async () => {
+    service.listItems.mockResolvedValue({ data: [], total: 0, limit: 10, offset: 5 })
+    const res = await app.inject({ method: 'GET', url: '/v1/items?limit=10&offset=5' })
+    expect(res.statusCode).toBe(200)
+    expect(service.listItems).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 10, offset: 5 }),
+    )
+  })
+
+  it('?includeDeleted=true se propaga', async () => {
+    service.listItems.mockResolvedValue([])
+    await app.inject({ method: 'GET', url: '/v1/items?includeDeleted=true' })
+    expect(service.listItems).toHaveBeenCalledWith(expect.objectContaining({ includeDeleted: true }))
+  })
+
+  it('limit fuera de rango → 422', async () => {
+    const res = await app.inject({ method: 'GET', url: '/v1/items?limit=9999' })
+    expect(res.statusCode).toBe(422)
+  })
+})
+
+// ── New: SEO/type on create ────────────────────────────────────────────
+describe('POST /v1/items SEO + type', () => {
+  it('acepta slug/metaTitle/itemType', async () => {
+    service.createItem.mockResolvedValue({ id: UUID })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/items',
+      payload: { name: 'Zapatilla', slug: 'zapatilla-pro', metaTitle: 'Pro', itemType: 'physical' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createItem).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'zapatilla-pro', metaTitle: 'Pro', itemType: 'physical' }),
+    )
+  })
+
+  it('slug no-kebab → 422', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/items', payload: { name: 'X', slug: 'Not Valid Slug' },
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('itemType inválido → 422', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/items', payload: { name: 'X', itemType: 'weird' },
+    })
+    expect(res.statusCode).toBe(422)
+  })
+})
+
+// ── New: soft delete + restore ─────────────────────────────────────────
+describe('soft-delete / restore', () => {
+  it('POST /v1/items/:id/soft-delete delega a softDeleteItem', async () => {
+    service.softDeleteItem.mockResolvedValue({ id: UUID, deleted_at: 'now' })
+    const res = await app.inject({ method: 'POST', url: `/v1/items/${UUID}/soft-delete` })
+    expect(res.statusCode).toBe(200)
+    expect(service.softDeleteItem).toHaveBeenCalledWith(expect.objectContaining({ id: UUID }))
+  })
+
+  it('POST /v1/items/:id/restore delega a restoreItem', async () => {
+    service.restoreItem.mockResolvedValue({ id: UUID, deleted_at: null })
+    const res = await app.inject({ method: 'POST', url: `/v1/items/${UUID}/restore` })
+    expect(res.statusCode).toBe(200)
+    expect(service.restoreItem).toHaveBeenCalledWith(expect.objectContaining({ id: UUID }))
+  })
+})
+
+// ── New: categories ────────────────────────────────────────────────────
+describe('categories', () => {
+  it('GET /v1/categories → { data }', async () => {
+    service.listCategories.mockResolvedValue([{ id: 'c1' }])
+    const res = await app.inject({ method: 'GET', url: '/v1/categories' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ data: [{ id: 'c1' }] })
+  })
+
+  it('POST /v1/categories → 201', async () => {
+    service.createCategory.mockResolvedValue({ id: UUID, slug: 'bebidas' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/categories',
+      payload: { name: 'Bebidas', slug: 'bebidas' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Bebidas', slug: 'bebidas' }),
+    )
+  })
+
+  it('POST /v1/categories slug inválido → 422', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/categories', payload: { name: 'X', slug: 'Bad Slug' },
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('PATCH /v1/categories/:id delega a updateCategory', async () => {
+    service.updateCategory.mockResolvedValue({ id: UUID, name: 'N' })
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/categories/${UUID}`, payload: { name: 'N' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.updateCategory).toHaveBeenCalledWith(expect.objectContaining({ id: UUID, name: 'N' }))
+  })
+
+  it('DELETE /v1/categories/:id → 204', async () => {
+    service.deleteCategory.mockResolvedValue()
+    const res = await app.inject({ method: 'DELETE', url: `/v1/categories/${UUID}` })
+    expect(res.statusCode).toBe(204)
+  })
+
+  it('GET /v1/categories/:id/items → { data }', async () => {
+    service.listItemsByCategory.mockResolvedValue([{ id: 'i1' }])
+    const res = await app.inject({ method: 'GET', url: `/v1/categories/${UUID}/items` })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ data: [{ id: 'i1' }] })
+  })
+})
+
+// ── New: item ↔ category assignment ────────────────────────────────────
+describe('item category assignment', () => {
+  it('GET /v1/items/:id/categories → { data }', async () => {
+    service.listItemCategories.mockResolvedValue([{ id: 'c1' }])
+    const res = await app.inject({ method: 'GET', url: `/v1/items/${UUID}/categories` })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ data: [{ id: 'c1' }] })
+  })
+
+  it('POST /v1/items/:id/categories → 201 + assignCategory', async () => {
+    service.assignCategory.mockResolvedValue([{ id: UUID2 }])
+    const res = await app.inject({
+      method: 'POST', url: `/v1/items/${UUID}/categories`, payload: { categoryId: UUID2 },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.assignCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ id: UUID, categoryId: UUID2 }),
+    )
+  })
+
+  it('DELETE /v1/items/:id/categories/:categoryId → 204', async () => {
+    service.unassignCategory.mockResolvedValue()
+    const res = await app.inject({ method: 'DELETE', url: `/v1/items/${UUID}/categories/${UUID2}` })
+    expect(res.statusCode).toBe(204)
+    expect(service.unassignCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ id: UUID, categoryId: UUID2 }),
     )
   })
 })

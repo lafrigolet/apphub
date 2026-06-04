@@ -3,10 +3,10 @@ const SCHEMA = 'platform_disputes'
 export async function insert(client, appId, tenantId, d) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.disputes
-       (app_id, tenant_id, order_id, buyer_user_id, reason, description, status)
-     VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7,'open'))
+       (app_id, tenant_id, order_id, buyer_user_id, reason, reason_code, description, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE($8,'open'))
      RETURNING *`,
-    [appId, tenantId, d.orderId, d.buyerUserId, d.reason, d.description ?? null, d.status ?? null],
+    [appId, tenantId, d.orderId, d.buyerUserId, d.reason, d.reasonCode ?? null, d.description ?? null, d.status ?? null],
   )
   return rows[0]
 }
@@ -27,10 +27,12 @@ export async function findByOrderId(client, appId, tenantId, orderId) {
   return rows[0] ?? null
 }
 
-export async function listByTenant(client, appId, tenantId, { status, limit = 50, offset = 0 } = {}) {
+export async function listByTenant(client, appId, tenantId, { status, buyerUserId, reasonCode, limit = 50, offset = 0 } = {}) {
   const filters = ['app_id = $1', 'tenant_id = $2']
   const params  = [appId, tenantId]
   if (status) { filters.push(`status = $${params.length + 1}`); params.push(status) }
+  if (buyerUserId) { filters.push(`buyer_user_id = $${params.length + 1}`); params.push(buyerUserId) }
+  if (reasonCode) { filters.push(`reason_code = $${params.length + 1}`); params.push(reasonCode) }
   params.push(limit, offset)
   const { rows } = await client.query(
     `SELECT * FROM ${SCHEMA}.disputes
@@ -64,19 +66,43 @@ export async function updateStatus(client, appId, tenantId, id, fields) {
   return rows[0] ?? null
 }
 
-export async function insertMessage(client, appId, tenantId, disputeId, senderUserId, senderRole, body, attachments = []) {
+export async function insertMessage(client, appId, tenantId, disputeId, senderUserId, senderRole, body, attachments = [], isInternal = false) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.dispute_messages
-       (app_id, tenant_id, dispute_id, sender_user_id, sender_role, body, attachments)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [appId, tenantId, disputeId, senderUserId, senderRole, body, JSON.stringify(attachments)],
+       (app_id, tenant_id, dispute_id, sender_user_id, sender_role, body, attachments, is_internal)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [appId, tenantId, disputeId, senderUserId, senderRole, body, JSON.stringify(attachments), isInternal],
   )
   return rows[0]
 }
 
-export async function listMessages(client, appId, tenantId, disputeId) {
+// includeInternal=false hides staff-only internal notes from buyer/vendor.
+export async function listMessages(client, appId, tenantId, disputeId, { includeInternal = true } = {}) {
+  const filters = ['app_id=$1', 'tenant_id=$2', 'dispute_id=$3']
+  if (!includeInternal) filters.push('is_internal = false')
   const { rows } = await client.query(
     `SELECT * FROM ${SCHEMA}.dispute_messages
+     WHERE ${filters.join(' AND ')} ORDER BY created_at ASC`,
+    [appId, tenantId, disputeId],
+  )
+  return rows
+}
+
+// ── status history (append-only audit trail) ────────────────────────────
+
+export async function insertStatusHistory(client, appId, tenantId, disputeId, h) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.dispute_status_history
+       (app_id, tenant_id, dispute_id, from_status, to_status, actor_user_id, actor_role, note)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [appId, tenantId, disputeId, h.fromStatus ?? null, h.toStatus, h.actorUserId ?? null, h.actorRole ?? null, h.note ?? null],
+  )
+  return rows[0]
+}
+
+export async function listStatusHistory(client, appId, tenantId, disputeId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.dispute_status_history
      WHERE app_id=$1 AND tenant_id=$2 AND dispute_id=$3 ORDER BY created_at ASC`,
     [appId, tenantId, disputeId],
   )

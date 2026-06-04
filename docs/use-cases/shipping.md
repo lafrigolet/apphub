@@ -27,7 +27,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Crear zona con nombre + lista de países (`country_codes: TEXT[]`) y regiones (`region_codes: TEXT[]`).
 - ✅ Listar zonas del tenant.
 - ✅ Aislamiento RLS por `(app_id, tenant_id)`.
-- 🔧 No existe actualización (PATCH) ni borrado de zona — solo creación y lectura.
+- ✅ Actualización (`PATCH /v1/shipping/zones/:id`) y borrado (`DELETE /v1/shipping/zones/:id`) de zona.
 - ❌ Zona "resto del mundo" / comodín para países no cubiertos explícitamente.
 - ❌ Zonas por código postal (ZIP/CP ranges) o polígono geográfico.
 - ❌ Zonas excluidas/prohibidas (países con embargo, regiones sin cobertura).
@@ -40,22 +40,22 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Tarifas sin zona asignada (globales, aplican a todos los destinos del tenant).
 - ✅ Listar tarifas, filtro opcional por `zone_id`.
 - ✅ Varios tramos de peso en la misma zona (múltiples filas de tarifa).
-- 🔧 Solo criterio de tarifa por peso: no hay tramos por valor del pedido (`order_value`), por cantidad de artículos (`qty`), ni por volumen/dimensiones.
-- 🔧 No existe actualización ni borrado de tarifa.
+- 🔧 Criterio de tarifa por peso + free-shipping threshold por valor del pedido; aún sin tramos por cantidad de artículos (`qty`) ni por volumen/dimensiones.
+- ✅ Actualización (`PATCH /v1/shipping/rates/:id`) y borrado (`DELETE /v1/shipping/rates/:id`) de tarifa.
 - ❌ Tarifa plana fija (ya posible: `min_weight_g=0`, `max_weight_g=null`, pero sin etiqueta semántica "flat rate").
-- ❌ Envío gratuito a partir de X€ de pedido (free shipping threshold) — falta campo en la tarifa.
-- ❌ Tarifas por velocidad/nivel de servicio (`economy`, `express`, `overnight`) como dimensión explícita.
+- ✅ Envío gratuito a partir de X€ de pedido (`free_above_cents` en `shipping_rates`); el quote devuelve `effective_price_cents=0` + `free_shipping_applied=true` cuando `orderValueCents >= free_above_cents`.
+- ✅ Tarifas por velocidad/nivel de servicio (`service_level`: `economy`/`standard`/`express`/`overnight`/`in_store_pickup`) como dimensión explícita.
 - ❌ Descuentos por volumen (escalas de precio según número de envíos del tenant en el periodo).
 - ❌ Tarifa negociada por carrier (conectar a la tabla de credenciales para obtener rate en tiempo real).
-- ❌ Activar/desactivar tarifa sin borrarla.
+- ✅ Activar/desactivar tarifa sin borrarla (campo `active`; el quote solo devuelve `active=TRUE`).
 - ❌ Ordenación personalizada de tarifas presentadas al comprador.
 
 ## 3. Cotización en el checkout
 
 - ✅ `GET /v1/shipping/quote?country=XX` — devuelve las tarifas aplicables a ese país de destino, ordenadas por precio.
 - ✅ Tarifas globales (sin zona) incluidas siempre en la cotización.
-- 🔧 La cotización no recibe peso del carrito — el filtro por `min_weight_g/max_weight_g` no se aplica durante el quote; la llamada devuelve todas las tarifas sin discriminar por peso.
-- ❌ Quote con peso real del pedido (integración con `platform/basket` o `platform/orders`).
+- ✅ La cotización acepta `weightG` (peso del carrito) y aplica `min_weight_g/max_weight_g` en la query; también acepta `orderValueCents` para resolver free-shipping. `GET /v1/shipping/quote?country=XX&weightG=NNN&orderValueCents=NNN`.
+- 🔧 Quote con peso real del pedido: el endpoint ya filtra por `weightG`; falta la integración automática que lo deriva de `platform/basket` o `platform/orders` (hoy lo pasa el llamante).
 - ❌ Quote multi-destino (un pedido con ítems enviados a direcciones distintas).
 - ❌ Estimación de entrega dinámica (ETA) basada en día/hora de corte del transportista.
 - ❌ Rate-shopping en tiempo real contra APIs de UPS/FedEx/DHL/EasyPost para obtener precios reales al checkout (hoy solo tarifas configuradas manualmente).
@@ -71,12 +71,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Aislamiento RLS + índices por `order_id` y `(tenant_id, status)`.
 - 🔧 Solo un envío por pedido en la creación automática desde `order.paid`; multi-envío (split shipment) requiere llamadas manuales.
 - 🔧 No hay endpoint de actualización general del envío (no se puede corregir carrier o tracking_code después de crearlo, solo vía transiciones de estado/evento).
-- ❌ Listar envíos del tenant (falta `GET /v1/shipping/shipments` con filtros de estado, fecha, carrier).
-- ❌ Listar envíos por `order_id`.
+- ✅ Listar envíos del tenant (`GET /v1/shipping/shipments` con filtros `status`, `carrier`, `orderId`, `createdSince`, `limit` acotado 1..200).
+- ✅ Listar envíos por `order_id` (`GET /v1/shipping/shipments?orderId=…`).
 - ❌ Cancelación de envío (estado `cancelled`).
 - ❌ División de un pedido en múltiples envíos (split shipment por warehouse o vendor).
 - ❌ Envío parcial (partial fulfillment) — ítems de una línea del pedido enviados en varias tandas.
-- ❌ Fecha estimada de entrega almacenada en el envío (ETA calculado en el momento de crear).
+- ✅ Fecha estimada de entrega almacenada en el envío (`estimated_delivery_date`, calculada al crear como `eta_days_max` de la tarifa en días laborables saltando fines de semana; se publica en `shipping.shipment.created`).
 - ❌ Dirección de destino almacenada en el envío (hoy solo `order_id`).
 
 ## 5. Multi-paquete por envío
@@ -112,11 +112,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Endpoint público `POST /v1/shipping/webhooks/:carrier` (UPS/FedEx/DHL/EasyPost) — sin JWT.
 - ✅ Registro idempotente en `carrier_webhook_events` con `(carrier, event_external_id)` UNIQUE — duplicados descartados silenciosamente.
-- ✅ Verificación HMAC-SHA256 para EasyPost (`easypost_webhook_secret`); `signature_valid` almacenado en la tabla.
+- ✅ Verificación HMAC para EasyPost + UPS (HMAC-SHA256) y DHL (HMAC-SHA1), usando los secretos cifrados de `settings` (`easypost_webhook_secret`, `ups_client_secret`, `dhl_api_secret`); `signature_valid` almacenado en la tabla.
 - ✅ Auto-transición del envío y paquete al recibir `in_transit`, `delivered`, `returned` desde el payload del carrier.
 - ✅ Persistencia del payload completo en `JSONB` para auditoría.
 - ✅ Índice de webhooks no procesados (`WHERE processed_at IS NULL`) para re-procesamiento.
-- 🔧 Verificación de firma solo para EasyPost — UPS (HMAC-SHA256), FedEx (Bearer token), DHL (HMAC-SHA1) reciben el payload y lo persisten pero `signature_valid` queda `NULL` hasta que se implemente.
+- 🔧 Verificación de firma implementada para EasyPost + UPS (HMAC-SHA256) y DHL (HMAC-SHA1); FedEx (Bearer token) aún recibe el payload y lo persiste con `signature_valid = NULL`.
 - 🔧 La resolución del tenant (`app_id`, `tenant_id`) en el webhook depende de que el `tracking_code` esté registrado en `shipment_packages`; si el paquete se creó sin `tracking_code` el webhook queda sin vincular.
 - ❌ Re-procesamiento automático de webhooks no vinculados / `signature_valid=null` (hoy queda como registro inerte).
 - ❌ Alerta a staff cuando llega un webhook con firma inválida.
@@ -212,8 +212,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 15. Estimación de entrega (SLA / ETA)
 
 - ✅ Campos `eta_days_min` / `eta_days_max` en la tarifa como referencia estática.
-- 🔧 ETA solo almacenada en la tarifa — no se calcula ni se guarda en el envío concreto.
-- ❌ ETA calculada al crear el envío: fecha de creación + días laborables + festivos por país/región.
+- ✅ ETA calculada y guardada en el envío concreto (`estimated_delivery_date`) al crearlo.
+- 🔧 ETA calculada al crear el envío: usa días laborables (salta sábados/domingos) sobre `eta_days_max` de la tarifa; aún sin calendario de festivos por país/región.
 - ❌ Calendario de corte del carrier (cutoff time) por zona — pedido después de las 14:00 se envía al día siguiente.
 - ❌ ETA dinámica actualizada por webhooks de carrier (carrier comunica fecha comprometida).
 - ❌ "Entregado a tiempo" vs. "entregado tarde" para SLA reporting.
@@ -259,11 +259,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 1. **Notificaciones al comprador** (shipped / delivered / devolución aprobada / reembolso) — REUSE `platform/notifications` escuchando `shipping.shipment.*` y `return.*`; alta visibilidad para el comprador con coste bajo.
 2. **Rate-shopping real con EasyPost** — las credenciales ya están almacenadas; conectar la llamada a `GET /rates` de EasyPost en `quote()` y añadir label generation (`POST /shipments` de EasyPost → PDF a S3 via `platform/storage`).
-3. **Filtro por peso en el quote** — pasar el peso del carrito al `GET /quote` y aplicar `min/max_weight_g` en la query; desbloquea el checkout con tarifas por peso real.
-4. **Envío gratuito a partir de X€** — añadir `free_above_cents` en `shipping_rates`; la cotización devuelve `price_cents=0` cuando el pedido supera el umbral; caso de uso muy frecuente en e-commerce.
-5. **PATCH zona y tarifa + listar envíos por pedido** — operativa básica de backoffice que falta: actualizar/desactivar tarifas, obtener todos los envíos de un `order_id`.
-6. **Verificación HMAC para UPS y DHL** — completar los dos carriers con mayor cuota de mercado en España/UE; el skeleton ya persiste los payloads.
-7. **ETA en el envío** — calcular y guardar `estimated_delivery_date` al crear el envío (días laborables + festivos); comunicarla al comprador en la notificación de envío.
+3. ✅ ~~**Filtro por peso en el quote**~~ — `GET /quote` acepta `weightG` y aplica `min/max_weight_g` en la query.
+4. ✅ ~~**Envío gratuito a partir de X€**~~ — `free_above_cents` en `shipping_rates`; el quote devuelve `effective_price_cents=0` + `free_shipping_applied=true` cuando el pedido supera el umbral (precio base preservado).
+5. ✅ ~~**PATCH zona y tarifa + listar envíos por pedido**~~ — `PATCH/DELETE` de zonas y tarifas (incl. `active` para desactivar), `GET /v1/shipping/shipments` con filtros (incl. `orderId`).
+6. ✅ ~~**Verificación HMAC para UPS y DHL**~~ — UPS (HMAC-SHA256, `ups_client_secret`) y DHL (HMAC-SHA1, `dhl_api_secret`) verificados sobre el raw body; `signature_valid` persistido.
+7. ✅ ~~**ETA en el envío**~~ — `estimated_delivery_date` calculado al crear (días laborables sobre `eta_days_max` de la tarifa) y publicado en `shipping.shipment.created`. (Festivos y notificación al comprador: pendientes/cross-cutting.)
 8. **Política de devolución configurable por tenant** — ventana de días y condiciones aceptadas como parámetros en `tenant-config`; el servicio de devoluciones valida contra ellos.
-9. **Click & collect** — añadir `in_store_pickup` como tipo de tarifa especial (`price_cents=0`, tipo enumerado); bajo coste, frecuente en comercio local.
+9. 🔧 **Click & collect** — `in_store_pickup` ya disponible como `service_level` de tarifa; faltan ubicaciones de recogida, slot y verificación.
 10. **Aduanas internacionales** — código HS por SKU + formulario CN22/CN23 al generar la etiqueta; requisito legal para envíos fuera de la UE.

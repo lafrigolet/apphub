@@ -18,6 +18,37 @@ export async function insertZone(client, appId, tenantId, z) {
   return rows[0]
 }
 
+export async function updateZone(client, appId, tenantId, id, z) {
+  const sets = []
+  const params = [appId, tenantId, id]
+  if (z.name !== undefined)         { sets.push(`name = $${params.length + 1}`);          params.push(z.name) }
+  if (z.countryCodes !== undefined) { sets.push(`country_codes = $${params.length + 1}`); params.push(z.countryCodes) }
+  if (z.regionCodes !== undefined)  { sets.push(`region_codes = $${params.length + 1}`);  params.push(z.regionCodes) }
+  if (sets.length === 0) return findZoneById(client, appId, tenantId, id)
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.shipping_zones SET ${sets.join(', ')}
+     WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
+    params,
+  )
+  return rows[0] ?? null
+}
+
+export async function findZoneById(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.shipping_zones WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
+export async function deleteZone(client, appId, tenantId, id) {
+  const { rowCount } = await client.query(
+    `DELETE FROM ${SCHEMA}.shipping_zones WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, id],
+  )
+  return rowCount > 0
+}
+
 // ── rates ─────────────────────────────────────────────────────────────────
 export async function listRates(client, appId, tenantId, zoneId) {
   const params = [appId, tenantId]
@@ -33,25 +64,70 @@ export async function listRates(client, appId, tenantId, zoneId) {
 export async function insertRate(client, appId, tenantId, r) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.shipping_rates
-       (app_id, tenant_id, zone_id, name, price_cents, min_weight_g, max_weight_g, eta_days_min, eta_days_max)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+       (app_id, tenant_id, zone_id, name, price_cents, min_weight_g, max_weight_g,
+        eta_days_min, eta_days_max, free_above_cents, service_level, active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,'standard'),COALESCE($12,TRUE)) RETURNING *`,
     [
       appId, tenantId, r.zoneId ?? null, r.name, r.priceCents,
       r.minWeightG ?? 0, r.maxWeightG ?? null, r.etaDaysMin ?? null, r.etaDaysMax ?? null,
+      r.freeAboveCents ?? null, r.serviceLevel ?? null, r.active ?? null,
     ],
   )
   return rows[0]
 }
 
-export async function findRatesForCountry(client, appId, tenantId, country) {
+export async function findRateById(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.shipping_rates WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
+export async function updateRate(client, appId, tenantId, id, r) {
+  const cols = {
+    zone_id: r.zoneId, name: r.name, price_cents: r.priceCents,
+    min_weight_g: r.minWeightG, max_weight_g: r.maxWeightG,
+    eta_days_min: r.etaDaysMin, eta_days_max: r.etaDaysMax,
+    free_above_cents: r.freeAboveCents, service_level: r.serviceLevel, active: r.active,
+  }
+  const sets = []
+  const params = [appId, tenantId, id]
+  for (const [col, val] of Object.entries(cols)) {
+    if (val !== undefined) { sets.push(`${col} = $${params.length + 1}`); params.push(val) }
+  }
+  if (sets.length === 0) return findRateById(client, appId, tenantId, id)
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.shipping_rates SET ${sets.join(', ')}
+     WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
+    params,
+  )
+  return rows[0] ?? null
+}
+
+export async function deleteRate(client, appId, tenantId, id) {
+  const { rowCount } = await client.query(
+    `DELETE FROM ${SCHEMA}.shipping_rates WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, id],
+  )
+  return rowCount > 0
+}
+
+// Quote: applies country, weight (min/max_weight_g), and active filters.
+// free_above_cents is applied in the service layer so the original
+// price_cents stays visible alongside the effective (possibly 0) price.
+export async function findRatesForCountry(client, appId, tenantId, { country, weightG } = {}) {
   const { rows } = await client.query(
     `SELECT r.*, z.country_codes
        FROM ${SCHEMA}.shipping_rates r
        LEFT JOIN ${SCHEMA}.shipping_zones z ON z.id = r.zone_id
       WHERE r.app_id=$1 AND r.tenant_id=$2
+        AND r.active = TRUE
         AND ($3::text IS NULL OR z.id IS NULL OR $3 = ANY (z.country_codes))
+        AND ($4::int  IS NULL OR (
+              r.min_weight_g <= $4 AND ($4 <= r.max_weight_g OR r.max_weight_g IS NULL)))
       ORDER BY r.price_cents`,
-    [appId, tenantId, country ?? null],
+    [appId, tenantId, country ?? null, weightG ?? null],
   )
   return rows
 }
@@ -61,16 +137,33 @@ export async function insertShipment(client, appId, tenantId, s) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.shipments
        (app_id, tenant_id, order_id, carrier, tracking_code, status, rate_id, metadata,
-        insurance_amount_cents, insurance_currency, signature_required)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,FALSE)) RETURNING *`,
+        insurance_amount_cents, insurance_currency, signature_required, estimated_delivery_date)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,FALSE),$12) RETURNING *`,
     [
       appId, tenantId, s.orderId, s.carrier ?? null, s.trackingCode ?? null,
       s.status ?? 'pending', s.rateId ?? null, s.metadata ?? {},
       s.insuranceAmountCents ?? null, s.insuranceCurrency ?? null,
-      s.signatureRequired ?? false,
+      s.signatureRequired ?? false, s.estimatedDeliveryDate ?? null,
     ],
   )
   return rows[0]
+}
+
+// List shipments with optional filters: status, carrier, orderId, createdSince.
+export async function listShipments(client, appId, tenantId, f = {}) {
+  const params = [appId, tenantId]
+  let where = 'app_id=$1 AND tenant_id=$2'
+  if (f.status)       { where += ` AND status = $${params.length + 1}`;     params.push(f.status) }
+  if (f.carrier)      { where += ` AND carrier = $${params.length + 1}`;    params.push(f.carrier) }
+  if (f.orderId)      { where += ` AND order_id = $${params.length + 1}`;   params.push(f.orderId) }
+  if (f.createdSince) { where += ` AND created_at >= $${params.length + 1}`; params.push(f.createdSince) }
+  const limit = Math.min(Math.max(Number(f.limit) || 50, 1), 200)
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.shipments WHERE ${where}
+       ORDER BY created_at DESC LIMIT ${limit}`,
+    params,
+  )
+  return rows
 }
 
 export async function findShipmentById(client, appId, tenantId, id) {

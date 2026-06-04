@@ -28,6 +28,71 @@ export async function insertItems(client, orderId, appId, tenantId, items) {
   }
 }
 
+// ── Post-creation item editing ──────────────────────────────────────────
+
+export async function insertItem(client, orderId, appId, tenantId, it) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.order_items
+       (app_id, tenant_id, order_id, sku, product_name, qty, unit_price_cents, vendor_tenant_id, metadata)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING *`,
+    [appId, tenantId, orderId, it.sku, it.productName, it.qty, it.unitPriceCents, it.vendorTenantId ?? null, it.metadata ?? {}],
+  )
+  return rows[0]
+}
+
+export async function findItemById(client, appId, tenantId, orderId, itemId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.order_items
+       WHERE app_id=$1 AND tenant_id=$2 AND order_id=$3 AND id=$4`,
+    [appId, tenantId, orderId, itemId],
+  )
+  return rows[0] ?? null
+}
+
+export async function deleteItem(client, appId, tenantId, orderId, itemId) {
+  const { rowCount } = await client.query(
+    `DELETE FROM ${SCHEMA}.order_items
+       WHERE app_id=$1 AND tenant_id=$2 AND order_id=$3 AND id=$4`,
+    [appId, tenantId, orderId, itemId],
+  )
+  return rowCount
+}
+
+export async function updateItemQty(client, appId, tenantId, orderId, itemId, qty) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.order_items
+       SET qty = $5, updated_at = now()
+       WHERE app_id=$1 AND tenant_id=$2 AND order_id=$3 AND id=$4
+       RETURNING *`,
+    [appId, tenantId, orderId, itemId, qty],
+  )
+  return rows[0] ?? null
+}
+
+export async function updateTotals(client, appId, tenantId, orderId, t) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.orders
+       SET subtotal_cents = $4, tax_cents = $5, shipping_cents = $6,
+           total_cents = $7, updated_at = now()
+       WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+       RETURNING *`,
+    [appId, tenantId, orderId, t.subtotalCents, t.taxCents, t.shippingCents, t.totalCents],
+  )
+  return rows[0] ?? null
+}
+
+export async function updateShipment(client, appId, tenantId, orderId, shipmentId) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.orders
+       SET shipment_id = $4, updated_at = now()
+       WHERE app_id=$1 AND tenant_id=$2 AND id=$3
+       RETURNING *`,
+    [appId, tenantId, orderId, shipmentId],
+  )
+  return rows[0] ?? null
+}
+
 // ── Order modifications (post-creation audit trail) ─────────────────────
 
 export async function insertModification(client, m) {
@@ -139,18 +204,59 @@ export async function findHistoryByOrderId(client, appId, tenantId, orderId) {
   return rows
 }
 
-export async function listOrders(client, appId, tenantId, { buyerUserId, status, limit = 50, offset = 0 } = {}) {
+// Shared WHERE builder for listOrders / exportOrders. Returns the filter SQL
+// (scoped by app_id + tenant_id first) and the positional params it consumed,
+// so the caller can append its own trailing params (LIMIT/OFFSET) afterward.
+function buildOrderFilters(appId, tenantId, opts = {}) {
+  const { buyerUserId, status, vendorTenantId, createdAfter, createdBefore, totalMinCents, totalMaxCents } = opts
   const filters = ['app_id = $1', 'tenant_id = $2']
   const params  = [appId, tenantId]
   let i = 3
-  if (buyerUserId) { filters.push(`buyer_user_id = $${i++}`); params.push(buyerUserId) }
-  if (status)      { filters.push(`status = $${i++}`);        params.push(status) }
+  if (buyerUserId)    { filters.push(`buyer_user_id = $${i++}`);  params.push(buyerUserId) }
+  if (status)         { filters.push(`status = $${i++}`);         params.push(status) }
+  if (createdAfter)   { filters.push(`created_at >= $${i++}`);    params.push(createdAfter) }
+  if (createdBefore)  { filters.push(`created_at <= $${i++}`);    params.push(createdBefore) }
+  if (totalMinCents != null) { filters.push(`total_cents >= $${i++}`); params.push(totalMinCents) }
+  if (totalMaxCents != null) { filters.push(`total_cents <= $${i++}`); params.push(totalMaxCents) }
+  if (vendorTenantId) {
+    filters.push(
+      `EXISTS (SELECT 1 FROM ${SCHEMA}.order_items oi
+                 WHERE oi.order_id = ${SCHEMA}.orders.id
+                   AND oi.app_id = $1 AND oi.tenant_id = $2
+                   AND oi.vendor_tenant_id = $${i++})`,
+    )
+    params.push(vendorTenantId)
+  }
+  return { where: filters.join(' AND '), params, nextIndex: i }
+}
+
+export async function listOrders(client, appId, tenantId, opts = {}) {
+  const { limit = 50, offset = 0 } = opts
+  const { where, params, nextIndex } = buildOrderFilters(appId, tenantId, opts)
+  let i = nextIndex
   params.push(limit, offset)
   const { rows } = await client.query(
     `SELECT * FROM ${SCHEMA}.orders
-     WHERE ${filters.join(' AND ')}
+     WHERE ${where}
      ORDER BY created_at DESC
      LIMIT $${i++} OFFSET $${i++}`,
+    params,
+  )
+  return rows
+}
+
+// Streams the full filtered set (no LIMIT/OFFSET) for CSV export. Capped at a
+// hard ceiling so a runaway export can't exhaust memory.
+export async function exportOrders(client, appId, tenantId, opts = {}) {
+  const cap = Math.min(opts.maxRows ?? 50000, 50000)
+  const { where, params, nextIndex } = buildOrderFilters(appId, tenantId, opts)
+  let i = nextIndex
+  params.push(cap)
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.orders
+     WHERE ${where}
+     ORDER BY created_at DESC
+     LIMIT $${i++}`,
     params,
   )
   return rows

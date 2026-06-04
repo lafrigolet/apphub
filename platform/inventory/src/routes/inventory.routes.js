@@ -15,6 +15,41 @@ const moveBody = z.object({
   refId:    z.string().uuid().optional(),
 })
 
+const restockBody = z.object({
+  qty:      z.number().int().positive(),
+  reason:   z.enum(['restock', 'return', 'found', 'adjust']).optional(),
+  refType:  z.string().max(64).optional(),
+  refId:    z.string().uuid().optional(),
+})
+
+// Query booleans arrive as strings; treat only the literal "true" as true so
+// `?lowStock=false` doesn't silently become true (which z.coerce.boolean does).
+// preprocess keeps the schema idempotent — re-parsing an already-coerced
+// boolean (Fastify validates then the handler re-parses) is a no-op.
+const boolFlag = z.preprocess(
+  (v) => (typeof v === 'string' ? v === 'true' : v),
+  z.boolean().optional(),
+)
+
+const listQuery = z.object({
+  limit:          z.coerce.number().int().positive().max(500).optional(),
+  offset:         z.coerce.number().int().min(0).optional(),
+  lowStock:       boolFlag,
+  rootOnly:       boolFlag,
+  parentSku:      z.string().min(1).max(128).optional(),
+  search:         z.string().min(1).max(128).optional(),
+})
+
+const movementsQuery = z.object({
+  reason:   z.enum(['reserve', 'release', 'commit', 'adjust', 'restock', 'return', 'found']).optional(),
+  refType:  z.string().max(64).optional(),
+  refId:    z.string().uuid().optional(),
+  from:     z.string().datetime().optional(),
+  to:       z.string().datetime().optional(),
+  limit:    z.coerce.number().int().positive().max(500).optional(),
+  offset:   z.coerce.number().int().min(0).optional(),
+})
+
 const variantBody = z.object({
   sku:                z.string().min(1).max(128),
   optionValues:       z.record(z.string()),
@@ -38,10 +73,19 @@ function ctxFromRequest(req) {
 }
 
 export async function inventoryRoutes(fastify) {
-  fastify.get('/v1/inventory', { schema: { tags, summary: 'List inventory items' } }, async (req) => {
-    const limit  = req.query?.limit  ? Number(req.query.limit)  : undefined
-    const offset = req.query?.offset ? Number(req.query.offset) : undefined
-    return service.listItems(ctxFromRequest(req), { limit, offset })
+  fastify.get('/v1/inventory', {
+    schema: {
+      tags,
+      summary: 'List inventory items (filters: lowStock, rootOnly, parentSku, search; each row includes computed qty_available)',
+      querystring: listQuery,
+    },
+  }, async (req) => {
+    const q = listQuery.parse(req.query ?? {})
+    return service.listItems(ctxFromRequest(req), {
+      limit: q.limit, offset: q.offset,
+      lowStock: q.lowStock, rootOnly: q.rootOnly,
+      parentSku: q.parentSku, search: q.search,
+    })
   })
 
   fastify.get('/v1/inventory/:sku', {
@@ -78,6 +122,28 @@ export async function inventoryRoutes(fastify) {
   }, async (req) => {
     const body = moveBody.parse(req.body)
     return service.commitItem(ctxFromRequest(req), { sku: req.params.sku, ...body })
+  })
+
+  fastify.post('/v1/inventory/:sku/restock', {
+    schema: {
+      tags,
+      summary: 'Increment on-hand stock (reverse commit / return / found units)',
+      params: skuParams, body: restockBody,
+    },
+  }, async (req) => {
+    const body = restockBody.parse(req.body)
+    return service.restockItem(ctxFromRequest(req), { sku: req.params.sku, ...body })
+  })
+
+  fastify.get('/v1/inventory/:sku/movements', {
+    schema: {
+      tags,
+      summary: 'List ledger movements for a SKU (filter by reason, ref, date range; paginated)',
+      params: skuParams, querystring: movementsQuery,
+    },
+  }, async (req) => {
+    const q = movementsQuery.parse(req.query ?? {})
+    return service.listMovements(ctxFromRequest(req), req.params.sku, q)
   })
 
   // ── Variants ─────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@ export async function register({ app, db, redis, logger }) {
     subscribe(async (_channel, raw) => {
       let event
       try { event = JSON.parse(raw) } catch { return }
-      if (!['order.created', 'order.paid', 'order.cancelled'].includes(event.type)) return
+      if (!['order.created', 'order.paid', 'order.cancelled', 'order.returned'].includes(event.type)) return
       await service.handleOrderEvent(event)
     })
     logger?.info('inventory subscribed to order.* events')

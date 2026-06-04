@@ -43,8 +43,111 @@ describe('insertShipment', () => {
       insuranceCurrency: 'EUR', signatureRequired: true,
     })
     expect(c.query.mock.calls[0][1]).toEqual([
-      APP, TEN, 'o1', 'ups', 'TC', 'shipped', 'r1', { k: 1 }, 500, 'EUR', true,
+      APP, TEN, 'o1', 'ups', 'TC', 'shipped', 'r1', { k: 1 }, 500, 'EUR', true, null,
     ])
+  })
+
+  it('estimatedDeliveryDate explícito propaga como $12', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.insertShipment(c, APP, TEN, { orderId: 'o1', estimatedDeliveryDate: '2026-06-10' })
+    expect(c.query.mock.calls[0][1][11]).toBe('2026-06-10')
+  })
+})
+
+describe('zone update/delete', () => {
+  it('updateZone construye SET dinámico y scope', async () => {
+    const c = mockClient([{ id: 'z1', name: 'EU2' }])
+    await repo.updateZone(c, APP, TEN, 'z1', { name: 'EU2', countryCodes: ['ES'] })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/UPDATE platform_shipping\.shipping_zones/)
+    expect(sql).toMatch(/name = \$4/)
+    expect(sql).toMatch(/country_codes = \$5/)
+    expect(params).toEqual([APP, TEN, 'z1', 'EU2', ['ES']])
+  })
+  it('updateZone sin cambios → delega a findZoneById', async () => {
+    const c = mockClient([{ id: 'z1' }])
+    await repo.updateZone(c, APP, TEN, 'z1', {})
+    expect(c.query.mock.calls[0][0]).toMatch(/SELECT \* FROM platform_shipping\.shipping_zones/)
+  })
+  it('deleteZone true cuando rowCount>0', async () => {
+    const c = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) }
+    expect(await repo.deleteZone(c, APP, TEN, 'z1')).toBe(true)
+  })
+  it('deleteZone false cuando rowCount=0', async () => {
+    const c = { query: vi.fn().mockResolvedValue({ rowCount: 0 }) }
+    expect(await repo.deleteZone(c, APP, TEN, 'z1')).toBe(false)
+  })
+})
+
+describe('rate update/delete + findRateById', () => {
+  it('findRateById scope', async () => {
+    const c = mockClient([{ id: 'r1' }])
+    expect(await repo.findRateById(c, APP, TEN, 'r1')).toEqual({ id: 'r1' })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'r1'])
+  })
+  it('updateRate SET dinámico (active + free_above_cents)', async () => {
+    const c = mockClient([{ id: 'r1' }])
+    await repo.updateRate(c, APP, TEN, 'r1', { active: false, freeAboveCents: 5000 })
+    const [sql, params] = c.query.mock.calls[0]
+    // Column order follows the cols map: free_above_cents before active.
+    expect(sql).toMatch(/free_above_cents = \$4/)
+    expect(sql).toMatch(/active = \$5/)
+    expect(params).toEqual([APP, TEN, 'r1', 5000, false])
+  })
+  it('updateRate sin cambios → findRateById', async () => {
+    const c = mockClient([{ id: 'r1' }])
+    await repo.updateRate(c, APP, TEN, 'r1', {})
+    expect(c.query.mock.calls[0][0]).toMatch(/SELECT \* FROM platform_shipping\.shipping_rates/)
+  })
+  it('deleteRate true/false', async () => {
+    const ok = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) }
+    const no = { query: vi.fn().mockResolvedValue({ rowCount: 0 }) }
+    expect(await repo.deleteRate(ok, APP, TEN, 'r1')).toBe(true)
+    expect(await repo.deleteRate(no, APP, TEN, 'r1')).toBe(false)
+  })
+})
+
+describe('findRatesForCountry — weight + active filters', () => {
+  it('aplica active=TRUE y pasa country/weight como params', async () => {
+    const c = mockClient([])
+    await repo.findRatesForCountry(c, APP, TEN, { country: 'ES', weightG: 1500 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/r\.active = TRUE/)
+    expect(sql).toMatch(/min_weight_g <= \$4/)
+    expect(params).toEqual([APP, TEN, 'ES', 1500])
+  })
+  it('sin args → country y weight null', async () => {
+    const c = mockClient([])
+    await repo.findRatesForCountry(c, APP, TEN)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, null, null])
+  })
+})
+
+describe('listShipments — filtros', () => {
+  it('aplica status/carrier/orderId/createdSince y LIMIT acotado', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.listShipments(c, APP, TEN, {
+      status: 'in_transit', carrier: 'ups', orderId: 'o1', createdSince: '2026-01-01', limit: 10,
+    })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/status = \$3/)
+    expect(sql).toMatch(/carrier = \$4/)
+    expect(sql).toMatch(/order_id = \$5/)
+    expect(sql).toMatch(/created_at >= \$6/)
+    expect(sql).toMatch(/LIMIT 10/)
+    expect(params).toEqual([APP, TEN, 'in_transit', 'ups', 'o1', '2026-01-01'])
+  })
+  it('limit fuera de rango → clamp a 200', async () => {
+    const c = mockClient([])
+    await repo.listShipments(c, APP, TEN, { limit: 9999 })
+    expect(c.query.mock.calls[0][0]).toMatch(/LIMIT 200/)
+  })
+  it('sin filtros → default LIMIT 50 y solo scope', async () => {
+    const c = mockClient([])
+    await repo.listShipments(c, APP, TEN, {})
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/LIMIT 50/)
+    expect(params).toEqual([APP, TEN])
   })
 })
 

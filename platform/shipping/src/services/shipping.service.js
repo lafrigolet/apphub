@@ -26,23 +26,101 @@ export async function createRate(ctx, input) {
   )
 }
 
+export async function updateZone(ctx, id, input) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const zone = await repo.updateZone(c, ctx.appId, ctx.tenantId, id, input)
+    if (!zone) throw new NotFoundError('zone')
+    return zone
+  })
+}
+
+export async function deleteZone(ctx, id) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const ok = await repo.deleteZone(c, ctx.appId, ctx.tenantId, id)
+    if (!ok) throw new NotFoundError('zone')
+    return { deleted: true }
+  })
+}
+
+export async function updateRate(ctx, id, input) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const rate = await repo.updateRate(c, ctx.appId, ctx.tenantId, id, input)
+    if (!rate) throw new NotFoundError('rate')
+    return rate
+  })
+}
+
+export async function deleteRate(ctx, id) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const ok = await repo.deleteRate(c, ctx.appId, ctx.tenantId, id)
+    if (!ok) throw new NotFoundError('rate')
+    return { deleted: true }
+  })
+}
+
 // ── quote ─────────────────────────────────────────────────────────────────
-export async function quote(ctx, { country }) {
-  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
-    repo.findRatesForCountry(c, ctx.appId, ctx.tenantId, country),
-  )
+// Applies destination country + real cart weight (min/max_weight_g) at the
+// DB level; free_above_cents is applied here so the buyer sees the effective
+// price (0 above the threshold) alongside the configured base price.
+export async function quote(ctx, { country, weightG, orderValueCents }) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
+    const rates = await repo.findRatesForCountry(c, ctx.appId, ctx.tenantId, { country, weightG })
+    return rates.map((r) => {
+      const free = r.free_above_cents != null
+        && orderValueCents != null
+        && Number(orderValueCents) >= Number(r.free_above_cents)
+      return {
+        ...r,
+        effective_price_cents: free ? 0 : Number(r.price_cents),
+        free_shipping_applied: free,
+      }
+    })
+  })
+}
+
+// Add `days` business days (skipping Saturday/Sunday) to `from`, returning a
+// YYYY-MM-DD string. Public holidays are out of scope (would need a calendar
+// source); weekends are the cheap, high-value approximation.
+export function addBusinessDays(from, days) {
+  const d = new Date(from.getTime())
+  let added = 0
+  while (added < days) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    const dow = d.getUTCDay()
+    if (dow !== 0 && dow !== 6) added++
+  }
+  return d.toISOString().slice(0, 10)
 }
 
 // ── shipments ─────────────────────────────────────────────────────────────
 export async function createShipment(ctx, input) {
   return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, async (c) => {
-    const shipment = await repo.insertShipment(c, ctx.appId, ctx.tenantId, input)
+    // Compute a concrete ETA from the rate's eta_days_max (business days from
+    // now) unless the caller already supplied estimatedDeliveryDate.
+    let estimatedDeliveryDate = input.estimatedDeliveryDate ?? null
+    if (!estimatedDeliveryDate && input.rateId) {
+      const rate = await repo.findRateById(c, ctx.appId, ctx.tenantId, input.rateId)
+      if (rate?.eta_days_max != null) {
+        estimatedDeliveryDate = addBusinessDays(new Date(), Number(rate.eta_days_max))
+      }
+    }
+    const shipment = await repo.insertShipment(c, ctx.appId, ctx.tenantId, { ...input, estimatedDeliveryDate })
     await publish({
       type: 'shipping.shipment.created',
-      payload: { shipmentId: shipment.id, orderId: shipment.order_id, appId: ctx.appId, tenantId: ctx.tenantId },
+      payload: {
+        shipmentId: shipment.id, orderId: shipment.order_id,
+        estimatedDeliveryDate: shipment.estimated_delivery_date ?? null,
+        appId: ctx.appId, tenantId: ctx.tenantId,
+      },
     })
     return shipment
   })
+}
+
+export async function listShipments(ctx, filters) {
+  return withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId, (c) =>
+    repo.listShipments(c, ctx.appId, ctx.tenantId, filters),
+  )
 }
 
 export async function getShipment(ctx, id) {
@@ -94,28 +172,40 @@ export async function addPackage(ctx, shipmentId, body) {
 import crypto from 'node:crypto'
 import * as configRepo from '../repositories/settings.repository.js'
 
-function verifyHmacSha256(secret, body, signatureHex) {
+function verifyHmac(algo, secret, body, signatureHex) {
   if (!secret || !signatureHex) return false
-  const expected = crypto.createHmac('sha256', secret).update(body).digest('hex')
+  const expected = crypto.createHmac(algo, secret).update(body).digest('hex')
   try {
     return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signatureHex, 'hex'))
   } catch { return false }
 }
 
+// Maps each carrier to (secret settings key, HMAC algorithm). Carriers absent
+// from the map (e.g. FedEx, which authenticates with a Bearer token rather
+// than an HMAC of the body) leave signature_valid = null.
+const CARRIER_HMAC = {
+  easypost: { key: 'easypost_webhook_secret', algo: 'sha256' },
+  ups:      { key: 'ups_client_secret',       algo: 'sha256' },
+  dhl:      { key: 'dhl_api_secret',          algo: 'sha1'   },
+}
+
 async function loadCarrierSecret(carrier) {
+  const spec = CARRIER_HMAC[carrier]
+  if (!spec) return null
   const client = await pool.connect()
   try {
-    if (carrier === 'easypost') return configRepo.getValue(client, 'easypost_webhook_secret')
-    return null
+    return configRepo.getValue(client, spec.key)
   } finally { client.release() }
 }
 
 export async function ingestCarrierWebhook(carrier, { rawBody, payload, signatureHeader }) {
-  // 1. Verify (where supported).
+  // 1. Verify (where supported): EasyPost + UPS over HMAC-SHA256, DHL over
+  //    HMAC-SHA1. FedEx (Bearer token) and unknown carriers stay null.
   let signatureValid = null
-  if (carrier === 'easypost') {
+  const hmacSpec = CARRIER_HMAC[carrier]
+  if (hmacSpec) {
     const secret = await loadCarrierSecret(carrier)
-    signatureValid = verifyHmacSha256(secret, rawBody, signatureHeader)
+    signatureValid = verifyHmac(hmacSpec.algo, secret, rawBody, signatureHeader)
   }
 
   // 2. Extract carrier-specific anchors. EasyPost calls these

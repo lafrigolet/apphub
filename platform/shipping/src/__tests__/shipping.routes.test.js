@@ -6,11 +6,16 @@ import Fastify from 'fastify'
 vi.mock('../services/shipping.service.js', () => ({
   listZones:            vi.fn(),
   createZone:           vi.fn(),
+  updateZone:           vi.fn(),
+  deleteZone:           vi.fn(),
   listRates:            vi.fn(),
   createRate:           vi.fn(),
+  updateRate:           vi.fn(),
+  deleteRate:           vi.fn(),
   quote:                vi.fn(),
   createShipment:       vi.fn(),
   getShipment:          vi.fn(),
+  listShipments:        vi.fn(),
   appendEvent:          vi.fn(),
   listPackages:         vi.fn(),
   addPackage:           vi.fn(),
@@ -97,7 +102,34 @@ describe('zones / rates / quote', () => {
   it('GET quote con country', async () => {
     service.quote.mockResolvedValue([])
     await app.inject({ method: 'GET', url: '/v1/shipping/quote?country=ES', headers: noBody })
-    expect(service.quote).toHaveBeenCalledWith(expect.anything(), { country: 'ES' })
+    expect(service.quote).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ country: 'ES' }))
+  })
+  it('GET quote con weightG + orderValueCents coercionados', async () => {
+    service.quote.mockResolvedValue([])
+    await app.inject({ method: 'GET', url: '/v1/shipping/quote?country=ES&weightG=1500&orderValueCents=6000', headers: noBody })
+    expect(service.quote).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ country: 'ES', weightG: 1500, orderValueCents: 6000 }))
+  })
+  it('PATCH zone → 200', async () => {
+    service.updateZone.mockResolvedValue({ id: 'z1', name: 'EU2' })
+    const res = await app.inject({ method: 'PATCH', url: `/v1/shipping/zones/${SHIP}`, headers: auth, payload: { name: 'EU2' } })
+    expect(res.statusCode).toBe(200)
+  })
+  it('DELETE zone → 200', async () => {
+    service.deleteZone.mockResolvedValue({ deleted: true })
+    const res = await app.inject({ method: 'DELETE', url: `/v1/shipping/zones/${SHIP}`, headers: noBody })
+    expect(res.statusCode).toBe(200)
+  })
+  it('PATCH rate → 200', async () => {
+    service.updateRate.mockResolvedValue({ id: 'r1', active: false })
+    const res = await app.inject({ method: 'PATCH', url: `/v1/shipping/rates/${SHIP}`, headers: auth, payload: { active: false, freeAboveCents: 5000 } })
+    expect(res.statusCode).toBe(200)
+    expect(service.updateRate).toHaveBeenCalledWith(expect.anything(), SHIP, expect.objectContaining({ active: false, freeAboveCents: 5000 }))
+  })
+  it('DELETE rate → 200', async () => {
+    service.deleteRate.mockResolvedValue({ deleted: true })
+    const res = await app.inject({ method: 'DELETE', url: `/v1/shipping/rates/${SHIP}`, headers: noBody })
+    expect(res.statusCode).toBe(200)
   })
 })
 
@@ -106,6 +138,13 @@ describe('shipments', () => {
     service.createShipment.mockResolvedValue({ id: SHIP })
     const res = await app.inject({ method: 'POST', url: '/v1/shipping/shipments', headers: auth, payload: { orderId: ORDER } })
     expect(res.statusCode).toBe(201)
+  })
+  it('GET shipments list con filtros → { data }', async () => {
+    service.listShipments.mockResolvedValue([{ id: SHIP }])
+    const res = await app.inject({ method: 'GET', url: '/v1/shipping/shipments?status=in_transit&carrier=ups&limit=5', headers: noBody })
+    expect(res.json().data).toEqual([{ id: SHIP }])
+    expect(service.listShipments).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ status: 'in_transit', carrier: 'ups', limit: 5 }))
   })
   it('GET shipment by id', async () => {
     service.getShipment.mockResolvedValue({ id: SHIP, events: [] })
@@ -252,6 +291,7 @@ describe('defaults defensivos (?? {}) — handlers directos', () => {
         get:    (p, o, h) => routes.push({ m: 'get', p, h: h ?? o }),
         post:   (p, o, h) => routes.push({ m: 'post', p, h: h ?? o }),
         patch:  (p, o, h) => routes.push({ m: 'patch', p, h: h ?? o }),
+        delete: (p, o, h) => routes.push({ m: 'delete', p, h: h ?? o }),
       },
     }
   }

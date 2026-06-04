@@ -43,7 +43,40 @@ const shippingAddressBody = addressSchema.extend({ reason: z.string().max(512).o
 
 const noteBody = z.object({ note: z.string().min(1).max(2048) })
 
+const addItemBody = itemSchema.extend({ reason: z.string().max(512).optional() })
+
+const qtyBody = z.object({
+  qty:    z.number().int().positive(),
+  reason: z.string().max(512).optional(),
+})
+
+const removeItemBody = z.object({ reason: z.string().max(512).optional() })
+
+const listQuery = z.object({
+  buyerUserId:    z.string().optional(),
+  status:         z.string().optional(),
+  vendorTenantId: z.string().uuid().optional(),
+  createdAfter:   z.string().datetime().optional(),
+  createdBefore:  z.string().datetime().optional(),
+  totalMinCents:  z.coerce.number().int().min(0).optional(),
+  totalMaxCents:  z.coerce.number().int().min(0).optional(),
+  limit:          z.coerce.number().int().positive().max(500).optional(),
+  offset:         z.coerce.number().int().min(0).optional(),
+})
+
+const exportQuery = z.object({
+  buyerUserId:    z.string().optional(),
+  status:         z.string().optional(),
+  vendorTenantId: z.string().uuid().optional(),
+  createdAfter:   z.string().datetime().optional(),
+  createdBefore:  z.string().datetime().optional(),
+  totalMinCents:  z.coerce.number().int().min(0).optional(),
+  totalMaxCents:  z.coerce.number().int().min(0).optional(),
+})
+
 const idParams = z.object({ id: z.string().uuid() })
+
+const itemParams = z.object({ id: z.string().uuid(), itemId: z.string().uuid() })
 
 const tags = ['orders']
 
@@ -67,13 +100,39 @@ export async function ordersRoutes(fastify) {
   })
 
   fastify.get('/v1/orders', {
-    schema: { tags, summary: 'List orders' },
+    schema: {
+      tags,
+      summary: 'List orders (filter by buyer, status, vendor, date range, amount range)',
+      querystring: listQuery,
+    },
   }, async (req) => {
-    const buyerUserId = req.query?.buyerUserId
-    const status      = req.query?.status
-    const limit       = req.query?.limit  ? Number(req.query.limit)  : undefined
-    const offset      = req.query?.offset ? Number(req.query.offset) : undefined
-    return service.listOrders(ctxFromRequest(req), { buyerUserId, status, limit, offset })
+    const q = listQuery.parse(req.query ?? {})
+    return service.listOrders(ctxFromRequest(req), {
+      buyerUserId:    q.buyerUserId,
+      status:         q.status,
+      vendorTenantId: q.vendorTenantId,
+      createdAfter:   q.createdAfter,
+      createdBefore:  q.createdBefore,
+      totalMinCents:  q.totalMinCents,
+      totalMaxCents:  q.totalMaxCents,
+      limit:          q.limit,
+      offset:         q.offset,
+    })
+  })
+
+  fastify.get('/v1/orders/export.csv', {
+    schema: {
+      tags: ['orders · reporting'],
+      summary: 'Export filtered orders as CSV (date/amount/vendor/status filters)',
+      querystring: exportQuery,
+    },
+  }, async (req, reply) => {
+    const q = exportQuery.parse(req.query ?? {})
+    const csv = await service.exportOrdersCsv(ctxFromRequest(req), q)
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', 'attachment; filename="orders.csv"')
+      .send(csv)
   })
 
   fastify.get('/v1/orders/:id', {
@@ -127,5 +186,41 @@ export async function ordersRoutes(fastify) {
   }, async (req) => {
     const body = noteBody.parse(req.body)
     return service.addOrderNote(ctxFromRequest(req), req.params.id, body.note)
+  })
+
+  // ── Post-creation item editing (only while pending/paid) ───────────────
+  fastify.post('/v1/orders/:id/items', {
+    schema: {
+      tags: ['orders · modifications'],
+      summary: 'Add a line item to an order and recompute totals',
+      params: idParams, body: addItemBody,
+    },
+  }, async (req, reply) => {
+    const body = addItemBody.parse(req.body)
+    const { reason, ...item } = body
+    const result = await service.addItem(ctxFromRequest(req), req.params.id, item, reason)
+    return reply.status(201).send(result)
+  })
+
+  fastify.patch('/v1/orders/:id/items/:itemId', {
+    schema: {
+      tags: ['orders · modifications'],
+      summary: 'Change the quantity of a line item and recompute totals',
+      params: itemParams, body: qtyBody,
+    },
+  }, async (req) => {
+    const body = qtyBody.parse(req.body)
+    return service.changeItemQty(ctxFromRequest(req), req.params.id, req.params.itemId, body.qty, body.reason)
+  })
+
+  fastify.delete('/v1/orders/:id/items/:itemId', {
+    schema: {
+      tags: ['orders · modifications'],
+      summary: 'Remove a line item from an order and recompute totals',
+      params: itemParams, body: removeItemBody,
+    },
+  }, async (req) => {
+    const body = removeItemBody.parse(req.body ?? {})
+    return service.removeItem(ctxFromRequest(req), req.params.id, req.params.itemId, body.reason)
   })
 }

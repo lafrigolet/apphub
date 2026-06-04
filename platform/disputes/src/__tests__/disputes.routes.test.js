@@ -10,6 +10,7 @@ vi.mock('../services/disputes.service.js', () => ({
   postMessage:             vi.fn(),
   uploadEvidence:          vi.fn(),
   resolve:                 vi.fn(),
+  withdraw:                vi.fn(),
   submitEvidenceToStripe:  vi.fn(),
 }))
 
@@ -105,7 +106,7 @@ describe('POST /v1/disputes/:id/messages', () => {
       payload: { body: 'hola', attachments: [{ url: 'x' }] },
     })
     expect(res.statusCode).toBe(201)
-    expect(service.postMessage).toHaveBeenCalledWith(expect.anything(), DIS_ID, 'hola', [{ url: 'x' }])
+    expect(service.postMessage).toHaveBeenCalledWith(expect.anything(), DIS_ID, 'hola', [{ url: 'x' }], false)
   })
 
   it('422 con body vacío', async () => {
@@ -156,6 +157,60 @@ describe('PATCH /v1/disputes/:id/resolve', () => {
       payload: { status: 'resolved_buyer' },
     })
     expect(res.statusCode).toBe(403)
+  })
+})
+
+describe('POST /v1/disputes — reasonCode', () => {
+  it('acepta reasonCode válido y lo propaga', async () => {
+    service.openDispute.mockResolvedValue({ id: DIS_ID })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/disputes',
+      payload: { orderId: ORDER_ID, reason: 'x', reasonCode: 'item_damaged' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.openDispute).toHaveBeenCalledWith(
+      expect.anything(), expect.objectContaining({ reasonCode: 'item_damaged' }),
+    )
+  })
+
+  it('422 con reasonCode fuera del vocabulario', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/disputes',
+      payload: { orderId: ORDER_ID, reason: 'x', reasonCode: 'nope' },
+    })
+    expect([400, 422]).toContain(res.statusCode)
+    expect(service.openDispute).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /v1/disputes/:id/messages — isInternal', () => {
+  it('propaga isInternal=true', async () => {
+    service.postMessage.mockResolvedValue({ id: 'm1' })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/disputes/${DIS_ID}/messages`,
+      payload: { body: 'nota', isInternal: true },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.postMessage).toHaveBeenCalledWith(expect.anything(), DIS_ID, 'nota', undefined, true)
+  })
+})
+
+describe('PATCH /v1/disputes/:id/withdraw', () => {
+  it('200 retira la disputa', async () => {
+    service.withdraw.mockResolvedValue({ id: DIS_ID, status: 'withdrawn' })
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/disputes/${DIS_ID}/withdraw`,
+      payload: { note: 'me arrepentí' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.withdraw).toHaveBeenCalledWith(expect.anything(), DIS_ID, 'me arrepentí')
+  })
+
+  it('200 con body vacío', async () => {
+    service.withdraw.mockResolvedValue({ id: DIS_ID, status: 'withdrawn' })
+    const res = await app.inject({ method: 'PATCH', url: `/v1/disputes/${DIS_ID}/withdraw`, payload: {} })
+    expect(res.statusCode).toBe(200)
+    expect(service.withdraw).toHaveBeenCalledWith(expect.anything(), DIS_ID, undefined)
   })
 })
 

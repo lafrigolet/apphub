@@ -1,8 +1,14 @@
 import { z } from 'zod'
+import { requireRole } from '@apphub/platform-sdk'
 import * as service from '../services/reviews.service.js'
 
+// Roles allowed to moderate, reply to and triage reviews (recommendation #1).
+const MODERATOR_ROLES = ['vendor', 'staff', 'super_admin', 'admin']
+
+const targetTypeEnum = z.enum(['product', 'vendor', 'service'])
+
 const createBody = z.object({
-  targetType: z.enum(['product', 'vendor']),
+  targetType: targetTypeEnum,
   targetId:   z.string().min(1).max(256),
   orderId:    z.string().uuid().optional(),
   rating:     z.number().int().min(1).max(5),
@@ -12,28 +18,53 @@ const createBody = z.object({
 })
 
 const replyBody  = z.object({ body: z.string().min(1).max(4000) })
-const statusBody = z.object({ status: z.enum(['pending', 'published', 'hidden', 'removed']) })
+const statusBody = z.object({
+  status:           z.enum(['pending', 'published', 'hidden', 'removed']),
+  moderationReason: z.string().max(1000).optional(),
+})
 const voteBody   = z.object({ vote: z.enum(['helpful', 'unhelpful']) })
 const mediaBody  = z.object({
   objectId:     z.string().uuid(),
   kind:         z.enum(['photo', 'video']),
   displayOrder: z.number().int().min(0).max(100).optional(),
 })
-const idParams      = z.object({ id: z.string().uuid() })
-const mediaIdParams = z.object({ id: z.string().uuid(), mediaId: z.string().uuid() })
+const reportBody = z.object({
+  reason: z.enum(['spam', 'fake', 'inappropriate', 'misinformation', 'incentivized', 'other']),
+  detail: z.string().max(2000).optional(),
+})
+const reportStatusBody = z.object({ status: z.enum(['open', 'reviewed', 'dismissed']) })
+const idParams       = z.object({ id: z.string().uuid() })
+const mediaIdParams  = z.object({ id: z.string().uuid(), mediaId: z.string().uuid() })
+const reportIdParams = z.object({ reportId: z.string().uuid() })
 
-const tags       = ['reviews']
-const voteTags   = ['reviews · voting']
-const mediaTags  = ['reviews · media']
-const seoTags    = ['reviews · seo']
+const tags        = ['reviews']
+const voteTags    = ['reviews · voting']
+const mediaTags   = ['reviews · media']
+const seoTags     = ['reviews · seo']
+const modTags     = ['reviews · moderation']
+
+const sortEnum = z.enum(['recent', 'oldest', 'helpful', 'rating_high', 'rating_low'])
 
 const listQuery = z.object({
-  targetType:   z.enum(['product', 'vendor']),
+  targetType:   targetTypeEnum,
   targetId:     z.string().min(1),
   status:       z.enum(['pending', 'published', 'hidden', 'removed']).optional(),
   verifiedOnly: z.coerce.boolean().optional(),
+  sort:         sortEnum.optional(),
   limit:        z.coerce.number().int().min(1).max(200).optional(),
   offset:       z.coerce.number().int().min(0).optional(),
+})
+
+const modListQuery = z.object({
+  status: z.enum(['pending', 'published', 'hidden', 'removed']).optional(),
+  limit:  z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+})
+
+const reportListQuery = z.object({
+  status: z.enum(['open', 'reviewed', 'dismissed']).optional(),
+  limit:  z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 })
 
 function ctxFromRequest(req) {
@@ -89,6 +120,7 @@ export async function reviewsRoutes(fastify) {
 
   fastify.post('/v1/reviews/:id/reply', {
     schema: { tags, summary: 'Append a vendor / staff reply to a review', params: idParams, body: replyBody },
+    preHandler: requireRole(...MODERATOR_ROLES),
   }, async (req, reply) => {
     const b = replyBody.parse(req.body)
     const r = await service.reply(ctxFromRequest(req), req.params.id, b.body)
@@ -96,17 +128,61 @@ export async function reviewsRoutes(fastify) {
   })
 
   fastify.patch('/v1/reviews/:id/status', {
-    schema: { tags, summary: 'Moderate a review (publish / hide / remove)', params: idParams, body: statusBody },
+    schema: { tags, summary: 'Moderate a review (publish / hide / remove, with reason)', params: idParams, body: statusBody },
+    preHandler: requireRole(...MODERATOR_ROLES),
   }, async (req) => {
     const b = statusBody.parse(req.body)
-    return service.setStatus(ctxFromRequest(req), req.params.id, b.status)
+    return service.setStatus(ctxFromRequest(req), req.params.id, b.status, b.moderationReason ?? null)
   })
 
   fastify.delete('/v1/reviews/:id', {
     schema: { tags, summary: 'Hard-delete a review (and cascade votes/media)', params: idParams },
+    preHandler: requireRole(...MODERATOR_ROLES),
   }, async (req, reply) => {
     await service.remove(ctxFromRequest(req), req.params.id)
     return reply.status(204).send()
+  })
+
+  // ── Moderation queue (staff triage) ──────────────────────────────────
+  fastify.get('/v1/reviews/moderation/queue', {
+    schema: {
+      tags: modTags,
+      summary: 'List reviews awaiting moderation across all targets (default status=pending)',
+      querystring: modListQuery,
+    },
+    preHandler: requireRole(...MODERATOR_ROLES),
+  }, async (req) => {
+    const q = modListQuery.parse(req.query)
+    return { data: await service.listForModeration(ctxFromRequest(req), q) }
+  })
+
+  // ── Reports / abuse flags ────────────────────────────────────────────
+  fastify.post('/v1/reviews/:id/report', {
+    schema: { tags: modTags, summary: 'Report a review for abuse (spam / fake / …)', params: idParams, body: reportBody },
+  }, async (req, reply) => {
+    const b = reportBody.parse(req.body)
+    const r = await service.report(ctxFromRequest(req), req.params.id, b.reason, b.detail)
+    return reply.status(201).send(r)
+  })
+
+  fastify.get('/v1/reviews/reports', {
+    schema: {
+      tags: modTags,
+      summary: 'List review reports for the tenant (default status=open)',
+      querystring: reportListQuery,
+    },
+    preHandler: requireRole(...MODERATOR_ROLES),
+  }, async (req) => {
+    const q = reportListQuery.parse(req.query)
+    return { data: await service.listReports(ctxFromRequest(req), q) }
+  })
+
+  fastify.patch('/v1/reviews/reports/:reportId', {
+    schema: { tags: modTags, summary: 'Resolve a report (reviewed / dismissed)', params: reportIdParams, body: reportStatusBody },
+    preHandler: requireRole(...MODERATOR_ROLES),
+  }, async (req) => {
+    const b = reportStatusBody.parse(req.body)
+    return service.setReportStatus(ctxFromRequest(req), req.params.reportId, b.status)
   })
 
   // ── Voting (helpful/unhelpful) ───────────────────────────────────────

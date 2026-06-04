@@ -108,6 +108,7 @@ describe('releaseItem', () => {
 
 describe('commitItem', () => {
   it('commits, records movement, publishes inventory.depleted when at/below threshold', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 10 })
     repo.commit.mockResolvedValue({ sku: 'X', qty_on_hand: 1, low_stock_threshold: 5 })
     repo.recordMovement.mockResolvedValue()
     await service.commitItem(ctx, { sku: 'X', qty: 9 })
@@ -122,15 +123,82 @@ describe('commitItem', () => {
   })
 
   it('does NOT publish inventory.depleted when above threshold', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 51 })
     repo.commit.mockResolvedValue({ sku: 'X', qty_on_hand: 50, low_stock_threshold: 5 })
     repo.recordMovement.mockResolvedValue()
     await service.commitItem(ctx, { sku: 'X', qty: 1 })
     expect(publish).not.toHaveBeenCalled()
   })
 
+  it('publishes inventory.out_of_stock (not depleted) when on-hand hits 0', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 2 })
+    repo.commit.mockResolvedValue({ sku: 'X', qty_on_hand: 0, low_stock_threshold: 5 })
+    repo.recordMovement.mockResolvedValue()
+    await service.commitItem(ctx, { sku: 'X', qty: 2 })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'inventory.out_of_stock' }))
+    expect(publish).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'inventory.depleted' }))
+  })
+
   it('throws NotFoundError when commit returns null', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 0 })
     repo.commit.mockResolvedValue(null)
     await expect(service.commitItem(ctx, { sku: 'X', qty: 1 })).rejects.toThrow(NotFoundError)
+  })
+})
+
+// ── restockItem (reverse commit) ──────────────────────────────────────
+describe('restockItem', () => {
+  it('increments on-hand, records movement with given reason, publishes adjusted', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 3, low_stock_threshold: 0 })
+    repo.adjustOnHand.mockResolvedValue({ sku: 'X', qty_on_hand: 5, low_stock_threshold: 0 })
+    repo.recordMovement.mockResolvedValue()
+    await service.restockItem(ctx, { sku: 'X', qty: 2, reason: 'return', refType: 'order', refId: ORDER_ID })
+    expect(repo.adjustOnHand).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, 'X', 2)
+    expect(repo.recordMovement).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      delta: 2, reason: 'return', refType: 'order', refId: ORDER_ID,
+    }))
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'inventory.adjusted' }))
+  })
+
+  it('publishes back_in_stock when on-hand goes 0 → positive', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 0, low_stock_threshold: 0 })
+    repo.adjustOnHand.mockResolvedValue({ sku: 'X', qty_on_hand: 4, low_stock_threshold: 0 })
+    repo.recordMovement.mockResolvedValue()
+    await service.restockItem(ctx, { sku: 'X', qty: 4 })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'inventory.back_in_stock' }))
+  })
+
+  it('defaults reason to restock', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 1, low_stock_threshold: 0 })
+    repo.adjustOnHand.mockResolvedValue({ sku: 'X', qty_on_hand: 2, low_stock_threshold: 0 })
+    repo.recordMovement.mockResolvedValue()
+    await service.restockItem(ctx, { sku: 'X', qty: 1 })
+    expect(repo.recordMovement).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reason: 'restock' }))
+  })
+
+  it('throws NotFoundError when item missing', async () => {
+    repo.findBySku.mockResolvedValue(null)
+    await expect(service.restockItem(ctx, { sku: 'X', qty: 1 })).rejects.toThrow(NotFoundError)
+  })
+
+  it('throws ConflictError on non-positive qty', async () => {
+    await expect(service.restockItem(ctx, { sku: 'X', qty: 0 })).rejects.toThrow(ConflictError)
+  })
+})
+
+// ── listMovements ─────────────────────────────────────────────────────
+describe('listMovements', () => {
+  it('delegates to repo when item exists', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X' })
+    repo.listMovements.mockResolvedValue([{ id: 'm1' }])
+    const r = await service.listMovements(ctx, 'X', { reason: 'commit' })
+    expect(repo.listMovements).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, 'X', { reason: 'commit' })
+    expect(r).toEqual([{ id: 'm1' }])
+  })
+
+  it('throws NotFoundError when item missing', async () => {
+    repo.findBySku.mockResolvedValue(null)
+    await expect(service.listMovements(ctx, 'NOPE', {})).rejects.toThrow(NotFoundError)
   })
 })
 
@@ -164,6 +232,18 @@ describe('handleOrderEvent', () => {
       payload: { appId: APP_ID, tenantId: TENANT_ID, orderId: ORDER_ID, items: [{ sku: 'X', qty: 1 }] },
     })
     expect(repo.release).toHaveBeenCalled()
+  })
+
+  it('order.returned → restocks (reverse commit) each item', async () => {
+    repo.findBySku.mockResolvedValue({ sku: 'X', qty_on_hand: 2, low_stock_threshold: 0 })
+    repo.adjustOnHand.mockResolvedValue({ sku: 'X', qty_on_hand: 5, low_stock_threshold: 0 })
+    repo.recordMovement.mockResolvedValue()
+    await service.handleOrderEvent({
+      type: 'order.returned',
+      payload: { appId: APP_ID, tenantId: TENANT_ID, orderId: ORDER_ID, items: [{ sku: 'X', qty: 3 }] },
+    })
+    expect(repo.adjustOnHand).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, 'X', 3)
+    expect(repo.recordMovement).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reason: 'return' }))
   })
 
   it('skips when items missing', async () => {

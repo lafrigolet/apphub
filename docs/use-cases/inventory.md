@@ -17,7 +17,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `ON CONFLICT … DO UPDATE` — idempotente; si la cantidad cambia queda registrado el delta en `stock_movements`.
 - ✅ Check de integridad DB: `qty_on_hand >= 0`, `qty_reserved >= 0`, `qty_reserved <= qty_on_hand`.
 - ✅ RLS y scoping explícito `(app_id, tenant_id)` en todas las queries.
-- 🔧 `listItems` sin filtros: no hay filtro por `low_stock`, rango de cantidad, `parent_sku`, ni búsqueda de texto sobre SKU/`display_name`.
+- ✅ `listItems` con filtros: `low_stock=true` (qty_available ≤ umbral), `parent_sku`, `root_only`, y búsqueda de texto `search` (ILIKE sobre SKU/`display_name`).
 - 🔧 No hay `DELETE` / soft-delete de SKUs (solo upsert).
 - ❌ Importación masiva (CSV/XLSX) con dry-run y reporte de errores por fila.
 - ❌ Exportación (CSV/XLSX) del catálogo de inventario con stock actual.
@@ -47,8 +47,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Tras commit, se publica `inventory.depleted` si `qty_on_hand <= low_stock_threshold`.
 - 🔧 Commit directo sin reserva previa: `commit` no verifica si existía `qty_reserved` asociada — podría decrementar sin haber reservado antes (solo guarda que `qty_on_hand >= qty`).
 - ❌ Commit parcial: confirmar solo N unidades de una reserva de M.
-- ❌ Devolución / reverse commit: incrementar `qty_on_hand` al procesar una devolución (actualmente solo hay `adjust` via upsert).
-- ❌ Restock directo vía evento `order.returned` (REUSE del mismo listener de eventos).
+- ✅ Devolución / reverse commit: `POST /v1/inventory/:sku/restock` incrementa `qty_on_hand` con `reason` ∈ `{restock,return,found,adjust}` y deja delta positivo en el ledger.
+- ✅ Restock directo vía evento `order.returned` (mismo listener `handleOrderEvent` → `restockItem` con `reason='return'`).
 
 ## 4. Ajustes manuales y motivos
 
@@ -67,10 +67,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Índice por `(tenant_id, sku, created_at DESC)` para consultas históricas eficientes.
 - ✅ Índice por `(ref_type, ref_id)` para trazabilidad desde pedidos.
 - ✅ `reason` ∈ `{'reserve', 'release', 'commit', 'adjust', 'restock'}` (enum documental, no CHECK constraint).
-- ❌ Endpoint de consulta del ledger: `GET /v1/inventory/:sku/movements` con filtro por fechas, motivo, referencia.
+- ✅ Endpoint de consulta del ledger: `GET /v1/inventory/:sku/movements` con filtro por fechas (`from`/`to`), `reason`, `ref_type`/`ref_id`.
 - ❌ Agregación por período: entradas, salidas, ajustes en un rango de fechas.
-- ❌ Consulta de movimientos por referencia: "todos los movimientos del pedido X".
-- ❌ Paginación del ledger.
+- ✅ Consulta de movimientos por referencia: filtro `ref_type`/`ref_id` ("todos los movimientos del pedido X").
+- ✅ Paginación del ledger (`limit`/`offset`).
 - ❌ CHECK constraint en DB sobre el enum de `reason`.
 
 ## 6. Umbrales de reposición y alertas de stock bajo
@@ -78,7 +78,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `low_stock_threshold` por SKU (default 0).
 - ✅ Evento `inventory.depleted` publicado en `platform.events` tras cada `commit` que deja `qty_on_hand <= low_stock_threshold`, con `{ appId, tenantId, sku, qtyOnHand, threshold }`.
 - ✅ Umbral persistido y actualizable via `PUT /v1/inventory/:sku`.
-- ❌ Evento `inventory.out_of_stock` diferenciado de `inventory.depleted` (cuando `qty_on_hand = 0`).
+- ✅ Evento `inventory.out_of_stock` diferenciado de `inventory.depleted`: se publica solo en el flanco `qty_on_hand` >0 → 0 (no en cada commit a 0). Si `qty_on_hand>0` pero ≤ umbral se publica `inventory.depleted`.
+- ✅ Evento `inventory.back_in_stock` cuando `qty_on_hand` pasa de 0 a positivo (restock/return).
 - ❌ Evento `inventory.low` (nivel de alerta) vs `inventory.depleted` (cruza umbral) — la semántica actual mezcla ambos.
 - ❌ Alertas enviadas al staff/admin via `platform/notifications` al recibir `inventory.depleted`.
 - ❌ Umbral de reposición configurable por almacén (cuando exista multi-almacén).
@@ -106,10 +107,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `qty_on_hand` — stock físico total en el sistema.
 - ✅ `qty_reserved` — stock comprometido (reservas activas pendientes de pago).
 - ✅ Stock disponible implícito = `qty_on_hand - qty_reserved` (calculable, no columna).
+- ✅ Campo calculado `qty_available` expuesto directamente en `GET /v1/inventory`, `GET /v1/inventory/:sku` y la lista de variantes.
 - ❌ `qty_in_transit` — stock pedido al proveedor pero no recibido aún.
 - ❌ `qty_allocated` separado de `qty_reserved` (diferencia entre "en carrito" y "en pedido confirmado").
 - ❌ `qty_damaged` / `qty_quarantine` para stock no vendible.
-- ❌ Campo calculado `qty_available` expuesto directamente en la respuesta de la API.
+- ✅ Campo calculado `qty_available` expuesto directamente en la respuesta de la API (`SELECT … (qty_on_hand - qty_reserved) AS qty_available`).
 - ❌ Reconciliación automática cuando `qty_reserved` queda "huérfana" (pedido cancelado sin evento o con evento perdido).
 
 ## 9. Multi-almacén y ubicaciones
@@ -189,11 +191,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Consume `order.created` → reserveItem por cada línea.
 - ✅ Consume `order.paid` → commitItem por cada línea.
 - ✅ Consume `order.cancelled` → releaseItem por cada línea.
-- ❌ Publica `inventory.out_of_stock` cuando `qty_on_hand = 0` (diferente de `depleted`).
-- ❌ Publica `inventory.back_in_stock` cuando `qty_on_hand` pasa de 0 a positivo.
+- ✅ Publica `inventory.out_of_stock` cuando `qty_on_hand` cruza a 0 (diferente de `depleted`).
+- ✅ Publica `inventory.back_in_stock` cuando `qty_on_hand` pasa de 0 a positivo.
 - ❌ Publica `inventory.hold_expired` cuando expira una reserva por TTL.
 - ❌ Consume `basket.abandoned` → release de reservas asociadas al carrito (REUSE `platform/scheduler` + `platform/basket`).
-- ❌ Consume `order.returned` → reverse commit (reincorporar stock).
+- ✅ Consume `order.returned` → reverse commit (reincorporar stock) vía `restockItem`.
 - ❌ Consume `shipment.lost` → ajuste de pérdida.
 - ❌ Consume `purchase_order.received` → restock (cuando existan POs).
 
@@ -230,8 +232,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ API REST documentada bajo `/v1/inventory` con tags OpenAPI `['inventory']` y `['inventory · variants']`.
 - ✅ Endpoint de health en `/api/inventory/health`.
 - ❌ Interfaz admin en `apps/portal` (o en el portal de la app) para gestionar stock: list, edit, ajustar.
-- ❌ Búsqueda por SKU / `display_name` en el listado.
-- ❌ Filtros en listado: `qty_available < N`, `low_stock=true`, con/sin variantes.
+- ✅ Búsqueda por SKU / `display_name` en el listado (`?search=` ILIKE; API, sin UI).
+- 🔧 Filtros en listado: `low_stock=true`, `root_only`, `parent_sku` (API). Falta `qty_available < N` arbitrario.
 - ❌ Vista de historial de movimientos por SKU desde el admin.
 - ❌ Acciones masivas: ajuste masivo, cambio de umbral masivo, exportación.
 - ❌ Notificaciones push/email al staff cuando se publica `inventory.depleted` (REUSE `platform/notifications`).
@@ -241,11 +243,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
 1. **Expiración de reservas** via `platform/scheduler` (`inventory-hold-purge` job) — previene stock permanentemente bloqueado por pedidos zombi; riesgo operativo inmediato.
-2. **Endpoint de movimientos** `GET /v1/inventory/:sku/movements` con filtro de fechas — desbloquea trazabilidad y auditoría sin cambios de schema.
-3. **Evento `inventory.out_of_stock`** diferenciado de `depleted` + consumidor en `platform/notifications` para alerta al staff — valor operativo alto, coste mínimo.
-4. **Stock disponible calculado** (`qty_available = qty_on_hand - qty_reserved`) devuelto directamente en la respuesta de la API, y **filtro `low_stock=true`** en `listItems` — mejora UX sin cambios de schema.
+2. ✅ ~~**Endpoint de movimientos** `GET /v1/inventory/:sku/movements` con filtro de fechas~~ (implementado: filtros `reason`/`ref_type`/`ref_id`/`from`/`to` + paginación).
+3. 🔧 ~~**Evento `inventory.out_of_stock`** diferenciado de `depleted`~~ (publicación implementada en el flanco a 0, + `inventory.back_in_stock`). Pendiente cross-cutting: consumidor en `platform/notifications` para alerta al staff.
+4. ✅ ~~**Stock disponible calculado** (`qty_available = qty_on_hand - qty_reserved`) en la respuesta de la API, y **filtro `low_stock=true`** en `listItems`~~ (implementado; además filtros `root_only`/`parent_sku`/`search`).
 5. **Sincronización catalógo ↔ inventario**: consumir `catalog.product.created` para crear fila en inventario automáticamente; exponer `qty_available` en respuesta del catálogo — elimina la desconexión actual entre los dos módulos.
-6. **Devoluciones / reverse commit** via `order.returned` → `adjustOnHand(+qty)` con `reason='return'` — cierra el ciclo post-venta; bajo coste (la función `adjustOnHand` ya existe en el repositorio).
+6. ✅ ~~**Devoluciones / reverse commit** via `order.returned` → `adjustOnHand(+qty)` con `reason='return'`~~ (implementado vía `restockItem` + endpoint `POST /:sku/restock`).
 7. **Multi-almacén** — tabla `warehouses` + `inventory_locations`; necesario cuando los tenants tienen almacenes separados o lógica de fulfillment por zona.
 8. **Caducidad y lotes** — tabla `batches` + job `inventory-expiry-warning` en scheduler; prioritario para tenants de alimentación, farmacia o cosmética.
 9. **Kits/bundles** — explosión de componentes al reservar; necesario para tiendas con productos compuestos; requiere modelado de BOM.

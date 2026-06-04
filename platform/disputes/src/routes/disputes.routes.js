@@ -1,15 +1,33 @@
 import { z } from 'zod'
 import * as service from '../services/disputes.service.js'
 
+const REASON_CODES = [
+  'item_not_received',
+  'item_not_as_described',
+  'item_damaged',
+  'wrong_item',
+  'quantity_mismatch',
+  'unauthorized_transaction',
+  'duplicate_charge',
+  'service_not_rendered',
+  'other',
+]
+
 const createBody = z.object({
   orderId:      z.string().uuid(),
   reason:       z.string().min(1).max(128),
+  reasonCode:   z.enum(REASON_CODES).optional(),
   description:  z.string().max(4000).optional(),
 })
 
 const messageBody = z.object({
   body:         z.string().min(1).max(10000),
   attachments:  z.array(z.record(z.any())).optional(),
+  isInternal:   z.boolean().optional(),
+})
+
+const withdrawBody = z.object({
+  note: z.string().max(2000).optional(),
 })
 
 const evidenceBody = z.object({
@@ -24,9 +42,10 @@ const resolveBody = z.object({
 })
 
 const listQuery = z.object({
-  status: z.enum(['open', 'investigating', 'resolved_buyer', 'resolved_vendor', 'escalated_chargeback']).optional(),
-  limit:  z.coerce.number().int().min(1).max(200).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+  status:     z.enum(['open', 'investigating', 'resolved_buyer', 'resolved_vendor', 'escalated_chargeback', 'withdrawn']).optional(),
+  reasonCode: z.enum(REASON_CODES).optional(),
+  limit:      z.coerce.number().int().min(1).max(200).optional(),
+  offset:     z.coerce.number().int().min(0).optional(),
 })
 
 const idParams = z.object({ id: z.string().uuid() })
@@ -67,10 +86,10 @@ export async function disputesRoutes(fastify) {
   })
 
   fastify.post('/v1/disputes/:id/messages', {
-    schema: { tags, summary: 'Post a message in the dispute thread', params: idParams, body: messageBody },
+    schema: { tags, summary: 'Post a message in the dispute thread (isInternal=true → staff-only note)', params: idParams, body: messageBody },
   }, async (req, reply) => {
     const body = messageBody.parse(req.body)
-    const m = await service.postMessage(ctxFromRequest(req), req.params.id, body.body, body.attachments)
+    const m = await service.postMessage(ctxFromRequest(req), req.params.id, body.body, body.attachments, body.isInternal ?? false)
     return reply.status(201).send(m)
   })
 
@@ -87,6 +106,13 @@ export async function disputesRoutes(fastify) {
   }, async (req) => {
     const body = resolveBody.parse(req.body)
     return service.resolve(ctxFromRequest(req), req.params.id, body)
+  })
+
+  fastify.patch('/v1/disputes/:id/withdraw', {
+    schema: { tags, summary: 'Buyer voluntarily withdraws an open/investigating dispute', params: idParams, body: withdrawBody },
+  }, async (req) => {
+    const body = withdrawBody.parse(req.body ?? {})
+    return service.withdraw(ctxFromRequest(req), req.params.id, body.note)
   })
 
   // ── Stripe dispute API sync (push internal evidence to Stripe) ───────

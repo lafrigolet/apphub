@@ -15,26 +15,38 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../lib/env.js', () => ({
-  env: { NODE_ENV: 'test', LOG_LEVEL: 'error', REDIS_URL: 'redis://localhost' },
+  env: {
+    NODE_ENV: 'test', LOG_LEVEL: 'error', REDIS_URL: 'redis://localhost',
+    BASKET_TTL_AUTH_SECONDS: 2_592_000, BASKET_TTL_GUEST_SECONDS: 604_800,
+  },
 }))
 vi.mock('../lib/redis.js', () => {
   const store = new Map()
+  const ttls = new Map()
   return {
+    publish: vi.fn(async () => {}),
     redis: {
+      // set(k, v) or set(k, v, 'EX', n) or set(k, v, 'KEEPTTL')
+      set: vi.fn(async (k, v, mode, n) => {
+        store.set(k, v)
+        if (mode === 'EX') ttls.set(k, n)
+        else if (mode !== 'KEEPTTL') ttls.delete(k)
+        return 'OK'
+      }),
       get: vi.fn(async (k) => store.get(k) ?? null),
-      set: vi.fn(async (k, v) => { store.set(k, v); return 'OK' }),
-      del: vi.fn(async (k) => { store.delete(k); return 1 }),
+      del: vi.fn(async (k) => { store.delete(k); ttls.delete(k); return 1 }),
       __store: store,
-      __reset: () => store.clear(),
+      __ttls: ttls,
+      __reset: () => { store.clear(); ttls.clear() },
     },
   }
 })
 
 import {
-  getBasket, upsertItem, removeItem, clearBasket, mergeBaskets,
+  getBasket, getCount, upsertItem, patchQuantity, removeItem, clearBasket, mergeBaskets,
   listSaved, saveForLater, moveBackToBasket, removeSaved,
 } from '../services/basket.service.js'
-import { redis } from '../lib/redis.js'
+import { redis, publish } from '../lib/redis.js'
 
 const APP = 'aikikan', TENANT = 't1', USER = 'u1', GUEST = 'g1'
 const item = (id, qty = 1, price = 100) => ({
@@ -224,5 +236,109 @@ describe('saveForLater / moveBackToBasket', () => {
     const r = await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'ghost' })
     expect(r.saved).toEqual({ items: [] })
     expect(r.basket).toEqual({ items: [] })
+  })
+})
+
+// ── TTL / sliding expiry / empty-key cleanup ─────────────────────────────
+
+describe('TTL & empty-key cleanup', () => {
+  it('upsertItem (auth) escribe con TTL de 30d', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    expect(redis.__ttls.get('basket:aikikan:t1:u1')).toBe(2_592_000)
+  })
+
+  it('upsertItem (guest) escribe con TTL de 7d', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1'), isGuest: true })
+    expect(redis.__ttls.get('basket:aikikan:t1:u1')).toBe(604_800)
+  })
+
+  it('removeItem que deja el basket vacío → BORRA la clave (no leak)', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    await removeItem({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    expect(redis.__store.has('basket:aikikan:t1:u1')).toBe(false)
+  })
+
+  it('saveForLater que vacía el basket → borra la clave del carrito', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    expect(redis.__store.has('basket:aikikan:t1:u1')).toBe(false)
+    expect(redis.__store.has('basket:saved:aikikan:t1:u1')).toBe(true)
+  })
+
+  it('removeSaved que vacía la lista guardada → borra la clave saved', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    await saveForLater({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    await removeSaved({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1' })
+    expect(redis.__store.has('basket:saved:aikikan:t1:u1')).toBe(false)
+  })
+})
+
+// ── patchQuantity (atomic relative change) ───────────────────────────────
+
+describe('patchQuantity', () => {
+  it('incrementa la cantidad del ítem', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1', 2) })
+    const r = await patchQuantity({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1', delta: 3 })
+    expect(r.items[0].quantity).toBe(5)
+  })
+
+  it('decrementa pero nunca por debajo de 1 (clamp)', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1', 2) })
+    const r = await patchQuantity({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1', delta: -10 })
+    expect(r.items[0].quantity).toBe(1)
+  })
+
+  it('itemId inexistente → no-op (devuelve basket sin cambios)', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1', 2) })
+    const r = await patchQuantity({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'ghost', delta: 1 })
+    expect(r.items[0].quantity).toBe(2)
+  })
+
+  it('sin basket en Redis → devuelve {items:[]}', async () => {
+    const r = await patchQuantity({ appId: APP, tenantId: TENANT, userId: USER, itemId: 'p1', delta: 1 })
+    expect(r).toEqual({ items: [] })
+  })
+})
+
+// ── getCount (mini-cart badge) ───────────────────────────────────────────
+
+describe('getCount', () => {
+  it('sin basket → ceros', async () => {
+    const r = await getCount({ appId: APP, tenantId: TENANT, userId: USER })
+    expect(r).toEqual({ itemCount: 0, lineCount: 0, subtotalCents: 0, appliedPromo: null })
+  })
+
+  it('suma cantidades + subtotal + líneas + appliedPromo', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1', 2, 100) })
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p2', 3, 50) })
+    // simula un promo aplicado en el JSON del basket
+    const raw = JSON.parse(redis.__store.get('basket:aikikan:t1:u1'))
+    raw.appliedPromo = 'SAVE10'
+    redis.__store.set('basket:aikikan:t1:u1', JSON.stringify(raw))
+    const r = await getCount({ appId: APP, tenantId: TENANT, userId: USER })
+    expect(r).toEqual({ itemCount: 5, lineCount: 2, subtotalCents: 350, appliedPromo: 'SAVE10' })
+  })
+})
+
+// ── basket.updated event ─────────────────────────────────────────────────
+
+describe('basket.updated events', () => {
+  it('upsertItem publica basket.updated con conteos', async () => {
+    await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1', 2) })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'basket.updated', action: 'upsert_item', appId: APP, tenantId: TENANT, userId: USER,
+      itemCount: 2, lineCount: 1,
+    }))
+  })
+
+  it('clearBasket publica basket.updated action=clear', async () => {
+    await clearBasket({ appId: APP, tenantId: TENANT, userId: USER })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'basket.updated', action: 'clear' }))
+  })
+
+  it('fallo en publish no rompe la mutación (best-effort)', async () => {
+    publish.mockRejectedValueOnce(new Error('redis down'))
+    const r = await upsertItem({ appId: APP, tenantId: TENANT, userId: USER, ...item('p1') })
+    expect(r.items).toHaveLength(1)
   })
 })

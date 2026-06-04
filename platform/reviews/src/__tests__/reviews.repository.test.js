@@ -84,17 +84,90 @@ describe('aggregate', () => {
 })
 
 describe('setStatus', () => {
-  it('UPDATE scoped; missing → null', async () => {
+  it('UPDATE scoped with moderation_reason; missing → null', async () => {
     const c = mockClient([])
-    expect(await repo.setStatus(c, APP, TEN, RID, 'hidden')).toBeNull()
+    expect(await repo.setStatus(c, APP, TEN, RID, 'hidden', 'spam')).toBeNull()
     const [sql, params] = c.query.mock.calls[0]
-    expect(sql).toMatch(/SET status=\$4, updated_at=now\(\)/)
-    expect(params).toEqual([APP, TEN, RID, 'hidden'])
+    expect(sql).toMatch(/SET status=\$4, moderation_reason=\$5, updated_at=now\(\)/)
+    expect(params).toEqual([APP, TEN, RID, 'hidden', 'spam'])
   })
 
-  it('returns updated row', async () => {
+  it('defaults moderation_reason to null', async () => {
     const c = mockClient([{ id: RID, status: 'hidden' }])
-    expect(await repo.setStatus(c, APP, TEN, RID, 'hidden')).toEqual({ id: RID, status: 'hidden' })
+    await repo.setStatus(c, APP, TEN, RID, 'hidden')
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, RID, 'hidden', null])
+  })
+})
+
+describe('listByTarget sort (recommendation #4)', () => {
+  it('sort=helpful orders by helpful_count DESC', async () => {
+    const c = mockClient([])
+    await repo.listByTarget(c, APP, TEN, { targetType: 'product', targetId: 'sku', sort: 'helpful' })
+    expect(c.query.mock.calls[0][0]).toMatch(/ORDER BY helpful_count DESC/)
+  })
+
+  it('sort=rating_high orders by rating DESC', async () => {
+    const c = mockClient([])
+    await repo.listByTarget(c, APP, TEN, { targetType: 'product', targetId: 'sku', sort: 'rating_high' })
+    expect(c.query.mock.calls[0][0]).toMatch(/ORDER BY rating DESC/)
+  })
+
+  it('unknown sort falls back to created_at DESC', async () => {
+    const c = mockClient([])
+    await repo.listByTarget(c, APP, TEN, { targetType: 'product', targetId: 'sku', sort: 'bogus' })
+    expect(c.query.mock.calls[0][0]).toMatch(/ORDER BY created_at DESC/)
+  })
+})
+
+describe('listForModeration (recommendation #7)', () => {
+  it('scoped by status, paginated, newest first', async () => {
+    const c = mockClient([{ id: RID }])
+    await repo.listForModeration(c, APP, TEN, { status: 'pending', limit: 10, offset: 5 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/ORDER BY created_at DESC/)
+    expect(params).toEqual([APP, TEN, 'pending', 10, 5])
+  })
+
+  it('defaults to pending/50/0', async () => {
+    const c = mockClient([])
+    await repo.listForModeration(c, APP, TEN, {})
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'pending', 50, 0])
+  })
+})
+
+describe('reports (recommendation #9)', () => {
+  it('upsertReport INSERT ... ON CONFLICT DO UPDATE', async () => {
+    const c = mockClient([{ id: 'rep1' }])
+    await repo.upsertReport(c, APP, TEN, RID, UID, 'spam', 'bot')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO platform_reviews\.review_reports/)
+    expect(sql).toMatch(/ON CONFLICT \(review_id, reporter_user_id\) DO UPDATE/)
+    expect(params).toEqual([APP, TEN, RID, UID, 'spam', 'bot'])
+  })
+
+  it('upsertReport defaults detail to null', async () => {
+    const c = mockClient([{ id: 'rep1' }])
+    await repo.upsertReport(c, APP, TEN, RID, UID, 'fake')
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, RID, UID, 'fake', null])
+  })
+
+  it('countOpenReports returns the count int', async () => {
+    const c = mockClient([{ count: 4 }])
+    expect(await repo.countOpenReports(c, APP, TEN, RID)).toBe(4)
+    expect(c.query.mock.calls[0][0]).toMatch(/status='open'/)
+  })
+
+  it('listReports scoped + paginated', async () => {
+    const c = mockClient([{ id: 'rep1' }])
+    await repo.listReports(c, APP, TEN, { status: 'open', limit: 5, offset: 0 })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'open', 5, 0])
+  })
+
+  it('setReportStatus returns updated row; missing → null', async () => {
+    expect(await repo.setReportStatus(mockClient([]), APP, TEN, 'rep1', 'dismissed')).toBeNull()
+    const c = mockClient([{ id: 'rep1', status: 'reviewed' }])
+    expect(await repo.setReportStatus(c, APP, TEN, 'rep1', 'reviewed')).toEqual({ id: 'rep1', status: 'reviewed' })
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'rep1', 'reviewed'])
   })
 })
 

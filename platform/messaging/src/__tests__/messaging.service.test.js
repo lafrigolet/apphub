@@ -133,6 +133,99 @@ describe('postMessage', () => {
   })
 })
 
+// ── postMessage · first reply (vendor SLA core) ──────────────────────
+describe('postMessage — first_reply_at', () => {
+  it('vendor primer reply → recordFirstReply + evento thread.first_reply', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    repo.insertMessage.mockResolvedValue({ id: 'm9' })
+    repo.recordFirstReply.mockResolvedValue(true)
+    await service.postMessage(vendorCtx, THREAD_ID, 'on its way', [])
+    expect(repo.recordFirstReply).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, THREAD_ID)
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'thread.first_reply',
+      payload: expect.objectContaining({ threadId: THREAD_ID, vendorUserId: VENDOR, buyerUserId: BUYER }),
+    }))
+  })
+
+  it('vendor segundo reply → recordFirstReply false → NO emite thread.first_reply', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    repo.insertMessage.mockResolvedValue({ id: 'm10' })
+    repo.recordFirstReply.mockResolvedValue(false)
+    await service.postMessage(vendorCtx, THREAD_ID, 'again', [])
+    expect(publish).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'thread.first_reply' }))
+  })
+
+  it('buyer NO dispara recordFirstReply', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    repo.insertMessage.mockResolvedValue({ id: 'm11' })
+    await service.postMessage(buyerCtx, THREAD_ID, 'hello', [])
+    expect(repo.recordFirstReply).not.toHaveBeenCalled()
+  })
+})
+
+// ── unread counts + read-all ─────────────────────────────────────────
+describe('markThreadRead', () => {
+  it('marca y emite thread.read cuando algo cambió', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    repo.markThreadRead.mockResolvedValue(2)
+    const r = await service.markThreadRead(buyerCtx, THREAD_ID)
+    expect(r).toEqual({ marked: 2 })
+    expect(repo.markThreadRead).toHaveBeenCalledWith(expect.anything(), APP_ID, TENANT_ID, THREAD_ID, BUYER)
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'thread.read',
+      payload: expect.objectContaining({ threadId: THREAD_ID, readerUserId: BUYER, marked: 2 }),
+    }))
+  })
+
+  it('nada que marcar → no emite evento', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    repo.markThreadRead.mockResolvedValue(0)
+    const r = await service.markThreadRead(buyerCtx, THREAD_ID)
+    expect(r).toEqual({ marked: 0 })
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('rechaza non-participant', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    await expect(service.markThreadRead(otherCtx, THREAD_ID)).rejects.toThrow(ForbiddenError)
+  })
+})
+
+describe('getThreadUnreadCount', () => {
+  it('devuelve { threadId, unread } para participante', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    repo.countUnreadInThread.mockResolvedValue(5)
+    const r = await service.getThreadUnreadCount(vendorCtx, THREAD_ID)
+    expect(r).toEqual({ threadId: THREAD_ID, unread: 5 })
+  })
+
+  it('rechaza non-participant', async () => {
+    repo.findThreadById.mockResolvedValue(thread)
+    await expect(service.getThreadUnreadCount(otherCtx, THREAD_ID)).rejects.toThrow(ForbiddenError)
+  })
+})
+
+describe('getUnreadCounts', () => {
+  it('agrega total + desglose por thread', async () => {
+    repo.unreadCountsByThread.mockResolvedValue([
+      { thread_id: 'th1', unread: 2 },
+      { thread_id: 'th2', unread: 3 },
+    ])
+    const r = await service.getUnreadCounts(buyerCtx)
+    expect(r.total).toBe(5)
+    expect(r.threads).toEqual([
+      { threadId: 'th1', unread: 2 },
+      { threadId: 'th2', unread: 3 },
+    ])
+  })
+
+  it('sin no leídos → total 0, lista vacía', async () => {
+    repo.unreadCountsByThread.mockResolvedValue([])
+    const r = await service.getUnreadCounts(buyerCtx)
+    expect(r).toEqual({ total: 0, threads: [] })
+  })
+})
+
 // ── listMessages ─────────────────────────────────────────────────────
 describe('listMessages', () => {
   it('lists when participant', async () => {

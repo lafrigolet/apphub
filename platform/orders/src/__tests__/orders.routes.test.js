@@ -14,6 +14,10 @@ vi.mock('../services/orders.service.js', () => ({
   listModifications:     vi.fn(),
   changeShippingAddress: vi.fn(),
   addOrderNote:          vi.fn(),
+  addItem:               vi.fn(),
+  changeItemQty:         vi.fn(),
+  removeItem:            vi.fn(),
+  exportOrdersCsv:       vi.fn(),
 }))
 
 import { ordersRoutes } from '../routes/orders.routes.js'
@@ -81,17 +85,98 @@ describe('GET /v1/orders', () => {
     service.listOrders.mockResolvedValue([{ id: OID }])
     const res = await app.inject({ method: 'GET', url: '/v1/orders?buyerUserId=b1&status=paid&limit=5&offset=10' })
     expect(res.statusCode).toBe(200)
-    expect(service.listOrders).toHaveBeenCalledWith(expect.anything(), {
-      buyerUserId: 'b1', status: 'paid', limit: 5, offset: 10,
-    })
+    expect(service.listOrders).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ buyerUserId: 'b1', status: 'paid', limit: 5, offset: 10 }),
+    )
   })
 
-  it('sin query → limit/offset undefined', async () => {
+  it('sin query → filtros undefined', async () => {
     service.listOrders.mockResolvedValue([])
     await app.inject({ method: 'GET', url: '/v1/orders' })
-    expect(service.listOrders).toHaveBeenCalledWith(expect.anything(), {
-      buyerUserId: undefined, status: undefined, limit: undefined, offset: undefined,
+    expect(service.listOrders).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ buyerUserId: undefined, status: undefined, limit: undefined, offset: undefined }),
+    )
+  })
+
+  it('parsea filtros de rango de fecha/importe/vendor', async () => {
+    service.listOrders.mockResolvedValue([])
+    const url = '/v1/orders?createdAfter=2026-01-01T00:00:00.000Z&createdBefore=2026-02-01T00:00:00.000Z'
+      + '&totalMinCents=100&totalMaxCents=5000&vendorTenantId=33333333-3333-3333-3333-333333333333'
+    const res = await app.inject({ method: 'GET', url })
+    expect(res.statusCode).toBe(200)
+    expect(service.listOrders).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      createdAfter: '2026-01-01T00:00:00.000Z',
+      createdBefore: '2026-02-01T00:00:00.000Z',
+      totalMinCents: 100, totalMaxCents: 5000,
+      vendorTenantId: '33333333-3333-3333-3333-333333333333',
+    }))
+  })
+})
+
+describe('GET /v1/orders/export.csv', () => {
+  it('devuelve CSV con content-type y disposition', async () => {
+    service.exportOrdersCsv.mockResolvedValue('id,status\no1,paid')
+    const res = await app.inject({ method: 'GET', url: '/v1/orders/export.csv?status=paid' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toMatch(/text\/csv/)
+    expect(res.headers['content-disposition']).toMatch(/attachment/)
+    expect(res.body).toBe('id,status\no1,paid')
+    expect(service.exportOrdersCsv).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({ status: 'paid' }),
+    )
+  })
+})
+
+describe('item editing routes', () => {
+  it('POST /v1/orders/:id/items → 201 + addItem', async () => {
+    service.addItem.mockResolvedValue({ order: { id: OID }, item: { id: 'it1' } })
+    const res = await app.inject({
+      method: 'POST', url: `/v1/orders/${OID}/items`,
+      headers: { 'Content-Type': 'application/json' },
+      payload: { sku: 'B', productName: 'Banana', qty: 2, unitPriceCents: 50, reason: 'add' },
     })
+    expect(res.statusCode).toBe(201)
+    expect(service.addItem).toHaveBeenCalledWith(
+      expect.anything(), OID,
+      expect.objectContaining({ sku: 'B', qty: 2, unitPriceCents: 50 }), 'add',
+    )
+    // reason no debe filtrarse al item
+    expect(service.addItem.mock.calls[0][2]).not.toHaveProperty('reason')
+  })
+
+  it('PATCH /v1/orders/:id/items/:itemId → changeItemQty', async () => {
+    service.changeItemQty.mockResolvedValue({ order: { id: OID } })
+    const ITEM = '44444444-4444-4444-4444-444444444444'
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/orders/${OID}/items/${ITEM}`,
+      headers: { 'Content-Type': 'application/json' },
+      payload: { qty: 3, reason: 'more' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.changeItemQty).toHaveBeenCalledWith(expect.anything(), OID, ITEM, 3, 'more')
+  })
+
+  it('DELETE /v1/orders/:id/items/:itemId → removeItem', async () => {
+    service.removeItem.mockResolvedValue({ order: { id: OID } })
+    const ITEM = '44444444-4444-4444-4444-444444444444'
+    const res = await app.inject({
+      method: 'DELETE', url: `/v1/orders/${OID}/items/${ITEM}`,
+      headers: { 'Content-Type': 'application/json' },
+      payload: { reason: 'oops' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.removeItem).toHaveBeenCalledWith(expect.anything(), OID, ITEM, 'oops')
+  })
+
+  it('qty inválido (0) → rechazado por zod', async () => {
+    const ITEM = '44444444-4444-4444-4444-444444444444'
+    const res = await app.inject({
+      method: 'PATCH', url: `/v1/orders/${OID}/items/${ITEM}`,
+      headers: { 'Content-Type': 'application/json' },
+      payload: { qty: 0 },
+    })
+    expect([400, 500]).toContain(res.statusCode)
+    expect(service.changeItemQty).not.toHaveBeenCalled()
   })
 })
 
