@@ -17,6 +17,7 @@ COPY platform/leads/package.json                   ./platform/leads/package.json
 COPY platform/donations/package.json               ./platform/donations/package.json
 COPY platform/inquiries/package.json               ./platform/inquiries/package.json
 COPY platform/verifactu/package.json               ./platform/verifactu/package.json
+COPY platform/chat/package.json                    ./platform/chat/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-core...
@@ -42,6 +43,8 @@ COPY platform/inquiries/src           ./platform/inquiries/src
 COPY platform/inquiries/migrations    ./platform/inquiries/migrations
 COPY platform/verifactu/src           ./platform/verifactu/src
 COPY platform/verifactu/migrations    ./platform/verifactu/migrations
+COPY platform/chat/src                ./platform/chat/src
+COPY platform/chat/migrations         ./platform/chat/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core
@@ -62,6 +65,7 @@ COPY platform/leads/package.json                   ./platform/leads/package.json
 COPY platform/donations/package.json               ./platform/donations/package.json
 COPY platform/inquiries/package.json               ./platform/inquiries/package.json
 COPY platform/verifactu/package.json               ./platform/verifactu/package.json
+COPY platform/chat/package.json                    ./platform/chat/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-core...
@@ -87,6 +91,8 @@ COPY platform/inquiries/src           ./platform/inquiries/src
 COPY platform/inquiries/migrations    ./platform/inquiries/migrations
 COPY platform/verifactu/src           ./platform/verifactu/src
 COPY platform/verifactu/migrations    ./platform/verifactu/migrations
+COPY platform/chat/src                ./platform/chat/src
+COPY platform/chat/migrations         ./platform/chat/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core

@@ -30,6 +30,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   publica evento.
 
 ### Fixed
+- **`platform/core/Dockerfile` no copiaba el workspace `platform/chat`** (ni
+  `package.json` ni `src`/`migrations`, en las stages development y
+  production). El contenedor `platform-core` fallaba al arrancar con
+  `ERR_MODULE_NOT_FOUND: @apphub/platform-chat`, las migraciones de chat nunca
+  corrían y los jobs `chat-*` del scheduler fallaban cada minuto con
+  `relation "platform_chat.messages" does not exist`. Nota operativa para
+  entornos con volumen de Postgres anterior al módulo chat: el init SQL no
+  re-corre, hay que crear a mano rol/schema/grants de `platform_chat` y
+  `platform_verifactu` y re-aplicar el grant condicional
+  `platform/scheduler/migrations/0005_grant_platform_chat.sql` (quedó
+  registrado como aplicado siendo no-op).
 - **`trustProxy` en los 4 monolitos públicos** (`platform-core`,
   `platform-marketplace`, `platform-restaurant`, `platform-appointments`).
   Detrás de NGINX/Cloudflare `req.ip` era la IP del proxy, lo que colapsaba el
