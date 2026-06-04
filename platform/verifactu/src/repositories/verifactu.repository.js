@@ -18,8 +18,21 @@ export async function maxNumero(client) {
   return rows[0].max
 }
 
-const REGISTRO_COLS = `numero, num_serie, cliente_nombre, cliente_nif, fecha_expedicion,
+const REGISTRO_COLS = `numero, num_serie, tipo, cliente_nombre, cliente_nif, fecha_expedicion,
   importe_total, total_display, estado_remision, huella, huella_anterior, qr_url`
+
+// Cuenta registros de un num_serie por tipo — para reglas de anulación
+// (impedir anular algo que no existe o que ya está anulado).
+export async function contarPorNumSerie(client, numSerie) {
+  const { rows } = await client.query(
+    `SELECT tipo, COUNT(*)::int AS n FROM ${SCHEMA}.registros
+      WHERE num_serie = $1 GROUP BY tipo`,
+    [numSerie],
+  )
+  const out = { alta: 0, anulacion: 0 }
+  for (const r of rows) out[r.tipo] = r.n
+  return out
+}
 
 export async function findByNumSerie(client, numSerie) {
   const { rows } = await client.query(
@@ -49,8 +62,8 @@ export async function insertRegistro(client, r) {
     `INSERT INTO ${SCHEMA}.registros
        (app_id, tenant_id, sub_tenant_id, numero, num_serie, tipo, tipo_factura,
         cliente_nombre, cliente_nif, fecha_expedicion, importe_total, cuota_total, total_display,
-        estado_remision, huella, huella_anterior, qr_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        estado_remision, huella, huella_anterior, qr_url, id_emisor, gen_registro)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING numero, num_serie, cliente_nombre, cliente_nif, fecha_expedicion,
                total_display, estado_remision, huella, huella_anterior`,
     [
@@ -58,9 +71,24 @@ export async function insertRegistro(client, r) {
       r.tipoFactura ?? 'F1', r.clienteNombre ?? null, r.clienteNif ?? null,
       r.fechaExpedicion ?? null, r.importeTotal ?? null, r.cuotaTotal ?? null, r.totalDisplay ?? null,
       r.estadoRemision ?? 'pendiente', r.huella ?? null, r.huellaAnterior ?? null, r.qrUrl ?? null,
+      r.idEmisor ?? null, r.genRegistro ?? null,
     ],
   )
   return rows[0]
+}
+
+// Registros con TODOS los campos canónicos de la huella, ascendente por número,
+// para el recálculo completo de la cadena (full re-hash, auditoría).
+export async function listRegistrosParaRehash(client, { limit = 1000 } = {}) {
+  const { rows } = await client.query(
+    `SELECT numero, num_serie, tipo, tipo_factura, id_emisor, fecha_expedicion,
+            cuota_total, importe_total, gen_registro, huella, huella_anterior
+       FROM ${SCHEMA}.registros
+      ORDER BY numero ASC NULLS LAST, created_at ASC
+      LIMIT $1`,
+    [limit],
+  )
+  return rows
 }
 
 // ── Eventos ───────────────────────────────────────────────────────────
@@ -182,4 +210,70 @@ export async function insertCotejo(client, c) {
      c.resultado, c.label, c.tone, c.tsDisplay ?? 'ahora'],
   )
   return rows[0]
+}
+
+// ── Series de facturación ─────────────────────────────────────────────
+export async function listSeries(client) {
+  const { rows } = await client.query(
+    `SELECT codigo, descripcion, ejercicio, siguiente, activa
+       FROM ${SCHEMA}.series ORDER BY created_at ASC`,
+  )
+  return rows
+}
+
+export async function insertSerie(client, s) {
+  const { rows } = await client.query(
+    `INSERT INTO ${SCHEMA}.series (app_id, tenant_id, sub_tenant_id, codigo, descripcion, ejercicio, siguiente, activa)
+     VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7,1),COALESCE($8,true))
+     RETURNING codigo, descripcion, ejercicio, siguiente, activa`,
+    [s.appId, s.tenantId, s.subTenantId ?? null, s.codigo, s.descripcion ?? null,
+     s.ejercicio ?? null, s.siguiente ?? null, s.activa ?? null],
+  )
+  return rows[0]
+}
+
+// Reserva el siguiente correlativo de una serie ACTIVA de forma atómica
+// (FOR UPDATE bloquea la fila durante la transacción → sin huecos ni colisiones).
+// Devuelve null si la serie no existe o está cerrada.
+export async function reservarNumeroSerie(client, codigo) {
+  const { rows } = await client.query(
+    `SELECT codigo, ejercicio, siguiente, activa FROM ${SCHEMA}.series
+      WHERE codigo = $1 FOR UPDATE`,
+    [codigo],
+  )
+  const serie = rows[0]
+  if (!serie || !serie.activa) return null
+  await client.query(
+    `UPDATE ${SCHEMA}.series SET siguiente = siguiente + 1 WHERE codigo = $1`,
+    [codigo],
+  )
+  return { codigo: serie.codigo, ejercicio: serie.ejercicio, numero: serie.siguiente }
+}
+
+export async function cerrarSerie(client, codigo) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.series SET activa = false WHERE codigo = $1
+     RETURNING codigo, descripcion, ejercicio, siguiente, activa`,
+    [codigo],
+  )
+  return rows[0] ?? null
+}
+
+// ── Exportación legal ─────────────────────────────────────────────────
+export async function exportRegistros(client) {
+  const { rows } = await client.query(
+    `SELECT numero, num_serie, tipo, tipo_factura, id_emisor, cliente_nombre, cliente_nif,
+            fecha_expedicion, importe_total, cuota_total, gen_registro, huella, huella_anterior,
+            estado_remision, created_at
+       FROM ${SCHEMA}.registros ORDER BY numero ASC NULLS LAST, created_at ASC`,
+  )
+  return rows
+}
+
+export async function exportEventos(client) {
+  const { rows } = await client.query(
+    `SELECT tag, tone, descripcion, ts_display, huella, huella_anterior, ocurrido_en, created_at
+       FROM ${SCHEMA}.eventos ORDER BY ocurrido_en ASC, created_at ASC`,
+  )
+  return rows
 }

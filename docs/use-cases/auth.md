@@ -91,11 +91,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 5. Recuperación de contraseña
 
 - ✅ Solicitud (`POST /v1/auth/forgot-password`) — silencioso, sin enumeración de emails.
-- ✅ Token UUID con TTL 1 h guardado en `password_resets`; sólo guardado el token en BD sin hashing.
+- ✅ Token plano de 32 bytes (base64url) con TTL 1 h; sólo se guarda su SHA-256 en `password_resets.token_hash`. `id` es PK independiente, no el secreto.
 - ✅ Restablecimiento (`POST /v1/auth/reset-password`) con `used_at` seteado tras consumir.
 - ✅ Invalidación de todos los refresh tokens del usuario tras reset (barrido por patrón Redis).
 - ✅ Evento `auth.password_reset_requested` — el módulo `notifications` envía el email.
-- 🔧 El token de reset se guarda como UUID plano en DB — a diferencia de magic-links y activation tokens que guardan SHA-256. Si se compromete la BD, los tokens de reset activos son directamente explotables.
+- ✅ ~~El token de reset se guarda como UUID plano en DB~~ — corregido (migración 0010): ahora SHA-256 en `token_hash`, paridad con magic-links y activation-tokens. Fallback legacy sólo para filas pre-migración durante su TTL residual de 1h.
 - ❌ Enforce de política de contraseña (mínimo de longitud=8 hay, pero sin requisitos de complejidad, sin lista de contraseñas comunes/HIBP).
 - ❌ Historial de contraseñas (prohibir reutilizar las últimas N).
 - ❌ Notificación de confirmación al usuario tras reset exitoso (email "tu contraseña fue cambiada").
@@ -110,11 +110,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Refresh rotativo (el refresh token se consume y emite uno nuevo en cada `/refresh`).
 - ✅ Validación interna de JWT (`GET /internal/validate`) para otros módulos/servicios.
 - ✅ Revocación de todos los refresh tokens del usuario en el reset de contraseña.
-- 🔧 Logout no existe como endpoint explícito — para invalidar hay que borrar el refresh token desde el cliente (sin endpoint `DELETE /v1/auth/session`).
+- ✅ Logout explícito (`POST /v1/auth/logout`) que invalida el refresh token específico en Redis. Idempotente; identidad desde JWT.
+- ✅ Logout global (`POST /v1/auth/logout-all`) que borra todos los refresh tokens del usuario (barrido por patrón Redis).
+- ✅ Listado de sesiones activas del usuario (`GET /v1/users/me/sessions`) — devuelve `tokenSuffix` + TTL restante por sesión.
 - 🔧 Un mismo usuario puede tener múltiples refresh tokens activos simultáneamente sin límite — sin control de sesiones concurrentes.
-- ❌ Logout (`DELETE /v1/auth/session` o `POST /v1/auth/logout`) que invalide el refresh token específico en Redis.
-- ❌ Logout global ("cerrar todas las sesiones") que borre todos los refresh tokens del usuario.
-- ❌ Listado de sesiones activas del usuario (`GET /v1/users/me/sessions`) — dispositivo, IP, última actividad.
+- 🔧 El listado de sesiones no incluye aún dispositivo / IP / última actividad (requiere persistir metadata por refresh token, no sólo la clave Redis).
 - ❌ Revocación selectiva de sesiones por dispositivo/sesión desde el propio usuario.
 - ❌ Límite de sesiones concurrentes por usuario (max N refresh tokens activos).
 - ❌ Detección de refresh token reuse (si se reutiliza un token ya girado → sesión comprometida → invalidar todo).
@@ -241,16 +241,16 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ RLS por `(app_id, tenant_id)` + bypass `staff_access` controlado.
 - ✅ Respuestas silenciosas en `forgot-password`, `request-magic-link` — evita enumeración de emails.
 - ✅ Refresh token rotativo — limita la ventana de explotación de un token robado.
-- 🔧 Tokens de `password_resets` guardados como UUID plano (no SHA-256) — riesgo ante dump de DB.
+- ✅ ~~Tokens de `password_resets` guardados como UUID plano~~ — ahora SHA-256 en `token_hash` (migración 0010).
 - 🔧 Bloqueo de login fijo (5/15 min) no configurable por tenant ni graduado (progressive backoff).
-- 🔧 Sin rate-limiting por IP en endpoints públicos de autenticación (login, register, forgot, magic-link).
-- ❌ Rate-limiting / throttling en todos los endpoints públicos (REUSE middleware `fastify-rate-limit`).
+- ✅ ~~Sin rate-limiting por IP en endpoints públicos~~ — `config.rateLimit` por ruta (10/min en login/forgot/magic-link, 20/min en register/reset/activate) sobre `@fastify/rate-limit`.
+- ✅ ~~Rate-limiting / throttling en endpoints públicos~~ (REUSE `@fastify/rate-limit` ya registrado en platform-core).
 - ❌ CAPTCHA / hCaptcha / Cloudflare Turnstile en endpoints sensibles.
 - ❌ Detección de credential stuffing / password spraying (múltiples IPs, un email; o múltiples emails, una IP).
 - ❌ Listas negras de IPs y dominios (bloqueo proactivo).
 - ❌ Notificación al usuario de eventos de seguridad: login nuevo dispositivo, cambio de contraseña, 2FA añadido/eliminado (REUSE `platform/notifications`).
-- ❌ Hashing del token en `password_resets` (paridad con magic-links y activation_tokens).
-- ❌ Auditoría de eventos de seguridad con IP/User-Agent (tabla `auth_events` o REUSE un módulo de audit).
+- ✅ ~~Hashing del token en `password_resets`~~ (paridad con magic-links y activation_tokens) — migración 0010.
+- ✅ ~~Auditoría de eventos de seguridad con IP/User-Agent~~ — tabla `auth_events` (migración 0011) con RLS por `(app_id, tenant_id)`; `recordEvent()` best-effort registra login OK/fallido, logout, logout-all, reset y magic-link login.
 - ❌ Verificación de contraseña contra HIBP (Have I Been Pwned) al crear/cambiar.
 - ❌ Detección y bloqueo de TOR exit nodes / VPNs de alto riesgo.
 - ❌ Geo-fencing por tenant (permitir login solo desde ciertos países).
@@ -272,7 +272,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - 🔧 `last_login_at` registrado en el user row — solo el último login, sin historial.
 - 🔧 `failed_login_attempts` y `locked_until` registrados pero sin historial de intentos.
-- ❌ Tabla `auth_events` o equivalente: cada login, logout, reset, magic-link, cambio de rol, revocación — con `ip`, `user_agent`, `timestamp`, `result`.
+- ✅ ~~Tabla `auth_events`~~ (migración 0011): registra login (success/failure), logout, logout-all, password.reset y magic_link.login con `ip`, `user_agent`, `created_at`, `result`, `metadata`. RLS por `(app_id, tenant_id)` + bypass staff. 🔧 Falta cubrir cambio de rol y revocación (eventos de admin).
 - ❌ Historial de cambios de rol (quién cambió a quién, de qué rol a cuál, cuándo).
 - ❌ Historial de cambios de contraseña.
 - ❌ Historial de conexiones OAuth añadidas/eliminadas.
@@ -319,15 +319,15 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Hashing de tokens en `password_resets`** (paridad SHA-256 con magic-links y activation-tokens) — corrección de seguridad, coste mínimo.
-2. **Logout explícito** (`POST /v1/auth/logout` que invalide el refresh token en Redis) — fundamental para la UX de cierre de sesión; hoy no existe.
-3. **Rate-limiting en endpoints públicos** (login, register, forgot, magic-link) — REUSE `fastify-rate-limit` ya presente en platform-core; riesgo inmediato de abuso.
+1. ✅ ~~**Hashing de tokens en `password_resets`**~~ (paridad SHA-256 con magic-links y activation-tokens) — migración `0010_password_reset_token_hash.sql`: el token plano (32 bytes base64url) viaja por email y sólo se persiste su SHA-256 en `token_hash`. Verificación por hash con fallback legacy (filas pre-migración, `token_hash IS NULL`, resolubles por `id` UUID sólo durante su TTL de 1h). Estrictamente más seguro: los tokens nuevos nunca se guardan en claro.
+2. ✅ ~~**Logout explícito**~~ (`POST /v1/auth/logout`) — invalida el refresh token concreto en Redis. Idempotente; la identidad sale del JWT, nunca del body. Incluye también `POST /v1/auth/logout-all` (cierra todas las sesiones) y `GET /v1/users/me/sessions` (listado de sesiones activas con `tokenSuffix` + TTL).
+3. ✅ ~~**Rate-limiting en endpoints públicos**~~ (login, register, forgot, magic-link, reset, activate, request-membership) — `config.rateLimit` por ruta sobre el plugin global `@fastify/rate-limit` ya registrado: `TIGHT_LIMIT` (10/min) en login/magic-link/forgot, `MEDIUM_LIMIT` (20/min) en register/reset/activate.
 4. **TOTP / 2FA** (Google Authenticator, backup codes) — la adición de mayor impacto en seguridad; desbloquea clientes que requieren MFA.
-5. **Purga de tokens expirados** (magic-links, password_resets, activation_tokens) vía `platform/scheduler` — higiene operacional.
-6. **Logout global + listado de sesiones activas** — operativa de seguridad básica para el usuario.
+5. **Purga de tokens expirados** (magic-links, password_resets, activation_tokens) vía `platform/scheduler` — higiene operacional. **(cross-cutting pendiente: requiere registrar jobs en `platform/scheduler`, fuera de `platform/auth/`.)**
+6. 🔧 ~~**Logout global + listado de sesiones activas**~~ — implementado el núcleo (`logout-all` + `GET /v1/users/me/sessions`). Falta la revocación selectiva por dispositivo y metadatos por sesión (IP/UA/última actividad), que requieren persistir la metadata de cada refresh token.
 7. **GDPR: consentimiento + exportación + borrado** (`/me/export`, `/me/delete`) — obligatorio en España/UE para cualquier app con usuarios reales.
 8. **Verificación de email post-registro** (confirmation link) — complementa el actual registro abierto; necesario para reducir spam y mejorar calidad de datos.
 9. **Verificación de teléfono / OTP SMS** — las columnas ya están en DB; solo falta el servicio de envío OTP (REUSE `platform/notifications` canal SMS).
-10. **Audit log de eventos de seguridad** (`auth_events`) — imprescindible para ISO 27001 / SOC 2 y debugging de incidentes.
+10. ✅ ~~**Audit log de eventos de seguridad**~~ (`auth_events`) — migración `0011_auth_events.sql` (tabla con `app_id/tenant_id/user_id/event_type/result/ip/user_agent/metadata`, RLS por `(app_id, tenant_id)` + bypass staff). `recordEvent()` best-effort (nunca rompe el flujo de auth) registra `login` (success/failure), `logout`, `logout_all`, `password.reset` y `magic_link.login` con IP + User-Agent extraídos de la request (respetando el primer hop de `X-Forwarded-For`). Repo `auth-event.repository.js` con `create` + `listByUser`.
 11. **OIDC genérico / SAML** — desbloquea clientes B2B enterprise que exigen SSO con su propio IdP.
 12. **Passkeys / WebAuthn** — estándar emergente; phishing-resistant; Apple/Google ya lo promueven como sustituto de password.

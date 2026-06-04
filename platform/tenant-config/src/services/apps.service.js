@@ -1,9 +1,20 @@
 import { withTransaction } from '../lib/db.js'
 import { pool } from '../lib/db.js'
+import { publish as publishEvent } from '../lib/redis.js'
 import * as appsRepo from '../repositories/apps.repository.js'
 import { ConflictError, NotFoundError } from '@apphub/platform-sdk/errors'
 import { writeAppNginxConfig } from './nginx-config.service.js'
 import { logger } from '../lib/logger.js'
+
+// Best-effort domain-event emission to `platform.events`. Non-fatal: the app
+// row is already committed before we publish.
+async function emit(type, payload) {
+  try {
+    await publishEvent({ type, payload })
+  } catch (err) {
+    logger.warn({ err, type }, `${type} publish failed (non-fatal)`)
+  }
+}
 
 export async function listApps() {
   return withTransaction(pool, (client) => appsRepo.findAll(client))
@@ -34,6 +45,12 @@ export async function createApp({ appId, displayName, subdomain, jwtAudience, sp
   } catch (err) {
     logger.warn({ err, appId: app.app_id }, 'Failed to publish NGINX conf — app created but routing not provisioned')
   }
+
+  await emit('app.created', {
+    appId:       app.app_id,
+    displayName: app.display_name,
+    subdomain:   app.subdomain,
+  })
 
   return app
 }

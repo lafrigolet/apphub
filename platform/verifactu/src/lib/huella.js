@@ -2,14 +2,18 @@ import { createHash } from 'node:crypto'
 
 // Huella (hash) encadenada de los registros VERI·FACTU.
 //
-// ⚠️ VERIFICAR CONTRA FUENTE OFICIAL — el orden EXACTO de campos, los nombres
-// de clave, el tratamiento de importes/fechas y el separador deben replicar el
-// documento "Algoritmo de cálculo de codificación de la huella o hash" de la
-// AEAT. El orden de abajo se reconstruyó de la página AEAT + el ejemplo oficial
-// + resúmenes de terceros; debe blindarse con el VECTOR DE TEST OFICIAL
-// (digest esperado) antes de producción. Cualquier desviación rompe la
-// verificación y la AEAT rechaza el registro.
+// ✅ El orden de campos, nombres de clave, separador y reglas de formato de
+// RegistroAlta están BLINDADOS contra el VECTOR DE TEST OFICIAL de la AEAT
+// (documento "Algoritmo de cálculo de codificación de la huella o hash"):
+// el ejemplo `IDEmisorFactura=89890001K&NumSerieFactura=12345678/G33&…` produce
+// el digest `3C464DAF61ACB827C65FDA19F352A4E3BDC2C640E9E9FC4CC058073F38F12F60`
+// (ver src/__tests__/huella.test.js · "vector oficial AEAT"). Cualquier
+// desviación rompe ese test y la AEAT rechazaría el registro.
 // https://sede.agenciatributaria.gob.es/.../algoritmo-calculo-codificacion-huella-hash.html
+//
+// ⚠️ Pendiente de blindar con vector oficial: RegistroAnulacion y RegistroEvento
+// (el documento AEAT publica el ejemplo de alta; los demás se infieren del
+// esquema y deben confirmarse antes de prod).
 
 export const TIPO_HUELLA = '01' // 01 = SHA-256
 

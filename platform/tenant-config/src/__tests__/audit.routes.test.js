@@ -61,3 +61,13 @@ it('GET /v1/audit sin filtros', async () => {
   const res = await app.inject({ method: 'GET', url: '/v1/audit' })
   expect(res.statusCode).toBe(200)
 })
+
+it('GET /v1/audit con cursor before lo propaga (#10)', async () => {
+  service.listAudit.mockResolvedValue([])
+  const res = await app.inject({ method: 'GET', url: '/v1/audit?before=2026-06-01T00:00:00Z' })
+  expect(res.statusCode).toBe(200)
+  expect(service.listAudit).toHaveBeenCalledWith(
+    expect.objectContaining({ before: '2026-06-01T00:00:00Z' }),
+    expect.anything(),
+  )
+})

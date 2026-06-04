@@ -9,6 +9,7 @@ vi.mock('../lib/logger.js', () => ({
   logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../lib/db.js', () => ({ pool: {}, withTransaction: vi.fn() }))
+vi.mock('../lib/redis.js', () => ({ publish: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../services/nginx-config.service.js', () => ({
   writeTenantNginxConfig: vi.fn().mockResolvedValue(undefined),
   deleteTenantNginxConfig: vi.fn().mockResolvedValue(undefined),
@@ -23,6 +24,7 @@ import {
   startSubscriptionCheckout, updateTenant,
 } from '../services/tenants.service.js'
 import { withTransaction } from '../lib/db.js'
+import { publish } from '../lib/redis.js'
 import { writeTenantNginxConfig } from '../services/nginx-config.service.js'
 import * as tenantsRepo from '../repositories/tenants.repository.js'
 import * as appsRepo from '../repositories/apps.repository.js'
@@ -65,6 +67,21 @@ describe('createTenant', () => {
     expect(t.id).toBe('t1')
     expect(auditRepo.insert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: 'TENANT_CREATED' }))
     expect(writeTenantNginxConfig).toHaveBeenCalledWith({ tenantId: 't1', subdomain: 'dojo' })
+  })
+
+  it('emite evento tenant.created', async () => {
+    await createTenant({ appId: 'aikikan', displayName: 'Dojo', subdomain: 'dojo' }, actor)
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'tenant.created',
+      payload: expect.objectContaining({ tenantId: 't1', appId: 'aikikan', subdomain: 'dojo' }),
+    }))
+  })
+
+  it('fallo al publicar evento → no rompe la creación (emit best-effort)', async () => {
+    publish.mockRejectedValueOnce(new Error('redis down'))
+    const t = await createTenant({ appId: 'aikikan', displayName: 'Dojo', subdomain: 'dojo' }, actor)
+    expect(t.id).toBe('t1')
+    expect(logger.warn).toHaveBeenCalled()
   })
 
   it('app inexistente → NotFoundError', async () => {
@@ -136,6 +153,36 @@ describe('setTenantStatus', () => {
     await setTenantStatus('t1', { status: 'suspended', reason: 'abuse' }, actor)
     expect(tenantsRepo.updateStatus).toHaveBeenCalledWith(expect.anything(), 't1', expect.objectContaining({ suspendReason: 'abuse' }))
     expect(auditRepo.insert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: 'TENANT_SUSPENDED' }))
+  })
+
+  it('suspended → emite tenant.suspended con reason', async () => {
+    tenantsRepo.updateStatus.mockResolvedValue({ id: 't1', app_id: 'a' })
+    await setTenantStatus('t1', { status: 'suspended', reason: 'abuse' }, actor)
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'tenant.suspended',
+      payload: expect.objectContaining({ tenantId: 't1', appId: 'a', status: 'suspended', reason: 'abuse' }),
+    }))
+  })
+
+  it('archived → emite tenant.archived (reason null)', async () => {
+    tenantsRepo.updateStatus.mockResolvedValue({ id: 't1', app_id: 'a' })
+    await setTenantStatus('t1', { status: 'archived', reason: 'ignored' }, actor)
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'tenant.archived',
+      payload: expect.objectContaining({ tenantId: 't1', reason: null }),
+    }))
+  })
+
+  it('active → emite tenant.reactivated', async () => {
+    tenantsRepo.updateStatus.mockResolvedValue({ id: 't1', app_id: 'a' })
+    await setTenantStatus('t1', { status: 'active' }, actor)
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'tenant.reactivated' }))
+  })
+
+  it('status desconocido → no emite evento de ciclo de vida', async () => {
+    tenantsRepo.updateStatus.mockResolvedValue({ id: 't1', app_id: 'a' })
+    await setTenantStatus('t1', { status: 'weird' }, actor)
+    expect(publish).not.toHaveBeenCalled()
   })
 
   it('archived → archivedAt set', async () => {
@@ -285,5 +332,14 @@ describe('updateTenant', () => {
   it('no existe → 404', async () => {
     tenantsRepo.update.mockResolvedValue(null)
     await expect(updateTenant('x', { displayName: 'N' }, actor)).rejects.toThrow(/Tenant/)
+  })
+
+  it('actualiza timezone + requiresUserApproval (pasados al repo)', async () => {
+    tenantsRepo.update.mockResolvedValue({ id: 't1', app_id: 'a' })
+    await updateTenant('t1', { timezone: 'Europe/Madrid', requiresUserApproval: true }, actor)
+    expect(tenantsRepo.update).toHaveBeenCalledWith(
+      expect.anything(), 't1',
+      expect.objectContaining({ timezone: 'Europe/Madrid', requiresUserApproval: true }),
+    )
   })
 })

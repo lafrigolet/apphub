@@ -19,12 +19,42 @@ describe('insertPayment', () => {
     const c = mockClient([row])
     const r = await repo.insertPayment(c, ctx, {
       stripePaymentIntentId: 'pi_1', amount: 5000, currency: 'eur', status: 'pending',
-      splitRuleId: 'rule-1', merchantAccountId: 'acct_1', platformFee: 500, metadata: { k: 'v' },
+      splitRuleId: 'rule-1', merchantAccountId: 'acct_1', platformFee: 500,
+      transferGroup: 'pi_idem-1', metadata: { k: 'v' },
     })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO payments\.transactions/)
-    expect(params[9]).toBe(JSON.stringify({ k: 'v' }))
+    expect(params[9]).toBe('pi_idem-1')                  // transfer_group
+    expect(params[10]).toBe(JSON.stringify({ k: 'v' }))  // metadata
     expect(r).toMatchObject({ id: 'p1', stripePaymentIntentId: 'pi_1' })
+  })
+})
+
+describe('insertRefund', () => {
+  it('INSERT en payments.refunds con reversals JSON + scoping de tenant', async () => {
+    const c = mockClient([{ id: 'rf1' }])
+    const r = await repo.insertRefund(c, ctx, {
+      transactionId: 'p1', stripeRefundId: 're_1', amount: 5000, currency: 'eur',
+      reason: 'fraudulent', reversals: [{ transferId: 'tr_A', amount: 3000 }],
+      idempotencyKey: 'idem-1',
+    })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/INSERT INTO payments\.refunds/)
+    expect(sql).toMatch(/ON CONFLICT \(stripe_refund_id\) DO NOTHING/)
+    expect(params[0]).toBe('t1')                                       // tenant_id
+    expect(params[2]).toBe('p1')                                       // transaction_id
+    expect(params[3]).toBe('re_1')                                     // stripe_refund_id
+    expect(params[7]).toBe(JSON.stringify([{ transferId: 'tr_A', amount: 3000 }]))
+    expect(r).toEqual({ id: 'rf1' })
+  })
+
+  it('ON CONFLICT (duplicado) → devuelve null', async () => {
+    const c = mockClient([])
+    const r = await repo.insertRefund(c, ctx, {
+      transactionId: 'p1', stripeRefundId: 're_dup', amount: 1, currency: 'eur',
+      idempotencyKey: 'idem-2',
+    })
+    expect(r).toBeNull()
   })
 })
 
@@ -87,5 +117,31 @@ describe('listPayments', () => {
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/created_at < \(SELECT created_at/)
     expect(params).toEqual(['t1', 5, 'cursor-id'])
+  })
+})
+
+describe('listPaymentsForExport (priority #6)', () => {
+  it('sin rango: WHERE tenant + ORDER BY created_at ASC + LIMIT default', async () => {
+    const c = mockClient([row])
+    await repo.listPaymentsForExport(c, ctx)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/WHERE tenant_id = \$1/)
+    expect(sql).toMatch(/ORDER BY created_at ASC/)
+    expect(params).toEqual(['t1', 10000])
+  })
+
+  it('con from + to añade condiciones y params en orden', async () => {
+    const c = mockClient([])
+    await repo.listPaymentsForExport(c, ctx, { from: '2026-01-01', to: '2026-02-01', limit: 500 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/created_at >= \$2/)
+    expect(sql).toMatch(/created_at <= \$3/)
+    expect(params).toEqual(['t1', '2026-01-01', '2026-02-01', 500])
+  })
+
+  it('mapea filas a objetos de pago (rowToPayment)', async () => {
+    const c = mockClient([row])
+    const r = await repo.listPaymentsForExport(c, ctx)
+    expect(r[0]).toMatchObject({ id: 'p1', stripePaymentIntentId: 'pi_1' })
   })
 })

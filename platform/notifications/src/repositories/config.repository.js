@@ -2,6 +2,7 @@ import { encryptSecret, decryptSecret } from '@apphub/platform-sdk/crypto'
 
 const SECRET_KEYS = [
   'resend_api_key',
+  'resend_webhook_secret',
   'twilio_api_key_secret',
   'fcm_service_account_json',
   'apns_p8_key',

@@ -19,7 +19,7 @@ vi.mock('../lib/db.js', () => ({
 }))
 
 vi.mock('../lib/redis.js', () => ({
-  redis: { setex: vi.fn(), get: vi.fn(), del: vi.fn(), keys: vi.fn() },
+  redis: { setex: vi.fn(), get: vi.fn(), del: vi.fn(), keys: vi.fn(), ttl: vi.fn() },
   publish: vi.fn(),
 }))
 
@@ -28,12 +28,14 @@ vi.mock('jsonwebtoken')
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'fixed-uuid') }))
 vi.mock('../repositories/user.repository.js')
 vi.mock('../repositories/password-reset.repository.js')
+vi.mock('../repositories/auth-event.repository.js')
 
-import { register, login, refresh, forgotPassword, resetPassword, validateToken } from '../services/auth.service.js'
+import { register, login, refresh, forgotPassword, resetPassword, validateToken, logout, logoutAll, listSessions, recordEvent } from '../services/auth.service.js'
 import { pool, withTenantTransaction, setTenantContext } from '../lib/db.js'
 import { redis, publish } from '../lib/redis.js'
 import * as userRepo from '../repositories/user.repository.js'
 import * as resetRepo from '../repositories/password-reset.repository.js'
+import * as authEventRepo from '../repositories/auth-event.repository.js'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { ConflictError, UnauthorizedError } from '@apphub/platform-sdk/errors'
@@ -246,57 +248,76 @@ describe('forgotPassword', () => {
 // ── resetPassword ─────────────────────────────────────────────────────────────
 
 describe('resetPassword', () => {
-  it('hashes new password, marks token used, and invalidates refresh tokens', async () => {
+  it('hashes new password, marks token used (by hash), and invalidates refresh tokens', async () => {
     const client = mockClient()
     pool.connect.mockResolvedValue(client)
-    const reset = { user_id: USER_ID, app_id: APP_ID, tenant_id: TENANT_ID }
-    resetRepo.findValidReset.mockResolvedValue(reset)
+    const reset = { id: 'reset-row-id', user_id: USER_ID, app_id: APP_ID, tenant_id: TENANT_ID }
+    resetRepo.findValidByHash.mockResolvedValue(reset)
     bcrypt.hash.mockResolvedValue('new-hash')
     userRepo.updatePassword.mockResolvedValue()
     resetRepo.markResetUsed.mockResolvedValue()
     redis.keys.mockResolvedValue(['key1', 'key2'])
     redis.del.mockResolvedValue(2)
 
-    await resetPassword({ token: 'reset-token', newPassword: 'newpassword123' })
+    await resetPassword({ token: 'opaque-plain-token', newPassword: 'newpassword123' })
 
+    // verificación por hash, NO por id legacy
+    expect(resetRepo.findValidByHash).toHaveBeenCalled()
+    expect(resetRepo.findValidLegacyById).not.toHaveBeenCalled()
     expect(bcrypt.hash).toHaveBeenCalledWith('newpassword123', 12)
     expect(userRepo.updatePassword).toHaveBeenCalledWith(client, USER_ID, 'new-hash')
-    expect(resetRepo.markResetUsed).toHaveBeenCalledWith(client, 'reset-token')
+    expect(resetRepo.markResetUsed).toHaveBeenCalledWith(client, 'reset-row-id')
     expect(redis.del).toHaveBeenCalledWith('key1', 'key2')
     expect(client.release).toHaveBeenCalled()
   })
 
-  it('skips redis.del when no refresh tokens exist for the user', async () => {
+  it('falls back to legacy id lookup when token is a UUID and no hash row matches', async () => {
     const client = mockClient()
     pool.connect.mockResolvedValue(client)
-    resetRepo.findValidReset.mockResolvedValue({ user_id: USER_ID, app_id: APP_ID, tenant_id: TENANT_ID })
+    resetRepo.findValidByHash.mockResolvedValue(null)
+    resetRepo.findValidLegacyById.mockResolvedValue({ id: 'legacy-id', user_id: USER_ID, app_id: APP_ID, tenant_id: TENANT_ID })
     bcrypt.hash.mockResolvedValue('h')
     userRepo.updatePassword.mockResolvedValue()
     resetRepo.markResetUsed.mockResolvedValue()
     redis.keys.mockResolvedValue([])
 
-    await resetPassword({ token: 'token', newPassword: 'newpassword123' })
+    await resetPassword({ token: '33333333-3333-3333-3333-333333333333', newPassword: 'newpassword123' })
+    expect(resetRepo.findValidLegacyById).toHaveBeenCalledWith(client, '33333333-3333-3333-3333-333333333333')
+    expect(resetRepo.markResetUsed).toHaveBeenCalledWith(client, 'legacy-id')
+  })
+
+  it('skips redis.del when no refresh tokens exist for the user', async () => {
+    const client = mockClient()
+    pool.connect.mockResolvedValue(client)
+    resetRepo.findValidByHash.mockResolvedValue({ id: 'rid', user_id: USER_ID, app_id: APP_ID, tenant_id: TENANT_ID })
+    bcrypt.hash.mockResolvedValue('h')
+    userRepo.updatePassword.mockResolvedValue()
+    resetRepo.markResetUsed.mockResolvedValue()
+    redis.keys.mockResolvedValue([])
+
+    await resetPassword({ token: 'opaque-token', newPassword: 'newpassword123' })
     expect(redis.del).not.toHaveBeenCalled()
   })
 
-  it('throws UnauthorizedError on invalid or expired reset token', async () => {
+  it('throws UnauthorizedError on invalid or expired reset token (no legacy fallback for non-UUID)', async () => {
     const client = mockClient()
     pool.connect.mockResolvedValue(client)
-    resetRepo.findValidReset.mockResolvedValue(null)
+    resetRepo.findValidByHash.mockResolvedValue(null)
 
-    await expect(resetPassword({ token: 'bad-token', newPassword: 'newpassword123' }))
+    await expect(resetPassword({ token: 'bad-opaque-token', newPassword: 'newpassword123' }))
       .rejects.toThrow(UnauthorizedError)
+    expect(resetRepo.findValidLegacyById).not.toHaveBeenCalled()
     expect(client.release).toHaveBeenCalled()
   })
 
   it('rolls back transaction and releases client on error', async () => {
     const client = mockClient()
     pool.connect.mockResolvedValue(client)
-    resetRepo.findValidReset.mockResolvedValue({ user_id: USER_ID, app_id: APP_ID, tenant_id: TENANT_ID })
+    resetRepo.findValidByHash.mockResolvedValue({ id: 'rid', user_id: USER_ID, app_id: APP_ID, tenant_id: TENANT_ID })
     bcrypt.hash.mockResolvedValue('h')
     userRepo.updatePassword.mockRejectedValue(new Error('DB error'))
 
-    await expect(resetPassword({ token: 'token', newPassword: 'newpassword123' }))
+    await expect(resetPassword({ token: 'opaque-token', newPassword: 'newpassword123' }))
       .rejects.toThrow('DB error')
     expect(client.query).toHaveBeenCalledWith('ROLLBACK')
     expect(client.release).toHaveBeenCalled()
@@ -328,5 +349,101 @@ describe('validateToken', () => {
   it('throws UnauthorizedError when JWT is expired', () => {
     jwt.verify.mockImplementation(() => { throw new Error('jwt expired') })
     expect(() => validateToken('expired.jwt')).toThrow(UnauthorizedError)
+  })
+})
+
+// ── logout / logoutAll / listSessions ──────────────────────────────────────────
+
+describe('logout', () => {
+  it('deletes the specific refresh token key for the user', async () => {
+    redis.del.mockResolvedValue(1)
+    // recordEvent connects its own client
+    pool.connect.mockResolvedValue(mockClient())
+
+    const result = await logout({ appId: APP_ID, tenantId: TENANT_ID, userId: USER_ID, refreshToken: 'rt-1' })
+
+    expect(redis.del).toHaveBeenCalledWith(`${APP_ID}:${TENANT_ID}:refresh:${USER_ID}:rt-1`)
+    expect(result).toEqual({ revoked: 1 })
+  })
+})
+
+describe('logoutAll', () => {
+  it('deletes all refresh token keys for the user', async () => {
+    redis.keys.mockResolvedValue(['k1', 'k2', 'k3'])
+    redis.del.mockResolvedValue(3)
+    pool.connect.mockResolvedValue(mockClient())
+
+    const result = await logoutAll({ appId: APP_ID, tenantId: TENANT_ID, userId: USER_ID })
+
+    expect(redis.keys).toHaveBeenCalledWith(`${APP_ID}:${TENANT_ID}:refresh:${USER_ID}:*`)
+    expect(redis.del).toHaveBeenCalledWith('k1', 'k2', 'k3')
+    expect(result).toEqual({ revoked: 3 })
+  })
+
+  it('is a no-op del when the user has no sessions', async () => {
+    redis.keys.mockResolvedValue([])
+    pool.connect.mockResolvedValue(mockClient())
+
+    const result = await logoutAll({ appId: APP_ID, tenantId: TENANT_ID, userId: USER_ID })
+    expect(redis.del).not.toHaveBeenCalled()
+    expect(result).toEqual({ revoked: 0 })
+  })
+})
+
+describe('listSessions', () => {
+  it('returns one entry per active refresh token with masked suffix + ttl', async () => {
+    const prefix = `${APP_ID}:${TENANT_ID}:refresh:${USER_ID}:`
+    redis.keys.mockResolvedValue([`${prefix}abcdef0123456789`, `${prefix}zzzz11112222`])
+    redis.ttl.mockResolvedValueOnce(1000).mockResolvedValueOnce(2000)
+
+    const sessions = await listSessions({ appId: APP_ID, tenantId: TENANT_ID, userId: USER_ID })
+
+    expect(sessions).toEqual([
+      { tokenSuffix: '23456789', ttlSeconds: 1000 },
+      { tokenSuffix: '11112222', ttlSeconds: 2000 },
+    ])
+  })
+
+  it('tolerates redis.ttl throwing (ttl null)', async () => {
+    const prefix = `${APP_ID}:${TENANT_ID}:refresh:${USER_ID}:`
+    redis.keys.mockResolvedValue([`${prefix}tok12345678`])
+    redis.ttl.mockRejectedValue(new Error('no ttl'))
+
+    const sessions = await listSessions({ appId: APP_ID, tenantId: TENANT_ID, userId: USER_ID })
+    expect(sessions).toEqual([{ tokenSuffix: '12345678', ttlSeconds: null }])
+  })
+})
+
+// ── recordEvent (audit) ────────────────────────────────────────────────────────
+
+describe('recordEvent', () => {
+  it('inserts an audit row under staff bypass and commits', async () => {
+    const client = mockClient()
+    pool.connect.mockResolvedValue(client)
+    authEventRepo.create.mockResolvedValue({ id: 'e1' })
+
+    await recordEvent({ appId: APP_ID, tenantId: TENANT_ID, userId: USER_ID, eventType: 'login', result: 'success' })
+
+    expect(authEventRepo.create).toHaveBeenCalledWith(client, expect.objectContaining({
+      appId: APP_ID, tenantId: TENANT_ID, userId: USER_ID, eventType: 'login', result: 'success',
+    }))
+    expect(client.query).toHaveBeenCalledWith('COMMIT')
+    expect(client.release).toHaveBeenCalled()
+  })
+
+  it('no-ops when appId or tenantId is missing', async () => {
+    await recordEvent({ eventType: 'login' })
+    expect(pool.connect).not.toHaveBeenCalled()
+  })
+
+  it('swallows errors (best-effort) and rolls back', async () => {
+    const client = mockClient()
+    pool.connect.mockResolvedValue(client)
+    authEventRepo.create.mockRejectedValue(new Error('insert failed'))
+
+    await expect(recordEvent({ appId: APP_ID, tenantId: TENANT_ID, eventType: 'logout' }))
+      .resolves.toBeUndefined()
+    expect(client.query).toHaveBeenCalledWith('ROLLBACK')
+    expect(client.release).toHaveBeenCalled()
   })
 })

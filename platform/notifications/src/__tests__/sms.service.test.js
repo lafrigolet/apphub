@@ -15,6 +15,9 @@ vi.mock('../lib/db.js', () => ({
 vi.mock('../repositories/config.repository.js', () => ({ getValue }))
 const renderTemplate = vi.hoisted(() => vi.fn())
 vi.mock('../services/template-renderer.js', () => ({ renderTemplate }))
+// Suppression gate mocked off (covered in suppression.service.test.js).
+const isSuppressed = vi.hoisted(() => vi.fn().mockResolvedValue(false))
+vi.mock('../services/suppression.service.js', () => ({ isSuppressed }))
 
 import * as sms from '../services/sms.service.js'
 import { logger } from '../lib/logger.js'

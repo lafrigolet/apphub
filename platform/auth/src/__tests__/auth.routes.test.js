@@ -28,18 +28,35 @@ vi.mock('../lib/redis.js', () => ({
   publish: vi.fn(),
 }))
 
-vi.mock('../plugins/app-guard.js', () => ({
-  appGuard: async (fastify) => {
-    fastify.addHook('onRequest', async (req, reply) => {
-      if (req.routeOptions?.config?.public) return
-      const auth = req.headers.authorization
-      if (!auth?.startsWith('Bearer ')) {
-        return reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'Missing token' } })
-      }
-    })
-  },
-  requireRole: () => async () => {},
-}))
+// El appGuard real está envuelto con fastify-plugin (fp) para que su hook
+// onRequest aplique globalmente y no quede encapsulado en el plugin. El mock
+// debe hacer lo mismo; si no, req.identity nunca se setea en rutas hermanas
+// (logout, logout-all, /me/sessions) y el handler revienta con 500.
+vi.mock('../plugins/app-guard.js', async () => {
+  const fp = (await import('fastify-plugin')).default
+  return {
+    appGuard: fp(async (fastify) => {
+      fastify.decorateRequest('identity', null)
+      // El guard real usa preHandler (corre tras el routing), por eso una ruta
+      // desconocida llega al notFoundHandler (404) antes que el guard. Imitarlo
+      // aquí mantiene el comportamiento real (404 en ruta inexistente).
+      fastify.addHook('preHandler', async (req, reply) => {
+        if (req.routeOptions?.config?.public) return
+        const auth = req.headers.authorization
+        if (!auth?.startsWith('Bearer ')) {
+          return reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'Missing token' } })
+        }
+        req.identity = {
+          userId:   '11111111-1111-1111-1111-111111111111',
+          appId:    'yoga-studio',
+          tenantId: '00000000-0000-0000-0000-000000000001',
+          role:     'user',
+        }
+      })
+    }),
+    requireRole: () => async () => {},
+  }
+})
 
 vi.mock('../services/auth.service.js')
 vi.mock('../services/oauth.service.js')
@@ -189,6 +206,58 @@ describe('POST /v1/auth/refresh', () => {
   })
 })
 
+// ── Logout ────────────────────────────────────────────────────────────────────
+
+describe('POST /v1/auth/logout', () => {
+  it('returns 200 and invalidates the given refresh token', async () => {
+    authService.logout.mockResolvedValue({ revoked: 1 })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/auth/logout',
+      headers: { authorization: 'Bearer at' },
+      payload: { refreshToken: REFRESH_TOKEN },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual({ revoked: 1 })
+    expect(authService.logout).toHaveBeenCalledWith(expect.objectContaining({
+      userId: USER_ID, appId: APP_ID, tenantId: TENANT_ID, refreshToken: REFRESH_TOKEN,
+    }))
+  })
+
+  it('returns 401 without Bearer token', async () => {
+    const res = await app.inject({ method: 'POST', url: '/v1/auth/logout', payload: { refreshToken: REFRESH_TOKEN } })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns 422 when refreshToken is not a UUID', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/auth/logout',
+      headers: { authorization: 'Bearer at' },
+      payload: { refreshToken: 'not-uuid' },
+    })
+    expect(res.statusCode).toBe(422)
+  })
+})
+
+describe('POST /v1/auth/logout-all', () => {
+  it('returns 200 and invalidates all sessions', async () => {
+    authService.logoutAll.mockResolvedValue({ revoked: 3 })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/auth/logout-all',
+      headers: { authorization: 'Bearer at' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual({ revoked: 3 })
+    expect(authService.logoutAll).toHaveBeenCalledWith(expect.objectContaining({
+      userId: USER_ID, appId: APP_ID, tenantId: TENANT_ID,
+    }))
+  })
+
+  it('returns 401 without Bearer token', async () => {
+    const res = await app.inject({ method: 'POST', url: '/v1/auth/logout-all' })
+    expect(res.statusCode).toBe(401)
+  })
+})
+
 // ── Forgot password ───────────────────────────────────────────────────────────
 
 describe('POST /v1/auth/forgot-password', () => {
@@ -307,7 +376,9 @@ describe('POST /v1/auth/oauth/facebook', () => {
 
 describe('Unknown route', () => {
   it('returns 404 with NOT_FOUND error code', async () => {
-    const res = await app.inject({ method: 'GET', url: '/v1/auth/does-not-exist' })
+    // Con Bearer (autenticado) la ruta inexistente llega al notFoundHandler.
+    // Sin token, el guard global devuelve 401 antes — igual que en producción.
+    const res = await app.inject({ method: 'GET', url: '/v1/auth/does-not-exist', headers: { authorization: 'Bearer at' } })
     expect(res.statusCode).toBe(404)
     expect(res.json().error.code).toBe('NOT_FOUND')
   })

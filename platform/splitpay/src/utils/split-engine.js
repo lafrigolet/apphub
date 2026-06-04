@@ -1,15 +1,28 @@
 import { ValidationError } from './errors.js'
 
-/** Stripe fee: 2.9% + 30 cents (EUR/USD). Configurable per region. */
-const STRIPE_FEE_PERCENT = 0.029
-const STRIPE_FEE_FIXED = 30 // in smallest currency unit
+/** Default Stripe fee: 2.9% + 30 cents (EUR/USD). Overridable per platform/region. */
+export const DEFAULT_STRIPE_FEE_PERCENT = 0.029
+export const DEFAULT_STRIPE_FEE_FIXED = 30 // in smallest currency unit
+
+/**
+ * Resolve the fee config to use, falling back to the EUR/USD defaults.
+ * `feeConfig` may carry `percent` (fraction, e.g. 0.014) and/or `fixed` (cents).
+ */
+function resolveFeeConfig(feeConfig) {
+  const percent = Number.isFinite(feeConfig?.percent) ? feeConfig.percent : DEFAULT_STRIPE_FEE_PERCENT
+  const fixed = Number.isFinite(feeConfig?.fixed) ? feeConfig.fixed : DEFAULT_STRIPE_FEE_FIXED
+  return { percent, fixed }
+}
 
 /**
  * Calculate Stripe's processing fee for a given amount.
- * Amount is in smallest currency unit (cents).
+ * Amount is in smallest currency unit (cents). The fee rate is configurable
+ * per platform/region (priority #9) — pass `{ percent, fixed }`; omit for the
+ * EUR/USD default of 2.9% + 30c.
  */
-export function calculateStripeFee(amount) {
-  return Math.round(amount * STRIPE_FEE_PERCENT + STRIPE_FEE_FIXED)
+export function calculateStripeFee(amount, feeConfig) {
+  const { percent, fixed } = resolveFeeConfig(feeConfig)
+  return Math.round(amount * percent + fixed)
 }
 
 /**
@@ -58,12 +71,12 @@ export function calculateRecipientAmounts(netAfterPlatformFee, rule) {
  * Simulate a full split for a given amount and rule.
  * Used by the /simulate endpoint to show merchants the breakdown before charging.
  */
-export function simulateSplit(grossAmount, currency, rule) {
+export function simulateSplit(grossAmount, currency, rule, feeConfig) {
   if (grossAmount <= 0) {
     throw new ValidationError('Amount must be greater than zero')
   }
 
-  const stripeFee = calculateStripeFee(grossAmount)
+  const stripeFee = calculateStripeFee(grossAmount, feeConfig)
   const netAmount = grossAmount - stripeFee
 
   if (netAmount <= 0) {

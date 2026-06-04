@@ -35,6 +35,30 @@ export async function paymentRoutes(fastify) {
     },
   )
 
+  // GET /v1/payments/export.csv — CSV export of transactions (priority #6)
+  fastify.get(
+    '/export.csv',
+    {
+      schema: {
+        tags: ['payments'],
+        summary: 'Export the current tenant transactions as CSV (optional date range)',
+        querystring: z.object({
+          from: z.string().datetime().optional(),
+          to: z.string().datetime().optional(),
+          limit: z.coerce.number().int().min(1).max(50000).default(10000),
+        }),
+      },
+    },
+    async (req, reply) => {
+      const { from, to, limit } = req.query
+      const csv = await service.exportPaymentsCsv(req.tenant, { from, to, limit })
+      return reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', 'attachment; filename="transactions.csv"')
+        .send(csv)
+    },
+  )
+
   // GET /v1/payments/:id
   fastify.get(
     '/:id',

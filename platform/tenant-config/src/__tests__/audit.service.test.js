@@ -21,7 +21,7 @@ describe('listAudit — scoping por rol', () => {
   it('staff ve cualquier appId/tenantId tal cual', async () => {
     auditRepo.list.mockResolvedValue([{ id: 'a1' }])
     await listAudit({ appId: 'a', tenantId: 't9', limit: 10 }, { role: 'staff' })
-    expect(auditRepo.list).toHaveBeenCalledWith(expect.anything(), { appId: 'a', tenantId: 't9', limit: 10 })
+    expect(auditRepo.list).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ appId: 'a', tenantId: 't9', limit: 10 }))
   })
 
   it('super_admin idem', async () => {
@@ -49,6 +49,15 @@ describe('listAudit — scoping por rol', () => {
     auditRepo.list.mockResolvedValue([])
     await listAudit({ tenantId: 't1' }, { role: 'owner', tenantId: 't1' })
     expect(auditRepo.list).toHaveBeenCalled()
+  })
+
+  it('propaga el cursor `before` al repo (#10)', async () => {
+    auditRepo.list.mockResolvedValue([])
+    await listAudit({ tenantId: 't9', before: '2026-06-01T00:00:00Z' }, { role: 'staff' })
+    expect(auditRepo.list).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ before: '2026-06-01T00:00:00Z' }),
+    )
   })
 })
 

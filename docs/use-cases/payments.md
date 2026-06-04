@@ -44,15 +44,21 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
 
 ## 2. PaymentIntents — cobro único (one-shot)
 
-- 🔧 Tabla `platform_payments.transactions` existe (con `provider_tx_id`, `amount_cents`,
-  `currency`, `status`, `metadata`) pero sin servicio ni rutas que la usen.
-- ❌ `POST /v1/payments/intents` — crear PaymentIntent en Stripe con idempotency key.
-- ❌ Almacenamiento y sincronización de estado del PaymentIntent
-  (`pending → requires_action → requires_capture → succeeded / canceled`).
-- ❌ `GET /v1/payments/intents/:id` — consulta de estado para el frontend (polling o tras redirect).
-- ❌ `DELETE /v1/payments/intents/:id` — cancelación de PaymentIntent no capturado.
-- ❌ Scoping obligatorio `(app_id, tenant_id)` en cada operación (RLS ya está en la tabla).
-- ❌ Idempotency keys almacenados en Redis (TTL 24h) para deduplicar reintentos del cliente.
+- ✅ Tabla `platform_payments.transactions` usada por el servicio de PaymentIntents
+  (columnas `idempotency_key` UNIQUE por `(app_id, tenant_id)` y `last_error` añadidas en migración
+  `0003`).
+- ✅ `POST /v1/payments/intents` — crear PaymentIntent en Stripe con idempotency key (dev-stub
+  cuando no hay credenciales, igual que splitpay).
+- ✅ Almacenamiento y sincronización de estado del PaymentIntent
+  (`requires_payment_method → requires_action → requires_capture → succeeded / canceled`); el
+  estado final se sincroniza vía webhook.
+- ✅ `GET /v1/payments/intents/:id` — consulta de estado; `GET /v1/payments/intents` con paginación
+  por cursor.
+- ✅ `DELETE /v1/payments/intents/:id` — cancelación de PaymentIntent no capturado (libera el hold).
+- ✅ Scoping obligatorio `(app_id, tenant_id)` en cada operación (RLS + filtros explícitos).
+- ✅ Idempotency keys almacenados en Redis (TTL 24h) para deduplicar reintentos del cliente
+  (clave cacheada con el resultado; un reintento devuelve la transacción original sin re-llamar a
+  Stripe).
 
 ## 3. SetupIntents — guardar método de pago sin cobrar
 
@@ -88,55 +94,71 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
 
 ## 6. Cobro diferido — autorización y captura separadas
 
-- ❌ `capture_method: 'manual'` en la creación del PaymentIntent.
-- ❌ `POST /v1/payments/intents/:id/capture` — capturar el monto autorizado (parcial o total).
+- ✅ `capture_method: 'manual'` en la creación del PaymentIntent (campo `captureMethod`).
+- ✅ `POST /v1/payments/intents/:id/capture` — capturar el monto autorizado (parcial o total, con
+  validación `amountToCapture ≤ autorizado` e idempotency key `cap_<txId>`).
 - ❌ Caducidad del hold (Stripe: 7 días para tarjeta) — job en `platform/scheduler`
   (`payment-hold-expire`) para cancelar intents no capturados antes de que expiren.
-- ❌ `POST /v1/payments/intents/:id/cancel` — liberar hold antes de captura.
+  **[cross-cutting pendiente — scheduler]**
+- ✅ `DELETE /v1/payments/intents/:id` — liberar hold antes de captura (cancela el intent).
 
 ## 7. Reembolsos — totales y parciales
 
-- ❌ Tabla `platform_payments.refunds` — `(id, transaction_id, stripe_refund_id,
-  amount_cents, reason, status, created_by, created_at)`.
-- ❌ `POST /v1/payments/transactions/:id/refunds` — crear reembolso total o parcial.
-- ❌ Validaciones: importe ≤ importe original, transacción en estado `succeeded`, no
-  reembolso duplicado (idempotency key Redis).
-- ❌ Motivos de reembolso: `duplicate`, `fraudulent`, `requested_by_customer`.
-- ❌ Sincronización de estado `pending / succeeded / failed` vía webhook
+- ✅ Tabla `platform_payments.refunds` — `(id, app_id, tenant_id, sub_tenant_id, transaction_id,
+  provider_refund_id, amount_cents, currency, reason, status, idempotency_key, created_by_user_id,
+  created_at, updated_at)` con RLS por `(app_id, tenant_id)` (migración `0003`).
+- ✅ `POST /v1/payments/transactions/:id/refunds` — crear reembolso total o parcial.
+- ✅ Validaciones: importe ≤ remanente, transacción en estado `succeeded`, no
+  reembolso duplicado (idempotency key Redis + UNIQUE en DB).
+- ✅ Motivos de reembolso: `duplicate`, `fraudulent`, `requested_by_customer`.
+- ✅ Sincronización de estado `pending / succeeded / failed` vía webhook
   `charge.refund.updated`.
-- ❌ Reembolso de reembolsos parciales acumulativos (suma parciales ≤ original).
+- ✅ Reembolso de reembolsos parciales acumulativos (suma de parciales no-failed ≤ original); la
+  transacción pasa a `partially_refunded` o `refunded` según el acumulado.
 - ❌ Notificación al usuario sobre el reembolso (REUSE `platform/notifications`).
-- ❌ Trazabilidad: quién solicitó el reembolso + motivo guardado en la transacción.
-- ❌ Restricción de rol: solo `staff` / `super_admin` pueden iniciar reembolsos desde el admin;
-  el usuario final puede solicitarlo y pasa por el módulo `platform/disputes` si aplica.
+  **[cross-cutting pendiente — notifications]** (el módulo ya emite el evento
+  `payment.refunded` en `platform.events`, listo para que notifications lo consuma).
+- ✅ Trazabilidad: `created_by_user_id` + `reason` guardados en cada reembolso.
+- ✅ Restricción de rol: solo `staff` / `super_admin` pueden iniciar reembolsos
+  (`requireRole` en la ruta). El flujo operacional del usuario final pasa por `platform/disputes`.
 
 ## 8. Webhooks Stripe — recepción y verificación de firma
 
-- ❌ `POST /v1/payments/webhooks/stripe` — endpoint público (sin auth JWT) para eventos Stripe.
-- ❌ Verificación de `Stripe-Signature` con `stripe.webhooks.constructEvent()` y el
-  `stripe_webhook_secret` leído de `platform_payments.config` (nunca hardcoded).
-- ❌ Respuesta `200` inmediata antes de procesar (evitar timeout Stripe de 30 s).
-- ❌ Procesamiento asíncrono: encolar evento en Redis `platform.stripe.events` y procesar
-  en worker separado para no bloquear el hilo HTTP.
-- ❌ Idempotencia en el procesamiento: guardar `stripe_event_id` en tabla
-  `platform_payments.webhook_events` y descartar duplicados.
-- ❌ Eventos mínimos a manejar: `payment_intent.succeeded`, `payment_intent.payment_failed`,
-  `payment_intent.canceled`, `payment_intent.requires_action`, `charge.refund.updated`,
-  `customer.subscription.*` (si se integra dunning), `setup_intent.succeeded`.
-- ❌ Dead-letter / retry store para eventos que fallan al procesar (con alerta a staff).
-- ❌ Audit log de todos los eventos Stripe recibidos (para reconciliación y debugging).
+- ✅ `POST /v1/payments/webhooks/stripe` — endpoint público (sin auth JWT) para eventos Stripe.
+- ✅ Verificación de `Stripe-Signature` con `stripe.webhooks.constructEvent()` y el
+  `stripe_webhook_secret` leído de `platform_payments.config` (nunca hardcoded); rechaza
+  `400 MISSING_SIGNATURE` / `400 INVALID_SIGNATURE`.
+- ✅ Respuesta `200 { received: true }` inmediata antes de procesar (evita timeout Stripe de 30 s).
+- 🔧 Procesamiento asíncrono: el handler se ejecuta fuera del hilo HTTP de respuesta (no se
+  bloquea el `200`), pero in-process. Un worker dedicado / cola Redis `platform.stripe.events`
+  queda pendiente. **[cross-cutting pendiente — worker/scheduler]**
+- ✅ Idempotencia en el procesamiento: `stripe_event_id` se guarda en
+  `platform_payments.webhook_events` (`recordReceived` con `ON CONFLICT DO NOTHING`); los
+  replays se descartan.
+- 🔧 Eventos manejados: `payment_intent.succeeded`, `payment_intent.payment_failed`
+  (con `last_payment_error.code`), `payment_intent.canceled`, `payment_intent.requires_action`,
+  `charge.refund.updated`. `customer.subscription.*` y `setup_intent.succeeded` quedan
+  pendientes (suscripciones / SetupIntents no implementados aún).
+- 🔧 Estado por evento persistido en `webhook_events` (`received → processed / failed` con
+  `error`). Un dead-letter / retry store con alerta a staff queda pendiente.
+  **[cross-cutting pendiente — notifications/scheduler]**
+- 🔧 `webhook_events` actúa como audit log básico de eventos recibidos; el detalle redactado
+  del payload aún no se almacena.
 
 ## 9. Idempotencia
 
-- ❌ Generación de `idempotency_key` (`${tenantId}:${userId}:${operationType}:${referenceId}`)
-  antes de cada llamada a la API de Stripe.
-- ❌ Almacenamiento de la clave en Redis con TTL 24 h (`SETEX payments:idem:{key} 86400 1`).
-- ❌ Verificación previa a la llamada: si la clave existe en Redis, devolver la transacción
-  ya creada sin llamar a Stripe de nuevo.
-- ❌ Persistencia de la clave también en `platform_payments.transactions.idempotency_key`
-  (TEXT UNIQUE) para auditabilidad post-TTL.
-- ❌ Prueba de carga: garantizar que reintentos concurrentes del mismo cliente no crean
-  cobros dobles (test de idempotencia end-to-end).
+- ✅ Generación de `idempotency_key` escopada por tenant (`${appId}:${tenantId}:${callerKey}`)
+  antes de cada llamada a Stripe; además se pasa una clave a la API de Stripe (`pi_…`, `ref_…`,
+  `cap_…`).
+- ✅ Almacenamiento de la clave en Redis con TTL 24 h (`SETEX payments:idem:{key} 86400 …`,
+  cacheando el *resultado* de la operación).
+- ✅ Verificación previa a la llamada: si la clave existe en Redis, se devuelve el resultado
+  cacheado sin llamar a Stripe de nuevo.
+- ✅ Persistencia de la clave también en `platform_payments.transactions.idempotency_key` y
+  `refunds.idempotency_key` con índice UNIQUE por `(app_id, tenant_id, idempotency_key)` para
+  auditabilidad post-TTL.
+- 🔧 Cubierto por tests unitarios (cache hit/miss, scoping por tenant, clave Stripe). Una prueba
+  de carga concurrente end-to-end queda pendiente.
 
 ## 10. Gestión de disputas y chargebacks (operacional)
 
@@ -262,11 +284,16 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
 
 ## 18. Notificaciones de pago al usuario final
 
-- ❌ Email de confirmación de pago (REUSE `platform/notifications` — plantilla
-  `payment.succeeded`): importe, descripción, fecha, últimos 4 dígitos.
-- ❌ Email de fallo de pago (plantilla `payment.failed`): motivo localizado + enlace para
-  actualizar método de pago.
-- ❌ Email de reembolso emitido (plantilla `payment.refunded`): importe, plazo de acreditación.
+> Nota: el módulo `platform/payments` ya **publica** los eventos de dominio en `platform.events`
+> (`payment.succeeded`, `payment.failed`, `payment.refunded`, `payment.captured`,
+> `payment.requires_action`, `payment.intent.created/canceled`, `payment.refund.updated`). Falta
+> el **consumidor** en `platform/notifications` que los traduzca a emails/push.
+> **[cross-cutting pendiente — notifications]**
+
+- 🔧 Email de confirmación de pago (REUSE `platform/notifications`): evento `payment.succeeded`
+  ya emitido; falta la plantilla y el consumidor.
+- 🔧 Email de fallo de pago: evento `payment.failed` (con `errorCode`) ya emitido; falta plantilla.
+- 🔧 Email de reembolso emitido: evento `payment.refunded` ya emitido; falta plantilla.
 - ❌ Email de chargeback resuelto (plantilla `payment.dispute.resolved`).
 - ❌ Push / in-app (REUSE `platform/notifications` canal push) para notificaciones en tiempo real.
 - ❌ Preferencias de notificación por usuario (opt-out de confirmaciones de pago si ya
@@ -276,21 +303,24 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **PaymentIntents básico + webhook `payment_intent.succeeded/failed`** — desbloquea el primer
-   cobro real; sin esto el módulo es inerte. Construir sobre la tabla
-   `platform_payments.transactions` ya existente.
-2. **Idempotencia con Redis (TTL 24 h)** — obligatorio junto con #1 para evitar cobros dobles
-   en reintentos de red; es una regla crítica del proyecto (CLAUDE.md §3).
-3. **Verificación de firma de webhook** — obligatorio junto con #2; sin firma verificada el
-   endpoint es un vector de ataque (regla crítica §5 de CLAUDE.md).
+1. ~~**PaymentIntents básico + webhook `payment_intent.succeeded/failed`**~~ ✅ — desbloquea el
+   primer cobro real. Implementado sobre `platform_payments.transactions` con dev-stub.
+2. ~~**Idempotencia con Redis (TTL 24 h)**~~ ✅ — clave escopada por tenant, resultado cacheado;
+   regla crítica CLAUDE.md §3.
+3. ~~**Verificación de firma de webhook**~~ ✅ — `constructEvent` con `stripe_webhook_secret` de
+   DB; `400` sin firma o firma inválida (regla crítica §5).
 4. **Gestión de métodos de pago (wallet del usuario)** — habilita cobros off-session y
-   suscripciones; base para dunning y renovaciones.
-5. **Reembolsos totales y parciales** — necesario para cualquier flujo de devolución /
-   cancelación de pedido; se apoya en `platform/disputes` para el flujo operacional.
-6. **Notificaciones de pago** (REUSE `platform/notifications`) — confirmación y fallo de cobro;
-   bajo coste porque solo requiere publicar eventos Redis bien tipados.
-7. **3DS/SCA** — obligatorio para tarjetas europeas (PSD2); el flujo `requires_action` debe
-   gestionarse antes de ir a producción en la UE.
+   suscripciones; base para dunning y renovaciones. *(pendiente: tabla `payment_methods` +
+   SetupIntents — UI + flujo Stripe.js)*
+5. ~~**Reembolsos totales y parciales**~~ ✅ — totales/parciales acumulativos, gate `staff`,
+   sync vía `charge.refund.updated`; se apoya en `platform/disputes` para el flujo operacional.
+6. 🔧 **Notificaciones de pago** (REUSE `platform/notifications`) — el módulo ya **emite** los
+   eventos `payment.succeeded` / `payment.failed` / `payment.refunded` / `payment.intent.*` a
+   `platform.events`; falta el consumidor en `platform/notifications`.
+   **[cross-cutting pendiente — notifications]**
+7. 🔧 **3DS/SCA** — el flujo `requires_action` se sincroniza por webhook y `setupFutureUsage`
+   (`off_session`/`on_session`) ya se acepta en la creación; falta el manejo completo de
+   exenciones SCA y la pieza frontend (Stripe.js challenge).
 8. **Vista admin en consola** (`/admin/payments/config` + historial de transacciones) — sin
    ella el staff no puede operar el módulo; REUSE del patrón ya establecido en otros módulos.
 9. **Reconciliación periódica** (REUSE `platform/scheduler`) — detecta discrepancias antes

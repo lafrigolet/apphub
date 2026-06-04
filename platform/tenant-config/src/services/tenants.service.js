@@ -1,10 +1,25 @@
+import { randomBytes } from 'node:crypto'
+import { resolveTxt } from 'node:dns/promises'
 import { withTransaction, pool } from '../lib/db.js'
+import { publish as publishEvent } from '../lib/redis.js'
 import * as tenantsRepo from '../repositories/tenants.repository.js'
 import * as appsRepo from '../repositories/apps.repository.js'
 import * as auditRepo from '../repositories/audit.repository.js'
 import { AppError, ConflictError, NotFoundError, ForbiddenError } from '@apphub/platform-sdk/errors'
 import { writeTenantNginxConfig, deleteTenantNginxConfig } from './nginx-config.service.js'
 import { logger } from '../lib/logger.js'
+
+// Best-effort domain-event emission to `platform.events`. Other modules
+// (auth, notifications, scheduler) consume these to block access, clean up
+// resources or react to lifecycle changes. Publishing is non-fatal: the DB
+// row is already committed, so a Redis outage only delays downstream reaction.
+async function emit(type, payload) {
+  try {
+    await publishEvent({ type, payload })
+  } catch (err) {
+    logger.warn({ err, type }, `${type} publish failed (non-fatal)`)
+  }
+}
 
 export async function listTenants(appId) {
   return withTransaction(pool, (client) => tenantsRepo.findAll(client, appId))
@@ -48,6 +63,15 @@ export async function createTenant({ appId, displayName, subdomain }, actor) {
   } catch (err) {
     logger.warn({ err, tenantId: tenant.id }, 'Failed to publish tenant NGINX conf — tenant created but routing not provisioned')
   }
+
+  // Explicit domain event for tenants created outside the bootstrap wizard.
+  // leads (conversion tracking), notifications and others react to this.
+  await emit('tenant.created', {
+    tenantId:    tenant.id,
+    appId,
+    displayName: tenant.display_name,
+    subdomain:   tenant.subdomain,
+  })
   return tenant
 }
 
@@ -85,13 +109,13 @@ export async function getTenantBySubdomain(subdomain) {
 }
 
 export async function setTenantStatus(id, { status, reason }, actor) {
-  return withTransaction(pool, async (client) => {
-    const tenant = await tenantsRepo.updateStatus(client, id, {
+  const tenant = await withTransaction(pool, async (client) => {
+    const t = await tenantsRepo.updateStatus(client, id, {
       status,
       suspendReason: status === 'suspended' ? reason ?? null : null,
       archivedAt:    status === 'archived'  ? new Date()     : null,
     })
-    if (!tenant) throw new NotFoundError('Tenant')
+    if (!t) throw new NotFoundError('Tenant')
     const actionByStatus = {
       suspended: 'TENANT_SUSPENDED',
       archived:  'TENANT_ARCHIVED',
@@ -100,14 +124,33 @@ export async function setTenantStatus(id, { status, reason }, actor) {
     await auditRepo.insert(client, {
       actorUserId: actor?.userId ?? null,
       actorRole:   actor?.role   ?? null,
-      appId:       tenant.app_id,
-      tenantId:    tenant.id,
+      appId:       t.app_id,
+      tenantId:    t.id,
       action:      actionByStatus[status] ?? 'TENANT_STATUS_CHANGED',
       detail:      reason ?? null,
       ip:          actor?.ip ?? null,
     })
-    return tenant
+    return t
   })
+
+  // Lifecycle events for cross-module reaction (auth → revoke sessions,
+  // scheduler → pause jobs, notifications → notify owner). Emitted after the
+  // status row + audit entry are committed.
+  const eventByStatus = {
+    suspended: 'tenant.suspended',
+    archived:  'tenant.archived',
+    active:    'tenant.reactivated',
+  }
+  const eventType = eventByStatus[status]
+  if (eventType) {
+    await emit(eventType, {
+      tenantId: tenant.id,
+      appId:    tenant.app_id,
+      status,
+      reason:   status === 'suspended' ? reason ?? null : null,
+    })
+  }
+  return tenant
 }
 
 // Vista pública de la subscripción del tenant (la consume la tenant-console
@@ -218,4 +261,145 @@ export async function updateTenant(id, fields, actor) {
     })
     return tenant
   })
+}
+
+// ── #7 Per-tenant feature flags ──────────────────────────────────────────────
+// Resolve the effective module list for a tenant: its explicit override if set,
+// else the parent app's enabled_modules. Lets staff differentiate plans without
+// touching the app-wide array for every tenant.
+export async function getTenantEnabledModules(id) {
+  return withTransaction(pool, async (client) => {
+    const tenant = await tenantsRepo.findById(client, id)
+    if (!tenant) throw new NotFoundError('Tenant')
+    const override = tenant.enabled_modules_override
+    if (override) {
+      return { tenantId: tenant.id, appId: tenant.app_id, source: 'tenant', modules: override }
+    }
+    const app = await appsRepo.findByAppId(client, tenant.app_id)
+    return {
+      tenantId: tenant.id,
+      appId:    tenant.app_id,
+      source:   'app',
+      modules:  app?.enabled_modules ?? [],
+    }
+  })
+}
+
+// Set (or clear, with null) the per-tenant override. Emits tenant.config.updated
+// so the shell can re-resolve which modules to mount.
+export async function setTenantEnabledModulesOverride(id, modules, actor) {
+  const tenant = await withTransaction(pool, async (client) => {
+    const t = await tenantsRepo.setEnabledModulesOverride(client, id, modules)
+    if (!t) throw new NotFoundError('Tenant')
+    await auditRepo.insert(client, {
+      actorUserId: actor?.userId ?? null,
+      actorRole:   actor?.role   ?? null,
+      appId:       t.app_id,
+      tenantId:    t.id,
+      action:      'TENANT_MODULES_OVERRIDE_SET',
+      detail:      modules === null ? 'cleared (inherits app)' : `[${modules.join(', ')}]`,
+      ip:          actor?.ip ?? null,
+    })
+    return t
+  })
+  await emit('tenant.config.updated', {
+    tenantId: tenant.id,
+    appId:    tenant.app_id,
+    change:   'enabled_modules_override',
+  })
+  return tenant
+}
+
+// ── #5 Custom-domain DNS verification ────────────────────────────────────────
+// The TXT record the tenant must publish at _apphub-challenge.<domain> to prove
+// control. Kept in one place so issue + verify agree on the host/value format.
+export const DNS_CHALLENGE_PREFIX = '_apphub-challenge'
+
+function challengeHost(domain) {
+  return `${DNS_CHALLENGE_PREFIX}.${domain}`
+}
+
+// Issue (or rotate) the DNS challenge token. Resets verified state so a stale
+// "verified" flag can't survive a domain change. Returns the record the tenant
+// must publish.
+export async function issueCustomDomainChallenge(id, actor) {
+  const tenant = await getTenant(id)
+  if (!tenant.custom_domain) {
+    throw new AppError('CUSTOM_DOMAIN_NOT_SET', 'El tenant no tiene custom_domain configurado', 409)
+  }
+  const token = `apphub-verify=${randomBytes(16).toString('hex')}`
+  const updated = await withTransaction(pool, async (client) => {
+    const t = await tenantsRepo.setCustomDomainVerifyToken(client, id, token)
+    await auditRepo.insert(client, {
+      actorUserId: actor?.userId ?? null,
+      actorRole:   actor?.role   ?? null,
+      appId:       t.app_id,
+      tenantId:    t.id,
+      action:      'CUSTOM_DOMAIN_CHALLENGE_ISSUED',
+      detail:      tenant.custom_domain,
+      ip:          actor?.ip ?? null,
+    })
+    return t
+  })
+  return {
+    tenantId:    updated.id,
+    customDomain: updated.custom_domain,
+    recordType:  'TXT',
+    recordHost:  challengeHost(updated.custom_domain),
+    recordValue: token,
+    verified:    false,
+  }
+}
+
+// Resolve the TXT record and check it contains the issued token. On success
+// marks the domain verified + emits an event. Pure DNS lookup — no external
+// service. Network/lookup failures surface as 422 so the tenant can retry.
+export async function verifyCustomDomain(id, actor, { resolver = resolveTxt } = {}) {
+  const tenant = await getTenant(id)
+  if (!tenant.custom_domain) {
+    throw new AppError('CUSTOM_DOMAIN_NOT_SET', 'El tenant no tiene custom_domain configurado', 409)
+  }
+  if (!tenant.custom_domain_verify_token) {
+    throw new AppError('CHALLENGE_NOT_ISSUED', 'Emite primero el challenge DNS', 409)
+  }
+
+  let records
+  try {
+    records = await resolver(challengeHost(tenant.custom_domain))
+  } catch (err) {
+    throw new AppError('DNS_LOOKUP_FAILED', `No se pudo resolver el TXT record: ${err.code ?? err.message}`, 422)
+  }
+  // resolveTxt returns string[][] (each record is an array of chunks).
+  const flattened = (records ?? []).map((chunks) => Array.isArray(chunks) ? chunks.join('') : String(chunks))
+  const match = flattened.includes(tenant.custom_domain_verify_token)
+  if (!match) {
+    throw new AppError('DNS_RECORD_MISMATCH', 'El TXT record no coincide con el token emitido', 422)
+  }
+
+  const updated = await withTransaction(pool, async (client) => {
+    const t = await tenantsRepo.markCustomDomainVerified(client, id)
+    await auditRepo.insert(client, {
+      actorUserId: actor?.userId ?? null,
+      actorRole:   actor?.role   ?? null,
+      appId:       t.app_id,
+      tenantId:    t.id,
+      action:      'CUSTOM_DOMAIN_VERIFIED',
+      detail:      t.custom_domain,
+      ip:          actor?.ip ?? null,
+    })
+    return t
+  })
+  // NGINX server-block render with the custom domain is cross-cutting (nginx
+  // sidecar); we only flip the verified state + announce it here.
+  await emit('tenant.config.updated', {
+    tenantId: updated.id,
+    appId:    updated.app_id,
+    change:   'custom_domain_verified',
+  })
+  return {
+    tenantId:     updated.id,
+    customDomain: updated.custom_domain,
+    verified:     true,
+    verifiedAt:   updated.custom_domain_verified_at,
+  }
 }

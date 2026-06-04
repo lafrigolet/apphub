@@ -81,6 +81,37 @@ describe('createCheckout — validación', () => {
   })
 })
 
+describe('createCheckout — NIF', () => {
+  it('rechaza un donorNif inválido', async () => {
+    await expect(service.createCheckout({ ...baseInput, donorNif: 'BADNIF99' }))
+      .rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('normaliza el donorNif antes de insertar (quita guiones, uppercase)', async () => {
+    donRepo.insert.mockResolvedValue({ id: 'd-nif' })
+    donRepo.attachSession.mockResolvedValue({ id: 'd-nif' })
+
+    await service.createCheckout({ ...baseInput, donorNif: '12.345.678-z' })
+
+    expect(donRepo.insert).toHaveBeenCalledWith(
+      stubClient,
+      expect.objectContaining({ donorNif: '12345678Z' }),
+    )
+  })
+
+  it('acepta sin donorNif (opcional) → donorNif null', async () => {
+    donRepo.insert.mockResolvedValue({ id: 'd-no-nif' })
+    donRepo.attachSession.mockResolvedValue({ id: 'd-no-nif' })
+
+    await service.createCheckout(baseInput)
+
+    expect(donRepo.insert).toHaveBeenCalledWith(
+      stubClient,
+      expect.objectContaining({ donorNif: null }),
+    )
+  })
+})
+
 describe('createCheckout — flujo one_shot', () => {
   it('inserta row pending → llama splitpay con mode=payment → adjunta sessionId', async () => {
     donRepo.insert.mockResolvedValue({ id: 'd-1', app_id: APP, tenant_id: TENANT })
@@ -221,6 +252,25 @@ describe('createCheckout — causes', () => {
     await expect(service.createCheckout({ ...baseInput, causeId: 'c1' })).rejects.toMatchObject({
       statusCode: 409,
     })
+  })
+
+  it('rechaza la causa antes de su starts_at', async () => {
+    causesRepo.findById.mockResolvedValueOnce({ id: 'c1', active: true, name: 'X', starts_at: '2999-01-01', ends_at: null })
+    await expect(service.createCheckout({ ...baseInput, causeId: 'c1' }))
+      .rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('rechaza la causa después de su ends_at', async () => {
+    causesRepo.findById.mockResolvedValueOnce({ id: 'c1', active: true, name: 'X', starts_at: null, ends_at: '2000-01-01' })
+    await expect(service.createCheckout({ ...baseInput, causeId: 'c1' }))
+      .rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('acepta la causa dentro de su ventana abierta', async () => {
+    causesRepo.findById.mockResolvedValueOnce({ id: 'c1', active: true, name: 'X', starts_at: '2000-01-01', ends_at: '2999-01-01' })
+    donRepo.insert.mockResolvedValue({ id: 'd-win' })
+    donRepo.attachSession.mockResolvedValue({ id: 'd-win' })
+    await expect(service.createCheckout({ ...baseInput, causeId: 'c1' })).resolves.toBeTruthy()
   })
 
   it('incluye cause_id en metadata cuando se pasa', async () => {

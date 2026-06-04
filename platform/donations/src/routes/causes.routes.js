@@ -18,6 +18,7 @@ const createBody = z.object({
   position:      z.number().int().min(0).optional(),
   startsAt:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   endsAt:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  suggestedAmountsCents: z.array(z.number().int().min(100)).max(12).optional().nullable(),
 })
 
 const updateBody = createBody.partial().omit({ code: true })

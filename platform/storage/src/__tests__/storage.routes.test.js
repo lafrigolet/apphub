@@ -11,7 +11,9 @@ vi.mock('../services/storage.service.js', () => ({
   getObject:      vi.fn(),
   getDownloadUrl: vi.fn(),
   deleteObject:   vi.fn(),
+  restoreObject:  vi.fn(),
   listObjects:    vi.fn(),
+  getUsage:       vi.fn(),
 }))
 
 import { storageRoutes } from '../routes/storage.routes.js'
@@ -111,13 +113,13 @@ describe('GET /v1/storage/objects/:id/download-url', () => {
     service.getDownloadUrl.mockResolvedValue({ downloadUrl: 'http://d' })
     const res = await app.inject({ method: 'GET', url: '/v1/storage/objects/o1/download-url' })
     expect(res.statusCode).toBe(200)
-    expect(service.getDownloadUrl).toHaveBeenCalledWith(expect.anything(), 'o1', 300)
+    expect(service.getDownloadUrl).toHaveBeenCalledWith(expect.anything(), 'o1', 300, expect.objectContaining({ ip: expect.anything(), userAgent: expect.anything() }))
   })
 
   it('respeta ttl explícito del query', async () => {
     service.getDownloadUrl.mockResolvedValue({ downloadUrl: 'http://d' })
     await app.inject({ method: 'GET', url: '/v1/storage/objects/o1/download-url?ttl=120' })
-    expect(service.getDownloadUrl).toHaveBeenCalledWith(expect.anything(), 'o1', 120)
+    expect(service.getDownloadUrl).toHaveBeenCalledWith(expect.anything(), 'o1', 120, expect.objectContaining({ ip: expect.anything(), userAgent: expect.anything() }))
   })
 })
 
@@ -127,7 +129,33 @@ describe('DELETE /v1/storage/objects/:id', () => {
     const res = await app.inject({ method: 'DELETE', url: '/v1/storage/objects/o1' })
     expect(res.statusCode).toBe(204)
     expect(res.body).toBe('')
-    expect(service.deleteObject).toHaveBeenCalledWith(expect.anything(), 'o1')
+    expect(service.deleteObject).toHaveBeenCalledWith(expect.anything(), 'o1', { hard: false })
+  })
+
+  it('hard delete por staff → pasa { hard: true }', async () => {
+    service.deleteObject.mockResolvedValue({ id: 'o1', status: 'purged' })
+    const res = await app.inject({ method: 'DELETE', url: '/v1/storage/objects/o1?hard=true' })
+    // identity por defecto es user → 403; comprobamos el gate por rol
+    expect(res.statusCode).toBe(403)
+    expect(service.deleteObject).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /v1/storage/objects/:id/restore', () => {
+  it('delega en service.restoreObject', async () => {
+    service.restoreObject.mockResolvedValue({ id: 'o1', status: 'uploaded' })
+    const res = await app.inject({ method: 'POST', url: '/v1/storage/objects/o1/restore' })
+    expect(res.statusCode).toBe(200)
+    expect(service.restoreObject).toHaveBeenCalledWith(expect.anything(), 'o1')
+  })
+})
+
+describe('GET /v1/storage/usage', () => {
+  it('delega en service.getUsage', async () => {
+    service.getUsage = vi.fn().mockResolvedValue({ bytesUsed: 10, quotaBytes: null })
+    const res = await app.inject({ method: 'GET', url: '/v1/storage/usage' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().bytesUsed).toBe(10)
   })
 })
 

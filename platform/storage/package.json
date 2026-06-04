@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@apphub/platform-sdk": "workspace:*",
+    "@aws-sdk/client-s3": "^3.621.0",
+    "@aws-sdk/s3-request-presigner": "^3.621.0",
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.0",
     "fastify-type-provider-zod": "^4.0.0",

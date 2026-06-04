@@ -29,7 +29,7 @@ vi.mock('@apphub/platform-sdk/app-guard', async () => {
 })
 
 import * as service from '../services/tenants.service.js'
-import { tenantsRoutes } from '../routes/tenants.routes.js'
+import { tenantsRoutes, isValidTimezone } from '../routes/tenants.routes.js'
 
 async function buildApp() {
   const app = Fastify({ logger: false })
@@ -55,6 +55,20 @@ const owner = { Authorization: 'Bearer owner', 'Content-Type': 'application/json
 const user = { Authorization: 'Bearer user', 'Content-Type': 'application/json' }
 beforeEach(async () => { vi.clearAllMocks(); app = await buildApp() })
 afterEach(async () => { await app.close() })
+
+describe('isValidTimezone', () => {
+  it('acepta zonas IANA conocidas', () => {
+    expect(isValidTimezone('Europe/Madrid')).toBe(true)
+    expect(isValidTimezone('UTC')).toBe(true)
+    expect(isValidTimezone('America/New_York')).toBe(true)
+  })
+  it('rechaza zonas desconocidas y valores no-string', () => {
+    expect(isValidTimezone('Mars/Phobos')).toBe(false)
+    expect(isValidTimezone('')).toBe(false)
+    expect(isValidTimezone(null)).toBe(false)
+    expect(isValidTimezone(123)).toBe(false)
+  })
+})
 
 describe('GET /v1/tenants/public', () => {
   it('sin appId → []', async () => {
@@ -124,6 +138,30 @@ describe('PATCH endpoints (staff)', () => {
     expect(res.statusCode).toBe(200)
   })
 
+  it('PATCH /:id acepta timezone válida + requiresUserApproval', async () => {
+    service.updateTenant.mockResolvedValue({ id: 't1' })
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/tenants/t1', headers: staff,
+      payload: { timezone: 'Europe/Madrid', requiresUserApproval: true },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.updateTenant).toHaveBeenCalledWith(
+      't1', expect.objectContaining({ timezone: 'Europe/Madrid', requiresUserApproval: true }), expect.anything(),
+    )
+  })
+
+  it('PATCH /:id rechaza timezone inválida (no llega al service)', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/tenants/t1', headers: staff,
+      payload: { timezone: 'Mars/Phobos' },
+    })
+    // La validación Zod lanza antes de tocar el service. En platform-core el
+    // error handler global mapea ZodError → 422; aquí basta comprobar que la
+    // petición no fue exitosa y que el service nunca se invocó.
+    expect(res.statusCode).toBeGreaterThanOrEqual(400)
+    expect(service.updateTenant).not.toHaveBeenCalled()
+  })
+
   it('PATCH /:id/status cambia estado', async () => {
     service.setTenantStatus.mockResolvedValue({ id: 't1', status: 'suspended' })
     const res = await app.inject({ method: 'PATCH', url: '/v1/tenants/t1/status', headers: staff, payload: { status: 'suspended', reason: 'x' } })
@@ -162,6 +200,59 @@ describe('subscription', () => {
   })
 })
 
+describe('per-tenant enabled-modules (#7)', () => {
+  it('GET /:id/enabled-modules (cualquier user)', async () => {
+    service.getTenantEnabledModules.mockResolvedValue({ tenantId: 't1', source: 'app', modules: ['auth'] })
+    const res = await app.inject({ method: 'GET', url: '/v1/tenants/t1/enabled-modules', headers: user })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().source).toBe('app')
+  })
+
+  it('PUT /:id/enabled-modules staff → setea override', async () => {
+    service.setTenantEnabledModulesOverride.mockResolvedValue({ id: 't1' })
+    const res = await app.inject({ method: 'PUT', url: '/v1/tenants/t1/enabled-modules', headers: staff, payload: { modules: ['auth', 'chat'] } })
+    expect(res.statusCode).toBe(200)
+    expect(service.setTenantEnabledModulesOverride).toHaveBeenCalledWith('t1', ['auth', 'chat'], expect.anything())
+  })
+
+  it('PUT /:id/enabled-modules con null limpia', async () => {
+    service.setTenantEnabledModulesOverride.mockResolvedValue({ id: 't1' })
+    const res = await app.inject({ method: 'PUT', url: '/v1/tenants/t1/enabled-modules', headers: staff, payload: { modules: null } })
+    expect(res.statusCode).toBe(200)
+    expect(service.setTenantEnabledModulesOverride).toHaveBeenCalledWith('t1', null, expect.anything())
+  })
+
+  it('PUT /:id/enabled-modules user → 403', async () => {
+    const res = await app.inject({ method: 'PUT', url: '/v1/tenants/t1/enabled-modules', headers: user, payload: { modules: [] } })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+describe('custom-domain verification (#5)', () => {
+  // bodyless POSTs: no Content-Type header (avoids FST_ERR_CTP_EMPTY_JSON_BODY)
+  const staffNoBody = { Authorization: 'Bearer staff' }
+  const userNoBody = { Authorization: 'Bearer user' }
+
+  it('POST /:id/custom-domain/challenge staff', async () => {
+    service.issueCustomDomainChallenge.mockResolvedValue({ recordType: 'TXT', recordValue: 'apphub-verify=x' })
+    const res = await app.inject({ method: 'POST', url: '/v1/tenants/t1/custom-domain/challenge', headers: staffNoBody })
+    expect(res.statusCode).toBe(200)
+    expect(service.issueCustomDomainChallenge).toHaveBeenCalledWith('t1', expect.anything())
+  })
+
+  it('POST /:id/custom-domain/verify staff', async () => {
+    service.verifyCustomDomain.mockResolvedValue({ verified: true })
+    const res = await app.inject({ method: 'POST', url: '/v1/tenants/t1/custom-domain/verify', headers: staffNoBody })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().verified).toBe(true)
+  })
+
+  it('challenge user → 403', async () => {
+    const res = await app.inject({ method: 'POST', url: '/v1/tenants/t1/custom-domain/challenge', headers: userNoBody })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
 describe('defaults defensivos (actor ?? null, body ?? {}) — handlers directos', () => {
   // Recorder fake-fastify para invocar handlers con req.identity / req.body
   // / req.ip ausentes y ejercitar las ramas `?? null` / `?? {}`.
@@ -169,7 +260,7 @@ describe('defaults defensivos (actor ?? null, body ?? {}) — handlers directos'
     const routes = []
     const push = (m) => (p, o, h) => routes.push({ m, p, h: h ?? o })
     await tenantsRoutes({
-      get: push('get'), post: push('post'), patch: push('patch'), delete: push('delete'),
+      get: push('get'), post: push('post'), patch: push('patch'), put: push('put'), delete: push('delete'),
     })
     return routes
   }

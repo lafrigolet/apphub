@@ -121,4 +121,48 @@ describe('update — builder dinámico', () => {
   it('sin row → null', async () => {
     expect(await repo.update(mockClient([]), 'x', { displayName: 'X' })).toBeNull()
   })
+
+  it('mapea enabledModulesOverride → enabled_modules_override', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.update(c, 't1', { enabledModulesOverride: ['auth'] })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/enabled_modules_override = \$1/)
+    expect(params).toEqual([['auth'], 't1'])
+  })
+})
+
+describe('custom-domain verification (#5)', () => {
+  it('setCustomDomainVerifyToken resetea verified/at y setea token', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.setCustomDomainVerifyToken(c, 't1', 'apphub-verify=abc')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/custom_domain_verify_token = \$2/)
+    expect(sql).toMatch(/custom_domain_verified\s+= FALSE/)
+    expect(params).toEqual(['t1', 'apphub-verify=abc'])
+  })
+
+  it('markCustomDomainVerified setea verified TRUE + timestamp', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.markCustomDomainVerified(c, 't1')
+    const sql = c.query.mock.calls[0][0]
+    expect(sql).toMatch(/custom_domain_verified\s+= TRUE/)
+    expect(sql).toMatch(/custom_domain_verified_at = now\(\)/)
+  })
+
+  it('markCustomDomainVerified sin row → null', async () => {
+    expect(await repo.markCustomDomainVerified(mockClient([]), 'x')).toBeNull()
+  })
+})
+
+describe('setEnabledModulesOverride (#7)', () => {
+  it('UPDATE escopado por id; acepta null', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.setEnabledModulesOverride(c, 't1', null)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/enabled_modules_override = \$2/)
+    expect(params).toEqual(['t1', null])
+  })
+  it('sin row → null', async () => {
+    expect(await repo.setEnabledModulesOverride(mockClient([]), 'x', ['a'])).toBeNull()
+  })
 })

@@ -84,17 +84,77 @@ describe('crearRegistro — huella encadenada', () => {
     expect(repo.insertRegistro).toHaveBeenCalledWith(client, expect.objectContaining({ numSerie: 'CUSTOM-1' }))
   })
 
-  it('cfg null → idEmisor cae a input.clienteNif + tipo explícito', async () => {
+  it('cfg null → idEmisor cae a input.clienteNif + tipo explícito (anulación con ref válida)', async () => {
     repo.maxNumero.mockResolvedValue(0)
     repo.lastHuella.mockResolvedValue(null)
     repo.getConfig.mockResolvedValue(null)
+    repo.contarPorNumSerie.mockResolvedValue({ alta: 1, anulacion: 0 })
     repo.insertRegistro.mockResolvedValue({})
-    await service.crearRegistro(scope, { clienteNif: 'C123', importeTotal: 10, tipo: 'anulacion', tipoFactura: 'F2' })
+    await service.crearRegistro(scope, {
+      clienteNif: 'C123', importeTotal: 10, tipo: 'anulacion', tipoFactura: 'F2',
+      numSerieAnulada: '2027-A/000010',
+    })
     expect(calcularHuella).toHaveBeenCalledWith(
-      expect.objectContaining({ idEmisor: 'C123', tipo: 'anulacion', tipoFactura: 'F2' }),
+      expect.objectContaining({ idEmisor: 'C123', tipo: 'anulacion', tipoFactura: 'F2', numSerie: '2027-A/000010' }),
       null,
     )
     expect(buildCotejoUrl).toHaveBeenCalledWith(expect.objectContaining({ nif: 'C123' }))
+  })
+})
+
+describe('crearRegistro — reglas de negocio de anulación (§2)', () => {
+  beforeEach(() => {
+    repo.maxNumero.mockResolvedValue(0)
+    repo.lastHuella.mockResolvedValue(null)
+    repo.getConfig.mockResolvedValue({ nif_obligado: 'B1' })
+    repo.insertRegistro.mockResolvedValue({})
+  })
+
+  it('anulación sin referencia → ANULACION_SIN_REF', async () => {
+    await expect(service.crearRegistro(scope, { tipo: 'anulacion', importeTotal: 10 }))
+      .rejects.toMatchObject({ code: 'ANULACION_SIN_REF' })
+    expect(repo.insertRegistro).not.toHaveBeenCalled()
+  })
+
+  it('anulación de factura inexistente → ANULACION_NO_CONSTA', async () => {
+    repo.contarPorNumSerie.mockResolvedValue({ alta: 0, anulacion: 0 })
+    await expect(service.crearRegistro(scope, { tipo: 'anulacion', numSerieAnulada: 'A/404' }))
+      .rejects.toMatchObject({ code: 'ANULACION_NO_CONSTA' })
+  })
+
+  it('anulación de factura ya anulada → ANULACION_DUPLICADA', async () => {
+    repo.contarPorNumSerie.mockResolvedValue({ alta: 1, anulacion: 1 })
+    await expect(service.crearRegistro(scope, { tipo: 'anulacion', numSerieAnulada: 'A/1' }))
+      .rejects.toMatchObject({ code: 'ANULACION_DUPLICADA' })
+  })
+
+  it('anulación válida → el num_serie del registro referencia la factura anulada', async () => {
+    repo.contarPorNumSerie.mockResolvedValue({ alta: 1, anulacion: 0 })
+    await service.crearRegistro(scope, { tipo: 'anulacion', numSerieAnulada: 'A/7' })
+    expect(repo.contarPorNumSerie).toHaveBeenCalledWith(client, 'A/7')
+    expect(repo.insertRegistro).toHaveBeenCalledWith(client, expect.objectContaining({ tipo: 'anulacion', numSerie: 'A/7' }))
+  })
+})
+
+describe('crearRegistro — serie correlativa (§14)', () => {
+  beforeEach(() => {
+    repo.maxNumero.mockResolvedValue(0)
+    repo.lastHuella.mockResolvedValue(null)
+    repo.getConfig.mockResolvedValue({ nif_obligado: 'B1' })
+    repo.insertRegistro.mockResolvedValue({})
+  })
+
+  it('serie activa → reserva el correlativo atómico y compone num_serie', async () => {
+    repo.reservarNumeroSerie.mockResolvedValue({ codigo: 'VENTAS', numero: 42 })
+    await service.crearRegistro(scope, { serie: 'VENTAS', importeTotal: 10 })
+    expect(repo.reservarNumeroSerie).toHaveBeenCalledWith(client, 'VENTAS')
+    expect(repo.insertRegistro).toHaveBeenCalledWith(client, expect.objectContaining({ numSerie: 'VENTAS/000042' }))
+  })
+
+  it('serie inexistente o cerrada → SERIE_INACTIVA', async () => {
+    repo.reservarNumeroSerie.mockResolvedValue(null)
+    await expect(service.crearRegistro(scope, { serie: 'CERRADA', importeTotal: 10 }))
+      .rejects.toMatchObject({ code: 'SERIE_INACTIVA' })
   })
 })
 

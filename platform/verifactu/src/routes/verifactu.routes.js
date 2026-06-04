@@ -32,6 +32,12 @@ export async function publicRoutes(fastify) {
   fastify.get('/cadena/verificar', { config: { public: true }, schema: { tags: T, summary: 'Verifica el enlace de la cadena de huellas', querystring: scopeQuery } },
     async (req) => service.verificarCadena(scope(req.query)))
 
+  // Re-hash auditable: recalcula la huella de cada registro desde sus campos
+  // canónicos y la compara con la persistida (detecta manipulaciones e
+  // interpolaciones, no solo roturas de enlace). Recomendación #9 / TODO A1.
+  fastify.get('/cadena/recalcular', { config: { public: true }, schema: { tags: T, summary: 'Recálculo completo de la cadena (full re-hash auditable)', querystring: scopeQuery } },
+    async (req) => service.recalcularCadenaCompleta(scope(req.query)))
+
   fastify.get('/eventos', { config: { public: true }, schema: { tags: T, summary: 'Eventos del SIF / auditoría', querystring: scopeQuery } },
     async (req) => service.listEventos(scope(req.query)))
 
@@ -132,4 +138,36 @@ export async function publicRoutes(fastify) {
   // ── Desarrollador ───────────────────────────────────────────────────
   fastify.post('/validar', { config: { public: true }, schema: { tags: T, summary: 'Validar registro (estructural + integridad de huella)' } },
     async (req) => service.validar(req.body ?? {}))
+
+  // ── Series de facturación (§14) ─────────────────────────────────────
+  fastify.get('/series', { config: { public: true }, schema: { tags: T, summary: 'Series de facturación del obligado', querystring: scopeQuery } },
+    async (req) => service.listSeries(scope(req.query)))
+
+  const serieBody = scopeQuery.extend({
+    codigo:      z.string().min(1).max(64),
+    descripcion: z.string().max(256).optional(),
+    ejercicio:   z.number().int().optional(),
+    siguiente:   z.number().int().min(1).optional(),
+    activa:      z.boolean().optional(),
+  })
+  fastify.post('/series', { config: { public: true }, schema: { tags: T, summary: 'Crear serie de facturación', body: serieBody } },
+    async (req, reply) => {
+      const b = serieBody.parse(req.body ?? {})
+      reply.code(201)
+      return service.crearSerie(scope(b), b)
+    })
+
+  const cerrarSerieParams = z.object({ codigo: z.string().min(1).max(64) })
+  fastify.post('/series/:codigo/cerrar', { config: { public: true }, schema: { tags: T, summary: 'Cerrar serie (bloquea nuevos registros)', params: cerrarSerieParams, body: scopeQuery } },
+    async (req) => {
+      const b = scopeQuery.parse(req.body ?? {})
+      const { codigo } = cerrarSerieParams.parse(req.params ?? {})
+      return service.cerrarSerie(scope(b), codigo)
+    })
+
+  // ── Exportación legal (§16) ─────────────────────────────────────────
+  // Vuelca registros + eventos + identidad del SIF y registra el evento
+  // EXPORTACION encadenado en la cadena de eventos.
+  fastify.get('/exportar', { config: { public: true }, schema: { tags: T, summary: 'Exportación legal del SIF (registros + eventos) + evento EXPORTACION', querystring: scopeQuery } },
+    async (req) => service.exportar(scope(req.query)))
 }

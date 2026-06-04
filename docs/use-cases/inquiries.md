@@ -175,7 +175,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Tasa de consultas marcadas como spam.
 - ❌ Evolución temporal (series) de consultas recibidas — detección de picos.
 - ❌ Export CSV/XLSX de consultas filtradas para análisis externo.
-- ❌ CSAT (Customer Satisfaction Score) al cerrar — el visitante puntúa la atención recibida.
+- ✅ CSAT (Customer Satisfaction Score) al cerrar — el visitante puntúa la atención recibida vía `POST /v1/inquiries/csat` (público, capability check `reference` + `email`); solo sobre `resolved|closed`, una sola vez; publica `inquiry.csat_submitted`. La media (`avg_csat`) ya entra en analítica.
 - ❌ Dashboard por tenant en la consola admin.
 
 ## 16. Integración con otros módulos de la plataforma
@@ -184,6 +184,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ `platform/chat` — escalado de una consulta a un chat de soporte en tiempo real (REUSE canal support).
 - ❌ `platform/leads` — conversión de consulta a lead cuando hay intención comercial.
 - ❌ `platform/scheduler` — job `inquiry-sla` para alertas de SLA (REUSE patrón `dispute-sla`).
+- 🔧 `platform/scheduler` — job `inquiry-retention-purge` para GDPR: la lógica (`purgeRetention`) ya existe en el módulo; falta el job que la invoque por tenant.
 - ❌ `platform/storage` — adjuntos del visitante y del admin via URLs pre-firmadas.
 - ❌ `platform/auth` — vincular consulta a usuario existente del tenant si el email coincide.
 
@@ -195,8 +196,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Derecho de acceso: el visitante puede pedir ver sus consultas (con verificación por email + referencia).
 - ❌ Derecho de supresión (right to be forgotten): borrar / anonimizar datos del visitante bajo petición.
 - ❌ Portabilidad: exportar datos de un visitante en formato legible.
-- ❌ Retención y purga automática: eliminar / anonimizar consultas antiguas pasado N meses (REUSE `platform/scheduler`).
-- ❌ Anonimización de `ip`, `email`, `contactName` al archivar — conservar solo datos analíticos agregados.
+- 🔧 Retención y purga automática: `inquiries.service.purgeRetention(identity)` anonimiza las consultas más viejas que `retention_days` (config del tenant) y publica `inquiry.retention_purged`. Cross-cutting pendiente: job `inquiry-retention-purge` en `platform/scheduler` que lo invoque por tenant.
+- ✅ Anonimización de `ip`, `email`, `contactName`, `phone`, `message`, `metadata` al purgar — conserva solo datos analíticos agregados (`anonymize()`).
 - ❌ Audit log de quién accede y exporta PII de consultas (qué admin, cuándo, qué ids).
 - ❌ Gestión de supresión / do-not-contact: si el visitante ha pedido no ser contactado, rechazar futuros envíos.
 
@@ -209,7 +210,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ `tags TEXT[]` — etiquetas libres.
 - ❌ `sla_deadline TIMESTAMPTZ` — calculado al crear según settings del tenant.
 - ❌ `sla_breached_at TIMESTAMPTZ` — stamp cuando se supera el SLA.
-- ❌ `csat_score SMALLINT CHECK (1..5)` y `csat_submitted_at` — valoración del visitante.
+- ✅ `csat_score SMALLINT CHECK (1..5)`, `csat_comment`, `csat_submitted_at` — valoración del visitante (sellada una sola vez vía `submitCsat`).
 - ❌ `user_id UUID` — vinculación con usuario registrado del tenant.
 - ❌ `lead_id UUID` — FK a `platform_leads.leads` si la consulta se convierte a lead.
 - ❌ `consent_text TEXT`, `consent_version TEXT`, `consent_at TIMESTAMPTZ` — campos GDPR.
@@ -230,5 +231,5 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 6. **SLA configurable + job `inquiry-sla` en `platform/scheduler`** — REUSE directo del patrón `dispute-sla`; desbloquea métricas de respuesta.
 7. **Hilos in-plataforma (V2)**: tabla `inquiry_messages` + portal de seguimiento para el visitante — cierra la brecha principal frente a un helpdesk real.
 8. **Asignación (`assigned_to`) + routing por categoría** — necesario cuando el tenant tiene varios miembros de staff.
-9. **Retención/purga automática** vía `platform/scheduler` + anonimización — RGPD/LOPDGDD; patrón ya existente en el scheduler.
-10. **CSAT y analítica** — valor de negocio diferenciador; dependiente de que los hilos (punto 7) estén activos.
+9. ~~**Retención/purga automática** vía `platform/scheduler` + anonimización — RGPD/LOPDGDD; patrón ya existente en el scheduler.~~ 🔧 Lógica de purga (`purgeRetention` + `anonymize`) implementada backend; falta el job en `platform/scheduler` (cross-cutting).
+10. ~~**CSAT y analítica** — valor de negocio diferenciador.~~ ✅ CSAT público (`POST /v1/inquiries/csat`) + `avg_csat` en analítica implementados.

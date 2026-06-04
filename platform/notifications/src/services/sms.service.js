@@ -12,6 +12,7 @@ import { pool } from '../lib/db.js'
 import * as configRepo from '../repositories/config.repository.js'
 import { renderTemplate } from './template-renderer.js'
 import { logSend } from './send-log.service.js'
+import { isSuppressed } from './suppression.service.js'
 
 const CACHE_TTL_MS = 30_000
 let cache = {
@@ -57,9 +58,17 @@ async function send({ to, body, templateKey, meta }) {
   const cfg = await loadConfig()
 
   // Audit best-effort hacia send_log — mismo patrón que email.service.js.
-  const audit = (status, error) => logSend({
-    ...meta, channel: 'sms', template: templateKey, recipient: to, status, error,
+  const audit = (status, error, providerMessageId) => logSend({
+    ...meta, channel: 'sms', template: templateKey, recipient: to, status, error, providerMessageId,
   })
+
+  // Suppression gate (recommendation #5): skip numbers that opted out (STOP).
+  // Fails open, so a store hiccup never silences a legitimate SMS.
+  if (await isSuppressed('sms', to)) {
+    logger.info({ to, template: templateKey }, 'SMS suppressed (opt-out list)')
+    await audit('skipped', 'suppressed')
+    return { suppressed: true }
+  }
 
   if (isStubMode(cfg)) {
     logger.info({ to, body }, '[stub] SMS not sent — Twilio not configured (or NODE_ENV=development)')
@@ -92,7 +101,9 @@ async function send({ to, body, templateKey, meta }) {
     }
     const data = await res.json()
     logger.info({ sid: data.sid, to }, 'SMS sent')
-    await audit('sent')
+    // Stash the Twilio SID so the StatusCallback webhook can correlate the
+    // async delivery result (delivered / failed / undelivered) back here.
+    await audit('sent', null, data.sid ?? null)
     return { sid: data.sid }
   } catch (err) {
     logger.error({ err, to }, 'Failed to send SMS')

@@ -33,6 +33,11 @@ vi.mock('@apphub/platform-sdk/storage', () => ({
   headObject:  vi.fn(),
   deleteObject: vi.fn(),
 }))
+// Module-local S3 extras (Content-Disposition GET + HeadBucket).
+vi.mock('../lib/s3-extra.js', () => ({
+  presignGetWithDisposition: vi.fn().mockResolvedValue('http://minio:9000/apphub/k?signed=get&disp=1'),
+  headBucket: vi.fn(),
+}))
 
 import * as service from '../services/storage.service.js'
 import { withTenantTransaction } from '../lib/db.js'
@@ -40,6 +45,8 @@ import { publish } from '../lib/redis.js'
 import * as repo from '../repositories/storage.repository.js'
 import { ConflictError, NotFoundError, ValidationError, ForbiddenError } from '@apphub/platform-sdk/errors'
 import * as sdkStorage from '@apphub/platform-sdk/storage'
+import * as s3extra from '../lib/s3-extra.js'
+import { QuotaExceededError } from '../utils/errors.js'
 
 const APP_ID    = 'yoga-studio'
 const TENANT_ID = '00000000-0000-0000-0000-000000000001'

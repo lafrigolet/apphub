@@ -12,6 +12,9 @@ vi.mock('../services/certificate.service.js', () => ({
 vi.mock('../services/modelo182.service.js', () => ({
   exportModelo182: vi.fn(),
 }))
+vi.mock('../services/deduction.service.js', () => ({
+  estimateDeduction: vi.fn(),
+}))
 
 vi.mock('@apphub/platform-sdk/app-guard', async () => {
   const { default: fp } = await import('fastify-plugin')
@@ -40,6 +43,7 @@ vi.mock('@apphub/platform-sdk/app-guard', async () => {
 import { adminFiscalRoutes } from '../routes/fiscal.routes.js'
 import * as certService from '../services/certificate.service.js'
 import * as modelo182Service from '../services/modelo182.service.js'
+import * as deductionService from '../services/deduction.service.js'
 
 async function buildApp() {
   const app = Fastify({ logger: false })
@@ -147,6 +151,43 @@ describe('GET /modelo-182', () => {
     expect(res.headers['x-donors-total-cents']).toBe('12000')
     expect(res.headers['x-fiscal-year']).toBe('2025')
     expect(res.body).toBe('LINE')
+  })
+
+  it('emite X-Donors-Skipped con el nº de donantes con NIF inválido', async () => {
+    modelo182Service.exportModelo182.mockResolvedValue({
+      filename: 'm.txt', buffer: Buffer.from('X'),
+      year: 2025, count: 2, totalCents: 100,
+      skipped: [{ donorNif: 'BAD', donorName: 'X', totalCents: 50 }],
+    })
+    const res = await app.inject({
+      method: 'GET', url: '/v1/donations/admin/fiscal/modelo-182?year=2025',
+      headers: { Authorization: 'Bearer admin-token' },
+    })
+    expect(res.headers['x-donors-skipped']).toBe('1')
+  })
+})
+
+describe('GET /deduction', () => {
+  it('403 al user normal', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/v1/donations/admin/fiscal/deduction?year=2025&donorNif=12345678Z',
+      headers: { Authorization: 'Bearer user-token' },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+  it('delega a estimateDeduction y devuelve el cálculo', async () => {
+    deductionService.estimateDeduction.mockResolvedValue({
+      donorNif: '12345678Z', fiscalYear: 2025, deductibleCents: 20000,
+    })
+    const res = await app.inject({
+      method: 'GET', url: '/v1/donations/admin/fiscal/deduction?year=2025&donorNif=12345678Z',
+      headers: { Authorization: 'Bearer admin-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ data: { donorNif: '12345678Z', fiscalYear: 2025, deductibleCents: 20000 } })
+    expect(deductionService.estimateDeduction).toHaveBeenCalledWith(
+      expect.any(Object), expect.objectContaining({ year: 2025, donorNif: '12345678Z' }),
+    )
   })
 })
 

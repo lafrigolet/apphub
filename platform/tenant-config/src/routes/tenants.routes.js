@@ -6,6 +6,19 @@ import * as tenantsService from '../services/tenants.service.js'
 // user — the portal needs them for the user's own tenant detail.
 const writeGuard = requireRole('super_admin', 'staff')
 
+// Validate an IANA timezone against the runtime's tz database. Returns false
+// for unknown zones so a bad PATCH payload is rejected at the edge instead of
+// silently degrading to UTC downstream.
+export function isValidTimezone(tz) {
+  if (typeof tz !== 'string' || tz.length === 0) return false
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}
+
 const createTenantBody = z.object({
   appId:       z.string().min(1),
   displayName: z.string().min(1).max(128),
@@ -35,6 +48,15 @@ const updateTenantBody = z.object({
   // notifications when neither the booking/reservation nor the user carries
   // an explicit locale.
   defaultLocale:    z.string().min(2).max(8).optional(),
+  // IANA timezone (e.g. 'Europe/Madrid'). Used by platform-scheduler reminders
+  // and availability slot computation to render times in the tenant's local
+  // time. Validated against the runtime's tz database via Intl below.
+  timezone:         z.string().min(1).max(64).refine(isValidTimezone, {
+    message: 'timezone must be a valid IANA zone (e.g. Europe/Madrid)',
+  }).optional(),
+  // Toggle the new-user approval gate (read by platform/auth). Previously only
+  // settable via SQL migration; now manageable by staff via this endpoint.
+  requiresUserApproval: z.boolean().optional(),
   // Configuración comercial de la subscripción tenant↔plataforma.
   subscriptionPeriod:            z.enum(['monthly', 'annual']).nullable().optional(),
   subscriptionStatus:            z.enum(['inactive', 'trial', 'active', 'past_due', 'cancelled']).optional(),
@@ -50,6 +72,11 @@ const updateTenantBody = z.object({
 
 const subscribeBody = z.object({
   returnUrl: z.string().url(),
+})
+
+// #7 Per-tenant override of the app's enabled_modules. `null` clears it.
+const modulesOverrideBody = z.object({
+  modules: z.array(z.string().min(1).max(64)).max(64).nullable(),
 })
 
 function actorFromRequest(req) {
@@ -122,5 +149,60 @@ export async function tenantsRoutes(fastify) {
     return tenantsService.startSubscriptionCheckout(
       req.params.id, req.identity, bearer, body,
     )
+  })
+
+  // #7 Effective module list for a tenant: its override if set, else the app's.
+  // Readable by any authenticated user (the shell needs it to mount modules).
+  fastify.get('/v1/tenants/:id/enabled-modules', {
+    schema: {
+      tags: ['tenants'],
+      summary: 'Resolve the effective enabled_modules for a tenant',
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+  }, async (req) => {
+    return tenantsService.getTenantEnabledModules(req.params.id)
+  })
+
+  // Set or clear (modules: null) the per-tenant override. Staff-only.
+  fastify.put('/v1/tenants/:id/enabled-modules', {
+    preHandler: writeGuard,
+    schema: {
+      tags: ['tenants'],
+      summary: 'Override (or clear with null) the enabled_modules for one tenant',
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      body: {
+        type: 'object',
+        properties: { modules: { type: ['array', 'null'], items: { type: 'string' } } },
+        required: ['modules'],
+      },
+    },
+  }, async (req) => {
+    const { modules } = modulesOverrideBody.parse(req.body)
+    return tenantsService.setTenantEnabledModulesOverride(req.params.id, modules, actorFromRequest(req))
+  })
+
+  // #5 Issue the DNS TXT challenge the tenant must publish to prove control of
+  // its custom domain. Staff-only. Returns the record to publish.
+  fastify.post('/v1/tenants/:id/custom-domain/challenge', {
+    preHandler: writeGuard,
+    schema: {
+      tags: ['tenants'],
+      summary: 'Issue/rotate the DNS TXT challenge for the tenant custom domain',
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+  }, async (req) => {
+    return tenantsService.issueCustomDomainChallenge(req.params.id, actorFromRequest(req))
+  })
+
+  // Verify the published TXT record matches the issued token. Staff-only.
+  fastify.post('/v1/tenants/:id/custom-domain/verify', {
+    preHandler: writeGuard,
+    schema: {
+      tags: ['tenants'],
+      summary: 'Verify the tenant custom domain via its published DNS TXT record',
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+  }, async (req) => {
+    return tenantsService.verifyCustomDomain(req.params.id, actorFromRequest(req))
   })
 }

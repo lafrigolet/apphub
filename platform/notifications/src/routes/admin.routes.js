@@ -7,10 +7,13 @@ import { sendTestSms, invalidateSmsConfigCache } from '../services/sms.service.j
 import { invalidateConfigCache as invalidateEmailConfigCache } from '../services/email.service.js'
 import { invalidateRateLimitCache } from '../services/rate-limit.service.js'
 import * as sendLogRepo from '../repositories/send-log.repository.js'
+import * as suppressionsRepo from '../repositories/suppressions.repository.js'
 import { pool } from '../lib/db.js'
 
 const configBody = z.object({
   resend_api_key:               z.string().min(1).max(2048).optional().nullable(),
+  // Shared secret guarding the Resend delivery webhook (x-webhook-secret).
+  resend_webhook_secret:        z.string().min(1).max(512).optional().nullable(),
   sender_email:                 z.string().email().optional().nullable(),
   sender_name:                  z.string().max(256).optional().nullable(),
   twilio_account_sid:           z.string().min(1).max(64).optional().nullable(),
@@ -42,6 +45,30 @@ const sendLogQuery = z.object({
   status:   z.enum(['sent', 'failed', 'skipped']).optional(),
   limit:    z.coerce.number().int().min(1).max(500).default(100),
   offset:   z.coerce.number().int().min(0).default(0),
+})
+
+const suppressionsQuery = z.object({
+  channel: z.enum(['email', 'sms']).optional(),
+  limit:   z.coerce.number().int().min(1).max(500).default(100),
+  offset:  z.coerce.number().int().min(0).default(0),
+})
+
+const suppressionBody = z.object({
+  channel:   z.enum(['email', 'sms']),
+  recipient: z.string().min(3).max(320),
+  reason:    z.enum(['bounce', 'complaint', 'opt_out', 'manual']).default('manual'),
+  detail:    z.string().max(2000).optional().nullable(),
+})
+
+const unsuppressQuery = z.object({
+  channel:   z.enum(['email', 'sms']),
+  recipient: z.string().min(3).max(320),
+})
+
+const purgeBody = z.object({
+  // Delete send_log rows older than this many days. Bounded to avoid an
+  // accidental "purge everything" (min 1) while allowing aggressive retention.
+  older_than_days: z.coerce.number().int().min(1).max(3650),
 })
 
 const smsTestBody = z.object({
@@ -114,6 +141,73 @@ export async function adminRoutes(fastify) {
     const q = sendLogQuery.parse(req.query ?? {})
     const client = await pool.connect()
     try { return { data: await sendLogRepo.list(client, q) } } finally { client.release() }
+  })
+
+  // ── send_log retention (recommendation #16) ─────────────────────────────
+  // Manual purge of attempts older than N days. The recurring purge is a
+  // scheduler job (see cross-cutting note in notifications.md) that hits the
+  // same repository; this endpoint lets staff run it on demand.
+  // DELETE /v1/notifications/admin/send-log?older_than_days=90
+  fastify.delete('/send-log', {
+    schema: {
+      tags: cfgTags,
+      summary: 'Purge send_log entries older than N days (retention)',
+      querystring: purgeBody,
+    },
+  }, async (req) => {
+    const { older_than_days } = purgeBody.parse(req.query ?? {})
+    const client = await pool.connect()
+    try {
+      const deleted = await sendLogRepo.purgeOlderThan(client, { olderThanDays: older_than_days })
+      return { data: { deleted, olderThanDays: older_than_days } }
+    } finally { client.release() }
+  })
+
+  // ── Suppression list (recommendation #5) ────────────────────────────────
+  // Bounced / complained / opted-out recipients the senders must skip.
+  fastify.get('/suppressions', {
+    schema: {
+      tags: cfgTags,
+      summary: 'List suppressed recipients (bounce/complaint/opt-out/manual)',
+      querystring: suppressionsQuery,
+    },
+  }, async (req) => {
+    const q = suppressionsQuery.parse(req.query ?? {})
+    const client = await pool.connect()
+    try { return { data: await suppressionsRepo.list(client, q) } } finally { client.release() }
+  })
+
+  fastify.post('/suppressions', {
+    schema: {
+      tags: cfgTags,
+      summary: 'Manually suppress a recipient (block future sends on a channel)',
+      body: suppressionBody,
+    },
+  }, async (req, reply) => {
+    const body = suppressionBody.parse(req.body ?? {})
+    const recipient = body.channel === 'email' ? body.recipient.trim().toLowerCase() : body.recipient.trim()
+    const client = await pool.connect()
+    try {
+      const row = await suppressionsRepo.upsert(client, { ...body, recipient })
+      return reply.code(201).send({ data: row })
+    } finally { client.release() }
+  })
+
+  fastify.delete('/suppressions', {
+    schema: {
+      tags: cfgTags,
+      summary: 'Un-suppress a recipient (allow sends again)',
+      querystring: unsuppressQuery,
+    },
+  }, async (req, reply) => {
+    const { channel, recipient } = unsuppressQuery.parse(req.query ?? {})
+    const norm = channel === 'email' ? recipient.trim().toLowerCase() : recipient.trim()
+    const client = await pool.connect()
+    try {
+      const removed = await suppressionsRepo.remove(client, { channel, recipient: norm })
+      if (!removed) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'not suppressed' } })
+      return { data: { removed: true } }
+    } finally { client.release() }
   })
 
   // POST /v1/notifications/admin/sms/test  { to, body? }

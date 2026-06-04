@@ -48,26 +48,27 @@ describe('findByCode', () => {
 })
 
 describe('insert', () => {
-  it('INSERT 13 params; COALESCE active/position; defaults', async () => {
+  it('INSERT 14 params; COALESCE active/position; defaults; suggested_amounts', async () => {
     const c = mockClient([{ id: 'cz1' }])
     await repo.insert(c, {
       appId: 'aikikan', tenantId: 't1', subTenantId: null, code: 'CODE', name: 'Cause',
       description: 'desc', targetCents: 10000, currency: 'usd', imageObjectId: 'img',
       active: true, position: 2, startsAt: '2026-01-01', endsAt: '2026-12-31',
+      suggestedAmountsCents: [1000, 2500],
     })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_donations\.causes/)
     expect(sql).toMatch(/COALESCE\(\$10, TRUE\), COALESCE\(\$11, 0\)/)
     expect(params).toEqual([
       'aikikan', 't1', null, 'CODE', 'Cause', 'desc', 10000, 'usd', 'img',
-      true, 2, '2026-01-01', '2026-12-31',
+      true, 2, '2026-01-01', '2026-12-31', [1000, 2500],
     ])
   })
   it('opcionales ausentes → null + currency EUR default', async () => {
     const c = mockClient([{ id: 'cz1' }])
     await repo.insert(c, { appId: 'a', tenantId: 't', code: 'C', name: 'N' })
     const params = c.query.mock.calls[0][1]
-    expect(params).toEqual(['a', 't', null, 'C', 'N', null, null, 'EUR', null, undefined, undefined, null, null])
+    expect(params).toEqual(['a', 't', null, 'C', 'N', null, null, 'EUR', null, undefined, undefined, null, null, null])
   })
 })
 
@@ -78,12 +79,12 @@ describe('update', () => {
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/name\s+= COALESCE\(\$2, name\)/)
     expect(sql).toMatch(/WHERE id = \$1/)
-    expect(params).toEqual(['cz1', 'New', null, null, null, false, 3, null, null])
+    expect(params).toEqual(['cz1', 'New', null, null, null, false, 3, null, null, null])
   })
   it('patch vacío → todos null; row inexistente → null', async () => {
     const c = mockClient([])
     expect(await repo.update(c, 'ghost', {})).toBeNull()
-    expect(c.query.mock.calls[0][1]).toEqual(['ghost', null, null, null, null, null, null, null, null])
+    expect(c.query.mock.calls[0][1]).toEqual(['ghost', null, null, null, null, null, null, null, null, null])
   })
 })
 

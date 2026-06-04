@@ -346,12 +346,16 @@ describe('checkout-session routes', () => {
     expect(checkoutService.createCheckoutSession).toHaveBeenCalledWith(TENANT, expect.any(Object))
   })
 
-  it('POST / body inválido → 500 (createBody.parse lanza ZodError)', async () => {
+  it('POST / body inválido → validación zod en el schema de la ruta (4xx)', async () => {
+    // La validación del body se hace ahora en el `schema` de Fastify (zod type
+    // provider), no dentro del handler; antes el handler hacía createBody.parse
+    // y lanzaba ZodError → 500. Ahora falla la validación de la ruta (priority
+    // #8 declaró el body schema + tags/summary). Mismo criterio que split-rules.
     const res = await app.inject({
       method: 'POST', url: '/v1/splitpay/checkout-sessions/',
       payload: { mode: 'bogus', lineItems: [] },
     })
-    expect(res.statusCode).toBe(500)
+    expect([400, 422]).toContain(res.statusCode)
   })
 
   it('GET /:id encontrado', async () => {
@@ -399,9 +403,19 @@ describe('defaults defensivos (?? {}) — handlers directos', () => {
     expect(client.release).toHaveBeenCalled()
   })
 
-  it('checkout POST / con req.body undefined → createBody.parse({}) lanza ZodError', async () => {
+  it('checkout POST / delega al servicio (validación movida al schema de la ruta)', async () => {
+    // La validación del body vive ahora en el `schema` Fastify, no en el
+    // handler; el handler simplemente delega a createCheckoutSession con
+    // req.tenant + req.body. (priority #8)
+    checkoutService.createCheckoutSession.mockResolvedValue({ id: 's-direct' })
     const routes = captureHandlers(checkoutSessionRoutes)
     const post = routes.find((r) => r.m === 'post' && r.p === '/')
-    await expect(post.h({ tenant: TENANT }, { status: () => ({ send: () => {} }) })).rejects.toBeTruthy()
+    let sent
+    await post.h(
+      { tenant: TENANT, body: { mode: 'payment' } },
+      { status: () => ({ send: (b) => { sent = b } }) },
+    )
+    expect(checkoutService.createCheckoutSession).toHaveBeenCalledWith(TENANT, { mode: 'payment' })
+    expect(sent).toEqual({ data: { id: 's-direct' } })
   })
 })

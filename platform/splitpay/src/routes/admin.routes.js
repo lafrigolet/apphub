@@ -9,6 +9,11 @@ const patchBody = z.object({
   stripe_secret_key:      z.string().startsWith('sk_').max(2048).optional().nullable(),
   stripe_publishable_key: z.string().startsWith('pk_').max(2048).optional().nullable(),
   stripe_webhook_secret:  z.string().startsWith('whsec_').max(2048).optional().nullable(),
+  // Configurable Stripe processing fee (priority #9). percent is a fraction
+  // (0–1, e.g. 0.014 = 1.4%); fixed is in the smallest currency unit (cents).
+  // Stored as plain strings; the split engine resolves them on each charge.
+  stripe_fee_percent:     z.coerce.number().min(0).max(1).optional().nullable(),
+  stripe_fee_fixed:       z.coerce.number().int().min(0).max(100000).optional().nullable(),
 })
 
 export async function adminRoutes(fastify) {
@@ -25,7 +30,8 @@ export async function adminRoutes(fastify) {
     try {
       for (const [key, value] of Object.entries(body)) {
         if (value === undefined) continue
-        await repo.upsertValue(client, key, value)
+        // Numeric fee config is persisted as a plain string.
+        await repo.upsertValue(client, key, value === null ? null : String(value))
       }
       // Force the next call to use the freshly-updated secret_key.
       await reloadStripeFromDb()

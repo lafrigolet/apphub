@@ -22,6 +22,10 @@ const supportBody = z.object({
 const queueBody = z.object({ queue: z.string().max(64).nullable() })
 const csatBody = z.object({ rating: z.coerce.number().int().min(1).max(5), comment: z.string().max(2000).optional() })
 const macroBody = z.object({ title: z.string().min(1).max(120), body: z.string().min(1).max(8000) })
+const macroPatchBody = z.object({
+  title: z.string().min(1).max(120).optional(),
+  body:  z.string().min(1).max(8000).optional(),
+}).refine((b) => b.title !== undefined || b.body !== undefined, { message: 'title or body is required' })
 
 export async function supportRoutes(fastify) {
   const ctx = (req) => req.identity
@@ -89,6 +93,13 @@ export async function supportRoutes(fastify) {
     const data = await supportService.createMacro(ctx(req), body)
     reply.code(201)
     return { data }
+  })
+
+  fastify.patch('/support/macros/:id', {
+    schema: { tags: TAG, summary: 'Staff: edit a canned response', body: macroPatchBody },
+  }, async (req) => {
+    const body = macroPatchBody.parse(req.body ?? {})
+    return { data: await supportService.updateMacro(ctx(req), req.params.id, body) }
   })
 
   fastify.delete('/support/macros/:id', {

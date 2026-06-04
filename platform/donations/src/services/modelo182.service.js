@@ -16,6 +16,7 @@
 // profesional contable.
 
 import { withTenantTransaction } from '../lib/db.js'
+import { isValidNif, normalizeNif, provinceCodeFromPostalCode } from '../lib/nif.js'
 import { ForbiddenError, AppError } from '@apphub/platform-sdk/errors'
 
 const ADMIN_ROLES = new Set(['owner', 'admin', 'staff', 'super_admin'])
@@ -144,7 +145,7 @@ function buildDetail({ year, entity, donor }) {
   r += text(donor.donor_nif, 9)
   r += '0'.repeat(9)                                              // sin representante
   r += text(donor.donor_name ?? '', 40)
-  r += '00'                                                       // provincia (placeholder)
+  r += provinceCodeFromPostalCode(donor.donor_postal_code)        // provincia (de CP)
   r += text(donor.donor_country ?? 'ES', 2)
   r += num(donor.total_cents, 13)
   r += 'A'                                                        // dinerario
@@ -165,7 +166,22 @@ export async function exportModelo182(identity, { year, contactPhone, contactNam
     const entity = await resolveEntity(c, identity.appId, identity.tenantId)
     if (!entity.nif) throw new AppError('TENANT_MISSING_CIF', 'El tenant no tiene CIF configurado', 412)
 
-    const donors = await aggregateByNif(c, year)
+    const allDonors = await aggregateByNif(c, year)
+
+    // Excluye del fichero los donantes con NIF inválido — un NIF mal
+    // formado provoca el rechazo del modelo en la sede AEAT. Los
+    // donantes excluidos se reportan en `skipped` para que el admin
+    // corrija sus datos antes de presentar.
+    const donors = []
+    const skipped = []
+    for (const d of allDonors) {
+      if (isValidNif(d.donor_nif)) {
+        donors.push({ ...d, donor_nif: normalizeNif(d.donor_nif) })
+      } else {
+        skipped.push({ donorNif: d.donor_nif, donorName: d.donor_name, totalCents: Number(d.total_cents) })
+      }
+    }
+
     const totalCents = donors.reduce((s, d) => s + Number(d.total_cents), 0)
 
     const lines = []
@@ -179,6 +195,7 @@ export async function exportModelo182(identity, { year, contactPhone, contactNam
       year,
       count:    donors.length,
       totalCents,
+      skipped,
     }
   })
 }

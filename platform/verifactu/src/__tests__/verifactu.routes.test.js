@@ -16,6 +16,8 @@ vi.mock('../services/verifactu.service.js', () => ({
   listClientes: vi.fn(), listLotes: vi.fn(), listRepresentacion: vi.fn(), crearCliente: vi.fn(),
   listCertificados: vi.fn(), getConfig: vi.fn(), patchConfig: vi.fn(),
   listCotejos: vi.fn(), cotejar: vi.fn(), validar: vi.fn(),
+  recalcularCadenaCompleta: vi.fn(), listSeries: vi.fn(), crearSerie: vi.fn(),
+  cerrarSerie: vi.fn(), exportar: vi.fn(),
 }))
 
 import { publicRoutes } from '../routes/verifactu.routes.js'
@@ -91,6 +93,28 @@ describe('GET lecturas — scope desde query', () => {
     expect(service.verificarCadena).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT }))
   })
 
+  it('GET /cadena/recalcular → service.recalcularCadenaCompleta', async () => {
+    service.recalcularCadenaCompleta.mockResolvedValue({ ok: true, verificados: 3 })
+    const res = await app.inject({ method: 'GET', url: `/v1/verifactu/cadena/recalcular?${qs}` })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true, verificados: 3 })
+    expect(service.recalcularCadenaCompleta).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT }))
+  })
+
+  it('GET /series → service.listSeries', async () => {
+    service.listSeries.mockResolvedValue([{ codigo: 'VENTAS' }])
+    const res = await app.inject({ method: 'GET', url: `/v1/verifactu/series?${qs}` })
+    expect(res.statusCode).toBe(200)
+    expect(service.listSeries).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT }))
+  })
+
+  it('GET /exportar → service.exportar', async () => {
+    service.exportar.mockResolvedValue({ meta: {}, registros: [], eventos: [] })
+    const res = await app.inject({ method: 'GET', url: `/v1/verifactu/exportar?${qs}` })
+    expect(res.statusCode).toBe(200)
+    expect(service.exportar).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT }))
+  })
+
   it('scope inválido (sin tenantId) → 422, no llama al service', async () => {
     const res = await app.inject({ method: 'GET', url: `/v1/verifactu/registros?appId=${APP}` })
     expect([400, 422]).toContain(res.statusCode)
@@ -163,6 +187,31 @@ describe('POST mutaciones', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(service.patchConfig).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT }), expect.objectContaining({ reintentos: 5 }))
+  })
+
+  it('POST /series → 201 + service.crearSerie(scope, body)', async () => {
+    service.crearSerie.mockResolvedValue({ codigo: 'VENTAS', activa: true })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/verifactu/series',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { appId: APP, tenantId: TENANT, codigo: 'VENTAS', ejercicio: 2027 },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.crearSerie).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: TENANT }),
+      expect.objectContaining({ codigo: 'VENTAS', ejercicio: 2027 }),
+    )
+  })
+
+  it('POST /series/:codigo/cerrar → service.cerrarSerie(scope, codigo)', async () => {
+    service.cerrarSerie.mockResolvedValue({ codigo: 'VENTAS', activa: false })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/verifactu/series/VENTAS/cerrar',
+      headers: { 'Content-Type': 'application/json' },
+      payload: { appId: APP, tenantId: TENANT },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.cerrarSerie).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT }), 'VENTAS')
   })
 
   it('POST /validar → service.validar(body crudo)', async () => {

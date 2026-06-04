@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-Formulario de checkout público (`POST /v1/donations/checkout`) para donaciones one-shot y recurrentes mensuales; causas/campañas con objetivo de recaudación y progreso; donante identificado o invitado (sólo email); donación anónima; datos fiscales opcionales (NIF, dirección); integración con `platform/splitpay` vía loopback HTTP; subscriber de eventos Stripe (checkout.completed, invoice.paid, invoice.payment_failed, subscription.updated/deleted); generación masiva de certificados anuales PDF (React-PDF) con upsert idempotente en `fiscal_certificates` y subida a `platform/storage`; exportación del Modelo 182 AEAT en formato de ancho fijo ISO-8859-1; reembolso de donación vía splitpay/payments; cancelación de suscripción recurrente por el propio donante o por admin; historial del donante autenticado; admin list con filtros (causa, estado, rango de fechas, paginación); RLS por `(app_id, tenant_id)` en todas las tablas.
+Formulario de checkout público (`POST /v1/donations/checkout`) para donaciones one-shot y recurrentes mensuales; causas/campañas con objetivo de recaudación y progreso; donante identificado o invitado (sólo email); donación anónima; datos fiscales opcionales (NIF, dirección); integración con `platform/splitpay` vía loopback HTTP; subscriber de eventos Stripe (checkout.completed, invoice.paid, invoice.payment_failed, subscription.updated/deleted); generación masiva de certificados anuales PDF (React-PDF) con upsert idempotente en `fiscal_certificates` y subida a `platform/storage`; exportación del Modelo 182 AEAT en formato de ancho fijo ISO-8859-1; reembolso de donación vía splitpay/payments; cancelación de suscripción recurrente por el propio donante o por admin; historial del donante autenticado; admin list con filtros (causa, estado, rango de fechas, paginación); importes sugeridos configurables por tenant (tabla `tenant_settings`) y override por causa (`suggested_amounts_cents`), expuestos en lectura pública y gestión admin; CRM básico de donantes (listado único agrupado por NIF/email con totales, ficha con historial, export CSV); reenvío individual de certificados (marca `sent_at` + re-emite `donation.certificate.ready`); RLS por `(app_id, tenant_id)` en todas las tablas.
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -18,7 +18,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Campo `message` libre (hasta 500 caracteres) para dedicatoria o motivo.
 - ✅ Row `donations` con `status='pending'` antes de Stripe; `status='paid'` en webhook.
 - ✅ Idempotencia por `stripe_session_id`; reconciliación también por `donation_id` en metadata.
-- 🔧 Importe libre — faltan importes sugeridos predefinidos configurables por tenant en la UI.
+- ✅ Importes sugeridos predefinidos configurables por tenant (`platform_donations.tenant_settings.default_suggested_amounts_cents`) y override por causa (`causes.suggested_amounts_cents`); lectura pública en `GET /v1/donations/settings/suggested-amounts` (precedencia causa → tenant) y gestión admin en `/v1/donations/settings/admin`.
 - ❌ Donación "en memoria / en honor de" (campo `dedication_type` + nombre del homenajeado).
 - ❌ Método de pago alternativo: transferencia bancaria, Bizum, cheque — sólo Stripe.
 - ❌ Donación con cobertura de gastos de gestión (opt-in "cubrir fees").
@@ -60,10 +60,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Lectura pública de causas activas (`GET /v1/donations/causes?appId&tenantId`) — sin JWT.
 - ✅ CRUD admin: crear, actualizar, listar todas (incl. inactivas), get por id, soft-delete (`active=false`).
 - ✅ `raised_cents` se incrementa / decrementa atómicamente en cada pago y reembolso.
-- 🔧 `starts_at` / `ends_at` existen en DB pero no hay validación automática de apertura/cierre de la causa en el checkout.
+- ✅ `starts_at` / `ends_at`: validación automática de apertura/cierre de la causa en el checkout (rechaza con `409` si la causa aún no abrió o ya cerró).
 - 🔧 Soft-delete pone `active=false` pero no comprueba si hay suscripciones activas vinculadas.
 - ❌ Imagen de la causa gestionada desde el admin (sólo se persiste `image_object_id` — no hay flujo de upload directo).
 - ❌ Causa con donaciones anónimas forzadas (configuración por causa).
+- ✅ Importes sugeridos específicos por causa (`causes.suggested_amounts_cents`, override del default del tenant).
 - ❌ Causa con importes mínimos/máximos específicos.
 - ❌ Notificación automática al alcanzar el objetivo (`raised_cents >= target_cents`).
 - ❌ Widget embebible de progreso de causa (barra de recaudación) para portales externos.
@@ -75,9 +76,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `donor_nif`, `donor_address`, `donor_postal_code`, `donor_country` en `donations`.
 - ✅ `donor_nif` en `donation_subscriptions` (persistido desde el primer cobro).
 - ✅ Índice parcial `(app_id, tenant_id, donor_nif, paid_at) WHERE donor_nif IS NOT NULL AND status='paid'` para consultas fiscales eficientes.
-- ❌ Validación de formato de NIF español (DNI/NIE/CIF): algoritmo de letra de control.
+- ✅ Validación de formato de NIF español (DNI/NIE/CIF): algoritmo de letra de control (`src/lib/nif.js`), aplicada en el checkout (rechaza `422` si inválido).
 - ❌ Validación de NIF extranjero (VAT UE, passportNumber).
-- ❌ Normalización/limpieza del NIF (quitar guiones, espacios, uppercase) en ingesta.
+- ✅ Normalización/limpieza del NIF (quitar guiones, espacios, puntos, uppercase) en ingesta del checkout.
 - ❌ Actualización retroactiva del NIF en donaciones ya pagadas (corrección de datos fiscales).
 - ❌ Gestión de consentimiento explícito para tratamiento fiscal (LOPDGDD).
 - ❌ Encriptado de NIF en reposo (campo `donor_nif` es texto plano; contiene PII sensible).
@@ -91,10 +92,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Evento `donation.certificate.ready` publicado en `platform.events` por cada certificado generado.
 - ✅ Listado de certificados admin con filtro por año (`GET /v1/donations/fiscal/certificates`).
 - ✅ Generación de certificado individual (filtro `donorNif` en `POST .../certificates/generate`).
-- 🔧 Envío del certificado al donante por email aún no implementado: el evento `donation.certificate.ready` existe pero el suscriptor en `platform/notifications` está pendiente (comentario en `certificate.service.js`).
-- 🔧 `sent_at` en `fiscal_certificates` existe en DB pero nunca se actualiza.
+- 🔧 Envío del certificado al donante por email aún no implementado: el evento `donation.certificate.ready` ahora se publica realmente (el `redis` se inyecta vía `app.decorate('_redis')` en `index.js`; antes `fastify._redis` era siempre null y no se emitía). Falta el suscriptor en `platform/notifications` (cross-cutting pendiente).
+- ✅ `sent_at` en `fiscal_certificates` se actualiza al reenviar el certificado (`certsRepo.markSent` desde `resendCertificate`).
 - ❌ Descarga del PDF por el donante desde su área privada (URL firmada de `platform/storage`).
-- ❌ Reenvío individual de certificado a email del donante desde el panel admin.
+- ✅ Reenvío individual de certificado desde el panel admin: `POST /v1/donations/fiscal/certificates/:id/resend` marca `sent_at` y re-publica `donation.certificate.ready` (el envío del email lo hará el suscriptor de notifications pendiente).
 - ❌ Certificado de donación inmediata (recibo de agradecimiento en el acto, no sólo el anual).
 - ❌ Certificados por suscripción recurrente (agrupando todos los cobros del año de la misma suscripción).
 - ❌ Multi-idioma del certificado (castellano / català / euskera / galego).
@@ -111,8 +112,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Headers HTTP `Content-Disposition`, `X-Donors-Count`, `X-Donors-Total-Cents`, `X-Fiscal-Year`.
 - ✅ Guardia: requiere que el tenant tenga `cif` configurado en `platform_tenants.tenants`.
 - 🔧 Posicionamiento de campos en tipo 1 (cabecera) sigue spec parcialmente: el campo de "número justificante de presentación anterior" se rellena con ceros y los offsets de "totales" están aproximados al layout genérico — requiere revisión formal contra la resolución AEAT vigente.
-- 🔧 Código de provincia (2 chars, posición 76-77 del tipo 2) siempre `'00'` (no calculado desde `donor_postal_code`).
-- ❌ Validación de NIF del donante antes de incluirlo en el modelo (donativos con NIF inválido quedarían en el fichero).
+- ✅ Código de provincia (2 chars del tipo 2) calculado desde `donor_postal_code` (`provinceCodeFromPostalCode`); `'00'` sólo si CP ausente o fuera de rango 01..52.
+- ✅ Validación de NIF del donante antes de incluirlo en el modelo: los donativos con NIF inválido se excluyen del fichero y se reportan en `skipped` + header HTTP `X-Donors-Skipped`.
 - ❌ Indicador de deducción autonómica configurable por comunidad autónoma (actualmente fijo `'N'`).
 - ❌ Soporte de revocación de donativos (registros tipo 2 con revocación).
 - ❌ Donaciones en especie (actualmente fijo `'N'`).
@@ -122,9 +123,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 8. Deducción por tramos y fidelización (Ley 49/2002)
 
-- ❌ Cálculo del tramo de deducción IRPF aplicable: 80 % para los primeros 250 €, 35 % o 40 % (fidelización ≥ 3 años) para el exceso — el módulo no lo computa.
-- ❌ Registro de "años consecutivos de donación" por NIF para aplicar el tramo de fidelización (+5 % si donante recurrente ≥ 3 años al mismo tenant).
-- ❌ Información al donante en el certificado del importe deducible estimado por tramos.
+- ✅ Cálculo del tramo de deducción IRPF aplicable: 80 % para los primeros 250 €, 35 % o 40 % (fidelización ≥ 3 años) para el exceso (`src/lib/deduction.js`); expuesto en `GET /v1/donations/fiscal/deduction?year&donorNif`.
+- ✅ Registro de "años consecutivos de donación" por NIF para aplicar el tramo de fidelización (computado desde las donaciones pagadas: `consecutiveYearsForLoyalty` ≥ 3 años consecutivos al mismo tenant → 40 %).
+- ✅ Información al donante en el certificado del importe deducible estimado por tramos (bloque "Deducción estimada en IRPF" en el PDF).
 - ❌ Alerta al donante recurrente cuando alcance el tercer año consecutivo ("ya puedes deducir el 40 %").
 - ❌ Cálculo IS (Impuesto sobre Sociedades) para donantes corporativos (personas jurídicas).
 
@@ -169,11 +170,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Listado admin de donaciones con filtros: `causeId`, `status`, `fromDate`, `toDate`, paginación.
 - ✅ Listado admin de suscripciones activas/pasadas (`GET /v1/donations/admin/subscriptions`).
 - ✅ Get individual de una donación (admin o el propio donante).
-- ❌ Listado de donantes únicos (agrupado por email/NIF) con total donado.
-- ❌ Ficha de donante: historial completo de donaciones + suscripciones + certificados.
-- ❌ Búsqueda por nombre, email, NIF, rango de importe.
+- ✅ Listado de donantes únicos (agrupado por `COALESCE(donor_nif, donor_email)`) con total donado, nº de donaciones, primera/última: `GET /v1/donations/donors/admin`.
+- ✅ Ficha de donante: resumen + historial completo de donaciones pagadas (`GET /v1/donations/donors/admin/:donorKey`). (Suscripciones/certificados quedan fuera del V1 de la ficha.)
+- 🔧 Búsqueda por nombre, email, NIF (`?search=`) + rango de fechas (`?fromDate&toDate`). Falta rango de importe.
 - ❌ Etiquetas / segmentos de donantes (recurrente, gran donante, primer donativo, etc.).
-- ❌ Exportación CSV / XLSX del listado de donantes y donaciones.
+- 🔧 Exportación CSV del listado de donantes (`GET /v1/donations/donors/admin/export.csv`). Falta XLSX y export del listado de donaciones.
 - ❌ Marcado de donante VIP / bloqueado.
 - ❌ Notas internas del admin sobre un donante.
 
@@ -232,7 +233,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 18. Multi-tenant, multi-app y modelo de datos
 
-- ✅ RLS forzada en las 4 tablas (`donations`, `donation_subscriptions`, `causes`, `fiscal_certificates`) con política `(app_id, tenant_id)`.
+- ✅ RLS forzada en las 5 tablas (`donations`, `donation_subscriptions`, `causes`, `fiscal_certificates`, `tenant_settings`) con política `(app_id, tenant_id)`.
 - ✅ `sub_tenant_id` nullable para soporte de jerarquía de dos niveles.
 - ✅ `withStaffBypass` para el subscriber de eventos (sin contexto JWT).
 - ✅ Datos del tenant declarante (NIF / razón social / domicilio) leídos desde `platform_tenants.tenants.cif`/`legal_name`/`address` — sin duplicación.
@@ -248,12 +249,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
 1. **Email de agradecimiento / recibo inmediato** — REUSE directo de `platform/notifications` suscribiendo `donation.completed`; coste mínimo, impacto alto en experiencia del donante.
-2. **Envío del certificado anual por email** — el evento `donation.certificate.ready` ya existe; falta el suscriptor en notifications y actualizar `sent_at`. Obligatorio operativamente.
+2. 🔧 **Envío del certificado anual por email** — el evento `donation.certificate.ready` ahora se publica realmente (redis inyectado en `index.js`); `sent_at` se actualiza vía el endpoint de reenvío `POST .../certificates/:id/resend`. **Falta sólo el suscriptor en `platform/notifications`** (cross-cutting pendiente).
 3. **Dunning básico: email tras pago fallido** — suscriptor de `donation.recurring.failed` → REUSE notifications; recupera recurrentes `past_due` sin desarrollo costoso.
-4. **Validación y normalización del NIF** — riesgo fiscal directo: un NIF inválido en el Modelo 182 genera error AEAT. Coste bajo (función pura), valor alto.
+4. ~~**Validación y normalización del NIF** — riesgo fiscal directo: un NIF inválido en el Modelo 182 genera error AEAT. Coste bajo (función pura), valor alto.~~ ✅ **Hecho** — `src/lib/nif.js` (DNI/NIE/CIF + normalización), aplicado en checkout y en el Modelo 182 (donantes con NIF inválido excluidos del fichero).
 5. **Encriptado de NIF en reposo** — PII sensible actualmente en texto plano; REUSE `@apphub/platform-sdk/crypto`.
-6. **Importes sugeridos configurables por tenant** (array en `causes` o tabla de configuración) — desbloquea el formulario de donación estándar sin desarrollo frontend ad-hoc.
-7. **Ficha de donante + exportación CSV** — operativa básica de CRM: agrupado por email/NIF con total donado, filtros, export.
-8. **Validación de apertura/cierre de causa** (`starts_at` / `ends_at`) en el checkout — los campos existen; sólo falta la guarda en `createCheckout`.
-9. **Deducción por tramos y fidelización** — registrar años consecutivos de donación por NIF; informar al donante del porcentaje de deducción estimado en el certificado. Alto valor fiscal/diferencial.
+6. ~~**Importes sugeridos configurables por tenant**~~ ✅ **Hecho** — `tenant_settings.default_suggested_amounts_cents` (tabla nueva) + override por causa (`causes.suggested_amounts_cents`); lectura pública `GET /v1/donations/settings/suggested-amounts` (precedencia causa → tenant) + admin `/v1/donations/settings/admin`.
+7. ~~**Ficha de donante + exportación CSV**~~ ✅ **Hecho** — agrupado por `COALESCE(nif, email)` con total/nº/primera/última: listado + ficha + export CSV bajo `/v1/donations/donors/admin` (búsqueda + rango de fechas).
+8. ~~**Validación de apertura/cierre de causa** (`starts_at` / `ends_at`) en el checkout — los campos existen; sólo falta la guarda en `createCheckout`.~~ ✅ **Hecho** — guarda en `createCheckout` (rechaza `409` fuera de ventana).
+9. ~~**Deducción por tramos y fidelización** — registrar años consecutivos de donación por NIF; informar al donante del porcentaje de deducción estimado en el certificado. Alto valor fiscal/diferencial.~~ ✅ **Hecho** — `src/lib/deduction.js` + `GET /v1/donations/fiscal/deduction` + bloque de deducción estimada en el PDF del certificado.
 10. **GDPR: consentimiento + retención/purga** via `platform/scheduler` — obligatorio en España/UE; el scheduler ya existe para jobs similares.

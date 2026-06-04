@@ -3,6 +3,7 @@ const SCHEMA = 'platform_donations'
 const COLUMNS = `
   id, app_id, tenant_id, sub_tenant_id, code, name, description,
   target_cents, raised_cents, currency, image_object_id,
+  suggested_amounts_cents,
   active, position, starts_at, ends_at, created_at, updated_at
 `
 
@@ -34,13 +35,15 @@ export async function insert(client, c) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.causes
        (app_id, tenant_id, sub_tenant_id, code, name, description,
-        target_cents, currency, image_object_id, active, position, starts_at, ends_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, TRUE), COALESCE($11, 0), $12, $13)
+        target_cents, currency, image_object_id, active, position, starts_at, ends_at,
+        suggested_amounts_cents)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, TRUE), COALESCE($11, 0), $12, $13, $14)
      RETURNING ${COLUMNS}`,
     [
       c.appId, c.tenantId, c.subTenantId ?? null, c.code, c.name, c.description ?? null,
       c.targetCents ?? null, c.currency ?? 'EUR', c.imageObjectId ?? null,
       c.active, c.position, c.startsAt ?? null, c.endsAt ?? null,
+      c.suggestedAmountsCents ?? null,
     ],
   )
   return rows[0]
@@ -49,21 +52,23 @@ export async function insert(client, c) {
 export async function update(client, id, patch) {
   const { rows } = await client.query(
     `UPDATE ${SCHEMA}.causes SET
-       name            = COALESCE($2, name),
-       description     = COALESCE($3, description),
-       target_cents    = COALESCE($4, target_cents),
-       image_object_id = COALESCE($5, image_object_id),
-       active          = COALESCE($6, active),
-       position        = COALESCE($7, position),
-       starts_at       = COALESCE($8, starts_at),
-       ends_at         = COALESCE($9, ends_at),
-       updated_at      = now()
+       name                    = COALESCE($2, name),
+       description             = COALESCE($3, description),
+       target_cents            = COALESCE($4, target_cents),
+       image_object_id         = COALESCE($5, image_object_id),
+       active                  = COALESCE($6, active),
+       position                = COALESCE($7, position),
+       starts_at               = COALESCE($8, starts_at),
+       ends_at                 = COALESCE($9, ends_at),
+       suggested_amounts_cents = COALESCE($10, suggested_amounts_cents),
+       updated_at              = now()
      WHERE id = $1
      RETURNING ${COLUMNS}`,
     [
       id, patch.name ?? null, patch.description ?? null, patch.targetCents ?? null,
       patch.imageObjectId ?? null, patch.active ?? null, patch.position ?? null,
       patch.startsAt ?? null, patch.endsAt ?? null,
+      patch.suggestedAmountsCents ?? null,
     ],
   )
   return rows[0] ?? null

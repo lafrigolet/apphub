@@ -37,15 +37,22 @@ vi.mock('@apphub/platform-sdk/storage', () => ({
   presignPut: vi.fn(async () => 'http://minio:9000/test-bucket/obj?sig=upload'),
   presignGet: vi.fn(async () => 'http://minio:9000/test-bucket/obj?sig=download'),
   headObject: vi.fn(),
+  deleteObject: vi.fn(),
+}))
+// Module-local S3 extras (Content-Disposition GET + HeadBucket) the service uses.
+vi.mock('../lib/s3-extra.js', () => ({
+  presignGetWithDisposition: vi.fn(async () => 'http://minio:9000/test-bucket/obj?sig=download&disp=1'),
+  headBucket: vi.fn(),
 }))
 vi.mock('../repositories/storage.repository.js')
 
 import {
   requestUpload, finalize, getDownloadUrl, deleteObject, configureClient,
+  listAccessLog, purgeExpired, notifyExpiringSoon,
 } from '../services/storage.service.js'
 import { withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
-import { headObject, presignPut } from '@apphub/platform-sdk/storage'
+import { headObject, presignPut, deleteObject as s3DeleteObject } from '@apphub/platform-sdk/storage'
 import * as repo from '../repositories/storage.repository.js'
 
 const ctx = {
@@ -215,13 +222,18 @@ describe('finalize', () => {
 // ── getDownloadUrl ───────────────────────────────────────────────────
 
 describe('getDownloadUrl', () => {
-  it('happy: presignGet + rewrite host', async () => {
+  it('happy: presignGet + rewrite host + audit (access_log row + downloaded event)', async () => {
     repo.findById.mockResolvedValue({
-      id: 'obj-1', status: 'uploaded', bucket: 'b', key: 'k',
+      id: 'obj-1', status: 'uploaded', bucket: 'b', key: 'k', kind: 'signature',
     })
-    const r = await getDownloadUrl(ctx, 'obj-1', 300)
+    const r = await getDownloadUrl(ctx, 'obj-1', 300, { ip: '1.2.3.4', userAgent: 'UA' })
     expect(r.downloadUrl).toContain('http://localhost:9000')
     expect(typeof r.expiresAt).toBe('string')
+    expect(repo.insertAccessLog).toHaveBeenCalledWith(
+      expect.anything(), ctx.appId, ctx.tenantId,
+      expect.objectContaining({ objectId: 'obj-1', kind: 'signature', action: 'download', ip: '1.2.3.4', userAgent: 'UA' }),
+    )
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'storage.object.downloaded' }))
   })
   it('status pending → ConflictError', async () => {
     repo.findById.mockResolvedValue({ id: 'obj-1', status: 'pending' })
@@ -266,6 +278,84 @@ describe('deleteObject — owner/staff guard', () => {
     repo.findById.mockResolvedValue({ id: 'obj-1', owner_user_id: 'user-1', kind: 'invoice', status: 'deleted' })
     await deleteObject(ctx, 'obj-1')
     expect(repo.softDelete).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
+  })
+})
+
+// ── listAccessLog ────────────────────────────────────────────────────
+
+describe('listAccessLog', () => {
+  it('delega en el repo escopado al tenant', async () => {
+    repo.listAccessLog.mockResolvedValue({ items: [{ id: 'a1' }], nextCursor: null })
+    const r = await listAccessLog(ctx, { objectId: 'obj-1', limit: 10 })
+    expect(repo.listAccessLog).toHaveBeenCalledWith(
+      expect.anything(), ctx.appId, ctx.tenantId, { objectId: 'obj-1', limit: 10 },
+    )
+    expect(r.items).toEqual([{ id: 'a1' }])
+  })
+})
+
+// ── purgeExpired (retention) ─────────────────────────────────────────
+
+describe('purgeExpired', () => {
+  it('hard-deletes cada expirado (bytes + row) y publica deleted hard/retention', async () => {
+    repo.findExpired.mockResolvedValue([
+      { id: 'o1', bucket: 'b', key: 'k1', kind: 'invoice' },
+      { id: 'o2', bucket: 'b', key: 'k2', kind: 'invoice' },
+    ])
+    repo.purgeRow.mockResolvedValue(true)
+    const r = await purgeExpired(ctx, { limit: 10 })
+    expect(s3DeleteObject).toHaveBeenCalledTimes(2)
+    expect(repo.purgeRow).toHaveBeenCalledTimes(2)
+    expect(r).toEqual({ purged: 2, objectIds: ['o1', 'o2'] })
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'storage.object.deleted',
+      payload: expect.objectContaining({ hard: true, reason: 'retention' }),
+    }))
+  })
+
+  it('un fallo de bucket no aborta el resto (continúa y lo omite)', async () => {
+    repo.findExpired.mockResolvedValue([
+      { id: 'o1', bucket: 'b', key: 'k1', kind: 'invoice' },
+      { id: 'o2', bucket: 'b', key: 'k2', kind: 'invoice' },
+    ])
+    s3DeleteObject.mockRejectedValueOnce(new Error('S3 down'))
+    repo.purgeRow.mockResolvedValue(true)
+    const r = await purgeExpired(ctx, {})
+    expect(r.purged).toBe(1)
+    expect(r.objectIds).toEqual(['o2'])
+  })
+
+  it('sin expirados → purged 0', async () => {
+    repo.findExpired.mockResolvedValue([])
+    const r = await purgeExpired(ctx, {})
+    expect(r).toEqual({ purged: 0, objectIds: [] })
+    expect(publish).not.toHaveBeenCalled()
+  })
+})
+
+// ── notifyExpiringSoon ────────────────────────────────────────────────
+
+describe('notifyExpiringSoon', () => {
+  it('publica expiring_soon por cada objeto dentro de la ventana', async () => {
+    repo.findExpiringSoon.mockResolvedValue([
+      { id: 'o1', kind: 'signature', owner_user_id: 'u9', retention_until: new Date('2030-01-01T00:00:00Z') },
+    ])
+    const r = await notifyExpiringSoon(ctx, { windowDays: 30 })
+    expect(repo.findExpiringSoon).toHaveBeenCalledWith(
+      expect.anything(), ctx.appId, ctx.tenantId, { windowDays: 30, limit: 1000 },
+    )
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'storage.object.expiring_soon',
+      payload: expect.objectContaining({ objectId: 'o1', ownerUserId: 'u9' }),
+    }))
+    expect(r).toEqual({ notified: 1, objectIds: ['o1'] })
+  })
+
+  it('sin objetos → notified 0, sin publish', async () => {
+    repo.findExpiringSoon.mockResolvedValue([])
+    const r = await notifyExpiringSoon(ctx, {})
+    expect(r.notified).toBe(0)
     expect(publish).not.toHaveBeenCalled()
   })
 })

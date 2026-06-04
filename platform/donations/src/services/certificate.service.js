@@ -6,8 +6,10 @@ import { env } from '../lib/env.js'
 import { logger } from '../lib/logger.js'
 import { publish } from '@apphub/platform-sdk/redis'
 import * as donationsRepo from '../repositories/donations.repository.js'
+import * as certsRepo     from '../repositories/fiscal-certificates.repository.js'
+import { computeIrpfDeduction, consecutiveYearsForLoyalty } from '../lib/deduction.js'
 import { Certificate } from '../templates/Certificate.js'
-import { AppError, ForbiddenError } from '@apphub/platform-sdk/errors'
+import { AppError, ForbiddenError, NotFoundError } from '@apphub/platform-sdk/errors'
 
 const ADMIN_ROLES = new Set(['owner', 'admin', 'staff', 'super_admin'])
 
@@ -87,11 +89,18 @@ export async function generateAnnualCertificates(identity, { year, donorNif }, {
       const certificateId = randomUUID()
       const generatedAt   = new Date()
 
+      // Deducción IRPF estimada por tramos (Ley 49/2002) con
+      // fidelización: 40 % sobre el exceso si el donante mantiene el
+      // donativo ≥ 3 años consecutivos al mismo tenant.
+      const donationYears = await donationsRepo.listDonationYearsForNif(c, nif)
+      const { loyal } = consecutiveYearsForLoyalty(donationYears, year)
+      const deduction = computeIrpfDeduction(g.totalCents, loyal)
+
       const pdfBuffer = await renderToBuffer(
         React.createElement(Certificate, {
           entity, donor: g.donor, fiscalYear: year,
           donations: g.donations, totalCents: g.totalCents,
-          generatedAt, certificateId,
+          generatedAt, certificateId, deduction,
         }),
       )
 
@@ -183,5 +192,40 @@ export async function listCertificates(identity, { year } = {}) {
       params,
     )
     return rows
+  })
+}
+
+// Reenvío individual de un certificado al email del donante (rec. #2).
+// El envío real del email lo hace un suscriptor de notifications (cross-
+// cutting, pendiente); aquí (a) marcamos sent_at y (b) re-publicamos el
+// evento `donation.certificate.ready` para que el suscriptor lo procese.
+// Idempotente respecto al estado del certificado: refresca sent_at.
+export async function resendCertificate(identity, certificateId, { redis } = {}) {
+  requireAdmin(identity)
+  return withTenantTransaction(identity.appId, identity.tenantId, identity.subTenantId ?? null, async (c) => {
+    const existing = await certsRepo.findById(c, certificateId)
+    if (!existing) throw new NotFoundError('Certificate')
+
+    const cert = await certsRepo.markSent(c, certificateId)
+
+    if (redis) {
+      await publish(redis, identity.appId, {
+        type: 'donation.certificate.ready',
+        payload: {
+          certificateId: cert.id,
+          appId:         identity.appId,
+          tenantId:      identity.tenantId,
+          donorEmail:    cert.donor_email,
+          donorName:     cert.donor_name,
+          donorNif:      cert.donor_nif,
+          fiscalYear:    cert.fiscal_year,
+          totalCents:    Number(cert.total_cents),
+          pdfObjectId:   cert.pdf_object_id,
+          resend:        true,
+        },
+      })
+    }
+    logger.info({ certificateId: cert.id }, 'certificate resend requested')
+    return cert
   })
 }

@@ -17,5 +17,7 @@ export async function register({ app, db, redis }) {
   }, { prefix: '/v1/inquiries' })
 
   // Admin endpoints — requiere role owner/admin/staff/super_admin.
-  await app.register(adminRoutes, { prefix: '/v1/inquiries/admin' })
+  await app.register(async (adminScope) => {
+    await adminRoutes(adminScope, { redis })
+  }, { prefix: '/v1/inquiries/admin' })
 }

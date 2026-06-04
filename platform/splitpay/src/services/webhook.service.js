@@ -14,8 +14,33 @@ export async function constructWebhookEvent(payload, signature) {
   return stripe.webhooks.constructEvent(payload, signature, secret)
 }
 
+// Deduplicación por event.id (priority #2). Stripe puede entregar el mismo
+// evento más de una vez; sin esto createAdditionalTransfers (entre otros) se
+// ejecutaría dos veces. INSERT ... ON CONFLICT DO NOTHING da exactly-once: si
+// la fila ya existía, rowCount === 0 y descartamos.
+async function markEventProcessed(event) {
+  const client = await pool.connect()
+  try {
+    const { rowCount } = await client.query(
+      `INSERT INTO payments.processed_webhook_events (event_id, event_type)
+       VALUES ($1, $2)
+       ON CONFLICT (event_id) DO NOTHING`,
+      [event.id, event.type],
+    )
+    return rowCount > 0
+  } finally {
+    client.release()
+  }
+}
+
 export async function handleWebhookEvent(event) {
   logger.info({ eventId: event.id, type: event.type }, 'Processing webhook event')
+
+  const fresh = await markEventProcessed(event)
+  if (!fresh) {
+    logger.info({ eventId: event.id, type: event.type }, 'Duplicate webhook event — skipping')
+    return
+  }
 
   switch (event.type) {
     case 'payment_intent.succeeded':
@@ -115,14 +140,34 @@ async function handleAccountUpdated(account) {
 async function handleDisputeCreated(dispute) {
   const client = await pool.connect()
   try {
+    // Resolve tenant scoping (priority #3) from the originating transaction.
+    // The dispute carries the PaymentIntent id (`dispute.payment_intent`); from
+    // it we look up the transaction to attach app_id/tenant_id/sub_tenant_id.
+    // If the PI is unknown (e.g. a charge not created through this module) the
+    // row is stored with NULL tenant and stays hidden under RLS.
+    const paymentIntentId = typeof dispute.payment_intent === 'string'
+      ? dispute.payment_intent
+      : dispute.payment_intent?.id ?? null
+
+    let txn = null
+    if (paymentIntentId) {
+      txn = await paymentRepo.findPaymentByStripeId(client, paymentIntentId)
+    }
+
     await client.query(
       `INSERT INTO payments.disputes
-         (stripe_dispute_id, stripe_charge_id, amount, currency, reason, status, due_by)
-       VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7))
+         (stripe_dispute_id, stripe_charge_id, stripe_payment_intent_id, transaction_id,
+          app_id, tenant_id, sub_tenant_id, amount, currency, reason, status, due_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, to_timestamp($12))
        ON CONFLICT (stripe_dispute_id) DO NOTHING`,
       [
         dispute.id,
         dispute.charge,
+        paymentIntentId,
+        txn?.id ?? null,
+        txn?.metadata?.app_id ?? null,
+        txn?.tenantId ?? null,
+        txn?.subTenantId ?? null,
         dispute.amount,
         dispute.currency,
         dispute.reason,
@@ -130,7 +175,25 @@ async function handleDisputeCreated(dispute) {
         dispute.evidence_details?.due_by ?? null,
       ],
     )
-    logger.warn({ disputeId: dispute.id, chargeId: dispute.charge }, 'Dispute created')
+    logger.warn(
+      { disputeId: dispute.id, chargeId: dispute.charge, tenantId: txn?.tenantId ?? null },
+      'Dispute created',
+    )
+
+    // Notify the origin app of the chargeback (priority #4 family).
+    if (txn?.metadata?.app_id) {
+      await emit(txn.metadata.app_id, 'splitpay.dispute.created', {
+        disputeId:   dispute.id,
+        paymentId:   txn.id,
+        chargeId:    dispute.charge,
+        amount:      dispute.amount,
+        currency:    dispute.currency,
+        reason:      dispute.reason,
+        status:      dispute.status,
+        tenantId:    txn.tenantId,
+        subTenantId: txn.subTenantId,
+      })
+    }
   } finally {
     client.release()
   }

@@ -27,3 +27,17 @@ export const redis = new Proxy({}, {
 export async function publish(event) {
   return sdkPublish(ensureRedis(), 'platform', event)
 }
+
+// ── Idempotency (Redis, 24h TTL) ─────────────────────────────────────────────
+// Critical project rule (CLAUDE.md §3): every Stripe call is deduplicated by an
+// idempotency key. We cache the *result* of the operation so a retried request
+// returns the same transaction instead of creating a second charge.
+const IDEMPOTENCY_TTL = 60 * 60 * 24 // 24 hours
+
+export async function checkIdempotency(key) {
+  return ensureRedis().get(`payments:idem:${key}`)
+}
+
+export async function storeIdempotency(key, result) {
+  await ensureRedis().setex(`payments:idem:${key}`, IDEMPOTENCY_TTL, JSON.stringify(result))
+}
