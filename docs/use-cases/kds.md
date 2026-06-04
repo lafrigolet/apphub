@@ -22,7 +22,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Creación manual de ticket por staff/camarero desde la interfaz KDS (sin origen en evento externo).
 - ❌ Re-disparo / reimpresión de tickets ya existentes (p. ej. si se pierde la pantalla o se reinicia).
 - ❌ Modificación de un ticket en vuelo cuando el pedido se edita antes de pasar a cocina (`order.modified`).
-- ❌ Cancelación automática de tickets cuando el pedido es cancelado (`order.cancelled`, `pos.bill.voided`).
+- ✅ Cancelación automática de tickets cuando el pedido es cancelado (`order.cancelled`, `pos.bill.voided`) → `cancelTicketsByOrder` + `kds.ticket.cancelled` por ticket.
 
 ## 2. Estaciones (pantallas de cocina)
 
@@ -30,9 +30,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Listado de estaciones por tenant ordenado por `display_order, name`.
 - ✅ Resolución automática de estación al disparar ticket: primera estación activa cuyo `routes_courses` contiene el curso del ticket.
 - ✅ Tickets sin estación asignada cuando ninguna estación cubre ese curso (`station_id = null`).
-- 🔧 No hay PATCH/DELETE de estación — una vez creada, solo puede gestionarse por base de datos.
-- ❌ Actualización de estación (renombrar, cambiar `display_order`, `is_active`, `routes_courses`).
-- ❌ Desactivación / baja lógica de estación con reasignación de tickets pendientes.
+- ✅ PATCH/DELETE de estación (`PATCH/DELETE /v1/kds/stations/:id`).
+- ✅ Actualización de estación (renombrar, cambiar `display_order`, `is_active`, `routes_courses`) vía PATCH parcial.
+- ✅ Baja de estación con reasignación de tickets pendientes (DELETE reasigna a `reassignTo` o a `station_id = null`).
 - ❌ Tipos de estación predefinidos (caliente, frío, postres, bar, expedición) con icono/color.
 - ❌ Múltiples estaciones que comparten el mismo curso (p. ej. dos woks para `main` en alta carga).
 - ❌ Configuración de impresora física vinculada a la estación (IP/puerto Epson TM, etc.).
@@ -65,18 +65,18 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Estado `on_hold` / pausa (esperar instrucción de marchar antes de proceder).
 - ❌ Recall de ticket: volver de `ready` a `in_progress` si el plato fue rechazado o hubo error.
 - ❌ Re-open de ticket cancelado (el staff cancela por error y necesita reabrir).
-- ❌ Estado a nivel de ítem individual (`ticket_items.status`) — actualmente solo el ticket tiene estado.
-- ❌ Bump parcial: marcar ítems individuales como listos dentro de un ticket multi-ítem.
+- ✅ Estado a nivel de ítem individual (`ticket_items.status` + `ready_at`, migración 0002).
+- ✅ Bump parcial: `PATCH /v1/kds/items/:itemId/status` (FSM `fired → in_progress → ready`).
 
 ## 5. Bump y recall (operativa de pantalla)
 
 - ✅ Bump de ticket: `PATCH /v1/kds/tickets/:id/status` con el nuevo estado.
 - ✅ Publicación de evento Redis tras cada bump (`kds.ticket.acked/ready/picked_up/cancelled`).
-- ❌ Bump masivo: marcar como `ready` todos los tickets de un pedido/mesa de una vez.
-- ❌ Bump con un solo toque físico en pantalla táctil (endpoint `POST /v1/kds/tickets/:id/bump` sin body).
+- ✅ Bump masivo: `PATCH /v1/kds/orders/:orderId/bump` avanza todos los tickets elegibles del pedido a un estado (los no elegibles se omiten, sin error).
+- ✅ Bump con un solo toque físico en pantalla táctil (`POST /v1/kds/tickets/:id/bump` sin body, avanza al siguiente estado del FSM).
 - ❌ Recall de ticket: `PATCH` de vuelta de `ready` a `in_progress` (actualmente el FSM lo impide).
 - ❌ Recall masivo por pedido (toda la comanda retrocede un estado).
-- ❌ Cancelación masiva de todos los tickets de un pedido al cancelar el pedido.
+- ✅ Cancelación masiva de todos los tickets de un pedido al cancelar el pedido (`cancelTicketsByOrder`, vía evento o no expuesto como ruta directa).
 - ❌ Historial de bumps por ticket (quién hizo el bump, cuándo, desde/hasta qué estado).
 
 ## 6. Coursing / firing (control de tiempos entre pases)
@@ -116,9 +116,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `table_code` en el ticket propagado desde el evento de origen.
 - ✅ `order_id` en el ticket permite relacionar tickets de distintos cursos del mismo pedido.
-- ❌ Agrupación visual multi-ticket por `order_id` en la respuesta de la API (hoy se retornan tickets planos sin agrupar).
-- ❌ Endpoint `GET /v1/kds/orders/:orderId/tickets` para obtener todos los tickets de una comanda.
-- ❌ Estado agregado de la comanda (`all_ready`, `partial_ready`, `in_progress`) derivado de sus tickets.
+- ✅ Agrupación multi-ticket por `order_id` en la respuesta de la API (`GET /v1/kds/orders/:orderId/tickets`).
+- ✅ Endpoint `GET /v1/kds/orders/:orderId/tickets` para obtener todos los tickets de una comanda (con ítems).
+- ✅ Estado agregado de la comanda (`all_ready`, `partial_ready`, `in_progress`, `picked_up`, `cancelled`) derivado de sus tickets.
 - ❌ Resumen por mesa: cuántos tickets pendientes / listos / recogidos para `table_code`.
 - ❌ Notificación a sala/camarero asignado cuando **todos** los cursos activos de una mesa están `ready`.
 
@@ -134,9 +134,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 11. All-day view y totales por ítem
 
-- ❌ Vista "all-day": recuento total de cada SKU/nombre pendiente en todo el turno (ej. "quedan 12 hamburguesas por preparar").
-- ❌ Endpoint `GET /v1/kds/allday?stationId=…&since=…` que agregue `SUM(qty)` por `(sku, name)` de tickets activos.
-- ❌ Desglose de totales por estado (`fired`, `in_progress`).
+- ✅ Vista "all-day": recuento total de cada SKU/nombre pendiente (tickets activos `fired`/`in_progress`).
+- ✅ Endpoint `GET /v1/kds/allday?stationId=…` que agrega `SUM(qty)` por `(sku, name)` de tickets activos.
+- ✅ Desglose de totales por estado (`fired`, `in_progress`).
 - ❌ Filtro por estación o por turno (definir turnos de cocina en configuración).
 - ❌ Exportación de totales del turno (para compras, control de merma).
 
@@ -166,10 +166,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 15. Métricas y analítica de cocina
 
-- ❌ Tiempo medio de preparación por estación: `AVG(ready_at - fired_at)` agrupado por `(station_id, course, date)`.
-- ❌ Tiempo medio de ack (reacción de cocina): `AVG(acked_at - fired_at)`.
-- ❌ Tiempo medio de recogida (sala): `AVG(picked_up_at - ready_at)`.
-- ❌ Tasa de cancelaciones por estación/turno.
+- ✅ Tiempo medio de preparación por estación: `AVG(ready_at - fired_at)` agrupado por `(station_id, course)` (`GET /v1/kds/metrics`).
+- ✅ Tiempo medio de ack (reacción de cocina): `AVG(acked_at - fired_at)`.
+- ✅ Tiempo medio de recogida (sala): `AVG(picked_up_at - ready_at)`.
+- ✅ Tasa de cancelaciones por estación/curso (`COUNT FILTER (status='cancelled')` sobre el total).
 - ❌ Número de tickets SLA-breached vs total.
 - ❌ Tendencia horaria de volumen de tickets (heatmap de carga por hora del día).
 - ❌ Export CSV/XLSX de métricas por turno o rango de fechas.
@@ -222,13 +222,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **PATCH/DELETE de estación** — operativa básica bloqueada; sin coste de modelo, solo rutas y repositorio.
+1. ✅ ~~**PATCH/DELETE de estación**~~ (`PATCH/DELETE /v1/kds/stations/:id`; el DELETE reasigna los tickets abiertos a `reassignTo` o a `station_id = null`).
 2. **WebSocket / SSE por estación** — las pantallas KDS necesitan tiempo real; polling REST no es viable en producción. REUSE el patrón del gateway de `platform/chat` o añadir SSE en el propio módulo.
-3. **Bump masivo por pedido + endpoint `/orders/:orderId/tickets`** — flujo natural de expedición; alto ROI para experiencia de sala.
+3. ✅ ~~**Bump masivo por pedido + endpoint `/orders/:orderId/tickets`**~~ (`GET /v1/kds/orders/:orderId/tickets` con `aggregateStatus` derivado; `PATCH /v1/kds/orders/:orderId/bump`; además `POST /v1/kds/tickets/:id/bump` one-touch).
 4. **SLA configurable + job en `platform/scheduler` (`kds-sla`)** — alertas de retraso ya existe la infraestructura de cron; añadir un job `*/1` que publique `kds.ticket.sla_breached`.
 5. **Notificación a sala via `platform/notifications` / `platform/chat`** — REUSE directo; suscribirse a `kds.ticket.ready` y enviar push/chat al camarero asignado.
 6. **Integración `kds.ticket.ready` → `platform/delivery-dispatch`** — avisar al dispatcher cuando la comanda está lista para el rider; suscripción unilateral, sin cambio de esquema.
-7. **Cancelación automática de tickets al cancelar pedido** — suscribirse a `order.cancelled` y `pos.bill.voided`; evita tickets fantasma en cocina.
-8. **All-day view** (`GET /v1/kds/allday`) — agregación SQL sobre tablas existentes; muy demandado en operativa de cocina.
-9. **Estado a nivel de ítem** (`ticket_items.status`) + bump parcial — añadir columna y lógica de bump; desbloquea workflows de cocina con platos de distintos tiempos en el mismo ticket.
-10. **Métricas de tiempos** (`GET /v1/kds/metrics`) — consultas de agregación sobre `fired_at`/`ready_at`; alto valor analítico sin cambio de esquema.
+7. ✅ ~~**Cancelación automática de tickets al cancelar pedido**~~ (suscripción a `order.cancelled` y `pos.bill.voided` → `cancelTicketsByOrder` cancela los tickets abiertos del pedido, persiste `cancel_reason` y publica `kds.ticket.cancelled` por cada uno).
+8. ✅ ~~**All-day view** (`GET /v1/kds/allday`)~~ (agregación `SUM(qty)` por `(sku,name)` de tickets activos, desglose por estado, filtro opcional `stationId`).
+9. ✅ ~~**Estado a nivel de ítem** (`ticket_items.status`) + bump parcial~~ (columna `status` + `ready_at` en `ticket_items`; `PATCH /v1/kds/items/:itemId/status` con FSM `fired → in_progress → ready`).
+10. ✅ ~~**Métricas de tiempos** (`GET /v1/kds/metrics`)~~ (AVG de ack/prep/pickup + tasa de cancelación por `(station_id, course)`, ventana opcional `from`/`to`).

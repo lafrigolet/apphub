@@ -17,8 +17,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Obtener carta completa (árbol: carta → categorías → ítems).
 - ✅ Activar / desactivar carta vía `PATCH /v1/menu/items/:id` (campo `isActive` en ítem; `is_active` en menú patcheable desde el mismo endpoint de menú).
 - ✅ Publicar carta y emitir evento `menu.published` (snapshot para KDS/POS/portales).
-- ❌ Actualizar nombre/descripción/estado de una carta existente (`PATCH /v1/menu/menus/:id` — no existe, solo POST + publish).
-- ❌ Eliminar carta (soft-delete / hard-delete).
+- ✅ Actualizar nombre/descripción/estado de una carta existente (`PATCH /v1/menu/menus/:id`).
+- ✅ Eliminar carta (soft-delete vía `DELETE /v1/menu/menus/:id`; columna `deleted_at`, filtrada en todas las lecturas).
 - ❌ Duplicar carta (clonar árbol completo: categorías + ítems + modificadores).
 - ❌ Carta activa por defecto vs carta en borrador / carta archivada — estados explícitos más allá de `is_active`.
 - ❌ Versionado de carta: historial de cambios con `published_at` + rollback a versión anterior.
@@ -31,8 +31,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Crear categoría vinculada a una carta con `course_type` (`starter, main, dessert, drink, side, combo, other`).
 - ✅ Orden visual de categorías dentro de la carta (`display_order`).
 - ✅ Listado de categorías de una carta ordenado por `display_order, name`.
-- ❌ Actualizar categoría (`PATCH /v1/menu/categories/:id` — no existe).
-- ❌ Eliminar categoría (con cascada a ítems y modificadores).
+- ✅ Actualizar categoría (`PATCH /v1/menu/categories/:id`: nombre, course_type, display_order).
+- ✅ Eliminar categoría (soft-delete vía `DELETE /v1/menu/categories/:id`, con cascada de soft-delete a sus ítems).
 - ❌ Subcategorías (categoría padre / hijo) para cartas con jerarquía profunda (p. ej. "Vinos" → "Tintos" → "Ribera del Duero").
 - ❌ `course_type` ampliado: `breakfast`, `brunch`, `snack`, `set_menu`, `kids` — el enum actual cubre hostelería básica pero no todos los formatos.
 - ❌ Categorías compartidas entre varias cartas (p. ej. misma sección "Bebidas" en carta sala y carta delivery).
@@ -47,8 +47,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `metadata JSONB` — campo libre para datos extra sin migración.
 - ✅ `is_available` — disponibilidad manual del ítem.
 - ✅ Actualizar ítem: nombre, descripción, precio, disponibilidad, alérgenos, badges, foto, station, tiempo de prep, course_type.
-- ❌ Eliminar ítem (soft-delete / hard-delete).
-- ❌ Mover ítem a otra categoría (`categoryId` está excluido del `itemPatchBody`).
+- ✅ Eliminar ítem (soft-delete vía `DELETE /v1/menu/items/:id`; emite `menu.item.deleted`).
+- ✅ Mover ítem a otra categoría (`categoryId` ahora permitido en `itemPatchBody` / `PATCH /v1/menu/items/:id`).
 - ❌ Variantes de tamaño/presentación como entidad propia (p. ej. "Ración" / "Media ración" / "Pincho") — hoy se modelan como modificadores de precio pero sin semántica de tamaño.
 - ❌ IVA/impuesto por ítem o por categoría (tipo reducido 10%, superreducido 4%, general 21% España).
 - ❌ Precio coste (food cost) y margen — gestión de rentabilidad por plato.
@@ -72,8 +72,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 5. Alérgenos e información nutricional
 
 - ✅ Campo `allergens TEXT[]` en ítem — array libre de etiquetas de alérgenos.
-- 🔧 Sin vocabulario controlado: los 14 alérgenos de la UE (Reglamento UE 1169/2011 — gluten, crustáceos, huevos, pescado, cacahuetes, soja, lácteos, frutos de cáscara, apio, mostaza, sésamo, sulfitos, altramuces, moluscos) no se validan; cualquier texto es aceptado.
-- ❌ Enum o catálogo de los 14 alérgenos EU con iconos normalizados.
+- ✅ Vocabulario controlado: los 14 alérgenos de la UE (Reglamento UE 1169/2011) se validan en `POST/PATCH` de ítem (Zod `enum`). Códigos: `gluten, crustaceans, eggs, fish, peanuts, soybeans, milk, nuts, celery, mustard, sesame, sulphites, lupin, molluscs`.
+- 🔧 Catálogo de los 14 alérgenos EU expuesto en `GET /v1/menu/allergens` (público). Sin iconos normalizados todavía (campo solo de códigos).
 - ❌ Campo `may_contain_allergens TEXT[]` (trazas / contaminación cruzada).
 - ❌ Filtro de carta por alérgeno: "mostrar solo ítems sin gluten para este cliente".
 - ❌ Info nutricional: tabla de valores energéticos (kcal/kJ), macros, sal, por 100g y por ración.
@@ -96,9 +96,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Crear ventana de disponibilidad con `scope_type` polimórfico (`menu`, `category`, `item`), `scope_id`, `days_of_week INT[]` (0=dom…6=sáb), `start_minute`, `end_minute`, `label` opcional.
 - ✅ Validación de rangos: `start_minute` 0–1439, `end_minute` 0–1440.
 - ✅ Ventana a nivel de menú entero, categoría o ítem individual.
-- ❌ Listar ventanas de disponibilidad (`GET /v1/menu/availability-windows` — no existe).
-- ❌ Actualizar / eliminar ventana (`PATCH/DELETE /v1/menu/availability-windows/:id` — no existe).
-- ❌ Motor de evaluación: endpoint `GET /v1/menu/menus/:id/available-now` que aplica todas las ventanas activas para devolver solo ítems disponibles en este momento.
+- ✅ Listar ventanas de disponibilidad (`GET /v1/menu/availability-windows`, con filtro opcional `scopeType`/`scopeId`).
+- ✅ Actualizar / eliminar ventana (`PATCH/DELETE /v1/menu/availability-windows/:id`).
+- ✅ Motor de evaluación: `GET /v1/menu/menus/:id/available-now` aplica las ventanas activas (scope menú/categoría/ítem; scope sin ventanas = siempre disponible; scope con ventanas = abierto solo dentro de una) y devuelve los ítems disponibles ahora. Parámetro opcional `?at=<ISO>` (default ahora UTC).
 - ❌ Ventanas con zona horaria explícita por tenant (hoy se asume UTC o la zona del servidor).
 - ❌ Ventanas de disponibilidad para fechas específicas (festivos, eventos especiales) no solo días de semana.
 - ❌ Ventana de "happy hour" con precio diferenciado (no solo visibilidad).
@@ -238,7 +238,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ `menu.published` — publicado en `platform.events` con `{ appId, tenantId, menuId, name }`.
 - ✅ `menu.item.eighty_sixed` — con `{ appId, tenantId, itemId, sku }`.
 - ✅ `menu.item.restored` — con `{ appId, tenantId, itemId, sku }`.
-- ❌ `menu.item.created` / `menu.item.updated` / `menu.item.deleted` — eventos de ciclo de vida de ítems para que `platform/catalog` o servicios externos sincronicen su catálogo.
+- ✅ `menu.item.created` / `menu.item.updated` / `menu.item.deleted` — eventos de ciclo de vida de ítems (publicados en `platform.events` con `{ appId, tenantId, itemId, sku }`) para que `platform/catalog` o servicios externos sincronicen su catálogo.
 - ❌ `menu.category.created` / `menu.category.updated` — para invalidación de caché o KDS.
 - ❌ `menu.availability_window.updated` — para que los portales actualicen su vista "disponible ahora".
 - ❌ Suscriptor en `platform/kds`: consumir `menu.item.eighty_sixed` para marcar ítem en la pantalla de cocina sin recargar.
@@ -248,9 +248,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **CRUD completo de carta**: `PATCH /v1/menu/menus/:id` + `DELETE` + `PATCH/DELETE` de categorías — bloqueante para cualquier admin de carta que no sea solo creación.
-2. **Motor de disponibilidad `available-now`**: endpoint que evalúa ventanas activas en tiempo real — desbloqueador para POS/basket/kds.
-3. **Vocabulario controlado de alérgenos** (enum de 14 UE) con validación — obligatorio en hostelería española/europea (Reglamento UE 1169/2011).
+1. ✅ ~~**CRUD completo de carta**~~ (`PATCH/DELETE /v1/menu/menus/:id` + `PATCH/DELETE /v1/menu/categories/:id` + `DELETE /v1/menu/items/:id` + mover ítem; soft-delete con cascada; eventos `menu.item.created/updated/deleted`; `PATCH/GET/DELETE` de availability-windows).
+2. ✅ ~~**Motor de disponibilidad `available-now`**~~ (`GET /v1/menu/menus/:id/available-now`, evalúa ventanas por scope en tiempo real con `?at` opcional).
+3. ✅ ~~**Vocabulario controlado de alérgenos**~~ (enum de 14 UE validado en create/update + catálogo en `GET /v1/menu/allergens`).
 4. **IVA por ítem/categoría** — imprescindible para la integración con `platform/pos` y emisión de facturas correctas.
 5. **Invalidación de 86-list por `platform/inventory`**: suscriptor en scheduler que dispara `eightySixItem` al llegar stock a 0 — REUSE de infraestructura existente, alto valor operativo.
 6. **Carta pública sin auth** + generación de QR — caso de uso central en restauración (mesas con QR).

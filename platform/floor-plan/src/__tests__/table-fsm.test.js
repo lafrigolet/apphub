@@ -22,7 +22,7 @@ vi.mock('../lib/db.js', () => ({ pool: {}, withTenantTransaction: vi.fn() }))
 vi.mock('../lib/redis.js', () => ({ publish: vi.fn() }))
 vi.mock('../repositories/floor-plan.repository.js')
 
-import { changeTableStatus, combineTables } from '../services/floor-plan.service.js'
+import { changeTableStatus, combineTables, splitTables } from '../services/floor-plan.service.js'
 import { withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import * as repo from '../repositories/floor-plan.repository.js'
@@ -125,21 +125,63 @@ describe('audit', () => {
 // ── combineTables ───────────────────────────────────────────────────
 
 describe('combineTables', () => {
-  it('happy: emite table.combined con primaryId + combinedWith', async () => {
+  it('happy: valida estado libre, bloquea secundarias y emite table.combined con totalCapacity', async () => {
+    repo.findTableById.mockResolvedValue({ id: 'tbl-1', status: 'free', capacity: 4, combined_with: [] })
+    repo.findTablesByIds.mockResolvedValue([
+      { id: 'tbl-2', code: 'T2', status: 'free', capacity: 2, combined_with: [] },
+      { id: 'tbl-3', code: 'T3', status: 'free', capacity: 2, combined_with: [] },
+    ])
     repo.combineTables.mockResolvedValue({ id: 'tbl-1', combined_with: ['tbl-2', 'tbl-3'] })
+    repo.setTableStatus.mockResolvedValue({})
     await combineTables(ctx, 'tbl-1', ['tbl-2', 'tbl-3'])
+    // secundarias bloqueadas como reserved
+    expect(repo.setTableStatus).toHaveBeenCalledWith(expect.anything(), ctx.appId, ctx.tenantId, 'tbl-2', 'reserved')
+    expect(repo.setTableStatus).toHaveBeenCalledWith(expect.anything(), ctx.appId, ctx.tenantId, 'tbl-3', 'reserved')
     expect(publish).toHaveBeenCalledWith({
       type: 'table.combined',
       payload: {
         appId: ctx.appId, tenantId: ctx.tenantId,
-        primaryTableId: 'tbl-1', combinedWith: ['tbl-2', 'tbl-3'],
+        primaryTableId: 'tbl-1', combinedWith: ['tbl-2', 'tbl-3'], totalCapacity: 8,
       },
     })
   })
 
   it('primary no existe → NotFoundError', async () => {
-    repo.combineTables.mockResolvedValue(null)
+    repo.findTableById.mockResolvedValue(null)
     await expect(combineTables(ctx, 'ghost', ['x'])).rejects.toMatchObject({ statusCode: 404 })
     expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('primary no libre → ConflictError 409', async () => {
+    repo.findTableById.mockResolvedValue({ id: 'tbl-1', status: 'occupied', capacity: 4, combined_with: [] })
+    await expect(combineTables(ctx, 'tbl-1', ['tbl-2'])).rejects.toMatchObject({ statusCode: 409 })
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('secundaria ocupada → ConflictError 409', async () => {
+    repo.findTableById.mockResolvedValue({ id: 'tbl-1', status: 'free', capacity: 4, combined_with: [] })
+    repo.findTablesByIds.mockResolvedValue([{ id: 'tbl-2', code: 'T2', status: 'occupied', capacity: 2, combined_with: [] }])
+    await expect(combineTables(ctx, 'tbl-1', ['tbl-2'])).rejects.toMatchObject({ statusCode: 409 })
+    expect(publish).not.toHaveBeenCalled()
+  })
+})
+
+describe('splitTables', () => {
+  it('libera secundarias reserved y emite table.split', async () => {
+    repo.findTableById.mockResolvedValue({ id: 'tbl-1', status: 'free', combined_with: ['tbl-2'] })
+    repo.clearCombined.mockResolvedValue({ id: 'tbl-1', combined_with: [] })
+    repo.findTablesByIds.mockResolvedValue([{ id: 'tbl-2', status: 'reserved' }])
+    repo.setTableStatus.mockResolvedValue({})
+    await splitTables(ctx, 'tbl-1')
+    expect(repo.setTableStatus).toHaveBeenCalledWith(expect.anything(), ctx.appId, ctx.tenantId, 'tbl-2', 'free')
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'table.split',
+      payload: expect.objectContaining({ primaryTableId: 'tbl-1', separated: ['tbl-2'] }),
+    }))
+  })
+
+  it('no combinada → ConflictError 409', async () => {
+    repo.findTableById.mockResolvedValue({ id: 'tbl-1', status: 'free', combined_with: [] })
+    await expect(splitTables(ctx, 'tbl-1')).rejects.toMatchObject({ statusCode: 409 })
   })
 })

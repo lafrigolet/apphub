@@ -14,7 +14,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Crear sección con `name`, `description`, `is_outdoor`, `display_order`.
 - ✅ Listar secciones de un tenant ordenadas por `display_order, name`.
-- 🔧 Sin edición (PATCH) ni borrado de sección con validación de mesas huérfanas.
+- ✅ Edición (`PATCH /v1/floor-plan/sections/:id`) y borrado (`DELETE …`) con validación de mesas huérfanas (rechaza 409 si la sección aún tiene mesas).
 - ❌ Tipos adicionales de sala: interior, terraza, barra, reservado privado, jardín, azotea, sala de eventos.
 - ❌ Capacidad máxima aforo declarada en la propia sección (distinta de la suma de mesas).
 - ❌ Horario de disponibilidad de la sección (terraza solo en verano / viernes-domingo).
@@ -29,7 +29,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Shapes: `square`, `round`, `rectangle`, `oval`.
 - ✅ Listar mesas con filtro por `section_id` y/o `status`.
 - ✅ Obtener mesa individual por `id`.
-- 🔧 Sin edición (PATCH) ni borrado de mesa; sin validación de estado activo al borrar.
+- ✅ Edición (`PATCH /v1/floor-plan/tables/:id`) y borrado (`DELETE …`) con validación de estado activo (solo borrable si `free`/`out_of_service` y no combinada).
 - ❌ Capacidad mínima además de máxima (e.g. mesa redonda de 4 mínimo 2).
 - ❌ Ancho y alto en píxeles / unidades de diseño (además de `pos_x`, `pos_y`) para render preciso.
 - ❌ Ángulo de rotación de la mesa en el editor visual.
@@ -61,6 +61,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ FSM: `out_of_service → free`.
 - ✅ Rechazo de transición inválida con `ConflictError`.
 - ✅ Eventos Redis `table.seated`, `table.cleared`, `table.reserved`, `table.out_of_service`, `table.dirty`.
+- ✅ Historial de estados de un día — `GET /v1/floor-plan/tables/:id/events` con filtro por fecha (`from`/`to`) y `toStatus`; permite contar ocupaciones del día (sección 5).
 - 🔧 Estado `dirty` existe en FSM pero sin flujo explícito de solicitud de limpieza.
 - ❌ Estado `blocked` (bloqueado por el manager, sin causa FSM): actualmente cubierto por `out_of_service`, pero semánticamente diferente.
 - ❌ Razón/comentario al poner `out_of_service` (mantenimiento, avería, obra).
@@ -73,8 +74,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Tabla `table_events` con `from_status`, `to_status`, `reservation_id`, `party_size`, `actor_user_id`, `ts`.
 - ✅ RLS en `table_events` por `(app_id, tenant_id)`.
 - ✅ Índice por `(table_id, ts DESC)`.
-- ❌ Endpoint GET para leer `table_events` de una mesa concreta (solo existe en DB, no expuesto en rutas).
-- ❌ Endpoint admin para consultar audit log filtrado por fecha, actor, tipo de transición.
+- ✅ Endpoint GET para leer `table_events` de una mesa concreta (`GET /v1/floor-plan/tables/:id/events`).
+- ✅ Audit log filtrado por fecha (`from`/`to`) y tipo de transición (`toStatus`) con paginación (`limit`/`offset`).
 - ❌ Exportación del audit log (CSV) para inspección de turnos anteriores.
 - ❌ Vinculación del evento con `order_id` del POS (no solo `reservation_id`).
 
@@ -82,11 +83,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `POST /v1/floor-plan/tables/:id/combine` — asigna `combined_with: [otherIds]` en la tabla primaria.
 - ✅ Evento Redis `table.combined`.
-- 🔧 `combined_with` es un array plano en la mesa primaria; las mesas secundarias no actualizan su propio estado.
-- ❌ Separar una mesa combinada (reset `combined_with = []` + evento `table.split`).
-- ❌ Validar que las mesas a combinar estén libres antes de combinar.
-- ❌ Bloquear cambio de estado en las mesas secundarias mientras estén combinadas.
-- ❌ Cálculo automático de la capacidad total del grupo (`sum(capacity)`) al combinar.
+- ✅ Las mesas secundarias se bloquean (`reserved`) al combinar y se registran en `table_events`.
+- ✅ Separar una mesa combinada (`POST /v1/floor-plan/tables/:id/split`): reset `combined_with = []`, libera secundarias `reserved → free` y emite evento `table.split`.
+- ✅ Validar que la primaria y todas las mesas a combinar estén libres antes de combinar (409 si alguna no lo está o ya forma parte de un grupo).
+- ✅ Bloquear cambio de estado en las mesas secundarias mientras estén combinadas (pasan a `reserved`).
+- ✅ Cálculo automático de la capacidad total del grupo (`sum(capacity)`) al combinar (campo `total_capacity` + payload del evento `table.combined`).
 - ❌ Indicador visual en el editor de qué mesas forman un grupo.
 - ❌ Historial de combinaciones (cuándo se combinaron, quién, para qué reserva).
 
@@ -103,11 +104,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 8. Aforo y capacidad
 
-- 🔧 Capacidad almacenada por mesa; no hay cálculo de aforo total en el módulo.
-- ❌ Aforo total del local calculado como suma de `capacity` de todas las mesas activas.
-- ❌ Aforo por sección.
+- ✅ Aforo total del local calculado como suma de `capacity` de todas las mesas (`GET /v1/floor-plan/occupancy` → `total_capacity`).
+- ✅ Aforo por sección (`GET /v1/floor-plan/occupancy?sectionId=…`).
+- ✅ Aforo actual en tiempo real: comensales sentados ahora (`seated_guests`, suma de `party_size` del último evento `occupied` de cada mesa ocupada) + `occupied_tables` / `occupied_capacity`.
 - ❌ Límite de aforo legal por sección (terraza con limitación municipal).
-- ❌ Aforo actual en tiempo real: número de comensales sentados en este momento.
 - ❌ Alerta cuando el aforo supera X % del máximo.
 - ❌ Restricción de reservas cuando el aforo legal se acerque al máximo.
 - ❌ Registro de aforo para declaración sanitaria / cumplimiento normativo.
@@ -117,16 +117,16 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - 🔧 `reservation_id` en `table_events` linkea reserva ↔ transición, pero sin sincronización activa de ida.
 - ❌ Asignación automática de mesa al confirmar una reserva (según tamaño de grupo y disponibilidad).
 - ❌ Sugerir mesa óptima: capacidad mínima suficiente, misma sección preferida, preferencias de accesibilidad.
-- ❌ Escuchar evento `reservation.confirmed` de `platform/reservations` → marcar mesa como `reserved`.
-- ❌ Escuchar `reservation.cancelled` → liberar mesa (`reserved → free`).
-- ❌ Escuchar `reservation.seated` → transición `reserved → occupied`.
+- ✅ Escuchar evento `reservation.confirmed` de `platform/reservations` (payload con `tableId`) → marcar mesa como `reserved` (best-effort, respeta FSM e idempotencia).
+- ✅ Escuchar `reservation.cancelled` → liberar mesa (`reserved/occupied → free`).
+- ✅ Escuchar `reservation.seated` → transición `reserved → occupied`.
 - ❌ Endpoint "¿qué mesas hay libres para un grupo de N personas a las HH:MM?" (consulta de disponibilidad temporal).
 - ❌ Ver en el plano qué mesas tienen reserva próxima (indicador de hora).
 
 ## 10. Integración con el POS (`platform/pos`)
 
-- ❌ Escuchar `pos.bill.opened` → transición automática `reserved/free → occupied`.
-- ❌ Escuchar `pos.bill.closed` / `pos.bill.paid` → transición `occupied → dirty`.
+- ✅ Escuchar `pos.bill.opened` (payload con `tableId`) → transición automática `reserved/free → occupied`.
+- ✅ Escuchar `pos.bill.closed` / `pos.bill.paid` → transición `occupied → dirty`.
 - ❌ Endpoint "abrir cuenta en mesa X" que dispara apertura de bill en POS + transición `occupied`.
 - ❌ Mostrar en el plano si una mesa tiene cuenta abierta y su importe parcial.
 - ❌ Vincular `order_id`/`bill_id` en `table_events` (para reconciliación posterior).
@@ -203,13 +203,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **PATCH y DELETE de sección y mesa** — operaciones CRUD básicas que faltan; desbloqueantes para cualquier UI de configuración.
-2. **Separación de mesas combinadas** (`table.split`) + validaciones al combinar (estado libre, bloqueo de secundarias) — cierra el flujo de combinación a medias.
-3. **Endpoint GET de `table_events` por mesa** — el audit log existe en DB pero no está expuesto; necesario para que el portal lo muestre.
-4. **Integración con `platform/reservations`**: escuchar `reservation.confirmed/cancelled/seated` para mover el estado de mesa automáticamente — elimina trabajo manual del staff.
-5. **Integración con `platform/pos`**: escuchar `pos.bill.opened/closed` para sincronizar estado — evita inconsistencias entre POS y plano.
+1. ✅ ~~**PATCH y DELETE de sección y mesa**~~ — `PATCH`/`DELETE` de sección (rechaza si tiene mesas) y de mesa (solo si `free`/`out_of_service` y no combinada).
+2. ✅ ~~**Separación de mesas combinadas** (`table.split`) + validaciones al combinar~~ — `POST /tables/:id/split`, validación de estado libre, bloqueo de secundarias (`reserved`) y `total_capacity`.
+3. ✅ ~~**Endpoint GET de `table_events` por mesa**~~ — `GET /tables/:id/events` con filtros `from`/`to`/`toStatus` + paginación.
+4. ✅ ~~**Integración con `platform/reservations`**~~ — suscripción a `reservation.confirmed/cancelled/seated` → mueve el estado de mesa automáticamente (best-effort, respeta FSM).
+5. ✅ ~~**Integración con `platform/pos`**~~ — suscripción a `pos.bill.opened/closed/paid` → sincroniza `occupied`/`dirty`.
 6. **WebSocket / SSE de estado de mesas** — el plano en tiempo real es el diferenciador clave del módulo; sin push no hay valor en el panel del camarero.
-7. **Aforo en tiempo real** (suma de `party_size` de mesas `occupied`) — cumplimiento legal y gestión operativa básica.
+7. ✅ ~~**Aforo en tiempo real** (suma de `party_size` de mesas `occupied`)~~ — `GET /occupancy` (total/por sección): `total_capacity`, `occupied_tables`, `seated_guests`.
 8. **Asignación de camareros a secciones** — funcionalidad esperada en cualquier restaurante con > 1 camarero.
 9. **Código QR por mesa** — REUSE `platform/storage` para generar y servir la imagen; alto impacto en experiencia del comensal con bajo coste de implementación.
 10. **Múltiples layouts por horario/temporada** — necesario en restaurantes con terraza o sala de eventos; sin esto el plano es estático.

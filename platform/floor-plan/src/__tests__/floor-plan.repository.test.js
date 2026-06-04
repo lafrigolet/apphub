@@ -127,6 +127,121 @@ describe('combineTables', () => {
   })
 })
 
+describe('updateSection', () => {
+  it('build dynamic SET con campos presentes', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.updateSection(c, APP, TEN, 's1', { name: 'Nueva', isOutdoor: true })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/UPDATE platform_floor_plan\.sections SET name=\$4, is_outdoor=\$5/)
+    expect(params).toEqual([APP, TEN, 's1', 'Nueva', true])
+  })
+
+  it('sin campos → SELECT pasivo', async () => {
+    const c = mockClient([{ id: 's1' }])
+    await repo.updateSection(c, APP, TEN, 's1', {})
+    expect(c.query.mock.calls[0][0]).toMatch(/SELECT \* FROM platform_floor_plan\.sections/)
+  })
+})
+
+describe('countTablesInSection / deleteSection', () => {
+  it('count devuelve entero', async () => {
+    const c = mockClient([{ n: 2 }])
+    expect(await repo.countTablesInSection(c, APP, TEN, 's1')).toBe(2)
+  })
+  it('delete scopeado; sin row → null', async () => {
+    const c = mockClient([])
+    expect(await repo.deleteSection(c, APP, TEN, 's1')).toBeNull()
+    expect(c.query.mock.calls[0][0]).toMatch(/DELETE FROM platform_floor_plan\.sections WHERE app_id=\$1 AND tenant_id=\$2 AND id=\$3/)
+  })
+})
+
+describe('updateTable', () => {
+  it('SET dinámico + updated_at', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.updateTable(c, APP, TEN, 't1', { capacity: 6, shape: 'oval' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/SET capacity=\$4, shape=\$5, updated_at=now\(\)/)
+    expect(params).toEqual([APP, TEN, 't1', 6, 'oval'])
+  })
+  it('sin campos → findTableById', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.updateTable(c, APP, TEN, 't1', {})
+    expect(c.query.mock.calls[0][0]).toMatch(/SELECT \* FROM platform_floor_plan\.tables WHERE app_id=\$1/)
+  })
+})
+
+describe('deleteTable', () => {
+  it('DELETE scopeado', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.deleteTable(c, APP, TEN, 't1')
+    expect(c.query.mock.calls[0][0]).toMatch(/DELETE FROM platform_floor_plan\.tables/)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 't1'])
+  })
+})
+
+describe('findTablesByIds / findTableByCode / clearCombined', () => {
+  it('findTablesByIds vacío → [] sin query', async () => {
+    const c = mockClient([])
+    expect(await repo.findTablesByIds(c, APP, TEN, [])).toEqual([])
+    expect(c.query).not.toHaveBeenCalled()
+  })
+  it('findTablesByIds usa ANY($3::uuid[])', async () => {
+    const c = mockClient([{ id: 't2' }])
+    await repo.findTablesByIds(c, APP, TEN, ['t2', 't3'])
+    expect(c.query.mock.calls[0][0]).toMatch(/id = ANY\(\$3::uuid\[\]\)/)
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, ['t2', 't3']])
+  })
+  it('findTableByCode scopeado por code', async () => {
+    const c = mockClient([{ id: 't1' }])
+    await repo.findTableByCode(c, APP, TEN, 'A1')
+    expect(c.query.mock.calls[0][1]).toEqual([APP, TEN, 'A1'])
+  })
+  it('clearCombined resetea a {}', async () => {
+    const c = mockClient([{ id: 't1', combined_with: [] }])
+    await repo.clearCombined(c, APP, TEN, 't1')
+    expect(c.query.mock.calls[0][0]).toMatch(/SET combined_with='\{\}'/)
+  })
+})
+
+describe('listTableEvents', () => {
+  it('sin filtros → solo scope + limit/offset', async () => {
+    const c = mockClient([])
+    await repo.listTableEvents(c, APP, TEN, 't1')
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/table_id = \$3/)
+    expect(sql).toMatch(/ORDER BY ts DESC LIMIT \$4 OFFSET \$5/)
+    expect(params).toEqual([APP, TEN, 't1', 100, 0])
+  })
+  it('con from/to/toStatus parametrizados', async () => {
+    const c = mockClient([])
+    await repo.listTableEvents(c, APP, TEN, 't1', { from: 'F', to: 'T', toStatus: 'occupied', limit: 10, offset: 5 })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/ts >= \$4/)
+    expect(sql).toMatch(/ts <= \$5/)
+    expect(sql).toMatch(/to_status = \$6/)
+    expect(params).toEqual([APP, TEN, 't1', 'F', 'T', 'occupied', 10, 5])
+  })
+})
+
+describe('occupancySnapshot', () => {
+  it('agrega capacidad/ocupación scopeado; sin sectionId', async () => {
+    const c = mockClient([{ total_capacity: 40, occupied_tables: 3, seated_guests: 9 }])
+    const r = await repo.occupancySnapshot(c, APP, TEN)
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/FROM platform_floor_plan\.tables t/)
+    expect(sql).toMatch(/seated_guests/)
+    expect(params).toEqual([APP, TEN])
+    expect(r.seated_guests).toBe(9)
+  })
+  it('con sectionId añade filtro', async () => {
+    const c = mockClient([{}])
+    await repo.occupancySnapshot(c, APP, TEN, { sectionId: 's1' })
+    const [sql, params] = c.query.mock.calls[0]
+    expect(sql).toMatch(/t\.section_id = \$3/)
+    expect(params).toEqual([APP, TEN, 's1'])
+  })
+})
+
 describe('recordTableEvent', () => {
   it('INSERT en table_events con defaults null', async () => {
     const c = mockClient([])

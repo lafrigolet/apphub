@@ -14,6 +14,8 @@ vi.mock('../services/reservations.service.js', () => ({
   notifyWaitlist:     vi.fn(),
   createServiceHours: vi.fn(),
   listServiceHours:   vi.fn(),
+  checkAvailability:  vi.fn(),
+  getGuestNoShowCount: vi.fn(),
 }))
 
 import { reservationsRoutes } from '../routes/reservations.routes.js'
@@ -23,6 +25,17 @@ const IDENTITY = { appId: 'aikikan', tenantId: 't1', subTenantId: null, userId: 
 
 async function buildApp() {
   const app = Fastify({ logger: false })
+  // Mirror the zod type-provider wiring the restaurant orchestrator installs so
+  // `schema: { body/querystring/params }` (zod) validates here too.
+  const zodCompiler = ({ schema }) => (data) => {
+    if (schema?.safeParse) {
+      const r = schema.safeParse(data)
+      return r.success ? { value: r.data } : { error: r.error }
+    }
+    return { value: data }
+  }
+  app.setValidatorCompiler(zodCompiler)
+  app.setSerializerCompiler(() => (d) => JSON.stringify(d))
   app.decorateRequest('identity', null)
   app.addHook('onRequest', async (req) => { req.identity = IDENTITY })
   app.setErrorHandler((err, req, reply) => {
@@ -108,6 +121,20 @@ describe('PATCH /v1/reservations/:id/status', () => {
     expect(res.statusCode).toBe(200)
     expect(service.changeStatus).toHaveBeenCalledWith(
       expect.anything(), 'r1', 'seated', '22222222-2222-2222-2222-222222222222',
+      { cancelledBy: undefined, cancellationReason: undefined },
+    )
+  })
+
+  it('forwards cancelledBy + cancellationReason on cancel', async () => {
+    service.changeStatus.mockResolvedValue({ id: 'r1', status: 'cancelled' })
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/reservations/r1/status',
+      payload: { status: 'cancelled', cancelledBy: 'guest', cancellationReason: 'changed plans' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.changeStatus).toHaveBeenCalledWith(
+      expect.anything(), 'r1', 'cancelled', undefined,
+      { cancelledBy: 'guest', cancellationReason: 'changed plans' },
     )
   })
 
@@ -117,6 +144,35 @@ describe('PATCH /v1/reservations/:id/status', () => {
     })
     expect(res.statusCode).toBe(400)
     expect(service.changeStatus).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /v1/reservations/availability', () => {
+  it('forwards date + coerced partySize', async () => {
+    service.checkAvailability.mockResolvedValue({ date: '2026-05-01', windows: [] })
+    const res = await app.inject({ method: 'GET', url: '/v1/reservations/availability?date=2026-05-01&partySize=4' })
+    expect(res.statusCode).toBe(200)
+    expect(service.checkAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({ appId: 'aikikan' }),
+      { date: '2026-05-01', partySize: 4 },
+    )
+  })
+
+  it('rejects malformed date', async () => {
+    const res = await app.inject({ method: 'GET', url: '/v1/reservations/availability?date=05-2026' })
+    expect(res.statusCode).toBe(400)
+    expect(service.checkAvailability).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /v1/reservations/no-shows', () => {
+  it('forwards guestEmail', async () => {
+    service.getGuestNoShowCount.mockResolvedValue({ count: 1 })
+    const res = await app.inject({ method: 'GET', url: '/v1/reservations/no-shows?guestEmail=g@a.com' })
+    expect(res.statusCode).toBe(200)
+    expect(service.getGuestNoShowCount).toHaveBeenCalledWith(
+      expect.anything(), { guestUserId: undefined, guestEmail: 'g@a.com' },
+    )
   })
 })
 

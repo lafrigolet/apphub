@@ -36,6 +36,10 @@ const ctx = { appId: 'demo-restaurant', tenantId: 't1', subTenantId: null, userI
 beforeEach(() => {
   vi.clearAllMocks()
   withTenantTransaction.mockImplementation(async (_p, _a, _t, _s, fn) => fn({}))
+  // safe defaults for repo fns consulted by addItem / loadFullBill
+  repo.insertBillItem.mockResolvedValue({ id: 'it1', sku: 'X', name: 'X', qty: 1, course: 'main', modifiers: [] })
+  repo.listSplitItems.mockResolvedValue([])
+  repo.getSettings.mockResolvedValue(null)
 })
 
 // ── splitBill — equal ───────────────────────────────────────────────

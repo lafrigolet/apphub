@@ -31,9 +31,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Activación/desactivación de zona (`is_active`).
 - ✅ Listado de zonas del tenant ordenado por nombre.
 - ✅ Aislamiento RLS por `(app_id, tenant_id)`.
-- 🔧 No existe PATCH ni DELETE de zona — solo creación y lectura.
+- ✅ PATCH y DELETE de zona (`PATCH/DELETE /v1/delivery-dispatch/zones/:id`).
 - 🔧 No hay validación de superposición de polígonos (dos zonas pueden cubrir la misma área).
-- ❌ Comprobación de si una dirección (lat/lng) cae dentro de una zona (`point-in-polygon`).
+- ✅ Comprobación de si una dirección (lat/lng) cae dentro de una zona (`point-in-polygon`, en `utils/geo.js`, usado por el endpoint de cotización).
 - ❌ Radio de reparto expresado como radio circular (en lugar de polígono manual).
 - ❌ Zona predeterminada ("todo lo que queda fuera de zonas explícitas").
 - ❌ Franjas horarias de disponibilidad por zona (la zona A solo activa de lunes a viernes, 12h-22h).
@@ -46,7 +46,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Pedido mínimo para activar el envío a esa zona (`min_order_cents`).
 - ✅ La tarifa se registra en la delivery (`fee_cents`) al crearla — auditable post-entrega.
 - 🔧 Cálculo de `fee_cents` en el momento de creación está delegado al caller (no hay lógica de cálculo automático en el módulo con la distancia real).
-- ❌ Cotización de tarifa previa a confirmar el pedido (`GET /v1/delivery-dispatch/quote?lat=…&lng=…`) — equivalente al `GET /v1/shipping/quote` de shipping.
+- ✅ Cotización de tarifa previa a confirmar el pedido (`GET /v1/delivery-dispatch/quote?lat=…&lng=…&orderTotalCents=…`): resuelve la zona activa por point-in-polygon, calcula `base_fee + per_km * distancia` (haversine al centroide de la zona) y valida `min_order_cents`. Devuelve `{ deliverable, reason, zoneId, feeCents, distanceKm }`.
 - ❌ Tarifa por tramos de distancia (0-2 km → X, 2-5 km → Y, >5 km → Z).
 - ❌ Surcharge/recargo por franja horaria (precio noche/festivo).
 - ❌ Tarifa gratuita por superar importe de pedido (umbral "envío gratis a partir de X€").
@@ -58,8 +58,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Estado inicial `offline` al dar de alta.
 - ✅ Listado de riders filtrable por estado.
 - ✅ Aislamiento RLS por `(app_id, tenant_id)`.
-- 🔧 No existe PATCH de perfil de rider (actualizar nombre, teléfono, vehículo) ni DELETE (baja).
-- ❌ Soft-delete / baja temporal de rider con motivo.
+- ✅ PATCH de perfil de rider (`PATCH /v1/delivery-dispatch/riders/:id`: nombre, teléfono, vehículo, status, userId) y DELETE de baja (`DELETE /v1/delivery-dispatch/riders/:id`).
+- ✅ Soft-delete / baja temporal de rider con motivo (`deleted_at`, `deleted_reason`; los riders dados de baja se excluyen del listado por defecto).
 - ❌ Documentación del rider: DNI/NIE, licencia de conducir, fecha de caducidad del carnet.
 - ❌ Foto/avatar del rider (para mostrar al cliente en el tracker).
 - ❌ Vínculo a `platform/auth` para que el rider pueda autenticarse con su propio JWT.
@@ -166,11 +166,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Tabla `settings` con credenciales cifradas (AES-256-GCM) para Uber Direct, Glovo Partners y Stuart.
 - ✅ Admin GET/PATCH para configurar las credenciales de cada proveedor (`/v1/delivery-dispatch/admin/config`).
 - ✅ Toggle de entorno `sandbox/production` y flag `enabled` por proveedor.
-- 🔧 Las credenciales se almacenan pero no hay código de llamada a la API de ninguno de los tres proveedores — la integración real (crear pedido en Glovo, obtener ETA de Uber, asignar Stuart) está pendiente.
-- ❌ Webhook entrante del agregador (Glovo/Uber/Stuart publica updates de estado) con verificación HMAC y auto-transición del FSM interno.
+- 🔧 Las credenciales se almacenan pero no hay código de llamada **saliente** a la API de ninguno de los tres proveedores — la integración real (crear pedido en Glovo, obtener ETA de Uber, asignar Stuart) sigue pendiente (`services/carriers.js` deja el punto de extensión documentado).
+- ✅ Webhook entrante del agregador (`POST /v1/delivery-dispatch/webhooks/:provider`, público): verifica HMAC-SHA256 sobre el body crudo con el `*_webhook_secret` almacenado, localiza la delivery por `(carrier, external_ref)`, mapea el estado del proveedor al FSM interno (`services/carriers.js`) y auto-transiciona (respetando transiciones legales e idempotencia), emitiendo el evento Redis `delivery.<status>`.
 - ❌ Cotización de coste de los agregadores para comparar con flota propia antes de decidir.
 - ❌ Selección automática del proveedor más barato/rápido según zona y disponibilidad.
-- ❌ Sincronización de estado: cuando el agregador reporta `delivered`, actualizar la delivery interna a `delivered`.
+- ✅ Sincronización de estado: cuando el agregador reporta `delivered`/`picked_up`/`cancelled`/`failed` vía webhook, la delivery interna se auto-transiciona al estado equivalente.
 - ❌ Credenciales per-tenant (hoy son a nivel plataforma, lo que limita tenants con cuentas propias de Glovo/Uber).
 
 ## 13. ETA y optimización de rutas
@@ -248,10 +248,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
-1. **Cotización de tarifa previa al checkout** (`GET /v1/delivery-dispatch/quote`) — REUSE zonas + lógica de tarifa ya existente; desbloquea el caso de uso más básico de mostrar coste al cliente antes de confirmar.
-2. **PATCH y DELETE de zonas y riders** — completar el CRUD básico; coste mínimo, alta demanda operativa.
+1. ✅ ~~**Cotización de tarifa previa al checkout** (`GET /v1/delivery-dispatch/quote`)~~ (point-in-polygon + base_fee + per_km·distancia + validación min_order; `utils/geo.js`).
+2. ✅ ~~**PATCH y DELETE de zonas y riders**~~ (CRUD completo; riders con soft-delete + motivo).
 3. **Notificaciones al cliente por cambio de estado** — REUSE directo de `platform/notifications`; impacto en experiencia de usuario muy alto con poco código.
-4. **Webhook entrante de Glovo/Uber/Stuart** + **auto-transición de FSM** — dado que las credenciales ya se almacenan, el siguiente paso natural es implementar la llamada saliente y recibir los updates de estado.
+4. ✅ ~~**Webhook entrante de Glovo/Uber/Stuart** + **auto-transición de FSM**~~ (`POST /v1/delivery-dispatch/webhooks/:provider`, HMAC-verificado, mapeo de estado → FSM interno y emisión de evento Redis). La **llamada saliente** a las APIs de los proveedores sigue pendiente.
 5. **Publicar `delivery.delivered` hacia `platform/orders`** — cierra el ciclo de estado del pedido; actualmente el pedido no sabe que fue entregado.
 6. **Link de tracking público** — genera confianza del cliente, muy diferenciador; puede apoyarse en el campo `last_lat/lng` ya existente.
 7. **Geocoding automático** de `drop_address` cuando no llegan coordenadas — necesario para point-in-polygon y cálculo de ETA real.

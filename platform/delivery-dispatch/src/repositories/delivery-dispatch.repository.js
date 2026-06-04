@@ -18,6 +18,57 @@ export async function listZones(client, appId, tenantId) {
   return rows
 }
 
+export async function findZoneById(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.zones WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
+export async function listActiveZones(client, appId, tenantId) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.zones WHERE app_id=$1 AND tenant_id=$2 AND is_active=TRUE ORDER BY name`,
+    [appId, tenantId],
+  )
+  return rows
+}
+
+const ZONE_COLS = {
+  name:          'name',
+  baseFeeCents:  'base_fee_cents',
+  perKmCents:    'per_km_cents',
+  minOrderCents: 'min_order_cents',
+  isActive:      'is_active',
+}
+
+export async function updateZone(client, appId, tenantId, id, patch) {
+  const sets = []
+  const params = [appId, tenantId, id]
+  let i = 4
+  for (const [key, col] of Object.entries(ZONE_COLS)) {
+    if (patch[key] === undefined) continue
+    const v = key === 'polygon' ? JSON.stringify(patch[key]) : patch[key]
+    sets.push(`${col}=$${i++}`); params.push(v)
+  }
+  if (patch.polygon !== undefined) { sets.push(`polygon=$${i++}`); params.push(JSON.stringify(patch.polygon)) }
+  if (sets.length === 0) return findZoneById(client, appId, tenantId, id)
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.zones SET ${sets.join(', ')}
+     WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
+    params,
+  )
+  return rows[0] ?? null
+}
+
+export async function deleteZone(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `DELETE FROM ${SCHEMA}.zones WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING id`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
 export async function insertRider(client, r) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.riders (app_id, tenant_id, user_id, display_name, phone, vehicle, status)
@@ -27,16 +78,60 @@ export async function insertRider(client, r) {
   return rows[0]
 }
 
-export async function listRiders(client, appId, tenantId, { status } = {}) {
+export async function listRiders(client, appId, tenantId, { status, includeDeleted = false } = {}) {
   const filters = ['app_id = $1', 'tenant_id = $2']
   const params  = [appId, tenantId]
   let i = 3
   if (status) { filters.push(`status = $${i++}`); params.push(status) }
+  if (!includeDeleted) filters.push('deleted_at IS NULL')
   const { rows } = await client.query(
     `SELECT * FROM ${SCHEMA}.riders WHERE ${filters.join(' AND ')} ORDER BY display_name`,
     params,
   )
   return rows
+}
+
+export async function findRiderById(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.riders WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
+const RIDER_COLS = {
+  displayName: 'display_name',
+  phone:       'phone',
+  vehicle:     'vehicle',
+  status:      'status',
+  userId:      'user_id',
+}
+
+export async function updateRider(client, appId, tenantId, id, patch) {
+  const sets = []
+  const params = [appId, tenantId, id]
+  let i = 4
+  for (const [key, col] of Object.entries(RIDER_COLS)) {
+    if (patch[key] === undefined) continue
+    sets.push(`${col}=$${i++}`); params.push(patch[key])
+  }
+  if (sets.length === 0) return findRiderById(client, appId, tenantId, id)
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.riders SET ${sets.join(', ')}
+     WHERE app_id=$1 AND tenant_id=$2 AND id=$3 AND deleted_at IS NULL RETURNING *`,
+    params,
+  )
+  return rows[0] ?? null
+}
+
+export async function softDeleteRider(client, appId, tenantId, id, reason) {
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.riders
+     SET deleted_at=now(), deleted_reason=$4, status='offline'
+     WHERE app_id=$1 AND tenant_id=$2 AND id=$3 AND deleted_at IS NULL RETURNING *`,
+    [appId, tenantId, id, reason ?? null],
+  )
+  return rows[0] ?? null
 }
 
 export async function updateRiderLocation(client, appId, tenantId, id, { lat, lng, status }) {
@@ -67,6 +162,16 @@ export async function findDeliveryById(client, appId, tenantId, id) {
   const { rows } = await client.query(
     `SELECT * FROM ${SCHEMA}.deliveries WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
     [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
+export async function findDeliveryByExternalRef(client, appId, tenantId, carrier, externalRef) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.deliveries
+     WHERE app_id=$1 AND tenant_id=$2 AND carrier=$3 AND external_ref=$4
+     ORDER BY created_at DESC LIMIT 1`,
+    [appId, tenantId, carrier, externalRef],
   )
   return rows[0] ?? null
 }
