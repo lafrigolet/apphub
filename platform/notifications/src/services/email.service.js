@@ -518,6 +518,26 @@ export async function sendPayoutPaidEmail(to, { amount, periodLabel, externalRef
   await send({ to, ...tmpl })
 }
 
+// ── Leads (platform/leads) ──────────────────────────────────────────────
+//
+// Auto-respuesta al prospecto que envía el formulario de la landing: acuse
+// inmediato de "hemos recibido tu mensaje". El initiator es anónimo (no hay
+// userId) así que el consumer la manda sin rate-limit gate.
+
+export async function sendLeadAcknowledgementEmail(to, { contactName, locale = 'es' } = {}) {
+  const namePrefix = contactName ? ' ' + contactName : ''
+  const tmpl = await compose('lead.acknowledged', { namePrefix }, locale === 'en' ? {
+    subject: 'We received your message',
+    text: `Hi${namePrefix},\n\nThanks for reaching out — we have received your message and will get back to you as soon as possible.\n\nThe Hulkstein team`,
+    html: `<p>Hi${namePrefix},</p><p>Thanks for reaching out — we have received your message and will get back to you as soon as possible.</p><p>The Hulkstein team</p>`,
+  } : {
+    subject: 'Hemos recibido tu mensaje',
+    text: `Hola${namePrefix},\n\nGracias por escribirnos — hemos recibido tu mensaje y te responderemos lo antes posible.\n\nEl equipo de Hulkstein`,
+    html: `<p>Hola${namePrefix},</p><p>Gracias por escribirnos — hemos recibido tu mensaje y te responderemos lo antes posible.</p><p>El equipo de Hulkstein</p>`,
+  }, locale)
+  await send({ to, ...tmpl })
+}
+
 // ── Inquiries (platform/inquiries) ─────────────────────────────────────
 //
 // Dos helpers para el flujo email-only del módulo inquiries:

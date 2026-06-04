@@ -27,6 +27,11 @@ const envSchema = z.object({
   JOB_CHAT_EPHEMERAL_PURGE_ENABLED:            z.coerce.boolean().default(true),
   JOB_CHAT_RETENTION_PURGE_ENABLED:            z.coerce.boolean().default(true),
   JOB_CHAT_SUPPORT_SLA_ENABLED:                z.coerce.boolean().default(true),
+  JOB_LEAD_RETENTION_PURGE_ENABLED:            z.coerce.boolean().default(true),
+
+  // GDPR — días que se conservan los leads cerrados (won/lost/closed) sin
+  // actividad antes de purgarlos. 1095 = 3 años (plazo prudencial LOPDGDD).
+  LEADS_RETENTION_DAYS:                        z.coerce.number().int().positive().default(1095),
 })
 
 const parsed = envSchema.safeParse(process.env)

@@ -7,6 +7,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform/leads` — CRM completo (casos de uso priorizados de
+  `docs/use-cases/leads.md`).** Migración `0002_crm_extension`: asignación
+  (`assigned_to`), `score`, estados `won|lost` con `lost_reason` obligatorio
+  (`closed` queda legacy), `tags`, `custom_fields`, atribución UTM completa +
+  `referrer`/`landing_url` + `app_id` de origen, consentimiento LOPDGDD
+  (`consent_text/version/at` sellado en el alta), snooze
+  (`next_follow_up_at`) y conversión lead→tenant (`converted_tenant_id`).
+  Nueva tabla `lead_activities` (timeline con autor: notas, llamadas, emails,
+  reuniones + transiciones de estado y asignaciones auditadas
+  automáticamente). API admin: filtros combinados + búsqueda `?q=` +
+  ordenación + bandeja `assignedTo=me|none`, `GET/POST /:id/activities`,
+  `POST /:id/convert` (one-shot, 409 si ya convertido) y `DELETE /:id`
+  (borrado GDPR). Eventos nuevos: `lead.status_changed`, `lead.assigned`,
+  `lead.converted`, `lead.deleted`. **`platform/notifications`**:
+  auto-respuesta al prospecto (consumer de `lead.created` → plantilla
+  `lead.acknowledged` es/en, migración `0022`).
+  **`platform-scheduler`**: job `lead-retention-purge` (diario 04:45, borra
+  leads cerrados con antigüedad > `LEADS_RETENTION_DAYS`, default 1095 días)
+  + grant cross-schema a `platform_leads` (migración `0006`, sin guard
+  condicional — lección de `0005`).
 - **`docs/use-cases/` — catálogo exhaustivo de casos de uso por microservicio.**
   Un fichero por módulo de plataforma (34 + README índice) enumerando los
   casos de uso posibles del dominio —implementados o no— con marcado

@@ -208,6 +208,22 @@ export function startEventConsumer() {
         }
       }
 
+      // ── Leads (platform/leads) ───────────────────────────────────────
+      // Auto-respuesta al prospecto: acuse inmediato del formulario de la
+      // landing. Initiator anónimo (sin userId) → sin rate-limit gate, igual
+      // que inquiry.created.
+      if (event.type === 'lead.created') {
+        const { email, contactName, leadId } = event.payload ?? {}
+        if (email) {
+          const { sendLeadAcknowledgementEmail } = await import('./email.service.js')
+          try {
+            await sendLeadAcknowledgementEmail(email, { contactName, locale })
+          } catch (err) {
+            logger.error({ err, leadId }, 'sendLeadAcknowledgementEmail failed')
+          }
+        }
+      }
+
       // ── Self-register + Admin-approval (Ruta 1) ──────────────────────
       if (event.type === 'auth.signup.requested') {
         const { email, displayName, userId } = event.payload ?? {}

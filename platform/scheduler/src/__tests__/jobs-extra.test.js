@@ -21,15 +21,17 @@ vi.mock('../lib/env.js', () => ({
     JOB_CHAT_EPHEMERAL_PURGE_ENABLED: true,
     JOB_CHAT_RETENTION_PURGE_ENABLED: true,
     JOB_CHAT_SUPPORT_SLA_ENABLED: true,
+    JOB_LEAD_RETENTION_PURGE_ENABLED: true,
+    LEADS_RETENTION_DAYS: 1095,
   },
 }))
 
 const mkLogger = () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() })
 
 describe('jobs registry (jobs/index.js)', () => {
-  it('expone los 16 jobs con meta/run/enabled, respetando los flags de env', async () => {
+  it('expone los 17 jobs con meta/run/enabled, respetando los flags de env', async () => {
     const { jobs } = await import('../jobs/index.js')
-    expect(jobs).toHaveLength(16)
+    expect(jobs).toHaveLength(17)
     for (const j of jobs) {
       expect(typeof j.meta.name).toBe('string')
       expect(typeof j.meta.cron).toBe('string')

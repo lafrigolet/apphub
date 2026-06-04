@@ -14,6 +14,7 @@ import * as chatScheduledSend                from './chat-scheduled-send.job.js'
 import * as chatEphemeralPurge               from './chat-ephemeral-purge.job.js'
 import * as chatRetentionPurge               from './chat-retention-purge.job.js'
 import * as chatSupportSla                   from './chat-support-sla.job.js'
+import * as leadRetentionPurge               from './lead-retention-purge.job.js'
 
 import { env } from '../lib/env.js'
 
@@ -37,6 +38,7 @@ export const jobs = [
   { mod: chatEphemeralPurge,           enabled: env.JOB_CHAT_EPHEMERAL_PURGE_ENABLED },
   { mod: chatRetentionPurge,           enabled: env.JOB_CHAT_RETENTION_PURGE_ENABLED },
   { mod: chatSupportSla,               enabled: env.JOB_CHAT_SUPPORT_SLA_ENABLED },
+  { mod: leadRetentionPurge,           enabled: env.JOB_LEAD_RETENTION_PURGE_ENABLED },
 ].map((j) => ({
   meta:    j.mod.meta,
   run:     j.mod.run,

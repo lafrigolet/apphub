@@ -449,6 +449,7 @@ the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
 | `chat-ephemeral-purge` | `* * * * *` | soft-delete expired ephemeral chat messages |
 | `chat-retention-purge` | `30 3 * * *` | delete chat messages past each tenant's `retention_days` |
 | `chat-support-sla` | `*/15 * * * *` | publish `chat.support.sla_breached` (no agent reply within SLA) |
+| `lead-retention-purge` | `45 4 * * *` | delete closed leads (won/lost/closed) past `LEADS_RETENTION_DAYS` (GDPR) |
 
 ### Planned
 

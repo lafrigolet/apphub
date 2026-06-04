@@ -6,10 +6,14 @@ vi.mock('../lib/logger.js', () => ({
 }))
 
 vi.mock('../services/leads.service.js', () => ({
-  create:    vi.fn(),
-  listLeads: vi.fn(),
-  getById:   vi.fn(),
-  setStatus: vi.fn(),
+  create:         vi.fn(),
+  listLeads:      vi.fn(),
+  getById:        vi.fn(),
+  update:         vi.fn(),
+  convert:        vi.fn(),
+  removeLead:     vi.fn(),
+  addActivity:    vi.fn(),
+  listActivities: vi.fn(),
 }))
 
 // app-guard stub con fastify-plugin para encapsulación correcta.
@@ -214,25 +218,187 @@ describe('PATCH /v1/leads/admin/:id', () => {
     expect(res.statusCode).toBe(403)
   })
 
-  it('staff actualiza status + staffNotes', async () => {
-    service.setStatus.mockResolvedValue({ id: 'l1', status: 'qualified', staff_notes: 'Pago hecho' })
+  it('staff actualiza status + staffNotes (vía service.update con actor)', async () => {
+    service.update.mockResolvedValue({ id: 'l1', status: 'qualified', staff_notes: 'Pago hecho' })
     const res = await app.inject({
       method: 'PATCH', url: '/v1/leads/admin/l1',
       headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
       payload: { status: 'qualified', staffNotes: 'Pago hecho' },
     })
     expect(res.statusCode).toBe(200)
-    expect(service.setStatus).toHaveBeenCalledWith('l1', 'qualified', 'Pago hecho')
+    expect(service.update).toHaveBeenCalledWith(
+      'l1',
+      expect.objectContaining({ status: 'qualified', staffNotes: 'Pago hecho' }),
+      expect.objectContaining({ userId: 'u1' }),
+    )
+  })
+
+  it('asignación + score + tags + follow-up', async () => {
+    service.update.mockResolvedValue({ id: 'l1' })
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/leads/admin/l1',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: {
+        assignedTo: '11111111-1111-1111-1111-111111111111',
+        score: 80, tags: ['vip'], nextFollowUpAt: '2026-06-10T10:00:00Z',
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.update.mock.calls[0][1]).toMatchObject({
+      assignedTo: '11111111-1111-1111-1111-111111111111', score: 80, tags: ['vip'],
+    })
+  })
+
+  it("status 'lost' sin lostReason → rechazado por zod", async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/leads/admin/l1',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { status: 'lost' },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.update).not.toHaveBeenCalled()
+  })
+
+  it("status 'lost' con lostReason → OK", async () => {
+    service.update.mockResolvedValue({ id: 'l1', status: 'lost' })
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/leads/admin/l1',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { status: 'lost', lostReason: 'presupuesto' },
+    })
+    expect(res.statusCode).toBe(200)
   })
 
   it('404 si el lead no existe', async () => {
-    service.setStatus.mockResolvedValue(null)
+    service.update.mockResolvedValue(null)
     const res = await app.inject({
       method: 'PATCH', url: '/v1/leads/admin/no',
       headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
       payload: { status: 'closed' },
     })
     expect(res.statusCode).toBe(404)
+  })
+})
+
+describe('actividades — timeline', () => {
+  it('GET /:id/activities lista el timeline', async () => {
+    service.listActivities.mockResolvedValue([{ id: 'a1', type: 'note' }])
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/l1/activities',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual([{ id: 'a1', type: 'note' }])
+  })
+
+  it('GET /:id/activities → 404 si el lead no existe', async () => {
+    service.listActivities.mockResolvedValue(null)
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/no/activities',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('POST /:id/activities crea nota con actor', async () => {
+    service.addActivity.mockResolvedValue({ id: 'a1', type: 'note' })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/leads/admin/l1/activities',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { type: 'note', body: 'Llamada hecha' },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(service.addActivity).toHaveBeenCalledWith(
+      'l1',
+      { type: 'note', body: 'Llamada hecha' },
+      expect.objectContaining({ userId: 'u1' }),
+    )
+  })
+
+  it('POST /:id/activities rechaza type inválido', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/v1/leads/admin/l1/activities',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { type: 'status_change', body: 'manual' },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(service.addActivity).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /:id/convert — conversión lead → tenant', () => {
+  const tenantId = '22222222-2222-2222-2222-222222222222'
+
+  it('convierte y devuelve el lead won', async () => {
+    service.convert.mockResolvedValue({ lead: { id: 'l1', status: 'won', converted_tenant_id: tenantId } })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/leads/admin/l1/convert',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { tenantId },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.status).toBe('won')
+  })
+
+  it('ya convertido → 409 ALREADY_CONVERTED', async () => {
+    service.convert.mockResolvedValue({ conflict: true })
+    const res = await app.inject({
+      method: 'POST', url: '/v1/leads/admin/l1/convert',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { tenantId },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error.code).toBe('ALREADY_CONVERTED')
+  })
+
+  it('inexistente → 404', async () => {
+    service.convert.mockResolvedValue(null)
+    const res = await app.inject({
+      method: 'POST', url: '/v1/leads/admin/no/convert',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { tenantId },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+})
+
+describe('DELETE /:id — GDPR', () => {
+  it('204 al borrar', async () => {
+    service.removeLead.mockResolvedValue({ id: 'l1' })
+    const res = await app.inject({
+      method: 'DELETE', url: '/v1/leads/admin/l1',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(204)
+  })
+
+  it('404 si no existe', async () => {
+    service.removeLead.mockResolvedValue(null)
+    const res = await app.inject({
+      method: 'DELETE', url: '/v1/leads/admin/no',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('user normal → 403', async () => {
+    const res = await app.inject({
+      method: 'DELETE', url: '/v1/leads/admin/l1',
+      headers: { Authorization: 'Bearer user-token' },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+describe("GET / con assignedTo 'me' → traduce al userId del staff", () => {
+  it('me → u1', async () => {
+    service.listLeads.mockResolvedValue([])
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/?assignedTo=me',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(service.listLeads).toHaveBeenCalledWith(expect.objectContaining({ assignedTo: 'u1' }))
   })
 })
 
@@ -248,8 +414,10 @@ describe('defaults defensivos (?? {}) — handlers directos', () => {
     const routes = []
     await adminRoutes({
       addHook: () => {},
-      get:   (p, o, h) => routes.push({ m: 'get', p, h: h ?? o }),
-      patch: (p, o, h) => routes.push({ m: 'patch', p, h: h ?? o }),
+      get:    (p, o, h) => routes.push({ m: 'get', p, h: h ?? o }),
+      patch:  (p, o, h) => routes.push({ m: 'patch', p, h: h ?? o }),
+      post:   (p, o, h) => routes.push({ m: 'post', p, h: h ?? o }),
+      delete: (p, o, h) => routes.push({ m: 'delete', p, h: h ?? o }),
     })
     return routes
   }
@@ -267,9 +435,11 @@ describe('defaults defensivos (?? {}) — handlers directos', () => {
     expect(service.listLeads).toHaveBeenCalledWith(expect.objectContaining({ limit: 100, offset: 0 }))
   })
 
-  it('PATCH /:id con req.body undefined → updateBody ?? {} → la validación zod lanza', async () => {
+  it('PATCH /:id con req.body undefined → {} es un patch vacío válido (no-op)', async () => {
+    service.update.mockResolvedValue({ id: 'l1' })
     const routes = await adminHandlers()
-    const patch = routes.find((r) => r.m === 'patch')
-    await expect(patch.h({ params: { id: 'l1' } }, { code: vi.fn() })).rejects.toBeTruthy()
+    const patch = routes.find((r) => r.m === 'patch' && r.p === '/:id')
+    await patch.h({ params: { id: 'l1' } }, { code: vi.fn() })
+    expect(service.update).toHaveBeenCalledWith('l1', {}, expect.anything())
   })
 })

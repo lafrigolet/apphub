@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { requireRole } from '@apphub/platform-sdk/app-guard'
 import * as service from '../services/leads.service.js'
 
+const STATUSES = ['new', 'contacted', 'qualified', 'won', 'lost', 'closed']
+
 const createBody = z.object({
   contactName:  z.string().min(1).max(128),
   email:        z.string().email().max(256),
@@ -10,20 +12,66 @@ const createBody = z.object({
   industry:     z.enum(['restaurant', 'gym', 'services', 'shop', 'other']).optional().nullable(),
   message:      z.string().max(4000).optional().nullable(),
   source:       z.string().max(64).optional().nullable(),
+  // Atribución opcional: app/portal de origen + UTM + referrer.
+  appId:        z.string().max(64).optional().nullable(),
+  utmSource:    z.string().max(256).optional().nullable(),
+  utmMedium:    z.string().max(256).optional().nullable(),
+  utmCampaign:  z.string().max(256).optional().nullable(),
+  utmTerm:      z.string().max(256).optional().nullable(),
+  utmContent:   z.string().max(256).optional().nullable(),
+  referrer:     z.string().max(2048).optional().nullable(),
+  landingUrl:   z.string().max(2048).optional().nullable(),
+  // Consentimiento LOPDGDD: texto y versión mostrados al usuario al captar.
+  consentText:    z.string().max(2000).optional().nullable(),
+  consentVersion: z.string().max(32).optional().nullable(),
   // Honeypot anti-bot: campo invisible en el form. Un humano lo deja vacío;
   // si llega relleno respondemos 201 fake y descartamos sin persistir.
   website:      z.string().max(256).optional().nullable(),
 })
 
 const listQuery = z.object({
-  status: z.enum(['new', 'contacted', 'qualified', 'closed']).optional(),
+  status:      z.enum(STATUSES).optional(),
+  assignedTo:  z.union([z.string().uuid(), z.literal('me'), z.literal('none')]).optional(),
+  industry:    z.enum(['restaurant', 'gym', 'services', 'shop', 'other']).optional(),
+  source:      z.string().max(64).optional(),
+  appId:       z.string().max(64).optional(),
+  tag:         z.string().max(64).optional(),
+  q:           z.string().max(256).optional(),
+  followUpDue: z.coerce.boolean().optional(),
+  createdFrom: z.coerce.date().optional(),
+  createdTo:   z.coerce.date().optional(),
+  sort:        z.enum(['created_at', 'updated_at', 'score', 'next_follow_up_at']).default('created_at'),
+  dir:         z.enum(['asc', 'desc']).default('desc'),
+  limit:       z.coerce.number().int().min(1).max(500).default(100),
+  offset:      z.coerce.number().int().min(0).default(0),
+})
+
+const updateBody = z.object({
+  status:         z.enum(STATUSES).optional(),
+  staffNotes:     z.string().max(4000).optional().nullable(),    // legacy
+  assignedTo:     z.string().uuid().optional().nullable(),
+  score:          z.number().int().min(0).max(100).optional().nullable(),
+  lostReason:     z.string().max(512).optional().nullable(),
+  tags:           z.array(z.string().max(64)).max(32).optional(),
+  customFields:   z.record(z.unknown()).optional().nullable(),
+  nextFollowUpAt: z.coerce.date().optional().nullable(),
+}).refine((b) => b.status !== 'lost' || !!b.lostReason, {
+  message: 'lostReason is required when status is lost',
+  path: ['lostReason'],
+})
+
+const activityBody = z.object({
+  type: z.enum(['note', 'email', 'call', 'meeting']),
+  body: z.string().min(1).max(8000),
+})
+
+const activitiesQuery = z.object({
   limit:  z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 })
 
-const updateBody = z.object({
-  status:     z.enum(['new', 'contacted', 'qualified', 'closed']),
-  staffNotes: z.string().max(4000).optional().nullable(),
+const convertBody = z.object({
+  tenantId: z.string().uuid(),
 })
 
 export async function publicRoutes(fastify) {
@@ -65,11 +113,15 @@ export async function publicRoutes(fastify) {
 export async function adminRoutes(fastify) {
   fastify.addHook('preHandler', requireRole('super_admin', 'staff'))
 
+  const actor = (req) => ({ userId: req.identity?.userId, email: req.identity?.email })
+
   fastify.get(
     '/',
-    { schema: { tags: ['leads-admin'], summary: 'List leads', querystring: listQuery } },
+    { schema: { tags: ['leads-admin'], summary: 'List leads (filters + search)', querystring: listQuery } },
     async (req) => {
       const q = listQuery.parse(req.query ?? {})
+      // 'me' → bandeja del staff autenticado.
+      if (q.assignedTo === 'me') q.assignedTo = req.identity?.userId
       return { data: await service.listLeads(q) }
     },
   )
@@ -86,12 +138,72 @@ export async function adminRoutes(fastify) {
 
   fastify.patch(
     '/:id',
-    { schema: { tags: ['leads-admin'], summary: 'Update lead status / staff notes', body: updateBody } },
+    {
+      schema: {
+        tags: ['leads-admin'],
+        summary: 'Update lead (status, assignment, score, tags, follow-up, notes)',
+        body: updateBody,
+      },
+    },
     async (req, reply) => {
       const body = updateBody.parse(req.body ?? {})
-      const updated = await service.setStatus(req.params.id, body.status, body.staffNotes)
+      const updated = await service.update(req.params.id, body, actor(req))
       if (!updated) { reply.code(404); return { error: { code: 'NOT_FOUND' } } }
       return { data: updated }
+    },
+  )
+
+  // ── Timeline de actividad ──────────────────────────────────────────────
+
+  fastify.get(
+    '/:id/activities',
+    { schema: { tags: ['leads-admin'], summary: 'List lead activity timeline', querystring: activitiesQuery } },
+    async (req, reply) => {
+      const q = activitiesQuery.parse(req.query ?? {})
+      const rows = await service.listActivities(req.params.id, q)
+      if (rows === null) { reply.code(404); return { error: { code: 'NOT_FOUND' } } }
+      return { data: rows }
+    },
+  )
+
+  fastify.post(
+    '/:id/activities',
+    { schema: { tags: ['leads-admin'], summary: 'Add an activity (note/call/email/meeting)', body: activityBody } },
+    async (req, reply) => {
+      const body = activityBody.parse(req.body ?? {})
+      const created = await service.addActivity(req.params.id, body, actor(req))
+      if (!created) { reply.code(404); return { error: { code: 'NOT_FOUND' } } }
+      reply.code(201)
+      return { data: created }
+    },
+  )
+
+  // ── Conversión lead → tenant ───────────────────────────────────────────
+
+  fastify.post(
+    '/:id/convert',
+    { schema: { tags: ['leads-admin'], summary: 'Mark lead as converted to a tenant (traceability)', body: convertBody } },
+    async (req, reply) => {
+      const { tenantId } = convertBody.parse(req.body ?? {})
+      const result = await service.convert(req.params.id, tenantId, actor(req))
+      if (!result) { reply.code(404); return { error: { code: 'NOT_FOUND' } } }
+      if (result.conflict) {
+        reply.code(409)
+        return { error: { code: 'ALREADY_CONVERTED', message: 'Lead is already linked to a tenant' } }
+      }
+      return { data: result.lead }
+    },
+  )
+
+  // ── GDPR — borrado físico ──────────────────────────────────────────────
+
+  fastify.delete(
+    '/:id',
+    { schema: { tags: ['leads-admin'], summary: 'Delete a lead and its activities (GDPR erasure)' } },
+    async (req, reply) => {
+      const removed = await service.removeLead(req.params.id, actor(req))
+      if (!removed) { reply.code(404); return { error: { code: 'NOT_FOUND' } } }
+      reply.code(204)
     },
   )
 }
