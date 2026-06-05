@@ -109,3 +109,67 @@ describe('handleTwilioStatus', () => {
     await expect(svc.handleTwilioStatus({ MessageSid: 'SM3', MessageStatus: 'sent' })).resolves.toMatchObject({ handled: true })
   })
 })
+
+describe('Svix verification (verifySvixSignature / verifyResendWebhook)', () => {
+  // Build a real signature with the same algorithm Svix documents.
+  const secretBytes = Buffer.from('super-secret-signing-key')
+  const secret = `whsec_${secretBytes.toString('base64')}`
+  const rawBody = '{"type":"email.received","data":{"email_id":"e1"}}'
+  const id = 'msg_123'
+  const now = Date.now()
+  const timestamp = String(Math.floor(now / 1000))
+  const sig = crypto.createHmac('sha256', secretBytes)
+    .update(`${id}.${timestamp}.${rawBody}`, 'utf-8').digest('base64')
+
+  it('accepts a valid v1 signature within tolerance', () => {
+    expect(svc.verifySvixSignature(secret, { id, timestamp, signature: `v1,${sig}`, rawBody }, now)).toBe(true)
+  })
+  it('accepts when the valid sig is one of several space-delimited entries', () => {
+    expect(svc.verifySvixSignature(secret, { id, timestamp, signature: `v1,AAAA v1,${sig}`, rawBody }, now)).toBe(true)
+  })
+  it('rejects a tampered body', () => {
+    expect(svc.verifySvixSignature(secret, { id, timestamp, signature: `v1,${sig}`, rawBody: rawBody + ' ' }, now)).toBe(false)
+  })
+  it('rejects a stale timestamp (replay protection)', () => {
+    const staleTs = String(Math.floor(now / 1000) - 600)
+    const staleSig = crypto.createHmac('sha256', secretBytes)
+      .update(`${id}.${staleTs}.${rawBody}`, 'utf-8').digest('base64')
+    expect(svc.verifySvixSignature(secret, { id, timestamp: staleTs, signature: `v1,${staleSig}`, rawBody }, now)).toBe(false)
+  })
+  it('rejects when svix headers are missing', () => {
+    expect(svc.verifySvixSignature(secret, { id: undefined, timestamp, signature: `v1,${sig}`, rawBody }, now)).toBe(false)
+  })
+
+  it('verifyResendWebhook: whsec_ secret → Svix path', async () => {
+    configRepo.getValue.mockResolvedValue(secret)
+    const headers = { 'svix-id': id, 'svix-timestamp': timestamp, 'svix-signature': `v1,${sig}` }
+    expect(await svc.verifyResendWebhook({ rawBody, headers })).toBe(true)
+    expect(await svc.verifyResendWebhook({ rawBody: '{}', headers })).toBe(false)
+  })
+  it('verifyResendWebhook: legacy plain secret → x-webhook-secret compare', async () => {
+    configRepo.getValue.mockResolvedValue('s3cr3t')
+    expect(await svc.verifyResendWebhook({ rawBody, headers: { 'x-webhook-secret': 's3cr3t' } })).toBe(true)
+    expect(await svc.verifyResendWebhook({ rawBody, headers: { 'x-webhook-secret': 'wrong!' } })).toBe(false)
+    expect(await svc.verifyResendWebhook({ rawBody, headers: {} })).toBe(false)
+  })
+  it('verifyResendWebhook: no secret configured → accept (dev-stub)', async () => {
+    configRepo.getValue.mockResolvedValue(null)
+    expect(await svc.verifyResendWebhook({ rawBody, headers: {} })).toBe(true)
+  })
+})
+
+describe('handleResendEvent → email.received dispatch (inbound §24)', () => {
+  it('delegates to the inbound pipeline', async () => {
+    vi.doMock('../services/inbound.service.js', () => ({
+      handleInboundReceived: vi.fn().mockResolvedValue({ handled: true, id: 'e1' }),
+    }))
+    const { handleInboundReceived } = await import('../services/inbound.service.js')
+    const r = await svc.handleResendEvent({ type: 'email.received', data: { email_id: 're_1', from: 'a@x.com', to: ['b@y.com'] } })
+    expect(handleInboundReceived).toHaveBeenCalledWith(expect.objectContaining({ email_id: 're_1' }))
+    expect(r).toMatchObject({ handled: true, id: 'e1' })
+    // No suppression/delivery side-effects for inbound events.
+    expect(suppression.suppress).not.toHaveBeenCalled()
+    expect(sendLogRepo.updateDeliveryStatus).not.toHaveBeenCalled()
+    vi.doUnmock('../services/inbound.service.js')
+  })
+})

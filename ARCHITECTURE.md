@@ -206,6 +206,34 @@ Eventos clave emitidos por el dominio dinero:
 | `platform/donations` | `donation.completed`, `donation.recurring.charged`, `donation.recurring.failed`, `donation.recurring.cancelled`, `donation.refunded`, `donation.certificate.ready` | tras reconciliar el webhook de splitpay | `platform/notifications` (emails al donante) + apps suscritas |
 | `platform/chat` | `chat.conversation.created`, `chat.message.created`, `chat.mention.created`, `chat.support.assigned`, `chat.message.reported`, `chat.support.sla_breached` | tras persistir la escritura correspondiente (los dos últimos los emite `platform-scheduler`) | `platform/notifications` (push al destinatario, vía `userId`→`push_devices`) |
 | `platform-scheduler` → `platform/chat` | `chat.scheduled.due` | cuando llega la hora de un mensaje programado | el consumidor de `platform/chat` entrega el mensaje (flip a `sent` + fan-out) |
+| `platform/notifications` | `email.inbound.received` + el evento de la ruta/token (`inquiry.reply.received`, `lead.email.received`, …) | al ingerir y enrutar un correo entrante (Resend Inbound) | `platform/inquiries` (respuesta → timeline), `platform/leads` (leads@ → lead), cualquier módulo con regla en `inbound_routes` |
+| `platform-scheduler` → `platform/notifications` | `notifications.inbound.purge_due` | diario 05:15 (`notifications-inbound-purge`) | el consumidor de notifications borra `inbound_emails` caducados + objetos S3 + reply tokens expirados |
+
+### Inbound email (Resend Inbound)
+
+`platform/notifications` también **recibe** correo. Los registros MX del
+dominio de recepción (p.ej. `reply.hulkstein.com`, grey-cloud en Cloudflare)
+apuntan a Resend; Resend dispara `email.received` en el mismo webhook
+(`POST /v1/notifications/webhooks/resend`, ahora con verificación **Svix HMAC**
+sobre el raw body cuando `resend_webhook_secret` es un `whsec_…`). El payload
+trae solo metadatos: el pipeline (`inbound.service.js`) recupera el contenido
+vía la Receiving API (`GET /emails/receiving/{id}`), descarga los adjuntos
+(política de tipos/tamaño por config, dedup sha256) y los persiste en el bucket
+S3 compartido vía `@apphub/platform-sdk/storage` bajo `inbound/<emailId>/…` —
+metadatos en `platform_notifications.inbound_attachments`, nunca tocando el
+esquema de storage.
+
+El enrutado publica eventos en `platform.events` (las fronteras de módulo se
+mantienen): primero los **reply tokens** plus-addressed (`reply+<token>@…`,
+acuñados con `mintReplyAddress()` al enviar un email que quiere respuesta
+en-plataforma, p.ej. la confirmación de inquiry), después las reglas
+`inbound_routes` (dirección exacta > catch-all de dominio), y por último el
+fallback configurable. Gates previos: bloqueo/allowlist de remitentes,
+detección de auto-replies (anti mail-loop), rate-limit por remitente.
+FSM: `received → fetched → routed | unrouted | archived | quarantined | failed`,
+con bandeja staff + reprocess en `/v1/notifications/admin/inbound*` y purga
+GDPR/retención vía scheduler. El envío saliente por Resend no cambia: la
+recepción solo añade MX; SPF/DKIM/DMARC de envío intactos.
 
 ### Real-time delivery (chat)
 

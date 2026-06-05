@@ -106,7 +106,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 8. Hilos / conversación in-plataforma (V2)
 
-- ❌ Tabla `inquiry_messages` para almacenar respuestas del admin y réplicas del visitante dentro de la plataforma.
+- 🔧 Réplicas del visitante **por email** ya se capturan en-plataforma: el acuse lleva Reply-To `reply+<token>@…` (inbound de notifications) y la respuesta entra al timeline como activity `email_reply` con adjuntos referenciados en S3 (migración 0003 + `event-consumer.js`); el admin recibe alerta con Reply-To al visitante. Sin tabla `inquiry_messages` dedicada ni respuestas del admin en-plataforma (V2).
 - ❌ Portal público del visitante: acceso por referencia + email para ver el hilo y responder.
 - ❌ Notificación al visitante cada vez que el admin añade un mensaje al hilo.
 - ❌ Cierre del hilo por el admin o por el visitante (con CSAT opcional).

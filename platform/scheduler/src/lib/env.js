@@ -31,6 +31,7 @@ const envSchema = z.object({
   JOB_SCHEDULER_RUNS_PURGE_ENABLED:            z.coerce.boolean().default(true),
   JOB_AUTH_TOKEN_PURGE_ENABLED:                z.coerce.boolean().default(true),
   JOB_NOTIFICATION_SEND_LOG_PURGE_ENABLED:     z.coerce.boolean().default(true),
+  JOB_NOTIFICATIONS_INBOUND_PURGE_ENABLED:     z.coerce.boolean().default(true),
   JOB_MESSAGING_SLA_ENABLED:                   z.coerce.boolean().default(true),
   JOB_TELEHEALTH_EXPIRE_STALE_ENABLED:         z.coerce.boolean().default(true),
 
@@ -42,6 +43,7 @@ const envSchema = z.object({
   SCHEDULER_RUNS_RETENTION_DAYS:               z.coerce.number().int().positive().default(90),
   // Retención del send_log de notifications. 90 días.
   NOTIFICATIONS_SEND_LOG_RETENTION_DAYS:       z.coerce.number().int().positive().default(90),
+  NOTIFICATIONS_INBOUND_RETENTION_DAYS:        z.coerce.number().int().positive().default(365),
   // SLA de primera respuesta del vendor en messaging buyer↔vendor. 24h.
   MESSAGING_SLA_HOURS:                         z.coerce.number().int().positive().default(24),
 

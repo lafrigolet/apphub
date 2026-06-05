@@ -221,7 +221,7 @@ export function startEventConsumer() {
       if (event.type === 'inquiry.created') {
         const {
           contactInboxEmail, email, contactName, phone, subject, message,
-          reference, replyToEmail,
+          reference, replyToEmail, inquiryId, appId, tenantId,
         } = event.payload ?? {}
         const { sendInquiryAdminAlert, sendInquiryUserThankYou } = await import('./email.service.js')
         if (contactInboxEmail) {
@@ -234,12 +234,45 @@ export function startEventConsumer() {
           }
         }
         if (email) {
+          // Inbound bridge (§26/§27): when receiving is enabled, the thank-you
+          // email's Reply-To is a minted reply+<token> address — the user's
+          // reply is re-ingested into the inquiry thread instead of dying in
+          // the admin's personal inbox. Null (inbound off) keeps V1 behaviour.
+          let replyToOverride = null
+          if (inquiryId) {
+            const { mintReplyAddress } = await import('./reply-address.service.js')
+            replyToOverride = await mintReplyAddress({
+              targetEvent: 'inquiry.reply.received',
+              context: { inquiryId, reference, party: 'user', notifyEmail: contactInboxEmail ?? null, userEmail: email },
+              appId: appId ?? null,
+              tenantId: tenantId ?? null,
+            })
+          }
           try {
             await sendInquiryUserThankYou(email, {
-              contactName, reference, contactInboxEmail, replyToEmail,
+              contactName, reference, contactInboxEmail, replyToEmail, replyToOverride,
             }, locale)
           } catch (err) {
             logger.error({ err, reference }, 'sendInquiryUserThankYou failed')
+          }
+        }
+      }
+
+      // Inbound bridge (§26): a user's email reply was captured and routed via
+      // its reply token. The inquiries module appends it to the thread; here we
+      // alert the tenant's admin inbox so the conversation keeps flowing.
+      if (event.type === 'inquiry.reply.received') {
+        const { context, from, fromName, text, rawText } = event.payload ?? {}
+        const notifyEmail = context?.notifyEmail
+        if (notifyEmail) {
+          const { sendInquiryReplyAlert } = await import('./email.service.js')
+          try {
+            await sendInquiryReplyAlert(notifyEmail, {
+              contactName: fromName, fromEmail: from,
+              reference: context?.reference, message: text || rawText || '',
+            }, locale)
+          } catch (err) {
+            logger.error({ err, reference: context?.reference }, 'sendInquiryReplyAlert failed')
           }
         }
       }
@@ -410,6 +443,14 @@ export function startEventConsumer() {
         const { sendRaw }  = await import('./email.service.js')
         const result = await flushAll({ send: sendRaw, logger })
         logger.info(result, 'digest flushed')
+      }
+
+      // Inbound retention purge (§29) — published daily by platform-scheduler
+      // (notifications-inbound-purge job). Rows + S3 objects + expired tokens.
+      if (event.type === 'notifications.inbound.purge_due') {
+        const { retentionDays } = event.payload ?? {}
+        const { purgeInbound } = await import('./inbound.service.js')
+        await purgeInbound(retentionDays)
       }
 
       if (event.type === 'payout.paid') {

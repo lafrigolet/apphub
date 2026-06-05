@@ -37,6 +37,16 @@ const configBody = z.object({
   apns_bundle_id:               z.string().min(1).max(256).optional().nullable(),
   apns_p8_key:                  z.string().min(1).max(8192).optional().nullable(),
   apns_environment:             z.enum(['sandbox', 'production']).optional().nullable(),
+  // Inbound email (§23–§29).
+  inbound_enabled:              z.enum(['true', 'false']).optional().nullable(),
+  inbound_domain:               z.string().min(3).max(255).optional().nullable(),
+  inbound_fallback_action:      z.enum(['archive', 'discard']).optional().nullable(),
+  inbound_blocked_senders:      z.string().max(8192).optional().nullable(),
+  inbound_allowed_senders:      z.string().max(8192).optional().nullable(),
+  inbound_attachment_max_bytes: z.string().max(16).optional().nullable(),
+  inbound_attachment_allowed_types: z.string().max(2048).optional().nullable(),
+  inbound_rate_limit_per_sender_per_hour: z.string().max(8).optional().nullable(),
+  inbound_retention_days:       z.string().max(8).optional().nullable(),
 })
 
 const sendLogQuery = z.object({
@@ -125,6 +135,8 @@ export async function adminRoutes(fastify) {
       const { invalidatePushConfigCache } = await import('../services/push.service.js')
       invalidateDigestModeCache()
       invalidatePushConfigCache()
+      const { invalidateInboundConfigCache } = await import('../services/inbound-config.service.js')
+      invalidateInboundConfigCache()
       return { data: await configRepo.listConfig(client) }
     } finally { client.release() }
   })

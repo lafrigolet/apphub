@@ -3,8 +3,9 @@
 > Dominio: notificaciones multicanal (email, SMS, push web/móvil) disparadas por
 > eventos de `platform.events`; plantillas editables en runtime con i18n; dominios
 > de envío por tenant verificados en Resend; rate-limiting, digest diario, registro
-> de envíos. Proveedores activos: **Resend** (email), **Twilio** (SMS), **FCM HTTP v1**
-> (push Android / iOS / web).
+> de envíos; **recepción de email entrante (Resend Inbound)** con enrutado a módulos
+> de dominio vía eventos (§23–§29). Proveedores activos: **Resend** (email),
+> **Twilio** (SMS), **FCM HTTP v1** (push Android / iOS / web).
 
 ## Estado actual (implementado)
 
@@ -21,7 +22,11 @@ limpieza automática de tokens muertos (FCM UNREGISTERED); admin CRUD de plantil
 preview; admin CRUD de config (Resend + Twilio + FCM + APNs slots + rate-limits +
 digest_mode); APNs reservado (slot, sin implementar). `send_log` escrito por los tres
 senders con purge manual por retención; idempotencia del consumer (Redis `SET NX`);
-preferencias/opt-out por usuario (`notification_preferences` + `unsubscribe_tokens`,
+**email entrante (Resend Inbound)**: webhook `email.received` con verificación
+Svix HMAC sobre raw body, fetch vía Receiving API, adjuntos → S3 con política y
+dedup, enrutado por reply-tokens/reglas a eventos de dominio, consumidores en
+inquiries (hilo) y leads (lead), bandeja admin + GDPR + purga vía scheduler
+(migración 0026, §23–§29); preferencias/opt-out por usuario (`notification_preferences` + `unsubscribe_tokens`,
 migración 0023) con gate por categoría/canal y endpoint público de unsubscribe; lista
 de supresión (`suppressions`) + `delivery_status` alimentados por los webhooks de
 proveedor (`POST /webhooks/resend` bounce/complaint, `POST /webhooks/twilio`
@@ -273,7 +278,7 @@ Eventos **NO subscritos** aún (descartados por falta de destinatario claro en e
 - ❌ Sin tracking pixel de apertura (Resend lo soporta, pero el módulo no lo habilita).
 - ❌ Sin reescritura de URLs para tracking de clics (click tracking).
 - 🔧 Almacenamiento parcial de eventos de entrega: `email.delivered`/`bounced`/`complained`/`delivery_delayed` se sellan como `send_log.delivery_status` (columna añadida en migración 0024); `email.opened`/`email.clicked` aún no se persisten (tracking de open/click deshabilitado).
-- ✅ Webhook de Resend configurado (`POST /v1/notifications/webhooks/resend`) — recibe los eventos, suprime bounces/complaints y sella `delivery_status`. Verificación por shared secret `x-webhook-secret` (config `resend_webhook_secret`); HMAC Svix completo pendiente (requiere raw body — cross-cutting, ver §22).
+- ✅ Webhook de Resend configurado (`POST /v1/notifications/webhooks/resend`) — recibe los eventos, suprime bounces/complaints y sella `delivery_status`. Verificación Svix HMAC completa sobre raw body cuando `resend_webhook_secret` es un `whsec_…`; shared secret `x-webhook-secret` como modo legacy (ver §22, cerrado).
 - ❌ Sin dashboard de métricas de entregabilidad (tasa de apertura, clic, rebote por plantilla o periodo).
 
 ## 15. Programación y envíos diferidos
@@ -334,17 +339,112 @@ Eventos **NO subscritos** aún (descartados por falta de destinatario claro en e
 2. ~~**Idempotencia en el consumer**~~ — ✅ HECHO (`idempotency.service.js`: `SET NX` Redis con TTL 24h por `idempotencyKey`/`id` o hash de `(type+payload)`; digest.flush exento; fail-open).
 3. ~~**Preferencias de usuario + unsubscribe link**~~ — ✅ HECHO (tabla `notification_preferences` + `unsubscribe_tokens`, migración 0023; gate `isMuted` por categoría/canal en el consumer; `GET/PATCH /v1/notifications/preferences`; `POST /v1/notifications/unsubscribe` público; passthrough de `headers` para `List-Unsubscribe`). Pendiente menor: inyección automática del header con token en cada email (cross-cutting TODO-resend).
 4. **Reintentos con backoff** — cola de reintentos en Redis para emails/SMS fallidos (3 intentos, backoff exponencial); fundamental para resiliencia ante caídas temporales de Resend/Twilio.
-5. ~~**Webhook de Resend (`email.bounced` / `email.complained`)** + supresión de destinatarios rebotados~~ — ✅ HECHO (migración 0024 `suppressions` + `delivery_status`; `POST /v1/notifications/webhooks/resend`; bounce/complaint → `suppress()`; los 3 senders consultan `isSuppressed` y registran `skipped`; CRUD admin de supresiones). Pendiente: verificación Svix HMAC completa (requiere raw body — ver §22).
+5. ~~**Webhook de Resend (`email.bounced` / `email.complained`)** + supresión de destinatarios rebotados~~ — ✅ HECHO (migración 0024 `suppressions` + `delivery_status`; `POST /v1/notifications/webhooks/resend`; bounce/complaint → `suppress()`; los 3 senders consultan `isSuppressed` y registran `skipped`; CRUD admin de supresiones). La verificación Svix HMAC completa llegó con la ola inbound (§22 cerrado).
 6. **`List-Unsubscribe` headers** — obligatorio para Gmail/Yahoo cuando se supera el umbral de 1,000 emails/día; añadir una cabecera al `send()` es trivial.
 7. **Conectar branded domain al sender** — que el email service consulte `tenant_email_domains` para el `from` address cuando el tenant tiene un dominio verificado (completa el flujo ya implementado).
 8. **Notificaciones in-app (inbox)** — tabla `notifications` + `GET /v1/notifications/inbox` + mark-as-read; desbloquea badge en el portal sin necesidad de push.
 9. ~~**Webhook saliente (Twilio StatusCallback)**~~ — ✅ HECHO (`POST /v1/notifications/webhooks/twilio`; sella `delivery_status` por `MessageSid`; `ErrorCode 21610` → supresión opt-out; firma `X-Twilio-Signature` verificada cuando hay secret).
 10. **WhatsApp Business API** — canal de mayor apertura en España/LATAM; reutiliza la arquitectura de SMS (plantilla + config en DB + proveedor swap).
+11. ~~**Pipeline mínimo de email entrante (§24)**~~ — ✅ HECHO (migración 0026 + `inbound.service.js`: webhook `email.received` idempotente, fetch vía Receiving API, FSM completa, evento `email.inbound.received`; Svix §22 implementado como prerrequisito).
+12. ~~**Adjuntos entrantes → S3 (§25)**~~ — ✅ HECHO (descarga inmediata, política de tipos/tamaño, dedup sha256, bytes vía `@apphub/platform-sdk/storage` bajo `inbound/<emailId>/…` — SDK como canal permitido, sin tocar el esquema de storage).
+13. ~~**Primer consumidor: respuestas a inquiries (§26)**~~ — ✅ HECHO (reply token en el thank-you → `inquiry.reply.received` → activity `email_reply` en el timeline + alerta `inquiry.reply_alert` al inbox admin con Reply-To al usuario).
 
 ---
 
 ## 22. Cross-cutting pendiente (heredado del trabajo de webhooks/supresiones)
 
-- **Verificación Svix HMAC del webhook Resend** — hoy el guard es un shared secret (`x-webhook-secret`); la verificación de firma completa de Resend (Svix) necesita el *raw body* de la petición, que se parsea en la capa de `platform-core`. Requiere capturar el raw body (content-type parser a nivel raíz) antes de pasarlo al módulo.
-- **Job de scheduler para retention del `send_log`** — el endpoint manual `DELETE /admin/send-log?older_than_days=N` ya existe; falta un job en `platform-scheduler` (p.ej. `notifications-send-log-purge`, diario) que lo invoque con la política de retención por defecto. Fuera del límite de este módulo (vive en `platform/scheduler/`).
+- ~~**Verificación Svix HMAC del webhook Resend**~~ — ✅ HECHO (ola inbound): el módulo captura el raw body con un content-type parser encapsulado a su contexto de webhooks (patrón splitpay, sin tocar `platform-core`); cuando `resend_webhook_secret` empieza por `whsec_` se verifica la firma Svix completa (svix-id/timestamp/signature, HMAC-SHA256, tolerancia 5 min, multi-firma por rotación); un valor legacy mantiene el shared secret `x-webhook-secret`.
+- ~~**Job de scheduler para retention del `send_log`**~~ — ✅ HECHO: `notification-send-log-purge` (diario 05:00, `NOTIFICATIONS_SEND_LOG_RETENTION_DAYS` default 90) corre en `platform-scheduler` con DELETE directo. El inbound añadió su gemelo `notifications-inbound-purge` (05:15, vía evento `notifications.inbound.purge_due` porque la purga inbound también borra objetos S3 y eso vive en el módulo).
 - **Inyección automática de `List-Unsubscribe` + token** en cada email a usuario — el passthrough de `headers` y el token estable (`unsubscribe_tokens`) ya existen; falta threading de `userId`/`tenantId` a los helpers de email para mintar y adjuntar la URL automáticamente (cross-cutting con TODO-resend).
+
+---
+
+# Email entrante (Resend Inbound)
+
+> La plataforma ya **recibe** correo además de enviarlo: MX apuntando a Resend,
+> webhook `email.received` con **solo metadatos** (from/to/subject + metadatos
+> de adjuntos), recuperación del contenido bajo demanda vía Receiving API
+> (`GET /emails/receiving/{id}`) y adjuntos por `download_url`. Los correos
+> quedan almacenados en Resend aunque el webhook caiga (replay vía reprocess).
+> Decisión arquitectónica: **EXTEND de este módulo** (no módulo nuevo) — la API
+> key Resend cifrada, `tenant_email_domains`, el endpoint webhook y las
+> supresiones ya viven aquí, y las fronteras de módulo impiden compartirlos con
+> un módulo nuevo. El envío sigue por Resend sin cambios: la recepción solo
+> añade registros MX (grey-cloud en Cloudflare — el proxy no cubre SMTP);
+> SPF/DKIM/DMARC de envío intactos. Implementación: migración 0026 +
+> `inbound.service.js` / `inbound-attachments.service.js` /
+> `reply-address.service.js` + `inbound-admin.routes.js`.
+>
+> Límites de tamaño de mensaje/adjunto y política de retención en Resend **no
+> documentados públicamente** — confirmar con su soporte antes de fijar garantías.
+
+## 23. Email entrante — aprovisionamiento y dominios de recepción
+
+- 🔧 Recepción vía dominio gestionado por Resend (`<id>.resend.app`) para dev/staging — usable configurando `inbound_domain`; el alta del dominio en Resend se hace en su dashboard (sin API de aprovisionamiento en plataforma).
+- 🔧 Dominio de recepción propio con MX — subdominio dedicado recomendado (p. ej. `reply.hulkstein.com`), registro grey-cloud (DNS only) en Cloudflare; el DNS se publica manualmente, la plataforma solo consume.
+- ❌ Dominios de recepción por tenant: extensión de `tenant_email_domains` (hoy solo envío) con registros MX en `dns_records` + verificación propia del inbound.
+- ✅ Direcciones funcionales (`soporte@`, `leads@`, `facturas@`) y catch-all por dominio vía reglas `inbound_routes` (`match_type` exact/domain, CRUD staff).
+- ✅ Plus-addressing (`reply+<token>@…`) como espacio de direcciones de correlación — tokens hex (case-insensitive) en `inbound_reply_tokens`, TTL 90 días.
+- ✅ Config admin del módulo: 9 claves `inbound_*` en `/admin/config` (`enabled`, `domain`, `fallback_action`, `blocked/allowed_senders`, `attachment_max_bytes`, `attachment_allowed_types`, `rate_limit_per_sender_per_hour`, `retention_days`), caché 30s con invalidación al PATCH.
+- ✅ Dev-stub: `POST /admin/inbound/inject` corre el pipeline completo sobre un correo sintético (texto/html/headers/adjuntos base64 inline) sin pasar por Resend.
+
+## 24. Email entrante — ingestión (webhook + fetch de contenido)
+
+- ✅ `email.received` manejado en el webhook existente (`POST /webhooks/resend`); la dirección outbound (bounces/complaints) no se ve afectada.
+- ✅ Verificación **Svix HMAC** sobre el raw body cuando `resend_webhook_secret` es un `whsec_…` (raw body capturado con content-type parser encapsulado al contexto de webhooks — patrón splitpay); valor legacy = shared secret `x-webhook-secret`; sin secret = dev-stub.
+- ✅ Fetch del contenido completo (text/html/headers/message_id) vía Receiving API con la API key del módulo; stub sin key (sigue con los metadatos del webhook).
+- ✅ Persistencia en `platform_notifications.inbound_emails` (`provider_email_id` UNIQUE, FSM `received → fetched → routed | unrouted | archived | quarantined | failed`).
+- ✅ Idempotencia del webhook: redelivery de un correo ya procesado = no-op (`ON CONFLICT` + check de estado).
+- 🔧 Procesamiento dentro del request del webhook (no encolado): los errores se absorben (siempre 200) y el fetch añade latencia al request — suficiente para el volumen actual; cola dedicada si crece.
+- ✅ Replay manual: `POST /admin/inbound/:id/reprocess` resetea la fila y re-corre el pipeline (re-fetch desde Resend incluido).
+- ✅ Dead-letter: fallos marcan `failed` con `attempts`++ y `error`; visibles en la bandeja y re-procesables.
+
+## 25. Email entrante — adjuntos
+
+- ✅ Adjuntos vía el retrieve de la Receiving API (+ fallback al listado de attachments para obtener `download_url`).
+- ✅ Descarga en ingestión (no lazy — el `download_url` caduca) y persistencia en el bucket S3 compartido vía `@apphub/platform-sdk/storage` bajo `inbound/<emailId>/…`; metadatos en `inbound_attachments`, nunca bytes en Postgres ni filas en `platform_storage` (el SDK es el canal permitido).
+- ✅ Política configurable: allowlist de content-type (prefijos) y tamaño máximo por adjunto (`inbound_attachment_*`); fuera de política → fila `skipped` con motivo.
+- ❌ Escaneo antivirus/malware antes de exponer el adjunto (estado `quarantined` reservado a gates de remitente hoy).
+- ✅ Deduplicación por sha256: bytes idénticos reutilizan el `object_key` ya almacenado (firmas/logos repetidos en hilos largos).
+- ❌ Extracción de imágenes inline (`cid:`) y reescritura de referencias en `body_html` hacia keys de storage.
+- ✅ Aislamiento de fallos: un adjunto roto se registra `failed` y no pierde el mensaje ni el resto de adjuntos.
+
+## 26. Email entrante — enrutado a módulos de dominio
+
+- ✅ Tabla `inbound_routes(match_type, pattern, target_event, app_id, tenant_id, enabled)` con CRUD staff (`/admin/inbound-routes`); precedencia: dirección exacta > catch-all de dominio.
+- ✅ Evento genérico `email.inbound.received` publicado siempre que el correo se procesa (incl. auto-replies, flag `autoReply`); notifications **nunca** escribe en esquemas ajenos.
+- Consumidores:
+  - ✅ **Respuestas a inquiries** — el thank-you lleva Reply-To `reply+<token>@…`; la respuesta del usuario se reinyecta al timeline como activity `email_reply` (consumer en `platform/inquiries`, migración 0003) y notifications alerta al inbox del admin (`inquiry.reply_alert`, Reply-To = usuario para continuar el hilo). Sin inbound configurado se mantiene el comportamiento V1.
+  - ✅ **`leads@` → alta de lead** — consumer en `platform/leads` para `lead.email.received` (`source: 'email-inbound'`, asunto+texto como mensaje); cierra el ❌ "captura desde email entrante" de [leads.md §1](leads.md). Sin dedup de remitente (igual que el form; el rate-limit por remitente acota el abuso).
+  - ❌ **`soporte@` → ticket de chat soporte** — bloqueado: crear la conversación exige un `userId` y la resolución usuario-por-email pertenece a `platform/auth` (frontera de módulo); requiere un endpoint interno de lookup en auth. La regla puede apuntar ya a `chat.support.email.received` para cuando exista el consumer.
+  - ❌ **Respuesta por email a messaging buyer ↔ vendor** — bloqueado aguas arriba: `message.created` no tiene canal email saliente (el payload no porta emails — los posee auth), así que no hay correo del que responder.
+  - ✅ **Buzones operativos** (`facturas@`, DMARC `rua@`) — archivado sin evento de dominio vía fallback o regla domain sin consumer.
+- 🔧 Fallback configurable cuando ninguna regla matchea: `archive` (status `unrouted`, visible en bandeja) o `discard` (status `archived`); sin reenvío automático a buzón staff.
+- ❌ Forward a dirección externa (capacidad nativa de Resend) como acción de ruta.
+
+## 27. Email entrante — correlación y threading
+
+- ✅ Correlación vía plus-addressing: `mintReplyAddress({ targetEvent, context, appId, tenantId })` acuña `reply+<token>@<inbound_domain>` (o null si inbound está apagado — los callers conservan su Reply-To anterior); el token resuelve a evento + contexto y stampa el tenant en el enrutado.
+- 🔧 Correlación por `In-Reply-To`/`References`: los msg-id se cotejan (enteros y sin dominio) contra `send_log.provider_message_id` (best-effort — el Message-ID SMTP real del envío no se persiste); el hit viaja en `payload.correlation`.
+- ✅ Limpieza de quoted text y firmas (`extractReply`: marcadores Gmail es/en/fr, Outlook, separador RFC 3676, líneas `>`); el evento lleva `text` (limpio) + `rawText`.
+- ✅ Detección de auto-respuestas (`Auto-Submitted`, `X-Autoreply`, `Precedence`, `List-Id/Unsubscribe`, remitentes daemon/no-reply, asuntos OOO) → archivado sin eventos de dominio.
+- ❌ Agrupación de correos del mismo thread bajo una conversación (vista hilo en consola).
+
+## 28. Email entrante — seguridad y anti-abuso
+
+- ✅ Verificación de firma del webhook: Svix HMAC completo (raw body, tolerancia 5 min, multi-firma) cuando el secret es `whsec_…`; shared secret legacy en caso contrario; dev-stub sin secret. (Cerrado el cross-cutting §22.)
+- 🔧 Veredicto de autenticación del remitente: el header `Authentication-Results` se persiste en `inbound_emails.auth_results` cuando Resend lo expone; sin parsing del veredicto SPF/DKIM/DMARC ni gate sobre él.
+- ❌ Anti-spam con scoring/heurísticas propias (el estado `quarantined` existe; hoy solo lo alimentan los gates de remitente).
+- 🔧 Blocklist/allowlist de remitentes y dominios: config CSV global (`inbound_blocked_senders` / `inbound_allowed_senders`); sin granularidad por tenant.
+- ✅ Protección contra mail loops: auto-replies nunca disparan eventos de dominio + cuarentena `self_loop` cuando el remitente es nuestro propio `sender_email`.
+- ✅ Rate-limit de ingestión por remitente (Redis, default 30/h, configurable; fail-open ante caída de Redis) → cuarentena `rate_limited`.
+- ❌ Límite máximo de mensaje verificado contra Resend y documentado (no público — pendiente de su soporte).
+
+## 29. Email entrante — GDPR, retención y observabilidad
+
+- ✅ Retención configurable: job `notifications-inbound-purge` (05:15) publica `notifications.inbound.purge_due` (el scheduler no toca S3 — misma filosofía que storage-retention-purge); el consumer del módulo borra filas (cascade a adjuntos), objetos S3 y reply tokens expirados. Precedencia: config `inbound_retention_days` → env `NOTIFICATIONS_INBOUND_RETENTION_DAYS` (365).
+- ❌ Borrado del correo en Resend tras ingestión correcta (minimización de copias en el proveedor).
+- ✅ Derecho de supresión GDPR: `DELETE /admin/inbound/by-sender?email=` borra todos los correos de un remitente + objetos S3 asociados.
+- 🔧 Bandeja staff: API completa (`GET /admin/inbound` con filtros status/from/to, detalle con URLs de descarga firmadas, reprocess); sin vista en console todavía.
+- 🔧 Auditoría de enrutado: cada fila lleva `route_id`/`routed_event`/`status`/`quarantine_reason`/`error`; sin tabla de log dedicada por decisión.
+- ❌ Métricas agregadas (volumen por dirección/regla, tasa de fallo de fetch, latencia webhook→routed) en consola.

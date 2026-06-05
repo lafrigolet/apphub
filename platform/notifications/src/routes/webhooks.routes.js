@@ -10,7 +10,7 @@
 // processing is best-effort and idempotent (see webhook.service.js).
 import { z } from 'zod'
 import {
-  verifyResendSecret, handleResendEvent,
+  verifyResendWebhook, handleResendEvent,
   verifyTwilioSignature, handleTwilioStatus,
 } from '../services/webhook.service.js'
 import { logger } from '../lib/logger.js'
@@ -26,14 +26,17 @@ const resendBody = z.object({
 
 export async function webhooksRoutes(fastify) {
   fastify.post('/resend', {
-    config: { public: true },
+    config: { public: true, rawBody: true },
     schema: {
       tags,
       summary: 'Resend delivery webhook (bounce/complaint → suppression, delivery_status stamp)',
       body: resendBody,
     },
   }, async (req, reply) => {
-    const ok = await verifyResendSecret(req.headers['x-webhook-secret'])
+    const ok = await verifyResendWebhook({
+      rawBody: req.rawBody ?? JSON.stringify(req.body ?? {}),
+      headers: req.headers,
+    })
     if (!ok) return reply.code(401).send({ error: { code: 'INVALID_SIGNATURE', message: 'bad webhook secret' } })
     const event = resendBody.parse(req.body ?? {})
     try {

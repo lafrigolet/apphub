@@ -121,6 +121,43 @@ The object UUID is unguessable and the lookup still runs under RLS with the
 appId/tenantId from the query. Every other kind stays authenticated-only;
 never flag a kind `public` if its objects can contain user data.
 
+## Provider webhooks (signed, raw body)
+
+Provider-signed webhooks (`config: { public: true }`) verify the provider's
+signature, never a JWT. When the scheme signs the exact request bytes (Stripe,
+Svix/Resend), capture the raw body with a content-type parser **encapsulated to
+the webhook routes' register context** — never globally:
+
+```js
+await app.register(async (scope) => {
+  scope.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+    if (req.routeOptions?.config?.rawBody) req.rawBody = body
+    try { done(null, body.length ? JSON.parse(body.toString()) : {}) }
+    catch (err) { err.statusCode = 400; done(err, undefined) }
+  })
+  await scope.register(webhooksRoutes, { prefix: '…/webhooks' })
+})
+```
+
+See `platform/splitpay/src/index.js` (Stripe) and
+`platform/notifications/src/index.js` (Resend/Svix). Webhook routes always
+reply 200 after passing the signature gate — processing errors are absorbed
+and logged so the provider doesn't retry-storm; the failure lands in the
+module's own dead-letter state instead.
+
+## Inbound email (reply tokens)
+
+When an outbound email should have its replies re-ingested into a platform
+conversation, mint a plus-addressed Reply-To with
+`mintReplyAddress({ targetEvent, context, appId, tenantId })` from
+`platform/notifications` (`reply-address.service.js`). It returns
+`reply+<token>@<inbound_domain>` or **null** when inbound is disabled — always
+fall back to the previous Reply-To on null. Tokens are lowercase hex (email
+local-parts are case-insensitive in practice; never put case-sensitive tokens
+in an address). Consumers subscribe to the token's `targetEvent` on
+`platform.events`; the payload carries `text` (quoted history stripped),
+`rawText`, attachment storage keys and the token's `context`.
+
 ## Notification senders
 
 Every sender in `platform/notifications` (email/SMS/push) must record each

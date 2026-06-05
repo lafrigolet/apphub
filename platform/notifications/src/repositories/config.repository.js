@@ -22,6 +22,17 @@ const PLAIN_KEYS  = [
   'apns_key_id',
   'apns_bundle_id',
   'apns_environment',
+  // Inbound email (§23–§29) — all plain values; the API key is the shared
+  // resend_api_key above.
+  'inbound_enabled',
+  'inbound_domain',
+  'inbound_fallback_action',
+  'inbound_blocked_senders',
+  'inbound_allowed_senders',
+  'inbound_attachment_max_bytes',
+  'inbound_attachment_allowed_types',
+  'inbound_rate_limit_per_sender_per_hour',
+  'inbound_retention_days',
 ]
 
 export const KEYS = [...SECRET_KEYS, ...PLAIN_KEYS]

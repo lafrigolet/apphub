@@ -377,7 +377,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 |---|---|---|---|---|
 | Auth (email/password + OAuth) | `platform/auth` | `platform_auth` | `svc_platform_auth` | ✅ Implemented |
 | Stripe payments | `platform/payments` | `platform_payments` | `svc_platform_payments` | 🔧 Skeleton |
-| Email / push notifications | `platform/notifications` | `platform_notifications` | `svc_platform_notifications` | ✅ Implemented |
+| Email / SMS / push notifications + email entrante (Resend Inbound: webhook `email.received`, adjuntos → S3, enrutado por reply-tokens/reglas a eventos de dominio) | `platform/notifications` | `platform_notifications` | `svc_platform_notifications` | ✅ Implemented |
 | App & tenant registry | `platform/tenant-config` | `platform_tenants` | `svc_platform_tenants` | ✅ Implemented |
 | Stripe Connect (split payments) | `platform/splitpay` | `splitpay_core` | `splitpay` (shared) | ✅ Implemented |
 | Object storage (S3/MinIO presigned URLs) | `platform/storage` | `platform_storage` | `svc_platform_storage` | ✅ Implemented |
@@ -453,6 +453,7 @@ the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
 | `scheduler-runs-purge` | `0 4 * * *` | delete scheduler run history past `SCHEDULER_RUNS_RETENTION_DAYS` |
 | `auth-token-purge` | `30 3 * * *` | delete expired magic-links / password-resets / activation tokens |
 | `notification-send-log-purge` | `0 5 * * *` | delete send_log entries past `NOTIFICATIONS_SEND_LOG_RETENTION_DAYS` |
+| `notifications-inbound-purge` | `15 5 * * *` | publish `notifications.inbound.purge_due` (inbound emails + adjuntos S3 + reply tokens past retention) |
 | `messaging-sla` | `*/15 * * * *` | publish `messaging.vendor.sla_breached` (no vendor first reply within SLA) |
 | `telehealth-expire-stale` | `* * * * *` | flip stale telehealth rooms to expired + publish `telehealth.room.expired` |
 

@@ -7,6 +7,47 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **`platform/notifications` — email entrante (Resend Inbound), §23–§29 del
+  catálogo de casos de uso.** La plataforma ya *recibe* correo manteniendo el
+  envío por Resend sin cambios (la recepción solo añade MX; SPF/DKIM/DMARC de
+  envío intactos). Decisión: EXTEND de `platform/notifications` (la API key
+  Resend, `tenant_email_domains`, el webhook y las supresiones ya viven ahí).
+  Piezas:
+  - *Webhook + Svix*: `POST /webhooks/resend` captura raw body (parser
+    encapsulado, patrón splitpay) y verifica **Svix HMAC** completo cuando
+    `resend_webhook_secret` es un `whsec_…` (tolerancia 5 min, multi-firma);
+    valor legacy = shared secret `x-webhook-secret` como antes. Cierra el
+    cross-cutting §22. La 0026 también corrige el CHECK de config que nunca
+    incluyó `resend_webhook_secret`.
+  - *Pipeline* (`inbound.service.js`, migración 0026): `email.received` →
+    upsert idempotente (`provider_email_id` UNIQUE) → fetch vía Receiving API
+    (`GET /emails/receiving/{id}`) → FSM `received → fetched → routed |
+    unrouted | archived | quarantined | failed` con reprocess staff.
+  - *Adjuntos*: descarga inmediata por `download_url`, allowlist de
+    content-type + tamaño máx (config), dedup sha256, bytes en el bucket S3
+    compartido (`inbound/<emailId>/…` vía `@apphub/platform-sdk/storage`),
+    metadatos en `inbound_attachments`.
+  - *Enrutado*: reply tokens plus-addressed (`reply+<token>@dominio`,
+    `mintReplyAddress()`) > reglas `inbound_routes` (exacta > dominio) >
+    fallback configurable; siempre publica `email.inbound.received`.
+    Correlación `In-Reply-To`/`References` ↔ `send_log.provider_message_id`.
+  - *Seguridad*: anti mail-loop (detección de auto-replies + self-loop),
+    block/allowlist de remitentes, rate-limit por remitente (Redis, fail-open).
+  - *Consumidores*: `platform/inquiries` reinyecta la respuesta del usuario al
+    timeline (`inquiry.reply.received` → activity `email_reply`, migración
+    0003) y notifications alerta al inbox admin (`inquiry.reply_alert`);
+    `platform/leads` crea lead desde `lead.email.received` (cierra "captura
+    desde email entrante" de leads.md §1). Chat/messaging documentados como
+    bloqueados (resolución de usuario por email pertenece a auth).
+  - *Admin/GDPR*: `/admin/inbound` (bandeja, detalle con URLs firmadas,
+    reprocess, inject dev-stub), `/admin/inbound-routes` CRUD, `DELETE
+    /admin/inbound/by-sender` (borra filas + objetos S3); 9 claves
+    `inbound_*` nuevas en `/admin/config`.
+  - *Scheduler*: job `notifications-inbound-purge` (05:15) publica
+    `notifications.inbound.purge_due`; notifications purga filas + objetos +
+    tokens expirados (retención: config `inbound_retention_days` →
+    `NOTIFICATIONS_INBOUND_RETENTION_DAYS`, default 365).
+  - ~95 tests nuevos; suites de notifications/inquiries/leads/scheduler verdes.
 - **`apps/aulavera` — sección "Grafocaligrafía Racional" (multi-página, marca
   propia).** Integración del contenido de grafocaligrafiaracional.com (Juanjo
   Vara, discípulo de Vicente Lledó Parrés) como sección con identidad

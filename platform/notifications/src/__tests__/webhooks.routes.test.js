@@ -8,7 +8,7 @@ vi.mock('../lib/logger.js', () => ({
 }))
 
 const wh = vi.hoisted(() => ({
-  verifyResendSecret: vi.fn(), handleResendEvent: vi.fn(),
+  verifyResendWebhook: vi.fn(), handleResendEvent: vi.fn(),
   verifyTwilioSignature: vi.fn(), handleTwilioStatus: vi.fn(),
 }))
 vi.mock('../services/webhook.service.js', () => wh)
@@ -49,7 +49,7 @@ async function buildApp() {
 let app
 beforeEach(async () => {
   vi.clearAllMocks()
-  wh.verifyResendSecret.mockResolvedValue(true)
+  wh.verifyResendWebhook.mockResolvedValue(true)
   wh.handleResendEvent.mockResolvedValue({ handled: true })
   wh.verifyTwilioSignature.mockResolvedValue(true)
   wh.handleTwilioStatus.mockResolvedValue({ handled: true })
@@ -67,7 +67,7 @@ describe('POST /resend', () => {
     expect(wh.handleResendEvent).toHaveBeenCalled()
   })
   it('401 when the secret check fails', async () => {
-    wh.verifyResendSecret.mockResolvedValue(false)
+    wh.verifyResendWebhook.mockResolvedValue(false)
     const res = await app.inject({ method: 'POST', url: '/v1/notifications/webhooks/resend', headers: J, payload: { type: 'email.bounced' } })
     expect(res.statusCode).toBe(401)
     expect(wh.handleResendEvent).not.toHaveBeenCalled()

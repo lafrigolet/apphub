@@ -20,7 +20,7 @@ Cada fichero sigue la misma estructura (plantilla canónica: [`leads.md`](leads.
 
 - [auth](auth.md) — autenticación e identidad (login, OAuth, JWT, roles, MFA, SSO…)
 - [payments](payments.md) — pagos Stripe (🔧 skeleton)
-- [notifications](notifications.md) — email / SMS / push / in-app
+- [notifications](notifications.md) — email / SMS / push / in-app + email entrante (Resend Inbound, §23–§29)
 - [tenant-config](tenant-config.md) — registro de apps y tenants, feature flags
 - [splitpay](splitpay.md) — Stripe Connect / split payments
 - [storage](storage.md) — objetos S3/MinIO, presigned URLs

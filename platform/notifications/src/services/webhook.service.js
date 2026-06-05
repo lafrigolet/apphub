@@ -21,12 +21,13 @@ import { suppress } from './suppression.service.js'
 // carries email_id (the provider message id we stored) and to (recipient[s]).
 //
 // Verification: Resend signs via Svix (svix-id/timestamp/signature headers).
-// We don't pull in the svix SDK; instead, when staff configure
-// `resend_webhook_secret`, we require an exact match in the `x-webhook-secret`
-// header (a simple shared-secret guard). When no secret is configured we accept
-// (dev-stub) — same philosophy as the email/SMS dev-stubs. Full Svix HMAC
-// verification needs the raw request body, which is captured at the
-// platform-core layer (see cross-cutting note in notifications.md).
+// When staff configure `resend_webhook_secret` with a Svix signing secret
+// (`whsec_…`, as shown in the Resend dashboard) we verify the full Svix HMAC
+// over the raw request body (captured by the module's content-type parser —
+// see index.js, config.rawBody). A legacy plain value keeps the old behaviour:
+// exact match against the `x-webhook-secret` header (simple shared secret).
+// When no secret is configured we accept (dev-stub) — same philosophy as the
+// email/SMS dev-stubs.
 const RESEND_BOUNCE_TYPES = new Set(['email.bounced'])
 const RESEND_COMPLAINT_TYPES = new Set(['email.complained'])
 const RESEND_DELIVERY_STATUS = {
@@ -52,6 +53,64 @@ export async function verifyResendSecret(headerSecret) {
   return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
+// Max allowed clock skew between the svix-timestamp header and now. Svix's own
+// SDK uses 5 minutes; replays older than this are rejected even with a valid
+// signature.
+const SVIX_TOLERANCE_SECONDS = 5 * 60
+
+// Pure Svix HMAC check (exported for tests). signedContent is
+// `${svix-id}.${svix-timestamp}.${rawBody}`, keyed by the base64-decoded
+// portion of the `whsec_…` secret; the svix-signature header carries one or
+// more space-delimited `v1,<base64>` entries (key rotation).
+export function computeSvixSignature(secret, { id, timestamp, rawBody }) {
+  const key = Buffer.from(String(secret).slice('whsec_'.length), 'base64')
+  const signedContent = `${id}.${timestamp}.${rawBody}`
+  return crypto.createHmac('sha256', key).update(signedContent, 'utf-8').digest('base64')
+}
+
+export function verifySvixSignature(secret, { id, timestamp, signature, rawBody }, nowMs = Date.now()) {
+  if (!id || !timestamp || !signature || rawBody == null) return false
+  const ts = Number(timestamp)
+  if (!Number.isFinite(ts) || Math.abs(nowMs / 1000 - ts) > SVIX_TOLERANCE_SECONDS) return false
+  const expected = computeSvixSignature(secret, { id, timestamp, rawBody })
+  const a = Buffer.from(expected)
+  // Header may list several versions/keys: "v1,abc v1,def".
+  for (const part of String(signature).split(' ')) {
+    const [version, sig] = part.split(',')
+    if (version !== 'v1' || !sig) continue
+    const b = Buffer.from(sig)
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return true
+  }
+  return false
+}
+
+// Route-facing verification: picks Svix HMAC vs legacy shared secret based on
+// the configured value's prefix.
+export async function verifyResendWebhook({ rawBody, headers }) {
+  const client = await pool.connect()
+  let configured
+  try {
+    configured = await configRepo.getValue(client, 'resend_webhook_secret')
+  } finally {
+    client.release()
+  }
+  if (!configured) return true // dev-stub: no secret set → accept
+  if (String(configured).startsWith('whsec_')) {
+    return verifySvixSignature(configured, {
+      id: headers['svix-id'],
+      timestamp: headers['svix-timestamp'],
+      signature: headers['svix-signature'],
+      rawBody,
+    })
+  }
+  // Legacy shared-secret guard.
+  const headerSecret = headers['x-webhook-secret']
+  if (!headerSecret) return false
+  const a = Buffer.from(String(headerSecret))
+  const b = Buffer.from(String(configured))
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
 function recipientsOf(data) {
   const to = data?.to
   if (Array.isArray(to)) return to
@@ -63,6 +122,14 @@ export async function handleResendEvent(event) {
   const type = event?.type
   if (!type) return { ignored: true }
   const data = event.data ?? {}
+
+  // Inbound mail (§24): same webhook endpoint, different direction — the
+  // payload only carries metadata; the pipeline fetches the body on demand.
+  if (type === 'email.received') {
+    const { handleInboundReceived } = await import('./inbound.service.js')
+    return handleInboundReceived(data)
+  }
+
   const providerMessageId = data.email_id ?? data.id ?? null
 
   // Suppress hard bounces and complaints so we never contact the address again.

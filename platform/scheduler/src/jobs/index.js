@@ -18,6 +18,7 @@ import * as leadRetentionPurge               from './lead-retention-purge.job.js
 import * as schedulerRunsPurge               from './scheduler-runs-purge.job.js'
 import * as authTokenPurge                    from './auth-token-purge.job.js'
 import * as notificationSendLogPurge          from './notification-send-log-purge.job.js'
+import * as notificationsInboundPurge         from './notifications-inbound-purge.job.js'
 import * as messagingSla                       from './messaging-sla.job.js'
 import * as telehealthExpireStale              from './telehealth-expire-stale.job.js'
 
@@ -47,6 +48,7 @@ export const jobs = [
   { mod: schedulerRunsPurge,           enabled: env.JOB_SCHEDULER_RUNS_PURGE_ENABLED },
   { mod: authTokenPurge,               enabled: env.JOB_AUTH_TOKEN_PURGE_ENABLED },
   { mod: notificationSendLogPurge,     enabled: env.JOB_NOTIFICATION_SEND_LOG_PURGE_ENABLED },
+  { mod: notificationsInboundPurge,    enabled: env.JOB_NOTIFICATIONS_INBOUND_PURGE_ENABLED },
   { mod: messagingSla,                 enabled: env.JOB_MESSAGING_SLA_ENABLED },
   { mod: telehealthExpireStale,        enabled: env.JOB_TELEHEALTH_EXPIRE_STALE_ENABLED },
 ].map((j) => ({

@@ -15,7 +15,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Alta desde formulario de landing público (`source: 'landing-modal'`, `'demo-cta'`…)
 - 🔧 `source` libre — falta vocabulario controlado / catálogo de fuentes.
 - ❌ Múltiples formularios/campañas con esquemas de campos distintos (form builder).
-- ❌ Captura desde otros canales: chat/widget, llamada entrante, email entrante (`leads@…`), WhatsApp, evento/feria, webinar.
+- 🔧 Captura desde otros canales: **email entrante ✅** (`lead.email.received` desde `platform/notifications` inbound — regla `leads@…` → lead con `source: 'email-inbound'`, asunto+texto como mensaje, rate-limit por remitente aguas arriba); chat/widget, llamada entrante, WhatsApp, evento/feria, webinar siguen ❌.
 - ❌ Importación masiva (CSV/XLSX) con mapeo de columnas y dry-run.
 - ❌ API/SDK pública para que apps externas o partners empujen leads.
 - 🔧 Atribución de origen por `app_id` en el alta (la captura sigue siendo global, sin aislamiento por tenant).

@@ -50,6 +50,22 @@ export async function purgeOlderThan(client, { olderThanDays }) {
   return rowCount
 }
 
+// Inbound correlation (§27): an incoming reply's In-Reply-To / References may
+// embed the provider message id of one of our sends. Candidates are the
+// cleaned message-id tokens; first hit wins.
+export async function findByProviderMessageIds(client, ids) {
+  if (!ids?.length) return null
+  const { rows } = await client.query(
+    `SELECT id, app_id, tenant_id, user_id, channel, template, recipient, provider_message_id, sent_at
+     FROM platform_notifications.send_log
+     WHERE provider_message_id = ANY ($1::text[])
+     ORDER BY sent_at DESC
+     LIMIT 1`,
+    [ids],
+  )
+  return rows[0] ?? null
+}
+
 export async function list(client, { channel, template, status, limit = 100, offset = 0 } = {}) {
   const where = []
   const params = []

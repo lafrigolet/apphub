@@ -612,5 +612,29 @@ export async function sendInquiryUserThankYou(to, vars, locale = 'es') {
              `<p>Referencia: <code>${v.reference}</code></p>` +
              `<p>Gracias por escribirnos.</p>`,
   }, locale)
-  await send({ to, ...tmpl, replyTo: vars.replyToEmail ?? vars.contactInboxEmail })
+  // replyToOverride: plus-addressed reply token (inbound §26/§27) — the user's
+  // reply is then re-ingested into the inquiry thread instead of landing only
+  // in the admin's personal inbox.
+  await send({ to, ...tmpl, replyTo: vars.replyToOverride ?? vars.replyToEmail ?? vars.contactInboxEmail })
+}
+
+// Inbound bridge (§26): a user replied by email to their inquiry confirmation.
+// The reply was captured in-platform; alert the tenant's admin inbox with the
+// fresh text. Reply-To = the user, so the admin can answer directly as before.
+export async function sendInquiryReplyAlert(to, vars, locale = 'es') {
+  const v = {
+    contactName: vars.contactName ?? vars.fromEmail ?? '',
+    fromEmail:   vars.fromEmail ?? '',
+    reference:   vars.reference ?? '',
+    message:     vars.message ?? '',
+  }
+  const tmpl = await compose('inquiry.reply_alert', v, {
+    subject: `Nueva respuesta en la consulta ${v.reference}`,
+    text:    `${v.contactName} <${v.fromEmail}> ha respondido a la consulta ${v.reference}:\n\n` +
+             `${v.message}\n\n--\nReferencia: ${v.reference}`,
+    html:    `<p><strong>${v.contactName}</strong> &lt;${v.fromEmail}&gt; ha respondido a la consulta <code>${v.reference}</code>:</p>` +
+             `<blockquote>${v.message}</blockquote>` +
+             `<p style="color:#666;font-size:12px">Ref: ${v.reference}</p>`,
+  }, locale)
+  await send({ to, ...tmpl, replyTo: vars.fromEmail })
 }
