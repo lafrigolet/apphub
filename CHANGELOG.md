@@ -6,6 +6,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+- **`turbo.json` — warnings "no output files found" en `test:unit`.** La tarea
+  declaraba `outputs: ["coverage/**"]` pero `vitest run` (sin `--coverage`) no
+  genera ese directorio, así que turbo avisaba en cada paquete con cache miss.
+  Ahora `outputs: []` (la cobertura vive en `test:coverage`) y `vitest.config*`
+  entra en `inputs` para invalidar la caché al cambiar la config de vitest.
+
 ### Added
 - **`platform/notifications` — email entrante (Resend Inbound), §23–§29 del
   catálogo de casos de uso.** La plataforma ya *recibe* correo manteniendo el

@@ -13,8 +13,8 @@
     },
     "test:unit": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tests/**"],
-      "outputs": ["coverage/**"]
+      "inputs": ["src/**", "tests/**", "vitest.config*"],
+      "outputs": []
     },
     "test:integration": {
       "cache": false
