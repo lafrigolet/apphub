@@ -1,0 +1,41 @@
+{
+  "name": "@apphub/platform-tpv",
+  "version": "0.1.0",
+  "description": "Platform-tpv monolith — point-of-sale operations (devices, cash sessions, receipts, credit notes, X/Z reports, Veri*Factu feed)",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./server": "./src/server.js"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node src/lib/migrate.js",
+    "test:unit": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src",
+    "clean": "rm -rf coverage"
+  },
+  "dependencies": {
+    "@apphub/platform-sdk": "workspace:*",
+    "fastify": "^5.0.0",
+    "@fastify/helmet": "^12.0.0",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "@fastify/swagger": "^9.0.0",
+    "@fastify/swagger-ui": "^5.0.0",
+    "fastify-type-provider-zod": "^4.0.0",
+    "pg": "^8.12.0",
+    "ioredis": "^5.4.1",
+    "zod": "^3.23.0",
+    "pino": "^9.3.0",
+    "pino-pretty": "^11.2.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "fastify-plugin": "^5.0.0"
+  }
+}

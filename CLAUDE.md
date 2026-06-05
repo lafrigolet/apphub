@@ -19,12 +19,13 @@ app-specific services under `apps/*/` keep their own containers.
 
 ```
 apphub/
-├── platform/                  # Platform-side services. Five monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments + platform-scheduler).
+├── platform/                  # Platform-side services. Six monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments + platform-scheduler + platform-tpv).
 │   ├── core/                  # platform-core orchestrator — port 3000 (auth/notifications/payments/tenant-config/splitpay)
 │   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes/catalog/basket)
 │   ├── restaurant/            # platform-restaurant orchestrator — port 3200 (menu/reservations/floor-plan/kds/pos/delivery-dispatch)
 │   ├── appointments/          # platform-appointments orchestrator — port 3300 (services/resources/bookings/availability/intake-forms/telehealth/packages/practitioner-payouts)
 │   ├── scheduler/             # platform-scheduler — port 3400, single-runner cron for all 4 monoliths
+│   ├── tpv/                   # TPV module (in platform-tpv, port 3500) — schema platform_tpv; devices, cash sessions, receipts, credit notes, X/Z reports, Veri*Factu feed (ADR 015)
 │   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
 │   ├── payments/              # Payments module (in platform-core) — schema platform_payments
 │   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
@@ -455,6 +456,17 @@ the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
 | `notification-send-log-purge` | `0 5 * * *` | delete send_log entries past `NOTIFICATIONS_SEND_LOG_RETENTION_DAYS` |
 | `messaging-sla` | `*/15 * * * *` | publish `messaging.vendor.sla_breached` (no vendor first reply within SLA) |
 | `telehealth-expire-stale` | `* * * * *` | flip stale telehealth rooms to expired + publish `telehealth.room.expired` |
+| `tpv-session-autoclose` | `*/15 * * * *` | force-close TPV cash sessions open beyond the tenant autoclose window + publish `tpv.session.force_closed` |
+
+### platform-tpv (port 3500) — point-of-sale operations
+
+| Capability | Module | Schema | DB role | Status |
+|---|---|---|---|---|
+| TPV (terminal devices, cash sessions/arqueo, cash movements, gap-free sequential receipts + full invoices + simplified→invoice conversion, credit notes with manager authorization, X/Z reports, period aggregates + CSV export, per-tenant fiscal issuer settings, Veri*Factu event feed with async QR) | `platform/tpv` | `platform_tpv` | `svc_platform_tpv` | ✅ Implemented ([ADR 015](docs/adr/015-platform-tpv-monolith.md)) |
+
+The bill engine (bills, items, splits, tips, mixed payments) stays in `platform/pos`
+(platform-restaurant) — generic despite its container; `platform/tpv` consumes its
+events (`pos.bill.paid`, `pos.bill.cancelled`) and adds the till/fiscal layer on top.
 
 ### Planned
 

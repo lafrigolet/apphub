@@ -219,12 +219,25 @@ export async function payBill(ctx, billId, payment) {
       await publish({
         type: 'pos.bill.paid',
         payload: {
-          appId: ctx.appId, tenantId: ctx.tenantId, billId,
+          appId: ctx.appId, tenantId: ctx.tenantId, subTenantId: ctx.subTenantId ?? null, billId,
           totalCents: Number(updated.total_cents), tipCents: Number(updated.tip_cents),
-          tableId: updated.table_id,
+          // desglose fiscal/caja para consumidores tipo platform/tpv (ADR 015):
+          // sin métodos de pago ni precios de línea no hay imputación de
+          // efectivo ni snapshot de recibo posible.
+          subtotalCents: Number(updated.subtotal_cents), taxCents: Number(updated.tax_cents),
+          currency: updated.currency,
+          metadata: updated.metadata ?? {},          // el frontend TPV viaja deviceId aquí
+          payments: updated.payments.map((p) => ({
+            method: p.method, amountCents: Number(p.amount_cents),
+            tipCents: Number(p.tip_cents), externalRef: p.external_ref ?? null,
+          })),
+          tableId: updated.table_id, tableCode: updated.table_code ?? null,
           // also fire kitchen tickets if they hadn't been fired earlier (dine-in flow)
           orderId: billId, // pos bills act as their own order id for dine-in
-          items: updated.items.map((i) => ({ sku: i.sku, name: i.name, qty: i.qty, course: i.course, modifiers: i.modifiers })),
+          items: updated.items.map((i) => ({
+            sku: i.sku, name: i.name, qty: i.qty, course: i.course, modifiers: i.modifiers,
+            unitPriceCents: Number(i.unit_price_cents),
+          })),
         },
       })
     }

@@ -98,7 +98,9 @@ export function crearRegistro(scope, input) {
   return tx(scope, async (c) => {
     const tipo = input.tipo ?? 'alta'
     const cfg = await repo.getConfig(c)
-    const idEmisor = cfg?.nif_obligado ?? input.clienteNif
+    // idEmisor explícito (p.ej. el emisor por-tenant que snapshotea
+    // platform/tpv en cada recibo) > NIF del obligado en config > fallback.
+    const idEmisor = input.idEmisor ?? cfg?.nif_obligado ?? input.clienteNif
 
     // ── num_serie: por serie (correlativo atómico) o explícito ──────────
     const numero = (await repo.maxNumero(c)) + 1 // posición en la cadena del tenant
@@ -157,6 +159,7 @@ export function crearRegistro(scope, input) {
     return {
       serie: row.num_serie, cliente: row.cliente_nombre, fecha: row.fecha_expedicion,
       total: row.total_display, estado: row.estado_remision, huella: row.huella,
+      qrUrl: row.qr_url, numero: row.numero,
     }
   })
 }

@@ -36,6 +36,9 @@ CREATE SCHEMA IF NOT EXISTS platform_practitioner_payouts;
 -- platform-scheduler schema
 CREATE SCHEMA IF NOT EXISTS platform_scheduler;
 
+-- platform-tpv schema (point-of-sale operations, ADR 015)
+CREATE SCHEMA IF NOT EXISTS platform_tpv;
+
 -- platform-core storage module schema
 CREATE SCHEMA IF NOT EXISTS platform_storage;
 
@@ -144,6 +147,11 @@ BEGIN
     CREATE ROLE svc_platform_scheduler LOGIN PASSWORD 'platform_scheduler_secret';
   END IF;
 
+  -- platform-tpv role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_tpv') THEN
+    CREATE ROLE svc_platform_tpv LOGIN PASSWORD 'platform_tpv_secret';
+  END IF;
+
   -- platform-core storage module role
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_storage') THEN
     CREATE ROLE svc_platform_storage LOGIN PASSWORD 'platform_storage_secret';
@@ -211,6 +219,9 @@ GRANT USAGE ON SCHEMA platform_practitioner_payouts TO svc_platform_practitioner
 
 -- USAGE grants (platform-scheduler)
 GRANT USAGE ON SCHEMA platform_scheduler            TO svc_platform_scheduler;
+
+-- USAGE grants (platform-tpv)
+GRANT USAGE ON SCHEMA platform_tpv                  TO svc_platform_tpv;
 
 -- USAGE grants (platform-core storage module)
 GRANT USAGE ON SCHEMA platform_storage              TO svc_platform_storage;
@@ -310,6 +321,14 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_practitioner_payouts
 -- DML default privs (platform-scheduler)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_scheduler
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_scheduler;
+
+-- DML default privs (platform-tpv)
+-- Nota: la migración 0001 del módulo REVOCA UPDATE/DELETE sobre las tablas
+-- de snapshot inmutable (receipts, receipt_lines, cash_movements, …).
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_tpv
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_tpv;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_tpv
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_tpv;
 
 -- DML default privs (platform-core storage)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_storage

@@ -8,6 +8,8 @@ Modelo de datos completo persistido en `platform_verifactu` (RLS por `app_id` + 
 
 Orden exacto de campos de la huella de **RegistroAlta blindado contra el VECTOR DE TEST OFICIAL de la AEAT** (ejemplo `89890001K / 12345678/G33` → `3C46…2F60`, `src/__tests__/huella.test.js` · "vector oficial AEAT").
 
+**Feed desde `platform/tpv` (ADR 015):** subscriber `services/tpv-events.handler.js` consume `tpv.receipt.issued` (→ registro de alta F1/F2 con `idEmisor` del emisor por-tenant del recibo) y `tpv.receipt.voided` (→ rectificativa R1 con importe negativo), y publica `verifactu.registro.created {receiptId|creditNoteId, numSerie, huella, qrPayload, qrDataUri}` (o `verifactu.registro.failed`) que tpv usa para completar el QR del documento async. `crearRegistro` acepta `input.idEmisor` explícito y devuelve `qrUrl`/`numero`.
+
 **Piezas stubbed / pendientes de specs AEAT:** firma XAdES (no implementada), WSDL/XSD oficiales del SOAP (namespaces ilustrativos), colas de remisión/reintentos/DLQ, cotejo externo contra la Sede AEAT, nivel de corrección de errores del QR, catálogo de tipos de evento (Orden HAC/1177/2024 no extraída de fuente oficial), vector oficial de RegistroAnulacion/RegistroEvento (el doc AEAT solo publica el ejemplo de alta).
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.

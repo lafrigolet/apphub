@@ -206,6 +206,10 @@ Eventos clave emitidos por el dominio dinero:
 | `platform/donations` | `donation.completed`, `donation.recurring.charged`, `donation.recurring.failed`, `donation.recurring.cancelled`, `donation.refunded`, `donation.certificate.ready` | tras reconciliar el webhook de splitpay | `platform/notifications` (emails al donante) + apps suscritas |
 | `platform/chat` | `chat.conversation.created`, `chat.message.created`, `chat.mention.created`, `chat.support.assigned`, `chat.message.reported`, `chat.support.sla_breached` | tras persistir la escritura correspondiente (los dos últimos los emite `platform-scheduler`) | `platform/notifications` (push al destinatario, vía `userId`→`push_devices`) |
 | `platform-scheduler` → `platform/chat` | `chat.scheduled.due` | cuando llega la hora de un mensaje programado | el consumidor de `platform/chat` entrega el mensaje (flip a `sent` + fan-out) |
+| `platform/pos` | `pos.bill.paid` (enriquecido: payments[], unitPriceCents, metadata.deviceId), `pos.bill.cancelled` | al pagarse/cancelarse una cuenta | `platform/kds` (comanda) + `platform/tpv` (billing fact + imputación de efectivo + auto-emisión) |
+| `platform/tpv` | `tpv.session.opened/closed/reopened`, `tpv.cash.moved`, `tpv.receipt.issued`, `tpv.receipt.voided`, `tpv.receipt.send_requested`, `tpv.zreport.generated` | operación de caja / emisión fiscal | `platform/verifactu` (registro encadenado + QR) · futuros: notifications (email recibo), inventory (restock) |
+| `platform/verifactu` | `verifactu.registro.created`, `verifactu.registro.failed` | tras encadenar (o fallar) el registro de facturación | `platform/tpv` (completa QR/estado fiscal del recibo o abono) |
+| `platform-scheduler` → `platform/tpv` | `tpv.session.force_closed` | sesión de caja abierta más allá de la ventana de autocierre | apps/portales TPV (aviso al manager) |
 
 ### Real-time delivery (chat)
 
@@ -248,6 +252,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
 | `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
 | `platform-scheduler` | Single-runner cron for all 4 monoliths (9 jobs: hold purge, reminders, recurrence expander, expiry warnings, payout close, SLA breach, abandoned cart) | 3400 |
+| `platform-tpv` | Modular monolith: tpv (devices, cash sessions, gap-free receipts, credit notes, X/Z reports, Veri*Factu feed) — see [ADR 015](docs/adr/015-platform-tpv-monolith.md) | 3500 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
 | `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |
@@ -265,8 +270,9 @@ on boot, and shares the same Postgres + Redis instances. Cross-container communi
 by Redis events (`platform.events` channel) and shared `PLATFORM_JWT_SECRET` so JWTs are
 accepted on all of them. See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md)
 for the rationale, [ADR 005](docs/adr/005-platform-restaurant-monolith.md) for the
-restaurant split, and [ADR 006](docs/adr/006-platform-appointments-monolith.md) for the
-appointments split.
+restaurant split, [ADR 006](docs/adr/006-platform-appointments-monolith.md) for the
+appointments split, and [ADR 015](docs/adr/015-platform-tpv-monolith.md) for the
+point-of-sale split.
 
 ## Port allocation
 
@@ -280,7 +286,8 @@ appointments split.
 | 3200 | platform-restaurant |
 | 3300 | platform-appointments |
 | 3400 | platform-scheduler |
-| 3400+ | Future domain monoliths |
+| 3500 | platform-tpv |
+| 3500+ | Future domain monoliths |
 | 5173 | AppHub admin portal |
 | 5175 | Split Pay portal |
 | 5176 | Aikikan portal |
@@ -300,3 +307,10 @@ ADRs are stored in `docs/adr/`. Current decisions:
 | 006 | platform-appointments: fourth domain monolith for appointment / scheduling |
 | 007 | platform-scheduler: single-runner cron container for the 4 monoliths |
 | 008 | Object storage: MinIO + storage module of platform-core (presigned PUT/GET) |
+| 009 | reviews verified-purchase via HTTP loopback to orders |
+| 010 | Real-time in messaging deferred (polling now, WebSocket later) |
+| 011 | Calendar integrations (Google / Outlook two-way sync) deferred |
+| 012 | Tenant Console multi-host routing |
+| 013 | App architecture: monolith per app + unified schema naming |
+| 014 | chat module + the platform's first WebSocket gateway |
+| 015 | platform-tpv: fifth domain monolith for point-of-sale operations |

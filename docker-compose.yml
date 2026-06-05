@@ -318,6 +318,34 @@ services:
 
 
   # ── Platform-scheduler: cron runner for the 4 monoliths ─────────
+  platform-tpv:
+    build:
+      context: .
+      dockerfile: platform/tpv/Dockerfile
+      target: development
+    restart: unless-stopped
+    networks: [app, data]
+    ports:
+      - '3500:3500'
+    environment:
+      NODE_ENV: development
+      PLATFORM_TPV_PORT: 3500
+      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
+      REDIS_URL: redis://redis:6379
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
+      EXPECTED_APP_ID: platform
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      PLATFORM_CORE_URL: http://platform-core:3000
+      DATABASE_URL_TPV: postgresql://svc_platform_tpv:platform_tpv_secret@postgres:5432/splitpay
+    volumes:
+      - ./platform/tpv/src:/app/platform/tpv/src:ro
+      - ./platform/tpv/migrations:/app/platform/tpv/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+
   platform-scheduler:
     build:
       context: .
@@ -350,6 +378,7 @@ services:
       platform-marketplace:  { condition: service_started }
       platform-restaurant:   { condition: service_started }
       platform-appointments: { condition: service_started }
+      platform-tpv:          { condition: service_started }
 
 
   # ── AppHub admin portal ────────────────────────────────────────
@@ -633,6 +662,7 @@ services:
       platform-marketplace:    { condition: service_started }
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
+      platform-tpv:            { condition: service_started }
       portal:                  { condition: service_started }
       splitpay-portal:         { condition: service_started }
       aikikan-portal:          { condition: service_started }
