@@ -15,17 +15,15 @@ export default function GrafoHome() {
       </header>
 
       <section className="section section-narrow">
-        <div className="grafo-two-col">
-          <figure className="grafo-figure" style={{ margin: 0 }}>
-            <img src="/grafocaligrafia/img/mano-escribiendo.jpg" alt="Mano escribiendo con técnica grafomotriz" />
-            <figcaption>Presentación básica de la grafoterapia para formadores</figcaption>
-          </figure>
-          <div className="about-text">
-            {bio.map((p, i) => <p key={i}>{p}</p>)}
-            <p style={{ marginTop: 28 }}>
-              <Link to="/grafocaligrafia/metodo" className="btn btn-grafo">Conoce el método de los 12 trazos →</Link>
-            </p>
-          </div>
+        <figure className="grafo-figure" style={{ margin: '0 auto', maxWidth: 720 }}>
+          <img src="/grafocaligrafia/img/mano-escribiendo.jpg" alt="Mano escribiendo con técnica grafomotriz" />
+          <figcaption>Presentación básica de la grafoterapia para formadores</figcaption>
+        </figure>
+        <div className="about-text" style={{ marginTop: 40 }}>
+          {bio.map((p, i) => <p key={i}>{p}</p>)}
+          <p style={{ marginTop: 28 }}>
+            <Link to="/grafocaligrafia/metodo" className="btn btn-grafo">Conoce el método de los 12 trazos →</Link>
+          </p>
         </div>
       </section>
 
