@@ -148,6 +148,7 @@ docker compose exec postgres psql -U splitpay -d splitpay -c "\dt app_aikikan.*"
 | platform-restaurant | menu, reservations, floor-plan, kds, pos, delivery-dispatch | 3200 |
 | platform-appointments | services, resources, bookings, availability, intake-forms, telehealth, packages, practitioner-payouts | 3300 |
 | platform-scheduler | cron runner | 3400 |
+| platform-tpv | tpv (devices, cash sessions, receipts, credit notes, X/Z reports) | 3500 |
 | portal | AppHub admin | 5173 |
 | splitpay-portal | splitpay-portal | 5175 |
 | aikikan-portal | aikikan-portal | 5176 |

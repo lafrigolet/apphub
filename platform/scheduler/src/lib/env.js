@@ -34,6 +34,7 @@ const envSchema = z.object({
   JOB_NOTIFICATIONS_INBOUND_PURGE_ENABLED:     z.coerce.boolean().default(true),
   JOB_MESSAGING_SLA_ENABLED:                   z.coerce.boolean().default(true),
   JOB_TELEHEALTH_EXPIRE_STALE_ENABLED:         z.coerce.boolean().default(true),
+  JOB_TPV_SESSION_AUTOCLOSE_ENABLED:           z.coerce.boolean().default(true),
 
   // GDPR — días que se conservan los leads cerrados (won/lost/closed) sin
   // actividad antes de purgarlos. 1095 = 3 años (plazo prudencial LOPDGDD).

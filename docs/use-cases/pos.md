@@ -8,6 +8,14 @@ Apertura de cuenta (`POST /v1/pos/bills`) con `table_id`, `table_code`, `currenc
 
 Añadido (casos de uso prioritarios, backend-only): cancelación de cuenta (`POST /:id/cancel`, audit `cancelled_by`/`cancel_reason`, evento `pos.bill.cancelled`); guard de roles `requireRole` en todas las rutas; envío a cocina desacoplado del cobro (`POST /:id/fire`, `fired_at` por ítem, eventos `pos.bill.item_added` y `pos.bill.fired`); sugerencias de propina + IVA por defecto por tenant (`pos_settings`, `GET/PUT /v1/pos/settings`, `tipSuggestions` en `GET /:id`); división por ítems (`split` mode `items`, tabla `bill_split_items`). Migración `0002_cancel_fire_tips_split_items.sql`.
 
+> **Nota de alcance (2026-06-05, [ADR 015](../adr/015-platform-tpv-monolith.md)):** la capa
+> de operación de caja y cumplimiento fiscal — apertura/cierre de caja y arqueo (§9),
+> facturación/ticket (§11), devoluciones (§13) e informes X/Z (§16) — está **implementada
+> en [`platform/tpv`](tpv.md)** (contenedor `platform-tpv`, puerto 3500), que consume los
+> eventos de este módulo (`pos.bill.paid` enriquecido + `pos.bill.cancelled`).
+> `platform/pos` conserva su alcance: motor de cuentas, ítems, splits, propinas y pagos
+> mixtos. Los ❌ de esas secciones siguen siendo válidos *para este módulo* — viven en tpv.
+
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ---
@@ -233,7 +241,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ `pos.bill.opened` — al abrir la cuenta.
 - ✅ `pos.bill.split` — al dividir la cuenta, con `mode` y `count`.
-- ✅ `pos.bill.paid` — al marcar la cuenta como pagada, incluyendo ítems para KDS.
+- ✅ `pos.bill.paid` — al marcar la cuenta como pagada, incluyendo ítems para KDS. **Enriquecido (ADR 015)**: `subTenantId`, `currency`, `subtotalCents`/`taxCents`, `metadata` (donde el frontend TPV viaja `deviceId`), desglose `payments[] {method, amountCents, tipCents, externalRef}` y `unitPriceCents` por ítem — lo consume `platform/tpv` para imputar efectivo y snapshotear recibos.
 - ✅ `pos.bill.closed` — al cerrar formalmente la cuenta.
 - ✅ `pos.bill.item_added` — ítem añadido (útil para KDS / display de cocina en tiempo real).
 - ✅ `pos.bill.fired` — comanda enviada a cocina/KDS desacoplada del cobro (con `orderId` + items).

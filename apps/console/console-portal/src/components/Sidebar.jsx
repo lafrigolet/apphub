@@ -33,6 +33,7 @@ export default function Sidebar() {
     { k: 'config-delivery-dispatch',         label: 'Delivery carriers', icon: icons.settings },
     { k: 'config-telehealth',                label: 'Telehealth video',  icon: icons.settings },
     { k: 'config-shipping',                  label: 'Shipping carriers', icon: icons.settings },
+    { k: 'config-tpv',                       label: 'TPV / Caja',        icon: icons.settings },
   ]
 
   const splitpayItem = myApp?.splitpay_enabled

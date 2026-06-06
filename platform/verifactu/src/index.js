@@ -1,9 +1,10 @@
 import { publicRoutes } from './routes/verifactu.routes.js'
 import { configurePool } from './lib/db.js'
+import { startTpvEventsHandler } from './services/tpv-events.handler.js'
 
 export { runMigrations } from './lib/migrate.js'
 
-export async function register({ app, db }) {
+export async function register({ app, db, redis }) {
   configurePool(db)
 
   app.get('/api/verifactu/health', { config: { public: true } }, async () => ({
@@ -17,4 +18,8 @@ export async function register({ app, db }) {
   await app.register(async (scope) => {
     await publicRoutes(scope)
   }, { prefix: '/v1/verifactu' })
+
+  // Registro fiscal de los recibos/abonos de platform/tpv (ADR 015):
+  // tpv.receipt.issued → alta encadenada; tpv.receipt.voided → rectificativa.
+  if (redis) startTpvEventsHandler({ redis })
 }

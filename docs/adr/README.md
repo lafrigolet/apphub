@@ -20,6 +20,7 @@ a record isn't edited; if the decision changes, a new ADR supersedes it.
 | [012](012-tenant-console-multi-host-routing.md) | Tenant Console multi-host routing | Accepted |
 | [013](013-app-architecture-and-schema-naming.md) | App architecture: monolith per app + unified schema naming | Accepted |
 | [014](014-chat-module-and-websocket-gateway.md) | `chat` module + the platform's first WebSocket gateway | Accepted |
+| [015](015-platform-tpv-monolith.md) | `platform-tpv` — fifth monolith for point-of-sale operations | Accepted |
 
 ## Writing a new ADR
 

@@ -14,6 +14,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   entra en `inputs` para invalidar la caché al cambiar la config de vitest.
 
 ### Added
+- **`platform-tpv` — quinto monolito de dominio: TPV genérico (V1 completa).**
+  [ADR 015](docs/adr/015-platform-tpv-monolith.md) + spec en
+  `docs/use-cases/tpv.md`. Contenedor nuevo en puerto 3500 (módulo único
+  `platform/tpv`, schema `platform_tpv`, rol `svc_platform_tpv`, RLS
+  estándar): dispositivos terminal, sesiones de caja (una abierta por
+  dispositivo vía índice parcial UNIQUE, arqueo ciego, cierre con variance),
+  movimientos de efectivo append-only, **recibos con numeración correlativa
+  sin huecos** (lock de fila en `number_series` en la misma transacción que
+  el documento; verificado bajo concurrencia) y snapshot inmutable forzado
+  por grants (el rol solo puede UPDATE en columnas fiscales async), factura
+  completa + canje simplificado→factura, abonos con autorización manager
+  (correlativo al autorizar; refund cash automático en sesión), informes
+  X/Z + agregados por periodo + export CSV, settings por tenant (incl.
+  emisor fiscal — cada tenant es una entidad legal) y config service-level
+  con vista en console (`TpvConfig.jsx`). Integraciones por eventos: REUSE
+  de `platform/pos` como motor de cuentas (evento `pos.bill.paid`
+  **enriquecido** de forma aditiva con payments[]/unitPriceCents/metadata —
+  el frontend TPV viaja `deviceId` en metadata del bill); ciclo fiscal
+  Veri*Factu completo (`tpv.receipt.issued/voided` → registro encadenado
+  alta F1/F2/R1 en `platform/verifactu` → `verifactu.registro.created`
+  devuelve huella + QR de cotejo async al recibo); job
+  `tpv-session-autoclose` en platform-scheduler (grants cross-schema
+  acotados, migración 0008). Suites verdes: tpv 38 · pos 107 · scheduler
+  168 · verifactu 176; flujo e2e verificado en compose (venta cash →
+  billing fact + imputación → recibo A-000001…N sin huecos → QR AEAT →
+  abono R con refund en caja → X/Z → CSV → autoclose).
 - **`platform/notifications` — email entrante (Resend Inbound), §23–§29 del
   catálogo de casos de uso.** La plataforma ya *recibe* correo manteniendo el
   envío por Resend sin cambios (la recepción solo añade MX; SPF/DKIM/DMARC de

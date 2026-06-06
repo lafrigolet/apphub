@@ -65,7 +65,7 @@ export async function insertRegistro(client, r) {
         estado_remision, huella, huella_anterior, qr_url, id_emisor, gen_registro)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING numero, num_serie, cliente_nombre, cliente_nif, fecha_expedicion,
-               total_display, estado_remision, huella, huella_anterior`,
+               total_display, estado_remision, huella, huella_anterior, qr_url`,
     [
       r.appId, r.tenantId, r.subTenantId ?? null, r.numero, r.numSerie, r.tipo ?? 'alta',
       r.tipoFactura ?? 'F1', r.clienteNombre ?? null, r.clienteNif ?? null,

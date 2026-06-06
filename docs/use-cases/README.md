@@ -65,6 +65,10 @@ Cada fichero sigue la misma estructura (plantilla canónica: [`leads.md`](leads.
 
 - [scheduler](scheduler.md) — cron-as-a-service, jobs, advisory locks, eventos
 
+### platform-tpv (puerto 3500) — operaciones de punto de venta
+
+- [tpv](tpv.md) — TPV genérico: dispositivos, sesiones de caja, efectivo, recibos correlativos, abonos, informes X/Z, Veri*Factu ([ADR 015](../adr/015-platform-tpv-monolith.md))
+
 ---
 
 > **Nota:** El "Estado actual" de cada fichero refleja una inspección del código en el momento

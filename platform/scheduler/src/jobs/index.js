@@ -21,6 +21,7 @@ import * as notificationSendLogPurge          from './notification-send-log-purg
 import * as notificationsInboundPurge         from './notifications-inbound-purge.job.js'
 import * as messagingSla                       from './messaging-sla.job.js'
 import * as telehealthExpireStale              from './telehealth-expire-stale.job.js'
+import * as tpvSessionAutoclose                from './tpv-session-autoclose.job.js'
 
 import { env } from '../lib/env.js'
 
@@ -51,6 +52,7 @@ export const jobs = [
   { mod: notificationsInboundPurge,    enabled: env.JOB_NOTIFICATIONS_INBOUND_PURGE_ENABLED },
   { mod: messagingSla,                 enabled: env.JOB_MESSAGING_SLA_ENABLED },
   { mod: telehealthExpireStale,        enabled: env.JOB_TELEHEALTH_EXPIRE_STALE_ENABLED },
+  { mod: tpvSessionAutoclose,          enabled: env.JOB_TPV_SESSION_AUTOCLOSE_ENABLED },
 ].map((j) => ({
   meta:    j.mod.meta,
   run:     j.mod.run,
