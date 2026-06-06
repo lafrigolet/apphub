@@ -26,6 +26,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   reescrito para registrar portales nuevos dentro del contenedor compartido.
   Verificado: dev levanta los 9 vite (títulos distintos por puerto) y la
   imagen prod sirve los 9 dist con `/_health` + fallback SPA por puerto.
+
+### Fixed
+- **`deploy/server/deploy.sh` — los contenedores de servicios eliminados
+  del compose quedaban corriendo para siempre en prod.** Tras consolidar
+  los portales (ADR 017), los 9 contenedores por-app seguían vivos junto a
+  `portals`: el `up -d` del deploy no usaba `--remove-orphans` por un
+  malentendido documentado de la flag (solo elimina contenedores cuyo
+  servicio YA NO existe en el compose; los definidos-pero-no-levantados no
+  son huérfanos y no se tocan). Añadido `--remove-orphans` — el siguiente
+  deploy limpia los 9 automáticamente.
 - **`platform/tpv` integrado en `platform-core`
   ([ADR 016](docs/adr/016-tpv-folded-into-platform-core.md), supersede la
   decisión de contenedor del ADR 015).** Operar un contenedor entero para un
