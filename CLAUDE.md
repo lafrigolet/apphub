@@ -60,9 +60,9 @@ apphub/
 │   ├── practitioner-payouts/  # Practitioner-payouts module (in platform-appointments) — schema platform_practitioner_payouts
 │   └── subscriptions/         # Subscriptions module (planned, slot reserved)
 ├── apps/                      # App bundles (frontends + app-specific services)
-│   ├── portal/                # AppHub admin UI — port 5173
-│   ├── split-pay/             # Split Pay frontend (splitpay-portal) — port 5175
-│   ├── aikikan/               # Aikikan Aikido portal — port 5176
+│   ├── portal/                # AppHub admin UI — port 5173 (served by the single `portals` container, ADR 017)
+│   ├── split-pay/             # Split Pay frontend (splitpay-portal) — port 5175 (portals container)
+│   ├── aikikan/               # Aikikan Aikido portal — port 5176 (portals container)
 │   └── __app-template__/      # Blueprint for new apps (never deployed)
 ├── packages/                  # Internal shared packages (pnpm workspaces)
 │   ├── eslint-config/         # @splitpay/eslint-config

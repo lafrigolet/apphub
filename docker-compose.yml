@@ -321,6 +321,64 @@ services:
 
 
   # ── Platform-scheduler: cron runner for the 4 monoliths ─────────
+  # ── Portals — contenedor unificado de los 9 frontends (ADR 017) ──
+  # dev: 9 procesos vite (HMR intacto) lanzados por dev-entrypoint.sh,
+  # cada uno en su puerto histórico y con su VITE_* propio (per-proceso).
+  # prod (override): nginx-alpine sirviendo los dist/ en los MISMOS
+  # puertos — los upstreams del gateway no cambian entre dev y prod.
+  portals:
+    build:
+      context: .
+      dockerfile: infra/portals/Dockerfile
+      target: development
+    restart: unless-stopped
+    networks: [edge]
+    ports:
+      - '5173:5173'
+      - '5175:5175'
+      - '5176:5176'
+      - '5177:5177'
+      - '5178:5178'
+      - '5179:5179'
+      - '5180:5180'
+      - '5181:5181'
+      - '5182:5182'
+    environment:
+      NODE_ENV: development
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      AIKIKAN_TENANT_ID: ${AIKIKAN_TENANT_ID:-}
+    volumes:
+      - ./apps/portal/src:/app/apps/portal/src:ro
+      - ./apps/portal/index.html:/app/apps/portal/index.html:ro
+      - ./apps/split-pay/splitpay-portal/src:/app/apps/split-pay/splitpay-portal/src:ro
+      - ./apps/aikikan/aikikan-portal/src:/app/apps/aikikan/aikikan-portal/src:ro
+      - ./apps/aikikan/aikikan-portal/public:/app/apps/aikikan/aikikan-portal/public:ro
+      - ./apps/console/console-portal/src:/app/apps/console/console-portal/src:ro
+      - ./apps/console/console-portal/vite.config.js:/app/apps/console/console-portal/vite.config.js:ro
+      - ./apps/console/console-portal/index.html:/app/apps/console/console-portal/index.html:ro
+      - ./apps/tenant-console/tenant-console-portal/src:/app/apps/tenant-console/tenant-console-portal/src:ro
+      - ./apps/tenant-console/tenant-console-portal/vite.config.js:/app/apps/tenant-console/tenant-console-portal/vite.config.js:ro
+      - ./apps/tenant-console/tenant-console-portal/index.html:/app/apps/tenant-console/tenant-console-portal/index.html:ro
+      - ./apps/aulavera/aulavera-portal/src:/app/apps/aulavera/aulavera-portal/src:ro
+      - ./apps/aulavera/aulavera-portal/vite.config.js:/app/apps/aulavera/aulavera-portal/vite.config.js:ro
+      - ./apps/aulavera/aulavera-portal/index.html:/app/apps/aulavera/aulavera-portal/index.html:ro
+      - ./apps/js-electric/js-electric-portal/src:/app/apps/js-electric/js-electric-portal/src:ro
+      - ./apps/js-electric/js-electric-portal/vite.config.js:/app/apps/js-electric/js-electric-portal/vite.config.js:ro
+      - ./apps/js-electric/js-electric-portal/index.html:/app/apps/js-electric/js-electric-portal/index.html:ro
+      - ./apps/js-electric/js-electric-portal/tailwind.config.js:/app/apps/js-electric/js-electric-portal/tailwind.config.js:ro
+      - ./apps/js-electric/js-electric-portal/postcss.config.js:/app/apps/js-electric/js-electric-portal/postcss.config.js:ro
+      - ./apps/macabeo/macabeo-portal/src:/app/apps/macabeo/macabeo-portal/src:ro
+      - ./apps/macabeo/macabeo-portal/vite.config.js:/app/apps/macabeo/macabeo-portal/vite.config.js:ro
+      - ./apps/macabeo/macabeo-portal/index.html:/app/apps/macabeo/macabeo-portal/index.html:ro
+      - ./apps/macabeo/macabeo-portal/tailwind.config.js:/app/apps/macabeo/macabeo-portal/tailwind.config.js:ro
+      - ./apps/macabeo/macabeo-portal/postcss.config.js:/app/apps/macabeo/macabeo-portal/postcss.config.js:ro
+      - ./apps/verifactu/verifactu-portal/src:/app/apps/verifactu/verifactu-portal/src:ro
+      - ./apps/verifactu/verifactu-portal/vite.config.js:/app/apps/verifactu/verifactu-portal/vite.config.js:ro
+      - ./apps/verifactu/verifactu-portal/index.html:/app/apps/verifactu/verifactu-portal/index.html:ro
+      - ./apps/verifactu/verifactu-portal/tailwind.config.js:/app/apps/verifactu/verifactu-portal/tailwind.config.js:ro
+      - ./apps/verifactu/verifactu-portal/postcss.config.js:/app/apps/verifactu/verifactu-portal/postcss.config.js:ro
+
   platform-scheduler:
     build:
       context: .
@@ -354,63 +412,6 @@ services:
       platform-restaurant:   { condition: service_started }
       platform-appointments: { condition: service_started }
 
-
-  # ── AppHub admin portal ────────────────────────────────────────
-  portal:
-    build:
-      context: .
-      dockerfile: ./apps/portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5173:5173'
-    environment:
-      NODE_ENV: development
-      VITE_API_BASE_URL: http://hulkstein.local:8080
-    volumes:
-      - ./apps/portal/src:/app/apps/portal/src:ro
-      - ./apps/portal/index.html:/app/apps/portal/index.html:ro
-
-  # ── Split Pay frontend ─────────────────────────────────────────
-  splitpay-portal:
-    build:
-      context: .
-      dockerfile: ./apps/split-pay/splitpay-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5175:5175'
-    environment:
-      NODE_ENV: development
-      VITE_APP_ID: split-pay
-      VITE_API_BASE_URL: http://splitpay.hulkstein.local:8080
-    volumes:
-      - ./apps/split-pay/splitpay-portal/src:/app/src:ro
-    depends_on:
-      - platform-core
-
-  # ── Aikikan (frontend 5176) ───────────────────────────────────
-  aikikan-portal:
-    build:
-      context: .
-      dockerfile: apps/aikikan/aikikan-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5176:5176'
-    environment:
-      NODE_ENV: development
-      VITE_API_BASE_URL: http://aikikan.hulkstein.local:8080
-      VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      VITE_FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
-      VITE_AIKIKAN_APP_ID: aikikan
-      VITE_AIKIKAN_TENANT_ID: ${AIKIKAN_TENANT_ID:-}
-    volumes:
-      - ./apps/aikikan/aikikan-portal/src:/app/apps/aikikan/aikikan-portal/src:ro
-      - ./apps/aikikan/aikikan-portal/public:/app/apps/aikikan/aikikan-portal/public:ro
 
   # ── Aikikan backend monolith (port 3030) ──────────────────────
   # First app to follow the pattern in ADR 013: one container, one schema
@@ -452,47 +453,6 @@ services:
       - ./apps/aikikan/aikikan-server/src:/app/apps/aikikan/aikikan-server/src:ro
       - ./apps/aikikan/aikikan-server/migrations:/app/apps/aikikan/aikikan-server/migrations:ro
 
-  # ── Hulkstein Console (staff admin, frontend 5177) ────────────
-  console-portal:
-    build:
-      context: .
-      dockerfile: apps/console/console-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5177:5177'
-    environment:
-      NODE_ENV: development
-      # No VITE_API_BASE_URL — api.js falls back to relative paths so /api/*
-      # is handled by Vite's dev proxy (→ nginx:80) when accessing 5177 directly,
-      # and by NGINX itself when accessing via console.hulkstein.local:8080.
-    volumes:
-      - ./apps/console/console-portal/src:/app/apps/console/console-portal/src:ro
-      - ./apps/console/console-portal/vite.config.js:/app/apps/console/console-portal/vite.config.js:ro
-      - ./apps/console/console-portal/index.html:/app/apps/console/console-portal/index.html:ro
-
-  # ── Tenant Console (frontend 5178) ────────────────────────────
-  # Modular per-tenant admin app. Same image pattern as console; the
-  # frontend reads the request's Host header (forwarded by NGINX) to pick the
-  # tenant context and only mounts the manifests listed in
-  # platform_tenants.apps.enabled_modules.
-  tenant-console-portal:
-    build:
-      context: .
-      dockerfile: apps/tenant-console/tenant-console-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5178:5178'
-    environment:
-      NODE_ENV: development
-    volumes:
-      - ./apps/tenant-console/tenant-console-portal/src:/app/apps/tenant-console/tenant-console-portal/src:ro
-      - ./apps/tenant-console/tenant-console-portal/vite.config.js:/app/apps/tenant-console/tenant-console-portal/vite.config.js:ro
-      - ./apps/tenant-console/tenant-console-portal/index.html:/app/apps/tenant-console/tenant-console-portal/index.html:ro
-
   # ── Aulavera backend monolith (port 3031) ────────────────────
   # Second app to follow ADR 013: one container, schema `app_aulavera`,
   # role `svc_app_aulavera`. Domain code (events/disciplines/resources)
@@ -523,84 +483,6 @@ services:
     volumes:
       - ./apps/aulavera/aulavera-server/src:/app/apps/aulavera/aulavera-server/src:ro
       - ./apps/aulavera/aulavera-server/migrations:/app/apps/aulavera/aulavera-server/migrations:ro
-
-  # ── Aulavera (frontend 5179) ──────────────────────────────────
-  aulavera-portal:
-    build:
-      context: .
-      dockerfile: apps/aulavera/aulavera-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5179:5179'
-    environment:
-      NODE_ENV: development
-      VITE_API_BASE_URL: http://aulavera.hulkstein.local:8080
-    volumes:
-      - ./apps/aulavera/aulavera-portal/src:/app/apps/aulavera/aulavera-portal/src:ro
-      - ./apps/aulavera/aulavera-portal/vite.config.js:/app/apps/aulavera/aulavera-portal/vite.config.js:ro
-      - ./apps/aulavera/aulavera-portal/index.html:/app/apps/aulavera/aulavera-portal/index.html:ro
-
-  # ── JS Electric (frontend 5180) ───────────────────────────────
-  js-electric-portal:
-    build:
-      context: .
-      dockerfile: apps/js-electric/js-electric-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5180:5180'
-    environment:
-      NODE_ENV: development
-      VITE_API_BASE_URL: http://js-electric.hulkstein.local:8080
-    volumes:
-      - ./apps/js-electric/js-electric-portal/src:/app/apps/js-electric/js-electric-portal/src:ro
-      - ./apps/js-electric/js-electric-portal/vite.config.js:/app/apps/js-electric/js-electric-portal/vite.config.js:ro
-      - ./apps/js-electric/js-electric-portal/index.html:/app/apps/js-electric/js-electric-portal/index.html:ro
-      - ./apps/js-electric/js-electric-portal/tailwind.config.js:/app/apps/js-electric/js-electric-portal/tailwind.config.js:ro
-      - ./apps/js-electric/js-electric-portal/postcss.config.js:/app/apps/js-electric/js-electric-portal/postcss.config.js:ro
-
-  # ── Macabeo (frontend 5181) ───────────────────────────────────
-  macabeo-portal:
-    build:
-      context: .
-      dockerfile: apps/macabeo/macabeo-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5181:5181'
-    environment:
-      NODE_ENV: development
-      VITE_API_BASE_URL: http://macabeo.hulkstein.local:8080
-    volumes:
-      - ./apps/macabeo/macabeo-portal/src:/app/apps/macabeo/macabeo-portal/src:ro
-      - ./apps/macabeo/macabeo-portal/vite.config.js:/app/apps/macabeo/macabeo-portal/vite.config.js:ro
-      - ./apps/macabeo/macabeo-portal/index.html:/app/apps/macabeo/macabeo-portal/index.html:ro
-      - ./apps/macabeo/macabeo-portal/tailwind.config.js:/app/apps/macabeo/macabeo-portal/tailwind.config.js:ro
-      - ./apps/macabeo/macabeo-portal/postcss.config.js:/app/apps/macabeo/macabeo-portal/postcss.config.js:ro
-
-  # ── Verifactu (frontend 5182) ─────────────────────────────────
-  verifactu-portal:
-    build:
-      context: .
-      dockerfile: apps/verifactu/verifactu-portal/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [edge]
-    ports:
-      - '5182:5182'
-    environment:
-      NODE_ENV: development
-      VITE_API_BASE_URL: http://verifactu.hulkstein.local:8080
-    volumes:
-      - ./apps/verifactu/verifactu-portal/src:/app/apps/verifactu/verifactu-portal/src:ro
-      - ./apps/verifactu/verifactu-portal/vite.config.js:/app/apps/verifactu/verifactu-portal/vite.config.js:ro
-      - ./apps/verifactu/verifactu-portal/index.html:/app/apps/verifactu/verifactu-portal/index.html:ro
-      - ./apps/verifactu/verifactu-portal/tailwind.config.js:/app/apps/verifactu/verifactu-portal/tailwind.config.js:ro
-      - ./apps/verifactu/verifactu-portal/postcss.config.js:/app/apps/verifactu/verifactu-portal/postcss.config.js:ro
 
   # ── Gateway ────────────────────────────────────────────────────
   # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
@@ -636,17 +518,9 @@ services:
       platform-marketplace:    { condition: service_started }
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
-      portal:                  { condition: service_started }
-      splitpay-portal:         { condition: service_started }
-      aikikan-portal:          { condition: service_started }
+      portals:                 { condition: service_started }
       aikikan-server:          { condition: service_started }
-      console-portal: { condition: service_started }
-      tenant-console-portal:   { condition: service_started }
-      aulavera-portal:         { condition: service_started }
       aulavera-server:         { condition: service_started }
-      js-electric-portal:      { condition: service_started }
-      macabeo-portal:          { condition: service_started }
-      verifactu-portal:        { condition: service_started }
 
 volumes:
   postgres_data:

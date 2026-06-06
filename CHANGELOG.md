@@ -7,6 +7,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Changed
+- **Contenedor `portals` único para los 9 frontends
+  ([ADR 017](docs/adr/017-unified-portals-container.md)).** Antes: 9
+  contenedores (vite en dev, nginx-alpine casi idénticos en prod). Ahora:
+  `infra/portals/Dockerfile` con target dev (9 procesos vite lanzados por
+  `dev-entrypoint.sh` — el `VITE_API_BASE_URL` de cada portal se inyecta
+  POR PROCESO porque el env de contenedor es compartido; HMR intacto) y
+  target prod (un nginx-alpine de ~160 MB con un server block POR PUERTO —
+  los mismos 5173/5175–5182 de los vite, así `upstream.conf` y
+  `upstream.prod.conf` quedan idénticos: `server portals:<puerto>`).
+  Deliberadamente sin routing por Host dentro del contenedor: el gateway ya
+  elige portal por server block y tenant-console sirve hostnames dinámicos
+  (ADR 012). Eliminados los 9 Dockerfiles por-portal e
+  `infra/nginx/spa.conf` (factorizado en `infra/portals/spa-locations.conf`);
+  `deploy/services.json` pasa de 9 entradas a una (`portals` →
+  `apphub-portals`, con el coste documentado de granularidad: tocar un
+  portal reconstruye la imagen con los 9); `/opendragon-bootstrap-app`
+  reescrito para registrar portales nuevos dentro del contenedor compartido.
+  Verificado: dev levanta los 9 vite (títulos distintos por puerto) y la
+  imagen prod sirve los 9 dist con `/_health` + fallback SPA por puerto.
 - **`platform/tpv` integrado en `platform-core`
   ([ADR 016](docs/adr/016-tpv-folded-into-platform-core.md), supersede la
   decisión de contenedor del ADR 015).** Operar un contenedor entero para un

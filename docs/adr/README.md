@@ -22,6 +22,7 @@ a record isn't edited; if the decision changes, a new ADR supersedes it.
 | [014](014-chat-module-and-websocket-gateway.md) | `chat` module + the platform's first WebSocket gateway | Accepted |
 | [015](015-platform-tpv-monolith.md) | `platform-tpv` — fifth monolith for point-of-sale operations | Superseded by 016 (container decision only; module design stands) |
 | [016](016-tpv-folded-into-platform-core.md) | `tpv` folded into `platform-core` (kept ready-to-split) | Accepted |
+| [017](017-unified-portals-container.md) | Single `portals` container for all frontends (port-per-portal) | Accepted |
 
 ## Writing a new ADR
 

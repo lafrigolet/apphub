@@ -2,10 +2,10 @@
   "_doc": [
     "Source-of-truth de servicios que se construyen como imagen Docker y se",
     "publican a GHCR. Lo consumen:",
-    "  - .github/workflows/deploy.yml (matrix din\u00e1mica de build).",
+    "  - .github/workflows/deploy.yml (matrix dinámica de build).",
     "  - deploy/generate-matrix.sh   (genera la lista 'a desplegar' a partir",
-    "    de git diff vs el \u00faltimo commit desplegado).",
-    "  - deploy/server/deploy.sh     (pull + up -d en Hetzner, s\u00f3lo los",
+    "    de git diff vs el último commit desplegado).",
+    "  - deploy/server/deploy.sh     (pull + up -d en Hetzner, sólo los",
     "    servicios que cambian).",
     "",
     "Reglas:",
@@ -13,7 +13,7 @@
     "    package compartido que use en runtime + pnpm-lock.yaml (cambios al",
     "    lockfile recompilan TODO porque las versiones de los deps cambian).",
     "  - 'restart_policy: rolling' significa que se reinicia con un breve",
-    "    downtime aceptable (~5s). Para servicios stateful o cr\u00edticos usar",
+    "    downtime aceptable (~5s). Para servicios stateful o críticos usar",
     "    'manual' (el deploy notifica pero no toca el container)."
   ],
   "services": [
@@ -107,57 +107,20 @@
       "restart_policy": "rolling"
     },
     {
-      "name": "portal",
-      "dockerfile": "apps/portal/Dockerfile",
+      "name": "portals",
+      "dockerfile": "infra/portals/Dockerfile",
       "paths": [
+        "infra/portals/**",
         "apps/portal/**",
-        "packages/sdk-js/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "console-portal",
-      "dockerfile": "apps/console/console-portal/Dockerfile",
-      "paths": [
-        "apps/console/console-portal/**",
-        "packages/sdk-js/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "tenant-console-portal",
-      "dockerfile": "apps/tenant-console/tenant-console-portal/Dockerfile",
-      "paths": [
-        "apps/tenant-console/tenant-console-portal/**",
-        "packages/tenant-console-ui/**",
-        "packages/sdk-js/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "splitpay-portal",
-      "dockerfile": "apps/split-pay/splitpay-portal/Dockerfile",
-      "paths": [
-        "apps/split-pay/**",
-        "packages/sdk-js/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "aikikan-portal",
-      "dockerfile": "apps/aikikan/aikikan-portal/Dockerfile",
-      "paths": [
+        "apps/split-pay/splitpay-portal/**",
         "apps/aikikan/aikikan-portal/**",
-        "packages/tenant-console-ui/**",
-        "packages/sdk-js/**",
+        "apps/console/console-portal/**",
+        "apps/tenant-console/tenant-console-portal/**",
+        "apps/aulavera/aulavera-portal/**",
+        "apps/js-electric/js-electric-portal/**",
+        "apps/macabeo/macabeo-portal/**",
+        "apps/verifactu/verifactu-portal/**",
+        "packages/**",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml"
       ],
@@ -175,55 +138,11 @@
       "restart_policy": "rolling"
     },
     {
-      "name": "aulavera-portal",
-      "dockerfile": "apps/aulavera/aulavera-portal/Dockerfile",
-      "paths": [
-        "apps/aulavera/aulavera-portal/**",
-        "packages/sdk-js/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
       "name": "aulavera-server",
       "dockerfile": "apps/aulavera/aulavera-server/Dockerfile",
       "paths": [
         "apps/aulavera/aulavera-server/**",
         "packages/platform-sdk/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "js-electric-portal",
-      "dockerfile": "apps/js-electric/js-electric-portal/Dockerfile",
-      "paths": [
-        "apps/js-electric/js-electric-portal/**",
-        "packages/sdk-js/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "macabeo-portal",
-      "dockerfile": "apps/macabeo/macabeo-portal/Dockerfile",
-      "paths": [
-        "apps/macabeo/macabeo-portal/**",
-        "packages/sdk-js/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "verifactu-portal",
-      "dockerfile": "apps/verifactu/verifactu-portal/Dockerfile",
-      "paths": [
-        "apps/verifactu/verifactu-portal/**",
-        "packages/sdk-js/**",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml"
       ],
@@ -239,12 +158,12 @@
     }
   ],
   "infrastructure_notes": [
-    "postgres / redis / minio NO se rebuildean \u2014 son im\u00e1genes upstream con tag",
-    "fijado en docker-compose.yml. Si necesitas bumpear postgres a una versi\u00f3n",
-    "nueva, hazlo manualmente en producci\u00f3n y documenta el upgrade.",
+    "postgres / redis / minio NO se rebuildean — son imágenes upstream con tag",
+    "fijado en docker-compose.yml. Si necesitas bumpear postgres a una versión",
+    "nueva, hazlo manualmente en producción y documenta el upgrade.",
     "",
-    "infra/postgres/init/*.sql se ejecuta S\u00d3LO la primera vez que postgres",
+    "infra/postgres/init/*.sql se ejecuta SÓLO la primera vez que postgres",
     "arranca con un volumen virgen. En prod nunca se re-ejecuta: cambios al",
-    "schema van v\u00eda migrations de cada m\u00f3dulo, no por estos scripts."
+    "schema van vía migrations de cada módulo, no por estos scripts."
   ]
 }

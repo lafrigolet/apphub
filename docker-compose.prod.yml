@@ -27,79 +27,13 @@
 # semántica habitual.
 
 services:
-  # ── AppHub admin portal (prod) ─────────────────────────────────
-  portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-    ports: !reset []
-    volumes: !reset []
-
-  # ── Split Pay portal (prod) ────────────────────────────────────
-  splitpay-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-splitpay-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-      args:
-        VITE_APP_ID: split-pay
-        # Empty → portal calls /api/* relatively, the frontal nginx
-        # routes it to the right backend by subdomain.
-        VITE_API_BASE_URL: ''
-    ports: !reset []
-    volumes: !reset []
-
-  # ── Aikikan portal (prod) ──────────────────────────────────────
-  aikikan-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-    ports: !reset []
-    volumes: !reset []
-
-  # ── Voragine Console portal (prod) ─────────────────────────────
-  console-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-console-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-    ports: !reset []
-    volumes: !reset []
-
-  # ── Tenant Console portal (prod) ───────────────────────────────
-  # Same flip as console: dev (vite) → prod (nginx-alpine
-  # serving the built dist/). Healthcheck inherited from the Dockerfile.
-  tenant-console-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-tenant-console-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-    ports: !reset []
-    volumes: !reset []
-
-  # ── Aulavera portal (prod) ─────────────────────────────────────
-  aulavera-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aulavera-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-    ports: !reset []
-    volumes: !reset []
-
-  # ── JS Electric portal (prod) ──────────────────────────────────
-  js-electric-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-js-electric-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-    ports: !reset []
-    volumes: !reset []
-
-  # ── Macabeo portal (prod) ──────────────────────────────────────
-  macabeo-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-macabeo-portal:${IMAGE_TAG:-latest}
-    build:
-      target: production
-    ports: !reset []
-    volumes: !reset []
-
-  verifactu-portal:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-verifactu-portal:${IMAGE_TAG:-latest}
+  # ── Portals — contenedor unificado (prod, ADR 017) ────────────
+  # nginx-alpine con los 9 dist/ servidos en los mismos puertos que los
+  # vite dev servers (5173, 5175–5182): los upstreams del gateway no
+  # cambian entre dev y prod. Sin puertos publicados al host — solo el
+  # gateway llega por la red docker.
+  portals:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-portals:${IMAGE_TAG:-latest}
     build:
       target: production
     ports: !reset []
@@ -210,13 +144,5 @@ services:
       platform-marketplace:    { condition: service_started }
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
-      portal:                  { condition: service_started }
-      splitpay-portal:         { condition: service_started }
-      aikikan-portal:          { condition: service_started }
-      console-portal: { condition: service_started }
-      tenant-console-portal:   { condition: service_started }
-      aulavera-portal:         { condition: service_started }
+      portals:                 { condition: service_started }
       aulavera-server:         { condition: service_started }
-      js-electric-portal:      { condition: service_started }
-      macabeo-portal:          { condition: service_started }
-      verifactu-portal:        { condition: service_started }

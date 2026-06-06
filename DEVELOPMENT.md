@@ -148,10 +148,7 @@ docker compose exec postgres psql -U splitpay -d splitpay -c "\dt app_aikikan.*"
 | platform-restaurant | menu, reservations, floor-plan, kds, pos, delivery-dispatch | 3200 |
 | platform-appointments | services, resources, bookings, availability, intake-forms, telehealth, packages, practitioner-payouts | 3300 |
 | platform-scheduler | cron runner | 3400 |
-| portal | AppHub admin | 5173 |
-| splitpay-portal | splitpay-portal | 5175 |
-| aikikan-portal | aikikan-portal | 5176 |
-| console-portal | console-portal | 5177 |
+| portals | all 9 frontends (ADR 017): 5173 apphub-admin, 5175 splitpay, 5176 aikikan, 5177 console, 5178 tenant-console, 5179 aulavera, 5180 js-electric, 5181 macabeo, 5182 verifactu | 5173, 5175–5182 |
 | postgres | PostgreSQL | 5432 |
 | redis | Redis | 6379 |
 | nginx | NGINX gateway | 8080 |
