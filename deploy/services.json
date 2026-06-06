@@ -127,20 +127,11 @@
       "restart_policy": "rolling"
     },
     {
-      "name": "aikikan-server",
-      "dockerfile": "apps/aikikan/aikikan-server/Dockerfile",
+      "name": "apps-servers",
+      "dockerfile": "apps/apps-servers/Dockerfile",
       "paths": [
+        "apps/apps-servers/**",
         "apps/aikikan/aikikan-server/**",
-        "packages/platform-sdk/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "aulavera-server",
-      "dockerfile": "apps/aulavera/aulavera-server/Dockerfile",
-      "paths": [
         "apps/aulavera/aulavera-server/**",
         "packages/platform-sdk/**",
         "pnpm-lock.yaml",

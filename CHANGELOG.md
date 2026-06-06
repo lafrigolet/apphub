@@ -7,6 +7,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Changed
+- **Contenedor `apps-servers` único para todos los servidores específicos de
+  app ([ADR 018](docs/adr/018-apps-servers-orchestrator.md)).** aikikan-server
+  y aulavera-server pasan de contenedores propios a MÓDULOS de un orquestador
+  (`apps/apps-servers/`, puerto 3030) con el mismo contrato
+  `register/runMigrations` de los monolitos platform-*: un proceso Fastify,
+  plugins transversales una vez, un Pool por app ligado a su rol
+  `svc_app_<app>` (+ `ensureModuleRole` y hook `enforceGrants` opcional).
+  Pieza de seguridad nueva en el SDK: `makeAppGuardHook(expectedAppId)` +
+  `ensureIdentityDecorator` — guard **por scope** (el `appGuard` global es
+  fastify-plugin y solo valida un `EXPECTED_APP_ID` por proceso); cada módulo
+  protege sus rutas en su propio scope y un token de otro app recibe
+  `403 APP_MISMATCH` (verificado e2e: token aulavera → ruta aikikan → 403).
+  Las constantes `APP_ID` de services/handlers pasan a literal (el env del
+  contenedor es compartido); los suscriptores Redis de cada app se mueven de
+  su `server.js` a su `register()` (cierre vía `onClose`, flag
+  `subscribe:false` para tests de integración). Cada app conserva
+  `server.js`+`app.js`+`Dockerfile` como artefactos ready-to-split (criterio
+  ADR 016). Wiring: compose dev+prod (2 servicios → 1), upstreams
+  `aikikan_server`/`aulavera_server` → `apps-servers:3030`,
+  `deploy/services.json` (2 entradas → 1, imagen `apphub-apps-servers`).
+  Suites verdes: aikikan 121 · aulavera 61 · platform-sdk 158.
 - **Contenedor `portals` único para los 9 frontends
   ([ADR 017](docs/adr/017-unified-portals-container.md)).** Antes: 9
   contenedores (vite en dev, nginx-alpine casi idénticos en prod). Ahora:

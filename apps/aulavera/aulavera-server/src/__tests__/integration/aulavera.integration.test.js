@@ -61,7 +61,7 @@ beforeAll(async () => {
       ($1, $3, 'video',    'Vid B', 1, TRUE)
   `, [APP_ID, TENANT_A, TENANT_B])
 
-  app = createApp()
+  app = await createApp()
   await app.ready()
 })
 

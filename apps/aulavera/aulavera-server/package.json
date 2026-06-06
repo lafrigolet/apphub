@@ -25,5 +25,10 @@
   "devDependencies": {
     "uuid": "^10.0.0",
     "vitest": "^2.0.0"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./server": "./src/server.js",
+    "./app": "./src/app.js"
   }
 }

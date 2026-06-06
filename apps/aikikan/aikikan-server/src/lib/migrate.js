@@ -14,8 +14,8 @@ const SCHEMA = 'app_aikikan'
 // (infra/postgres/init/15_app_aikikan_schema.sql); this runner only
 // applies the table/index/policy migrations under migrations/. Uses the
 // superuser URL because the regular svc role lacks DDL grants.
-export async function runMigrations() {
-  const url = env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL
+export async function runMigrations(superuserUrl) {
+  const url = superuserUrl ?? env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL
   const migrationPool = new pg.Pool({ connectionString: url })
   const client = await migrationPool.connect()
   try {

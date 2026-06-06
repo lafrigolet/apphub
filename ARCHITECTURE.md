@@ -306,7 +306,8 @@ see [ADR 015](docs/adr/015-platform-tpv-monolith.md) /
 | 3000–3005 | Platform services |
 | 3006–3009 | Reserved for future platform services |
 | 3020–3029 | Split Pay app services |
-| 3030–3099 | App monolith servers (one per app — aikikan, …) |
+| 3030 | apps-servers (single orchestrator hosting every app-specific server — aikikan, aulavera, …; ADR 018) |
+| 3031–3099 | Reserved (re-split of individual app servers if scaling demands it) |
 | 3100 | platform-marketplace |
 | 3200 | platform-restaurant |
 | 3300 | platform-appointments |
@@ -337,3 +338,5 @@ ADRs are stored in `docs/adr/`. Current decisions:
 | 014 | chat module + the platform's first WebSocket gateway |
 | 015 | platform-tpv: fifth domain monolith for point-of-sale operations (container superseded by 016) |
 | 016 | tpv folded into platform-core (kept ready-to-split) |
+| 017 | Single portals container for all frontends (port-per-portal) |
+| 018 | apps-servers: single orchestrator for app-specific servers (per-scope guard) |

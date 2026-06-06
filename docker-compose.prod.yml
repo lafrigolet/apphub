@@ -39,6 +39,16 @@ services:
     ports: !reset []
     volumes: !reset []
 
+  # ── Apps-servers (prod, ADR 018) ──────────────────────────────
+  apps-servers:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-apps-servers:${IMAGE_TAG:-latest}
+    build:
+      target: production
+    environment:
+      NODE_ENV: production
+    ports: !reset []
+    volumes: !reset []
+
   # ── Infra: NO publicar puertos al host en prod ────────────────
   # En dev el compose base publica 5432/6379/9000/9001 al host para
   # comodidad del desarrollador (psql, redis-cli, consola MinIO en
@@ -99,18 +109,6 @@ services:
     environment:
       NODE_ENV: production
 
-  aikikan-server:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-server:${IMAGE_TAG:-latest}
-    volumes: !reset []
-    environment:
-      NODE_ENV: production
-
-  aulavera-server:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aulavera-server:${IMAGE_TAG:-latest}
-    volumes: !reset []
-    environment:
-      NODE_ENV: production
-
   # ── Frontal gateway: swap to prod upstream definitions ─────────
   nginx:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-nginx:${IMAGE_TAG:-latest}
@@ -145,4 +143,4 @@ services:
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
       portals:                 { condition: service_started }
-      aulavera-server:         { condition: service_started }
+      apps-servers:            { condition: service_started }

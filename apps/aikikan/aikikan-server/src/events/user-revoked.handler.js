@@ -39,7 +39,7 @@ export function startUserRevokedSubscriber() {
     if (event?.type !== 'user.revoked' && event?.type !== 'auth.signup.rejected') return
 
     const p = event.payload ?? {}
-    if (p.appId !== env.EXPECTED_APP_ID) return       // not our app
+    if (p.appId !== 'aikikan') return                  // not our app (literal: en apps-servers el env es compartido, ADR 018)
     if (!p.userId || !p.tenantId)         return       // malformed
 
     try {

@@ -1,4 +1,4 @@
-export { appGuard, requireRole }           from './app-guard.js'
+export { appGuard, requireRole, makeAppGuardHook, ensureIdentityDecorator } from './app-guard.js'
 export { createPool, setTenantContext, withTenantTransaction, withTransaction, ensureModuleRole } from './db.js'
 export { AppError, ValidationError, NotFoundError, UnauthorizedError, ForbiddenError, ConflictError, AppMismatchError } from './errors.js'
 export { createLogger }                    from './logger.js'

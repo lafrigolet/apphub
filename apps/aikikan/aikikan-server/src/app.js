@@ -1,36 +1,29 @@
+// Factoría standalone del app — la usan los tests de integración (y
+// cualquier consumidor que quiera el Fastify completo sin listen()).
+// Desde ADR 018 es un envoltorio fino sobre el contrato de módulo
+// (src/index.js): plugins transversales + error handlers + register().
+// En producción el módulo corre dentro del orquestador apps-servers.
 import Fastify from 'fastify'
 import helmet from '@fastify/helmet'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import sensible from '@fastify/sensible'
 import { ZodError } from 'zod'
-import { appGuard } from '@apphub/platform-sdk/app-guard'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { logger } from './lib/logger.js'
-import { membersRoutes }      from './routes/members.routes.js'
-import { videosRoutes }       from './routes/videos.routes.js'
-import { dojosRoutes }        from './routes/dojos.routes.js'
-import { feesRoutes }         from './routes/fees.routes.js'
-import { certificatesRoutes } from './routes/certificates.routes.js'
-// events + event-registrations: deprecated tras cutover Fase 2. La
-// agenda se sirve desde platform-appointments (services + sessions)
-// y las inscripciones desde platform/bookings (sessionId). Los routes
-// dejan de registrarse; cualquier cliente legacy recibe 404 y debe
-// migrar al nuevo endpoint. Las tablas siguen vivas (migration 0009
-// marca COMMENT DEPRECATED) hasta confirmar que no quedan callers.
+import { register } from './index.js'
 
-export function createApp() {
+export async function createApp({ subscribe = false } = {}) {
   const fastify = Fastify({ logger: false, ignoreTrailingSlash: true })
 
-  fastify.register(helmet)
-  fastify.register(cors, { origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*' })
-  fastify.register(rateLimit, {
+  await fastify.register(helmet)
+  await fastify.register(cors, { origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*' })
+  await fastify.register(rateLimit, {
     max: 60,
     timeWindow: '1 minute',
     errorResponseBuilder: () => ({ error: { code: 'RATE_LIMITED', message: 'Too many requests' } }),
   })
-  fastify.register(sensible)
-  fastify.register(appGuard)
+  await fastify.register(sensible)
 
   fastify.addHook('onRequest', async (req) => {
     logger.debug({ method: req.method, url: req.url }, 'Incoming request')
@@ -42,21 +35,6 @@ export function createApp() {
     service: 'aikikan-server',
     timestamp: new Date().toISOString(),
   }))
-
-  // Mirror /health on the /v1/aikikan/health path so the gateway snippet
-  // (which proxies /api/aikikan/* → /v1/aikikan/*) reaches it without
-  // path rewriting gymnastics.
-  fastify.get('/v1/aikikan/health', { config: { public: true } }, async () => ({
-    status: 'ok',
-    service: 'aikikan-server',
-    timestamp: new Date().toISOString(),
-  }))
-
-  fastify.register(membersRoutes)
-  fastify.register(videosRoutes)
-  fastify.register(dojosRoutes)
-  fastify.register(feesRoutes)
-  fastify.register(certificatesRoutes)
 
   fastify.setNotFoundHandler((req, reply) => {
     reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Route not found' } })
@@ -75,6 +53,9 @@ export function createApp() {
     logger.error({ err }, 'Unhandled error')
     return reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } })
   })
+
+  // db: null → lib/db.js crea el pool desde DATABASE_URL.
+  await register({ app: fastify, db: null, redis: null, logger, subscribe })
 
   return fastify
 }
