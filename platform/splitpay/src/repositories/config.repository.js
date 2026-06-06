@@ -1,7 +1,18 @@
 import { encryptSecret, decryptSecret } from '@apphub/platform-sdk/crypto'
 
-const SECRET_KEYS = ['stripe_secret_key', 'stripe_webhook_secret']
-const PLAIN_KEYS  = ['platform_account_id', 'stripe_publishable_key', 'stripe_fee_percent', 'stripe_fee_fixed']
+// Two Stripe key sets (test/live) + the persisted active mode (migration 0010).
+// Publishable keys stay plain (they ship to browsers anyway); fee config is
+// shared between modes.
+const SECRET_KEYS = [
+  'stripe_test_secret_key', 'stripe_test_webhook_secret',
+  'stripe_live_secret_key', 'stripe_live_webhook_secret',
+]
+const PLAIN_KEYS  = [
+  'platform_account_id_test', 'platform_account_id_live',
+  'stripe_test_publishable_key', 'stripe_live_publishable_key',
+  'stripe_mode', // 'test' | 'live'
+  'stripe_fee_percent', 'stripe_fee_fixed',
+]
 
 export const KEYS = [...SECRET_KEYS, ...PLAIN_KEYS]
 

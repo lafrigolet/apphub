@@ -29,12 +29,12 @@ function mockClient(rowsByQuery = {}) {
       if (/INSERT INTO platform_payments\.config/.test(sql)) {
         return { rowCount: 1 }
       }
-      if (/SELECT encrypted_value FROM platform_payments\.config WHERE key/.test(sql)) {
+      if (/SELECT encrypted_value, plain_value FROM platform_payments\.config WHERE key/.test(sql)) {
         const key = params[0]
         const row = rowsByQuery.byKey?.[key]
-        return { rows: row ? [{ encrypted_value: row }] : [] }
+        return { rows: row ? [row] : [] }
       }
-      if (/SELECT key, encrypted_value, updated_at FROM platform_payments\.config/.test(sql)) {
+      if (/SELECT key, encrypted_value, plain_value, updated_at FROM platform_payments\.config/.test(sql)) {
         return { rows: rowsByQuery.list ?? [] }
       }
       return { rows: [] }
@@ -45,11 +45,15 @@ function mockClient(rowsByQuery = {}) {
 beforeEach(() => vi.clearAllMocks())
 
 describe('KEYS — catálogo cerrado de claves permitidas', () => {
-  it('expone exactamente las 3 claves Stripe que necesita el módulo', () => {
+  it('expone los dos juegos test/live + stripe_mode', () => {
     expect(repo.KEYS).toEqual([
-      'stripe_publishable_key',
-      'stripe_secret_key',
-      'stripe_webhook_secret',
+      'stripe_test_secret_key',
+      'stripe_test_publishable_key',
+      'stripe_test_webhook_secret',
+      'stripe_live_secret_key',
+      'stripe_live_publishable_key',
+      'stripe_live_webhook_secret',
+      'stripe_mode',
     ])
   })
 
@@ -63,7 +67,7 @@ describe('KEYS — catálogo cerrado de claves permitidas', () => {
 
   it('upsertValue acepta una key del catálogo y la encripta antes de persistir', async () => {
     const client = mockClient()
-    await repo.upsertValue(client, 'stripe_secret_key', 'sk_test_xyz', 'user-1')
+    await repo.upsertValue(client, 'stripe_test_secret_key', 'sk_test_xyz', 'user-1')
     expect(encryptSecret).toHaveBeenCalledWith('sk_test_xyz')
     // El INSERT recibe el buffer encriptado, NUNCA el plain.
     const [sql, params] = client.query.mock.calls[0]
@@ -73,18 +77,27 @@ describe('KEYS — catálogo cerrado de claves permitidas', () => {
 })
 
 describe('getValue — desencripta al leer', () => {
-  it('devuelve el plain text desencriptado', async () => {
+  it('devuelve el plain text desencriptado (secret key)', async () => {
     const client = mockClient({
-      byKey: { stripe_secret_key: Buffer.from('enc(sk_live_real)') },
+      byKey: { stripe_live_secret_key: { encrypted_value: Buffer.from('enc(sk_live_real)'), plain_value: null } },
     })
-    const v = await repo.getValue(client, 'stripe_secret_key')
+    const v = await repo.getValue(client, 'stripe_live_secret_key')
     expect(decryptSecret).toHaveBeenCalled()
     expect(v).toBe('sk_live_real')
   })
 
+  it('devuelve el plain_value sin desencriptar (stripe_mode)', async () => {
+    const client = mockClient({
+      byKey: { stripe_mode: { encrypted_value: null, plain_value: 'live' } },
+    })
+    const v = await repo.getValue(client, 'stripe_mode')
+    expect(v).toBe('live')
+    expect(decryptSecret).not.toHaveBeenCalled()
+  })
+
   it('devuelve null cuando la key no está configurada (caller usa env fallback)', async () => {
     const client = mockClient()
-    const v = await repo.getValue(client, 'stripe_secret_key')
+    const v = await repo.getValue(client, 'stripe_test_secret_key')
     expect(v).toBeNull()
     expect(decryptSecret).not.toHaveBeenCalled()
   })
@@ -94,19 +107,22 @@ describe('listConfig — surface admin: qué keys están configuradas (sin expon
   it('marca configured=true cuando hay encrypted_value, false en blanco', async () => {
     const client = mockClient({
       list: [
-        { key: 'stripe_publishable_key', encrypted_value: Buffer.from('enc(pk_x)'), updated_at: new Date('2026-01-01') },
-        { key: 'stripe_secret_key',      encrypted_value: null,                     updated_at: null },
+        { key: 'stripe_test_publishable_key', encrypted_value: Buffer.from('enc(pk_x)'), plain_value: null, updated_at: new Date('2026-01-01') },
+        { key: 'stripe_test_secret_key',      encrypted_value: null,                     plain_value: null, updated_at: null },
+        { key: 'stripe_mode',                 encrypted_value: null,                     plain_value: 'live', updated_at: null },
       ],
     })
     const list = await repo.listConfig(client)
-    expect(list).toHaveLength(3)
+    expect(list).toHaveLength(7)
     const byKey = Object.fromEntries(list.map(x => [x.key, x]))
-    expect(byKey.stripe_publishable_key.configured).toBe(true)
-    expect(byKey.stripe_secret_key.configured).toBe(false)
-    expect(byKey.stripe_webhook_secret.configured).toBe(false)
-    // NO incluye el plain en la respuesta — la admin UI nunca debe ver
-    // el secret, solo si está set o no.
-    expect(byKey.stripe_publishable_key).not.toHaveProperty('value')
-    expect(byKey.stripe_publishable_key).not.toHaveProperty('encryptedValue')
+    expect(byKey.stripe_test_publishable_key.configured).toBe(true)
+    expect(byKey.stripe_test_secret_key.configured).toBe(false)
+    expect(byKey.stripe_live_secret_key.configured).toBe(false)
+    // stripe_mode es plain: se expone como value, no como configured.
+    expect(byKey.stripe_mode.value).toBe('live')
+    // NO incluye el plain en la respuesta de los secretos — la admin UI
+    // nunca debe ver el secret, solo si está set o no.
+    expect(byKey.stripe_test_publishable_key).not.toHaveProperty('value')
+    expect(byKey.stripe_test_publishable_key).not.toHaveProperty('encryptedValue')
   })
 })

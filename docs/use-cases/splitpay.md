@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-Cuentas Connect Express (`POST /v1/splitpay/connect-accounts`), refresh de enlace de onboarding, sincronización de estado desde webhook `account.updated`; reglas de split por porcentaje con `platform_fee_percent` + array `recipients` (validación: suma == 100 %), caché Redis 60 s, endpoint `/simulate`; PaymentIntents con `application_fee_amount` + `transfer_data.destination` (destinatario primario) + transferencias adicionales on-demand en `payment_intent.succeeded`; reembolsos parciales o totales con reversals proporcionales (`calculateProportionalRefunds`) e idempotencia Redis 24 h; Checkout Sessions `mode=payment|subscription` con split opcional; webhook `POST /v1/splitpay/webhooks/stripe` (verifica `Stripe-Signature`, proceso en background); eventos Redis en `{appId}.events` + `platform.events`; tabla `disputes` (creación y cierre desde webhook); config runtime AES-256-GCM (`platform_account_id`, `stripe_secret_key`, `stripe_publishable_key`, `stripe_webhook_secret`) recargable sin redeploy desde `PATCH /v1/splitpay/admin/config`; staff impersonation de tenant desde console.
+Cuentas Connect Express (`POST /v1/splitpay/connect-accounts`), refresh de enlace de onboarding, sincronización de estado desde webhook `account.updated`; reglas de split por porcentaje con `platform_fee_percent` + array `recipients` (validación: suma == 100 %), caché Redis 60 s, endpoint `/simulate`; PaymentIntents con `application_fee_amount` + `transfer_data.destination` (destinatario primario) + transferencias adicionales on-demand en `payment_intent.succeeded`; reembolsos parciales o totales con reversals proporcionales (`calculateProportionalRefunds`) e idempotencia Redis 24 h; Checkout Sessions `mode=payment|subscription` con split opcional; webhook `POST /v1/splitpay/webhooks/stripe` (verifica `Stripe-Signature`, proceso en background); eventos Redis en `{appId}.events` + `platform.events`; tabla `disputes` (creación y cierre desde webhook); config runtime AES-256-GCM con dos juegos test/live (`stripe_{test,live}_*`, `platform_account_id_{test,live}`) + modo activo `stripe_mode`, recargable sin redeploy desde `PATCH /v1/splitpay/admin/config`; staff impersonation de tenant desde console.
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -216,15 +216,15 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 16. Configuración runtime (admin)
 
-- ✅ Tabla `splitpay_core.config` con claves `platform_account_id`, `stripe_secret_key`, `stripe_publishable_key`, `stripe_webhook_secret`, `stripe_fee_percent`, `stripe_fee_fixed` (las dos últimas, priority #9, configuran la tarifa de Stripe sin redeploy).
-- ✅ Valores sensibles cifrados en reposo con AES-256-GCM via `@apphub/platform-sdk/crypto`.
-- ✅ `GET /v1/splitpay/admin/config` y `PATCH /v1/splitpay/admin/config` con guard `super_admin|staff`.
-- ✅ `reloadStripeFromDb()` tras PATCH para que el cliente Stripe use las nuevas credenciales sin redeploy.
+- ✅ Tabla `splitpay_core.config` con **dos juegos** de claves Stripe namespaced por modo (migración `0010`): `stripe_test_*` / `stripe_live_*` (secret, publishable, webhook secret), `platform_account_id_test` / `platform_account_id_live` (la cuenta plataforma Connect difiere entre modos), la fila plain `stripe_mode` (`test`|`live`) y las fees compartidas `stripe_fee_percent`, `stripe_fee_fixed` (priority #9).
+- ✅ Valores sensibles cifrados en reposo con AES-256-GCM via `@apphub/platform-sdk/crypto`; publishable keys y account ids en plain.
+- ✅ `GET /v1/splitpay/admin/config` y `PATCH /v1/splitpay/admin/config` con guard `super_admin|staff`; zod valida el prefijo por juego (`sk_test_`/`pk_test_` vs `sk_live_`/`pk_live_`, `acct_` en ambos).
+- ✅ `reloadStripeFromDb()` tras PATCH resuelve `stripe_mode` y carga el juego del modo activo; `getWebhookSecret()` por modo; fallback a env `SPLITPAY_STRIPE_*` solo en modo test (live = solo DB).
 - ✅ Staff impersonation: `super_admin`/`staff` pueden sobrepasar el tenant via `?appId=&tenantId=` query params.
 - 🔧 No hay validación de que la `stripe_secret_key` proporcionada sea válida (podría guardarse una clave incorrecta sin detectarlo hasta la primera llamada a Stripe).
 - ❌ Config per-tenant / per-app: hoy la config es global (una sola cuenta Stripe de plataforma); sin soporte para instancias multi-plataforma con cuentas distintas por app o tenant.
 - ❌ Rotación de clave con período de gracia (mantener clave antigua activa durante N minutos mientras se configura la nueva).
-- ❌ Vista en console para splitpay config (`apps/console/console-portal/src/views/staff/config/splitpay.jsx`).
+- ✅ Vista en console (`apps/console/console-portal/src/views/staff/config/SplitpayConfig.jsx`): dos bloques test/live (account id + publishable + secrets) con badge del modo activo, switch segmentado Test|Live que persiste `stripe_mode` al guardar, y fees compartidas.
 
 ## 17. Reconciliación y audit
 

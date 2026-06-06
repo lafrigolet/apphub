@@ -38,7 +38,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   // db pool returns a client whose configRepo.getValue is patched above.
   pool.connect.mockResolvedValue({ release: vi.fn(), query: vi.fn() })
-  configRepoGetValue.mockResolvedValue(SECRET)
+  // getWebhookSecret consulta primero stripe_mode y luego la secret del modo.
+  configRepoGetValue.mockImplementation(async (_c, key) =>
+    key === 'stripe_mode' ? 'test' : SECRET)
 })
 
 function makeSignature(body, secret, timestamp = Math.floor(Date.now() / 1000)) {
@@ -59,7 +61,8 @@ describe('constructWebhookEvent — firma válida', () => {
   })
 
   it('lee la secret desde DB con prioridad sobre env', async () => {
-    configRepoGetValue.mockResolvedValueOnce('whsec_db_only')
+    configRepoGetValue.mockImplementation(async (_c, key) =>
+      key === 'stripe_test_webhook_secret' ? 'whsec_db_only' : null)
     const signature = makeSignature(PAYLOAD, 'whsec_db_only')
     const event = await constructWebhookEvent(PAYLOAD, signature)
     expect(event.id).toBe('evt_test_1')
@@ -94,8 +97,8 @@ describe('constructWebhookEvent — firma inválida (tamper)', () => {
 })
 
 describe('constructWebhookEvent — fallback DB → env', () => {
-  it('usa el env como fallback si la DB no tiene secret', async () => {
-    configRepoGetValue.mockResolvedValueOnce(null)
+  it('usa el env como fallback si la DB no tiene secret (modo test)', async () => {
+    configRepoGetValue.mockResolvedValue(null)
     const signature = makeSignature(PAYLOAD, 'whsec_env_fallback')
     const event = await constructWebhookEvent(PAYLOAD, signature)
     expect(event.id).toBe('evt_test_1')

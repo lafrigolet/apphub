@@ -30,16 +30,27 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
 
 ## 1. Configuración de credenciales Stripe (admin)
 
-- ✅ Almacenamiento cifrado (AES-256-GCM) de `stripe_secret_key`, `stripe_publishable_key` y
-  `stripe_webhook_secret` en `platform_payments.config`.
-- ✅ GET `/v1/payments/admin/config` — lista qué claves están configuradas (muestra solo flag
-  `configured`, nunca el plain text).
-- ✅ PATCH `/v1/payments/admin/config` — upsert de una o varias claves a la vez.
+- ✅ Almacenamiento cifrado (AES-256-GCM) de los **dos juegos** de claves Stripe — `stripe_test_*`
+  y `stripe_live_*` (secret, publishable, webhook secret) — en `platform_payments.config`
+  (migración `0004`, que renombró el juego único previo al set test).
+- ✅ **Modo activo conmutable**: fila plain `stripe_mode` (`test`|`live`); `reloadStripeFromDb()`
+  resuelve el juego del modo activo y `getWebhookSecret()` devuelve el `whsec_` de ese modo.
+  `getStripeMode()` expone el modo cargado.
+- ✅ GET `/v1/payments/admin/config` — lista qué claves están configuradas (flag `configured`,
+  nunca el plain text; `stripe_mode` como `value`).
+- ✅ PATCH `/v1/payments/admin/config` — upsert de una o varias claves y/o `stripe_mode`; zod
+  valida el prefijo por juego (`sk_test_`/`pk_test_` vs `sk_live_`/`pk_live_`) para que una clave
+  live nunca aterrice en el hueco test. Reload del cliente al tocar el modo o una secret key.
 - ✅ Guard `requireRole('super_admin', 'staff')` en todas las rutas admin.
-- ✅ Fallback a variables de entorno `PLATFORM_STRIPE_*` cuando la clave no existe en DB.
-- ❌ Rotación de credenciales con periodo de gracia (doble clave activa durante el rollover).
-- ❌ Historial de cambios (quién cambió la clave y cuándo) con audit log.
-- ❌ Vista en la consola admin (`apps/console`) para esta sección (`/admin/payments/config`).
+- ✅ Fallback a variables de entorno `PLATFORM_STRIPE_*` **solo para el juego test** (lo que vive
+  en env son credenciales test; live se resuelve exclusivamente de DB).
+- 🔧 Rotación de credenciales: el doble juego test/live cubre el cambio de entorno sin re-pegar
+  claves; sin periodo de gracia con doble clave activa *dentro* de un mismo modo.
+- ❌ Historial de cambios (quién cambió la clave y cuándo) con audit log (la columna
+  `updated_by_user_id` existe; falta el log de revisiones).
+- ✅ Vista en la consola admin (`apps/console` → `PaymentsConfig.jsx`): dos bloques de claves
+  (test/live) con badge del modo activo y switch segmentado Test|Live que persiste `stripe_mode`
+  al guardar.
 - ❌ Soporte multi-cuenta Stripe por `app_id` (hoy hay una única cuenta global por instancia).
 
 ## 2. PaymentIntents — cobro único (one-shot)

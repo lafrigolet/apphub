@@ -16,9 +16,8 @@ vi.mock('../repositories/config.repository.js', () => ({
   upsertValue: vi.fn(),
 }))
 
-vi.mock('../lib/stripe.js', () => ({
-  reloadStripeFromDb: vi.fn().mockResolvedValue(undefined),
-}))
+const { reloadStripeFromDb } = vi.hoisted(() => ({ reloadStripeFromDb: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../lib/stripe.js', () => ({ reloadStripeFromDb }))
 
 vi.mock('@apphub/platform-sdk/app-guard', async () => {
   const { default: fp } = await import('fastify-plugin')
@@ -48,9 +47,11 @@ vi.mock('@apphub/platform-sdk/app-guard', async () => {
 
 import { adminRoutes } from '../routes/admin.routes.js'
 import * as repo from '../repositories/config.repository.js'
+import { validatorCompiler } from 'fastify-type-provider-zod'
 
 async function buildApp() {
   const app = Fastify({ logger: false })
+  app.setValidatorCompiler(validatorCompiler)
   const { appGuard } = await import('@apphub/platform-sdk/app-guard')
   await app.register(appGuard)
   await app.register(adminRoutes, { prefix: '/v1/payments/admin' })
@@ -127,13 +128,43 @@ describe('PATCH /config', () => {
     const res = await app.inject({
       method: 'PATCH', url: '/v1/payments/admin/config',
       headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
-      payload: { stripe_secret_key: 'sk_test_1', stripe_publishable_key: 'pk_1' },
+      payload: { stripe_test_secret_key: 'sk_test_1', stripe_test_publishable_key: 'pk_test_1' },
     })
     expect(res.statusCode).toBe(200)
     expect(repo.upsertValue).toHaveBeenCalledTimes(2)
-    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_secret_key', 'sk_test_1', 'u1')
-    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_publishable_key', 'pk_1', 'u1')
+    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_test_secret_key', 'sk_test_1', 'u1')
+    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_test_publishable_key', 'pk_test_1', 'u1')
     expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it('stripe_mode dispara reloadStripeFromDb; una publishable sola no', async () => {
+    repo.listConfig.mockResolvedValue([])
+    let res = await app.inject({
+      method: 'PATCH', url: '/v1/payments/admin/config',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { stripe_live_publishable_key: 'pk_live_1' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(reloadStripeFromDb).not.toHaveBeenCalled()
+
+    res = await app.inject({
+      method: 'PATCH', url: '/v1/payments/admin/config',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { stripe_mode: 'live' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_mode', 'live', 'u1')
+    expect(reloadStripeFromDb).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefijo de modo equivocado → 400/422 (sk_live_ en el campo test)', async () => {
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/payments/admin/config',
+      headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
+      payload: { stripe_test_secret_key: 'sk_live_oops' },
+    })
+    expect([400, 422]).toContain(res.statusCode)
+    expect(repo.upsertValue).not.toHaveBeenCalled()
   })
 
   it('body vacío → no upsert, devuelve listConfig', async () => {
@@ -152,17 +183,17 @@ describe('PATCH /config', () => {
     const res = await app.inject({
       method: 'PATCH', url: '/v1/payments/admin/config',
       headers: { Authorization: 'Bearer staff-token', 'Content-Type': 'application/json' },
-      payload: { stripe_webhook_secret: null },
+      payload: { stripe_test_webhook_secret: null },
     })
     expect(res.statusCode).toBe(200)
-    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_webhook_secret', null, 'u1')
+    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_test_webhook_secret', null, 'u1')
   })
 
   it('user normal → 403', async () => {
     const res = await app.inject({
       method: 'PATCH', url: '/v1/payments/admin/config',
       headers: { Authorization: 'Bearer user-token', 'Content-Type': 'application/json' },
-      payload: { stripe_secret_key: 'x' },
+      payload: { stripe_test_secret_key: 'sk_test_x' },
     })
     expect(res.statusCode).toBe(403)
   })
@@ -173,8 +204,8 @@ describe('defaults defensivos (?? {}) — handlers directos', () => {
     const routes = []
     await adminRoutes({
       addHook: () => {},
-      get:   (p, h) => routes.push({ m: 'get', p, h }),
-      patch: (p, h) => routes.push({ m: 'patch', p, h }),
+      get:   (p, opts, h) => routes.push({ m: 'get', p, h: h ?? opts }),
+      patch: (p, opts, h) => routes.push({ m: 'patch', p, h: h ?? opts }),
     })
     return routes
   }
@@ -194,7 +225,7 @@ describe('defaults defensivos (?? {}) — handlers directos', () => {
     repo.listConfig.mockResolvedValue([])
     const routes = await handlers()
     const patch = routes.find((r) => r.m === 'patch')
-    await patch.h({ body: { stripe_secret_key: 'sk_x' } })
-    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_secret_key', 'sk_x', undefined)
+    await patch.h({ body: { stripe_test_secret_key: 'sk_test_x' } })
+    expect(repo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_test_secret_key', 'sk_test_x', undefined)
   })
 })

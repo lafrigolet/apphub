@@ -7,16 +7,20 @@ const STRIPE_API_VERSION = '2024-06-20'
 
 let _stripe = null
 let _secretKey = null
+let _mode = 'test'
 
-// Load the secret key from the DB (env fallback handled by config.repository
-// via PLATFORM_STRIPE_* in the caller path). Safe to call at register() time
-// and again after a config PATCH. When no key is configured we leave _stripe
-// null and the dev-stub takes over (see ensureStripe / isStubbed).
+// Load the active mode + that mode's secret key from the DB. The PLATFORM_STRIPE_*
+// env vars remain a fallback for the TEST set only — what lives in env today are
+// test credentials, and silently promoting them to live would mean real charges
+// with keys never meant for it. Live mode resolves exclusively from the DB.
+// Safe to call at register() time and again after a config PATCH. When no key
+// is configured we leave _stripe null and the dev-stub takes over.
 export async function reloadStripeFromDb() {
   const client = await pool.connect()
   try {
-    _secretKey = await configRepo.getValue(client, 'stripe_secret_key')
-      ?? process.env.PLATFORM_STRIPE_SECRET_KEY
+    _mode = (await configRepo.getValue(client, 'stripe_mode')) === 'live' ? 'live' : 'test'
+    _secretKey = await configRepo.getValue(client, `stripe_${_mode}_secret_key`)
+      ?? (_mode === 'test' ? process.env.PLATFORM_STRIPE_SECRET_KEY : null)
       ?? null
   } finally {
     client.release()
@@ -28,9 +32,15 @@ export async function reloadStripeFromDb() {
       maxNetworkRetries: 2, // retry transient 429/5xx (CLAUDE.md §3 resilience)
       appInfo: { name: 'AppHub Payments', version: '0.1.0' },
     })
+    logger.info({ mode: _mode }, 'Stripe client (re)loaded')
   } else {
-    logger.warn('Stripe secret key not configured — payments running in DEV-STUB mode (no real charges)')
+    logger.warn({ mode: _mode }, 'Stripe secret key not configured — payments running in DEV-STUB mode (no real charges)')
   }
+}
+
+// Active mode as resolved by the last reloadStripeFromDb().
+export function getStripeMode() {
+  return _mode
 }
 
 // True when no Stripe credentials are configured. Callers use this to take the
@@ -43,13 +53,18 @@ export function isStubbed() {
 export function resetStripeClient() {
   _stripe = null
   _secretKey = null
+  _mode = 'test'
 }
 
+// Webhook signing secret for the ACTIVE mode (Stripe issues a distinct whsec_
+// per endpoint/mode). Env fallback only applies to the test set — see
+// reloadStripeFromDb for the rationale.
 export async function getWebhookSecret() {
   const client = await pool.connect()
   try {
-    return await configRepo.getValue(client, 'stripe_webhook_secret')
-      ?? process.env.PLATFORM_STRIPE_WEBHOOK_SECRET
+    const mode = (await configRepo.getValue(client, 'stripe_mode')) === 'live' ? 'live' : 'test'
+    return await configRepo.getValue(client, `stripe_${mode}_webhook_secret`)
+      ?? (mode === 'test' ? process.env.PLATFORM_STRIPE_WEBHOOK_SECRET : null)
       ?? null
   } finally {
     client.release()

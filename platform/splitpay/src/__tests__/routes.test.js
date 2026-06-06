@@ -304,11 +304,12 @@ describe('admin config routes', () => {
     configRepo.listConfig.mockResolvedValue([])
     const res = await app.inject({
       method: 'PATCH', url: '/v1/splitpay/admin/config',
-      payload: { platform_account_id: 'acct_1', stripe_secret_key: 'sk_live_x' },
+      payload: { platform_account_id_test: 'acct_1', stripe_test_secret_key: 'sk_test_x', stripe_mode: 'live' },
     })
     expect(res.statusCode).toBe(200)
-    expect(configRepo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'platform_account_id', 'acct_1')
-    expect(configRepo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_secret_key', 'sk_live_x')
+    expect(configRepo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'platform_account_id_test', 'acct_1')
+    expect(configRepo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_test_secret_key', 'sk_test_x')
+    expect(configRepo.upsertValue).toHaveBeenCalledWith(expect.anything(), 'stripe_mode', 'live')
     expect(reloadStripeFromDb).toHaveBeenCalled()
   })
 
@@ -320,13 +321,27 @@ describe('admin config routes', () => {
     expect(configRepo.upsertValue).not.toHaveBeenCalled()
   })
 
-  it('PATCH /config valor inválido → 422 (zod startsWith)', async () => {
+  it('PATCH /config valor inválido → 400 (zod startsWith, schema de ruta)', async () => {
     fakeClient()
     const res = await app.inject({
       method: 'PATCH', url: '/v1/splitpay/admin/config',
-      payload: { stripe_secret_key: 'bad_key' },
+      payload: { stripe_test_secret_key: 'bad_key' },
     })
-    expect(res.statusCode).toBe(500) // patchBody.parse lanza ZodError → errorHandler genérico
+    // Con el schema declarado en la ruta, el validador zod corta antes del
+    // handler con el 400 por defecto de Fastify (antes era un 500 del parse
+    // manual dentro del handler).
+    expect(res.statusCode).toBe(400)
+    expect(configRepo.upsertValue).not.toHaveBeenCalled()
+  })
+
+  it('PATCH /config prefijo del modo equivocado → 400 (sk_live_ en campo test)', async () => {
+    fakeClient()
+    const res = await app.inject({
+      method: 'PATCH', url: '/v1/splitpay/admin/config',
+      payload: { stripe_test_secret_key: 'sk_live_oops' },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(configRepo.upsertValue).not.toHaveBeenCalled()
   })
 })
 

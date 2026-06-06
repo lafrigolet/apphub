@@ -20,7 +20,7 @@ vi.mock('../lib/db.js', () => ({ pool: poolMock }))
 vi.mock('../repositories/config.repository.js', () => configRepoMock)
 
 import {
-  reloadStripeFromDb, resetStripeClient, getWebhookSecret, stripe,
+  reloadStripeFromDb, resetStripeClient, getWebhookSecret, getStripeMode, stripe,
 } from '../lib/stripe.js'
 import { logger } from '../lib/logger.js'
 
@@ -102,5 +102,61 @@ describe('getWebhookSecret', () => {
     fakeClient()
     configRepoMock.getValue.mockResolvedValue(null)
     expect(await getWebhookSecret()).toBeNull()
+  })
+})
+
+// ── Resolución por modo (stripe_mode test/live, migración 0010) ────────────
+describe('reloadStripeFromDb — modo test/live', () => {
+  function dbValues(map) {
+    configRepoMock.getValue.mockImplementation(async (_c, key) => map[key] ?? null)
+  }
+
+  it('modo live → usa stripe_live_secret_key e ignora el juego test', async () => {
+    fakeClient()
+    dbValues({ stripe_mode: 'live', stripe_live_secret_key: 'sk_live_db', stripe_test_secret_key: 'sk_test_db' })
+    await reloadStripeFromDb()
+    expect(getStripeMode()).toBe('live')
+    expect(stripeCtor).toHaveBeenCalledWith('sk_live_db', expect.anything())
+  })
+
+  it('sin fila stripe_mode → default test', async () => {
+    fakeClient()
+    dbValues({ stripe_test_secret_key: 'sk_test_db' })
+    await reloadStripeFromDb()
+    expect(getStripeMode()).toBe('test')
+    expect(stripeCtor).toHaveBeenCalledWith('sk_test_db', expect.anything())
+  })
+
+  it('el env fallback NO aplica en modo live (dev-stub antes que clave test)', async () => {
+    fakeClient()
+    envMock.SPLITPAY_STRIPE_SECRET_KEY = 'sk_test_env'
+    dbValues({ stripe_mode: 'live' })
+    await reloadStripeFromDb()
+    expect(stripeCtor).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalled()
+  })
+
+  it('getWebhookSecret en live → stripe_live_webhook_secret, sin env fallback', async () => {
+    fakeClient()
+    envMock.SPLITPAY_STRIPE_WEBHOOK_SECRET = 'whsec_env'
+    configRepoMock.getValue.mockImplementation(async (_c, key) => ({
+      stripe_mode: 'live', stripe_live_webhook_secret: 'whsec_live_db',
+    }[key] ?? null))
+    expect(await getWebhookSecret()).toBe('whsec_live_db')
+
+    configRepoMock.getValue.mockImplementation(async (_c, key) =>
+      key === 'stripe_mode' ? 'live' : null)
+    expect(await getWebhookSecret()).toBeNull()
+  })
+
+  it('resetStripeClient vuelve a modo test', async () => {
+    fakeClient()
+    configRepoMock.getValue.mockImplementation(async (_c, key) => ({
+      stripe_mode: 'live', stripe_live_secret_key: 'sk_live_db',
+    }[key] ?? null))
+    await reloadStripeFromDb()
+    expect(getStripeMode()).toBe('live')
+    resetStripeClient()
+    expect(getStripeMode()).toBe('test')
   })
 })

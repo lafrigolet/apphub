@@ -14,7 +14,7 @@ beforeEach(() => vi.clearAllMocks())
 describe('upsertValue sin updatedByUserId', () => {
   it('persiste updated_by_user_id = null', async () => {
     const client = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) }
-    await repo.upsertValue(client, 'stripe_secret_key', 'sk_x')
+    await repo.upsertValue(client, 'stripe_test_secret_key', 'sk_test_x')
     const [, params] = client.query.mock.calls[0]
     expect(params[2]).toBeNull()
   })

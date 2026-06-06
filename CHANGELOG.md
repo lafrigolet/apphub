@@ -14,6 +14,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   entra en `inputs` para invalidar la caché al cambiar la config de vitest.
 
 ### Added
+- **Claves Stripe test/live con switch de modo (console + `platform/payments` +
+  `platform/splitpay`).** Cada módulo guarda ahora DOS juegos de claves
+  (`stripe_test_*` / `stripe_live_*`; en splitpay también
+  `platform_account_id_{test,live}` — la cuenta plataforma Connect difiere por
+  modo) y una fila plain `stripe_mode` que decide el juego activo.
+  Migraciones `payments/0004` y `splitpay/0010`: renombran las claves
+  existentes al juego **test** (lo guardado eran credenciales test) y siembran
+  `stripe_mode='test'`. Runtime: `reloadStripeFromDb()`/`getWebhookSecret()`
+  resuelven por modo, con fallback a env (`PLATFORM_STRIPE_*` /
+  `SPLITPAY_STRIPE_*`) **solo en test** — live se resuelve exclusivamente de
+  DB. PATCH admin valida prefijos por juego (`sk_test_`/`sk_live_`, idem pk)
+  y recarga el cliente al tocar modo o secret; rutas admin de ambos módulos
+  ganan schema OpenAPI. Console: `PaymentsConfig.jsx` y `SplitpayConfig.jsx`
+  muestran ambos bloques de claves con badge del modo activo y un switch
+  segmentado Test|Live (componente nuevo `StripeModeSwitch.jsx`) que persiste
+  `stripe_mode` al pulsar Guardar. Fees de splitpay compartidas entre modos.
+  Suites verdes: payments 78 · splitpay 289 · console-portal 24.
 - **`platform-tpv` — quinto monolito de dominio: TPV genérico (V1 completa).**
   [ADR 015](docs/adr/015-platform-tpv-monolith.md) + spec en
   `docs/use-cases/tpv.md`. Contenedor nuevo en puerto 3500 (módulo único
