@@ -21,6 +21,7 @@ const REQUIRED_VARS = {
   DATABASE_URL_INQUIRIES:      'postgresql://a:b@localhost:5432/test',
   DATABASE_URL_VERIFACTU:      'postgresql://a:b@localhost:5432/test',
   DATABASE_URL_CHAT:           'postgresql://a:b@localhost:5432/test',
+  DATABASE_URL_TPV:            'postgresql://a:b@localhost:5432/test',
   S3_ENDPOINT:                 'http://minio:9000',
   S3_ACCESS_KEY:               'k',
   S3_SECRET_KEY:               's',

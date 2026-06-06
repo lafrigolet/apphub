@@ -40,12 +40,12 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
   const createPoolMock = vi.fn(() => ({ on: vi.fn(), end: vi.fn().mockResolvedValue(undefined) }))
   const ensureModuleRoleMock = vi.fn().mockResolvedValue(undefined)
   const createRedisMock = vi.fn(() => ({ on: vi.fn(), quit: vi.fn().mockResolvedValue(undefined) }))
-  const mkModule = (name) => ({ register: vi.fn().mockResolvedValue(undefined), runMigrations: vi.fn().mockResolvedValue(undefined), __name: name })
+  const mkModule = (name) => ({ register: vi.fn().mockResolvedValue(undefined), runMigrations: vi.fn().mockResolvedValue(undefined), enforceGrants: null, __name: name })
   const modulesMock = {
     auth: mkModule('auth'), notifications: mkModule('notifications'), payments: mkModule('payments'),
     tenantConfig: mkModule('tenant-config'), splitpay: mkModule('splitpay'), storage: mkModule('storage'),
     leads: mkModule('leads'), donations: mkModule('donations'), inquiries: mkModule('inquiries'),
-    verifactu: mkModule('verifactu'), chat: mkModule('chat'),
+    verifactu: mkModule('verifactu'), chat: mkModule('chat'), tpv: mkModule('tpv'),
   }
   return { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, ensureModuleRoleMock, createRedisMock, modulesMock }
 })
@@ -72,6 +72,7 @@ vi.mock('@apphub/platform-donations',     () => modulesMock.donations)
 vi.mock('@apphub/platform-inquiries',     () => modulesMock.inquiries)
 vi.mock('@apphub/platform-verifactu',     () => modulesMock.verifactu)
 vi.mock('@apphub/platform-chat',          () => modulesMock.chat)
+vi.mock('@apphub/platform-tpv',           () => modulesMock.tpv)
 vi.mock('@fastify/websocket',             () => ({ default: vi.fn() }))
 
 let exitSpy

@@ -61,6 +61,9 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
   const mkModule = (name) => ({
     register:      vi.fn().mockResolvedValue(undefined),
     runMigrations: vi.fn().mockResolvedValue(undefined),
+    // server.js sondea mod.enforceGrants (re-grants post-reconciliación de
+    // tpv); los mocks estrictos de vitest exigen el export definido.
+    enforceGrants: null,
     __name: name,
   })
   const modulesMock = {
@@ -75,6 +78,7 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
     inquiries:      mkModule('inquiries'),
     verifactu:      mkModule('verifactu'),
     chat:           mkModule('chat'),
+    tpv:            mkModule('tpv'),
   }
 
   return { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, ensureModuleRoleMock, createRedisMock, modulesMock }
@@ -102,6 +106,7 @@ vi.mock('@apphub/platform-donations',     () => modulesMock.donations)
 vi.mock('@apphub/platform-inquiries',     () => modulesMock.inquiries)
 vi.mock('@apphub/platform-verifactu',     () => modulesMock.verifactu)
 vi.mock('@apphub/platform-chat',          () => modulesMock.chat)
+vi.mock('@apphub/platform-tpv',           () => modulesMock.tpv)
 vi.mock('@fastify/websocket',             () => ({ default: vi.fn() }))
 
 // ── tests ───────────────────────────────────────────────────────────
@@ -138,7 +143,7 @@ afterEach(() => {
 })
 
 describe('start() — boot sequence', () => {
-  it('runMigrations es llamado UNA vez por cada uno de los 10 módulos, en orden', async () => {
+  it('runMigrations es llamado UNA vez por cada uno de los 12 módulos, en orden', async () => {
     const { start } = await import('../server.js')
     await start()
 
@@ -152,7 +157,7 @@ describe('start() — boot sequence', () => {
     const { start } = await import('../server.js')
     await start()
 
-    expect(createPoolMock).toHaveBeenCalledTimes(11)
+    expect(createPoolMock).toHaveBeenCalledTimes(12)
     const urls = createPoolMock.mock.calls.map((c) => c[0])
     expect(urls).toContain(process.env.DATABASE_URL_AUTH)
     expect(urls).toContain(process.env.DATABASE_URL_NOTIFICATIONS)
@@ -181,7 +186,7 @@ describe('start() — boot sequence', () => {
     expect(registerCalls).toContain(appGuardMock)
   })
 
-  it('cada uno de los 10 módulos.register({ app, db, redis, logger }) recibe sus deps', async () => {
+  it('cada uno de los 12 módulos.register({ app, db, redis, logger }) recibe sus deps', async () => {
     const { start } = await import('../server.js')
     await start()
 
@@ -220,7 +225,7 @@ describe('start() — boot sequence', () => {
     expect(r.status).toBe('ok')
     expect(r.service).toBe('platform-core')
     expect(r.modules).toEqual(
-      ['auth','notifications','payments','tenant-config','splitpay','storage','leads','donations','inquiries','verifactu','chat'],
+      ['auth','notifications','payments','tenant-config','splitpay','storage','leads','donations','inquiries','verifactu','chat','tpv'],
     )
     expect(r.timestamp).toBeTypeOf('string')
   })
