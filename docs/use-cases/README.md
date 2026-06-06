@@ -29,6 +29,7 @@ Cada fichero sigue la misma estructura (plantilla canónica: [`leads.md`](leads.
 - [inquiries](inquiries.md) — formulario de contacto por-tenant
 - [verifactu](verifactu.md) — facturación verificable AEAT Veri*Factu (🔧 skeleton)
 - [chat](chat.md) — chat de miembros + gateway WebSocket
+- [tpv](tpv.md) — TPV genérico: dispositivos, sesiones de caja, efectivo, recibos correlativos, abonos, informes X/Z, Veri*Factu ([ADR 015](../adr/015-platform-tpv-monolith.md)/[016](../adr/016-tpv-folded-into-platform-core.md))
 
 ### platform-marketplace (puerto 3100) — transacciones marketplace
 
@@ -64,10 +65,6 @@ Cada fichero sigue la misma estructura (plantilla canónica: [`leads.md`](leads.
 ### platform-scheduler (puerto 3400) — cron single-runner
 
 - [scheduler](scheduler.md) — cron-as-a-service, jobs, advisory locks, eventos
-
-### platform-tpv (puerto 3500) — operaciones de punto de venta
-
-- [tpv](tpv.md) — TPV genérico: dispositivos, sesiones de caja, efectivo, recibos correlativos, abonos, informes X/Z, Veri*Factu ([ADR 015](../adr/015-platform-tpv-monolith.md))
 
 ---
 

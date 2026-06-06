@@ -1,7 +1,7 @@
 {
   "name": "@apphub/platform-tpv",
   "version": "0.1.0",
-  "description": "Platform-tpv monolith — point-of-sale operations (devices, cash sessions, receipts, credit notes, X/Z reports, Veri*Factu feed)",
+  "description": "TPV module (hosted in platform-core, ADR 016) — point-of-sale operations (devices, cash sessions, receipts, credit notes, X/Z reports, Veri*Factu feed). Keeps src/server.js + Dockerfile ready-to-split.",
   "private": true,
   "type": "module",
   "main": "src/server.js",

@@ -6,6 +6,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- **`platform/tpv` integrado en `platform-core`
+  ([ADR 016](docs/adr/016-tpv-folded-into-platform-core.md), supersede la
+  decisión de contenedor del ADR 015).** Operar un contenedor entero para un
+  único módulo de tráfico bajo no compensaba; el contrato de módulos hace la
+  reubicación un cambio de cableado puro (cero lógica de negocio): descriptor
+  en `platform/core/src/server.js` (12º módulo, con `ensureModuleRole`),
+  `DATABASE_URL_TPV` en env/compose, COPYs en el Dockerfile de core, ruta
+  NGINX `/api/tpv/` → upstream `platform_core`, servicio `platform-tpv`
+  eliminado de compose (puerto 3500 liberado, reservado para un futuro
+  re-split). Sin cambios en schema/rol/eventos/scheduler. El módulo conserva
+  `src/server.js` + `Dockerfile` como artefactos ready-to-split. De paso,
+  `deploy/services.json` corrige los paths de platform-core (faltaban
+  leads/donations/inquiries/verifactu/chat — sus cambios no disparaban
+  rebuild en deploy) y añade `platform/tpv/**`. La integración destapó un
+  conflicto real: `ensureModuleRole` (boot de core) re-otorgaba UPDATE/DELETE
+  uniformes deshaciendo los REVOKEs de inmutabilidad de tpv — el contrato de
+  módulo gana el hook **opcional** `enforceGrants(superuserUrl)` que el
+  orquestador invoca DESPUÉS de la reconciliación
+  (`platform/tpv/src/lib/grants.js`; verificado que los grants estrictos
+  sobreviven al boot). Verificado e2e: los 12 módulos arrancan,
+  settings/datos intactos (mismo schema) y el ciclo fiscal completo (venta
+  cash → recibo → registro Veri*Factu → QR) funciona con tpv y verifactu en
+  el mismo proceso.
+
 ### Fixed
 - **`turbo.json` — warnings "no output files found" en `test:unit`.** La tarea
   declaraba `outputs: ["coverage/**"]` pero `vitest run` (sin `--coverage`) no

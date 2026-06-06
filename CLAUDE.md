@@ -19,13 +19,13 @@ app-specific services under `apps/*/` keep their own containers.
 
 ```
 apphub/
-├── platform/                  # Platform-side services. Six monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments + platform-scheduler + platform-tpv).
+├── platform/                  # Platform-side services. Five monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments + platform-scheduler).
 │   ├── core/                  # platform-core orchestrator — port 3000 (auth/notifications/payments/tenant-config/splitpay)
 │   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes/catalog/basket)
 │   ├── restaurant/            # platform-restaurant orchestrator — port 3200 (menu/reservations/floor-plan/kds/pos/delivery-dispatch)
 │   ├── appointments/          # platform-appointments orchestrator — port 3300 (services/resources/bookings/availability/intake-forms/telehealth/packages/practitioner-payouts)
 │   ├── scheduler/             # platform-scheduler — port 3400, single-runner cron for all 4 monoliths
-│   ├── tpv/                   # TPV module (in platform-tpv, port 3500) — schema platform_tpv; devices, cash sessions, receipts, credit notes, X/Z reports, Veri*Factu feed (ADR 015)
+│   ├── tpv/                   # TPV module (in platform-core) — schema platform_tpv; devices, cash sessions, receipts, credit notes, X/Z reports, Veri*Factu feed (ADR 015/016; keeps server.js+Dockerfile ready-to-split)
 │   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
 │   ├── payments/              # Payments module (in platform-core) — schema platform_payments
 │   ├── notifications/         # Notifications module (in platform-core) — schema platform_notifications
@@ -387,6 +387,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Inquiries (per-tenant contact form, email-only V1) | `platform/inquiries` | `platform_inquiries` | `svc_platform_inquiries` | ✅ Implemented |
 | Verifactu (SIF / facturación verificable AEAT: registros, cadena de huellas, eventos, remisiones, cotejo) | `platform/verifactu` | `platform_verifactu` | `svc_platform_verifactu` | 🔧 Skeleton (huella/firma/SOAP/QR stubbed — specs AEAT pendientes) |
 | Chat (member chat: direct 1:1, group, support; real-time WebSocket gateway, presence, typing, reactions, attachments, threads, pins, forward, @mentions incl. roles, DM requests, invites/public groups, scheduled + ephemeral messages, read/delivered receipts, search, moderation/bans, CSAT, macros) | `platform/chat` | `platform_chat` | `svc_platform_chat` | ✅ Implemented |
+| TPV (terminal devices, cash sessions/arqueo, cash movements, gap-free sequential receipts + full invoices + simplified→invoice conversion, credit notes with manager authorization, X/Z reports, period aggregates + CSV export, per-tenant fiscal issuer settings, Veri*Factu event feed with async QR). Bill engine stays in `platform/pos` (platform-restaurant): tpv consumes `pos.bill.paid`/`pos.bill.cancelled` and adds the till/fiscal layer. Keeps `server.js`+`Dockerfile` ready-to-split ([ADR 015](docs/adr/015-platform-tpv-monolith.md)/[016](docs/adr/016-tpv-folded-into-platform-core.md)) | `platform/tpv` | `platform_tpv` | `svc_platform_tpv` | ✅ Implemented |
 
 ### platform-marketplace (port 3100) — marketplace transactions
 
@@ -458,16 +459,6 @@ the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
 | `messaging-sla` | `*/15 * * * *` | publish `messaging.vendor.sla_breached` (no vendor first reply within SLA) |
 | `telehealth-expire-stale` | `* * * * *` | flip stale telehealth rooms to expired + publish `telehealth.room.expired` |
 | `tpv-session-autoclose` | `*/15 * * * *` | force-close TPV cash sessions open beyond the tenant autoclose window + publish `tpv.session.force_closed` |
-
-### platform-tpv (port 3500) — point-of-sale operations
-
-| Capability | Module | Schema | DB role | Status |
-|---|---|---|---|---|
-| TPV (terminal devices, cash sessions/arqueo, cash movements, gap-free sequential receipts + full invoices + simplified→invoice conversion, credit notes with manager authorization, X/Z reports, period aggregates + CSV export, per-tenant fiscal issuer settings, Veri*Factu event feed with async QR) | `platform/tpv` | `platform_tpv` | `svc_platform_tpv` | ✅ Implemented ([ADR 015](docs/adr/015-platform-tpv-monolith.md)) |
-
-The bill engine (bills, items, splits, tips, mixed payments) stays in `platform/pos`
-(platform-restaurant) — generic despite its container; `platform/tpv` consumes its
-events (`pos.bill.paid`, `pos.bill.cancelled`) and adds the till/fiscal layer on top.
 
 ### Planned
 

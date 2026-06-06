@@ -200,6 +200,23 @@ const migrationPool = new pg.Pool({ connectionString: env.MIGRATION_DATABASE_URL
 
 Service roles and schema grants are defined in `infra/postgres/init/01_platform_schemas.sql`.
 
+### Stricter-than-uniform grants: the `enforceGrants` module hook
+
+The orchestrators reconcile each module role on boot with `ensureModuleRole`, which
+grants uniform `SELECT, INSERT, UPDATE, DELETE` on the whole schema. If a module needs a
+**stricter** policy (e.g. `platform/tpv` keeps its fiscal snapshot tables append-only and
+only allows column-scoped UPDATEs), uniform reconciliation would silently undo its
+REVOKEs. Such a module exports an optional third contract function:
+
+```js
+// platform/<module>/src/index.js
+export { enforceGrants } from './lib/grants.js'   // async (superuserUrl) => void, idempotente
+```
+
+The orchestrator calls it **after** `ensureModuleRole` (order matters — see ADR 016).
+Modules with the standard uniform policy simply don't export it. Reference
+implementation: `platform/tpv/src/lib/grants.js`.
+
 ## PostgreSQL session context
 
 Use `setTenantContext` from `platform-sdk` before any tenant-scoped query:

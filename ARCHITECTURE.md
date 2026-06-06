@@ -275,12 +275,11 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 
 | Docker service | What runs inside | Ports |
 |---|---|---|
-| `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay + storage + leads + donations | 3000 |
+| `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay + storage + leads + donations + inquiries + verifactu + chat + tpv | 3000 |
 | `platform-marketplace` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes + catalog + basket | 3100 |
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
 | `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
 | `platform-scheduler` | Single-runner cron for all 4 monoliths (9 jobs: hold purge, reminders, recurrence expander, expiry warnings, payout close, SLA breach, abandoned cart) | 3400 |
-| `platform-tpv` | Modular monolith: tpv (devices, cash sessions, gap-free receipts, credit notes, X/Z reports, Veri*Factu feed) — see [ADR 015](docs/adr/015-platform-tpv-monolith.md) | 3500 |
 | `portal` | AppHub admin (Vite dev) | 5173 |
 | `splitpay-portal` | Split Pay frontend (Vite dev) | 5175 |
 | `aikikan-portal` | Aikikan frontend (Vite dev) | 5176 |
@@ -298,9 +297,11 @@ on boot, and shares the same Postgres + Redis instances. Cross-container communi
 by Redis events (`platform.events` channel) and shared `PLATFORM_JWT_SECRET` so JWTs are
 accepted on all of them. See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md)
 for the rationale, [ADR 005](docs/adr/005-platform-restaurant-monolith.md) for the
-restaurant split, [ADR 006](docs/adr/006-platform-appointments-monolith.md) for the
-appointments split, and [ADR 015](docs/adr/015-platform-tpv-monolith.md) for the
-point-of-sale split.
+restaurant split, and [ADR 006](docs/adr/006-platform-appointments-monolith.md) for the
+appointments split. The `tpv` module (point-of-sale) is hosted inside `platform-core`
+for operational economy but keeps its own `server.js` + `Dockerfile` ready-to-split —
+see [ADR 015](docs/adr/015-platform-tpv-monolith.md) /
+[ADR 016](docs/adr/016-tpv-folded-into-platform-core.md).
 
 ## Port allocation
 
@@ -314,8 +315,7 @@ point-of-sale split.
 | 3200 | platform-restaurant |
 | 3300 | platform-appointments |
 | 3400 | platform-scheduler |
-| 3500 | platform-tpv |
-| 3500+ | Future domain monoliths |
+| 3500+ | Future domain monoliths (3500 reserved for platform-tpv if tpv is split back out, ADR 016) |
 | 5173 | AppHub admin portal |
 | 5175 | Split Pay portal |
 | 5176 | Aikikan portal |
@@ -341,4 +341,5 @@ ADRs are stored in `docs/adr/`. Current decisions:
 | 012 | Tenant Console multi-host routing |
 | 013 | App architecture: monolith per app + unified schema naming |
 | 014 | chat module + the platform's first WebSocket gateway |
-| 015 | platform-tpv: fifth domain monolith for point-of-sale operations |
+| 015 | platform-tpv: fifth domain monolith for point-of-sale operations (container superseded by 016) |
+| 016 | tpv folded into platform-core (kept ready-to-split) |

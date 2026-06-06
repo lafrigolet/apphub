@@ -994,6 +994,9 @@ importers:
       '@apphub/platform-tenant-config':
         specifier: workspace:*
         version: link:../tenant-config
+      '@apphub/platform-tpv':
+        specifier: workspace:*
+        version: link:../tpv
       '@apphub/platform-verifactu':
         specifier: workspace:*
         version: link:../verifactu

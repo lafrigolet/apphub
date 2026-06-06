@@ -27,6 +27,7 @@
     "@apphub/platform-inquiries": "workspace:*",
     "@apphub/platform-verifactu": "workspace:*",
     "@apphub/platform-chat": "workspace:*",
+    "@apphub/platform-tpv": "workspace:*",
     "fastify": "^5.0.0",
     "@fastify/helmet": "^12.0.0",
     "@fastify/websocket": "^11.0.0",

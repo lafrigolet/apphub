@@ -13,6 +13,7 @@ import { startPosEventsHandler } from './services/pos-events.handler.js'
 import { startVerifactuEventsHandler } from './services/verifactu-events.handler.js'
 
 export { runMigrations } from './lib/migrate.js'
+export { enforceGrants } from './lib/grants.js'
 
 export async function register({ app, db, redis, logger }) {
   configurePool(db)
