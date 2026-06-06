@@ -28,6 +28,12 @@
         "platform/tenant-config/**",
         "platform/splitpay/**",
         "platform/storage/**",
+        "platform/leads/**",
+        "platform/donations/**",
+        "platform/inquiries/**",
+        "platform/verifactu/**",
+        "platform/chat/**",
+        "platform/tpv/**",
         "packages/platform-sdk/**",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml"

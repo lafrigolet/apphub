@@ -1,4 +1,4 @@
-# Casos de uso — `platform/tpv` (platform-tpv)
+# Casos de uso — `platform/tpv` (platform-core)
 
 > Dominio: operación de caja y cumplimiento fiscal de un TPV genérico (cualquier app, no
 > solo restaurante) — dispositivos terminal, sesiones/turnos de caja, movimientos de
@@ -6,12 +6,15 @@
 > y abonos, informes X/Z e integración Veri*Factu. **No duplica cuentas ni cobros**: el
 > motor de cuentas/líneas/pagos/splits es `platform/pos` (REUSE vía eventos);
 > `platform/tpv` añade la capa que convierte un sistema de cobros en un TPV legal y
-> operable. Contenedor propio `platform-tpv` (puerto 3500) — ver
-> [ADR 015](../adr/015-platform-tpv-monolith.md).
+> operable. Diseño del módulo en [ADR 015](../adr/015-platform-tpv-monolith.md);
+> hospedado como módulo de `platform-core` (puerto 3000) por economía operativa,
+> manteniendo `server.js`+`Dockerfile` listos para re-extraerlo —
+> [ADR 016](../adr/016-tpv-folded-into-platform-core.md).
 
 ## Estado actual (implementado)
 
-V1 completa (2026-06-05). Contenedor `platform-tpv` (3500) con módulo único `platform/tpv`
+V1 completa (2026-06-05); desde 2026-06-06 hospedado como módulo de `platform-core`
+(ADR 016). Módulo `platform/tpv`
 (schema `platform_tpv`, rol `svc_platform_tpv`, RLS por `(app_id, tenant_id)`): dispositivos
 (`tpv_devices`), series de numeración correlativa sin huecos (`number_series`, `UPDATE …
 RETURNING` bajo lock de fila en la misma transacción que el documento — un rollback no

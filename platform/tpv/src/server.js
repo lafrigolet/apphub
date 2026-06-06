@@ -16,10 +16,12 @@ import * as tpvModule from './index.js'
 
 process.env.DATABASE_URL ??= env.DATABASE_URL_TPV
 
-// Contenedor de módulo único (ADR 015): el orquestador y el módulo tpv
-// comparten paquete. Si el dominio crece (customer display, hardware
-// bridge, loyalty), los nuevos módulos se añaden aquí como descriptores
-// igual que en platform/appointments/src/server.js.
+// NOTA (ADR 016): en producción el módulo tpv corre DENTRO de platform-core;
+// este server.js queda como artefacto ready-to-split (ADR 015) — si el TPV
+// necesita escalar de forma independiente, este orquestador + el Dockerfile
+// del paquete son el paso cero del split estándar de 4 pasos. Si el dominio
+// crece (customer display, hardware bridge, loyalty), los nuevos módulos se
+// añaden aquí como descriptores igual que en platform/appointments.
 const moduleDescriptors = [
   { name: 'tpv', mod: tpvModule, databaseUrl: env.DATABASE_URL_TPV ?? env.DATABASE_URL },
 ]
@@ -31,6 +33,9 @@ async function start() {
     }
     logger.info({ module: d.name }, 'Running migrations')
     await d.mod.runMigrations(env.MIGRATION_DATABASE_URL)
+    if (typeof d.mod.enforceGrants === 'function') {
+      await d.mod.enforceGrants(env.MIGRATION_DATABASE_URL)
+    }
   }
 
   const pools = {}

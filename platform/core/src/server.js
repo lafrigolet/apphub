@@ -34,6 +34,7 @@ const moduleDescriptors = [
   { name: 'inquiries',     package: '@apphub/platform-inquiries',     databaseUrl: env.DATABASE_URL_INQUIRIES,     schema: 'platform_inquiries'     },
   { name: 'verifactu',     package: '@apphub/platform-verifactu',     databaseUrl: env.DATABASE_URL_VERIFACTU,     schema: 'platform_verifactu'     },
   { name: 'chat',          package: '@apphub/platform-chat',          databaseUrl: env.DATABASE_URL_CHAT,          schema: 'platform_chat'          },
+  { name: 'tpv',           package: '@apphub/platform-tpv',           databaseUrl: env.DATABASE_URL_TPV,           schema: 'platform_tpv'           },
 ]
 
 async function loadModule(descriptor) {
@@ -62,6 +63,13 @@ export async function start() {
       schema:      descriptor.schema,
       databaseUrl: descriptor.databaseUrl,
     })
+    // Hook opcional del contrato: módulos con política de grants más
+    // restrictiva que el DML uniforme de ensureModuleRole (p.ej. las tablas
+    // de snapshot inmutable de tpv) la re-aplican aquí, DESPUÉS de la
+    // reconciliación — si corriera antes, ensureModuleRole la desharía.
+    if (typeof mod.enforceGrants === 'function') {
+      await mod.enforceGrants(env.MIGRATION_DATABASE_URL)
+    }
   }
 
   // 2. Create one Pool per module, bound to its dedicated DB role
