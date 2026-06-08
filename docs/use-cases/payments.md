@@ -53,6 +53,22 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
   al guardar.
 - ❌ Soporte multi-cuenta Stripe por `app_id` (hoy hay una única cuenta global por instancia).
 
+## 2bis. Terminal — Tap to Pay (card-present)
+
+- ✅ `POST /v1/payments/terminal/connection-token` — emite un Stripe Terminal ConnectionToken
+  para el SDK nativo y devuelve el `locationId` (Location creada perezosamente y cacheada en
+  `platform_payments.config` clave `terminal_location_id`, migración `0005`).
+- ✅ `POST /v1/payments/terminal/intents` — crea un PaymentIntent **`card_present`** para el
+  importe del teclado (`payment_method_types: ['card_present']` — la única excepción donde
+  Stripe admite ese parámetro; capture automático). Persiste en `transactions` con
+  `metadata.source = 'tap_to_pay'`; idempotencia y dev-stub iguales que one-shot.
+- ✅ El cobro lo confirma el SDK **en el dispositivo** (el móvil es el lector); el webhook
+  `payment_intent.succeeded` ya existente reconcilia la transacción — sin cambios.
+- 🔧 Cliente: **app nativa Expo** `apps/tpv/tpv-app` (Tap to Pay solo existe en SDK nativo,
+  no en web/PWA). V1 en modo test con reader simulado; tap físico requiere dispositivo
+  compatible + Tap to Pay habilitado en la cuenta.
+- ❌ Emisión de recibo fiscal `platform/tpv` tras el cobro (fase 2).
+
 ## 2. PaymentIntents — cobro único (one-shot)
 
 - ✅ Tabla `platform_payments.transactions` usada por el servicio de PaymentIntents

@@ -6,6 +6,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **TPV "Tap to Pay" — app nativa Expo + endpoints Stripe Terminal (V1, modo
+  test).** El móvil como TPV: teclado moderno (con tecla **"00"**) para
+  introducir el importe y cobrar **acercando la tarjeta del cliente al móvil**
+  (Stripe Tap to Pay). Bloqueante de diseño documentado: el "tap" =
+  NFC/EMV contactless = **solo SDK nativo** (no web/PWA: el navegador no
+  expone EMV ni pasa la atestación de dispositivo) → se elige **Expo / React
+  Native** con `@stripe/stripe-terminal-react-native`.
+  - **Backend (EXTEND `platform/payments`)**: `terminal.service.js` +
+    `routes/terminal.routes.js` →
+    `POST /v1/payments/terminal/connection-token` (ConnectionToken + Location
+    cacheada en config `terminal_location_id`, migración 0005) y
+    `POST /v1/payments/terminal/intents` (PaymentIntent `card_present` —
+    única excepción donde Stripe admite `payment_method_types`). Reutiliza el
+    cliente Stripe, la persistencia de transacciones, idempotencia y el
+    webhook existentes; el cobro se reconcilia con `payment_intent.succeeded`
+    sin cambios. +5 tests.
+  - **App `apps/tpv/tpv-app`** (Expo, **fuera del pnpm workspace** — install
+    propio, no se despliega en Docker): lógica pura del teclado
+    (`src/lib/amount.js`, 8 tests incl. "00"), login silencioso del cajero,
+    flujo Tap to Pay (`StripeTerminalProvider` + `useStripeTerminal`) con
+    reader **simulado** en test. Requiere dev-client (no Expo Go).
+  - **Seed** `apps/tpv/seed.sql`: app `tpv`, tenant de prueba y cajero
+    `cajero@tpv.local`. Verificado e2e en modo stub: login → JWT(app_id=tpv)
+    → connection-token + terminal intent → transacción `source=tap_to_pay`.
+  - Fuera de V1 (documentado en `apps/tpv/README.md`): web en
+    `tpv.hulkstein.local` (Expo web export + QR-Checkout), recibo fiscal
+    `platform/tpv`, login real, y el tap físico con hardware + Tap to Pay
+    habilitado en la cuenta.
+
 ### Changed
 - **Contenedor `apps-servers` único para todos los servidores específicos de
   app ([ADR 018](docs/adr/018-apps-servers-orchestrator.md)).** aikikan-server

@@ -31,6 +31,18 @@ export const CaptureIntentSchema = z.object({
   amountToCapture: z.number().int().positive().optional(),
 })
 
+// ── Terminal (Tap to Pay) ────────────────────────────────────────────────────
+
+export const CreateTerminalIntentSchema = z.object({
+  /** Amount in the smallest currency unit (e.g. cents) */
+  amountCents: z.number().int().positive(),
+  currency: z.string().length(3).toLowerCase().default('eur'),
+  /** Optional idempotency key — dedupes retried "Cobrar" taps (24h Redis TTL) */
+  idempotencyKey: z.string().min(1).max(255).optional(),
+  /** Free-form metadata forwarded to Stripe (string values only) */
+  metadata: z.record(z.string()).optional(),
+})
+
 // ── Refunds ──────────────────────────────────────────────────────────────────
 
 export const CreateRefundSchema = z.object({

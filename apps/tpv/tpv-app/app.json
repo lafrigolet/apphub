@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "TPV",
+    "slug": "apphub-tpv",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b0d12",
+    "ios": {
+      "bundleIdentifier": "com.hulkstein.tpv",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "La ubicación es necesaria para aceptar pagos con Tap to Pay."
+      }
+    },
+    "android": {
+      "package": "com.hulkstein.tpv",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "NFC"]
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "@stripe/stripe-terminal-react-native",
+        {
+          "bluetoothBackgroundMode": false,
+          "locationWhenInUsePermission": "La ubicación es necesaria para aceptar pagos con Tap to Pay."
+        }
+      ]
+    ]
+  }
+}
