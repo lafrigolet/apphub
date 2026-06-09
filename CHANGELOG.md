@@ -36,6 +36,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     `platform/tpv`, login real, y el tap físico con hardware + Tap to Pay
     habilitado en la cuenta.
 
+### Fixed
+- **TPV connection-token devolvía `502 STRIPE_ERROR` con claves Stripe reales.**
+  `terminal.service.js#ensureLocation` creaba la Terminal Location con una
+  dirección placeholder inválida para España (`postal_code: '00000'` y sin
+  `state`), que Stripe rechaza (`Invalid ES postal code` →
+  `Missing required address field … address[state]`). Se sustituye por una
+  dirección ES válida (`Madrid`, `state: 'Madrid'`, `28013`). El modo stub no
+  lo detectaba porque no llega a llamar a Stripe; sólo afloraba con claves
+  test/live configuradas. Verificado e2e con claves test: connection-token →
+  `pst_test_…` + `locationId` reales.
+
 ### Changed
 - **Contenedor `apps-servers` único para todos los servidores específicos de
   app ([ADR 018](docs/adr/018-apps-servers-orchestrator.md)).** aikikan-server

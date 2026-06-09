@@ -3,22 +3,19 @@ import { createTerminalIntent, fetchConnectionToken } from './lib/api.js'
 
 // Hook que orquesta el cobro Tap to Pay con el SDK nativo de Stripe Terminal.
 //
-// ⚠️ NOMBRES DE API SEGÚN VERSIÓN DEL SDK: el descubrimiento/conexión del
-// lector Tap to Pay cambió de nombre entre versiones:
-//   - SDK ≥ 0.1 :  discoverReaders({ discoveryMethod: 'tapToPay' })  +  connectReader({ reader }, 'tapToPay')
-//   - SDK 0.0.x :  discoverReaders({ discoveryMethod: 'localMobile' }) + connectLocalMobileReader({ reader, locationId })
-// Abajo se usa la variante 0.0.x (la más documentada). Si tu versión usa
-// 'tapToPay', ajusta las dos llamadas marcadas con [API].
+// API según @stripe/stripe-terminal-react-native 0.0.1-beta.31:
+//   - discoveryMethod es 'tapToPay' (en versiones viejas era 'localMobile').
+//   - La conexión es unificada: connectReader(params) / easyConnect(params).
+//     easyConnect descubre + conecta en una sola llamada y evita la carrera
+//     de leer discoveredReaders (que se rellena async vía el provider).
 export function useTapToPay() {
   const {
     initialize,
-    discoverReaders,
-    connectLocalMobileReader,
+    easyConnect,
     connectedReader,
     retrievePaymentIntent,
     collectPaymentMethod,
     confirmPaymentIntent,
-    discoveredReaders,
   } = useStripeTerminal()
 
   // Conecta el móvil como lector Tap to Pay (idempotente: si ya hay lector, no hace nada).
@@ -27,19 +24,14 @@ export function useTapToPay() {
     if (connectedReader) return connectedReader
     await initialize()
     const { locationId } = await fetchConnectionToken()
-    // [API] descubrir el lector "móvil como TPV" (simulado en test mode)
-    const { error: discErr } = await discoverReaders({
-      discoveryMethod: 'localMobile',
+    const { reader, error } = await easyConnect({
+      discoveryMethod: 'tapToPay',
       simulated: true, // en producción/dispositivo real: false
+      locationId,
     })
-    if (discErr) throw new Error(discErr.message)
-    // discoveredReaders se rellena vía el provider; tomamos el primero.
-    const reader = discoveredReaders?.[0]
-    if (!reader) throw new Error('No se encontró lector Tap to Pay')
-    // [API] conectar el lector local
-    const { reader: connected, error: connErr } = await connectLocalMobileReader({ reader, locationId })
-    if (connErr) throw new Error(connErr.message)
-    return connected
+    if (error) throw new Error(error.message)
+    if (!reader) throw new Error('No se pudo conectar el lector Tap to Pay')
+    return reader
   }
 
   // Cobro completo: crea el PI en el backend, conecta el lector, recoge el método
