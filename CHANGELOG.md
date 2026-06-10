@@ -7,6 +7,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
+  `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
+  certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o
+  comparte el enlace) y el **cliente paga en SU propio dispositivo** (tarjeta,
+  Apple/Google Pay y, en ES, **Bizum** si está habilitado en la cuenta). No es
+  card-present → no hay lectura de tarjeta en el móvil del comercio.
+  - `POST /v1/payments/checkout-sessions` (`checkout.service.js` +
+    `routes/checkout.routes.js`): crea una Stripe Checkout Session `mode:payment`
+    con `price_data` ad-hoc por importe, devuelve `{ url, qr, sessionId,
+    transactionId, status }`. Sin `payment_method_types` Checkout ofrece los
+    métodos habilitados en la cuenta. `qr` es un data-URL PNG (dep `qrcode`,
+    carga perezosa: si falta, devuelve `qr:null` y el cliente renderiza el QR
+    desde `url`). `GET /v1/payments/checkout-sessions/:id` para poll de estado.
+  - Persiste la transacción keyed por el id de sesión (`cs_...`) con
+    `source=checkout_link`; reconciliación por webhook
+    (`checkout.session.completed` → `succeeded` solo si `payment_status=paid`;
+    `async_payment_succeeded/failed`, `expired`). Reutiliza cliente Stripe,
+    idempotencia (24h Redis), persistencia de transacciones y el receptor de
+    webhooks existentes. Modo stub e2e sin claves. +8 tests (5 ruta, 3 webhook).
 - **TPV "Tap to Pay" — app nativa Expo + endpoints Stripe Terminal (V1, modo
   test).** El móvil como TPV: teclado moderno (con tecla **"00"**) para
   introducir el importe y cobrar **acercando la tarjeta del cliente al móvil**

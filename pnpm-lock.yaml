@@ -1731,6 +1731,9 @@ importers:
       pino-pretty:
         specifier: ^11.2.0
         version: 11.3.0
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       stripe:
         specifier: ^16.0.0
         version: 16.12.0

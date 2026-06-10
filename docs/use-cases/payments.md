@@ -69,6 +69,26 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
   compatible + Tap to Pay habilitado en la cuenta.
 - ❌ Emisión de recibo fiscal `platform/tpv` tras el cobro (fase 2).
 
+## 2ter. Cobro por QR / payment link (Checkout hosted)
+
+"Cobrar desde el móvil" **sin** lector NFC ni hardware: el cajero genera el cobro y muestra
+un **QR** (o comparte el enlace); el **cliente paga en SU propio dispositivo**. Al no leerse
+la tarjeta en el móvil del comercio, **no entra en PCI CPoC/MPoC** ni requiere certificación.
+
+- ✅ `POST /v1/payments/checkout-sessions` — crea una **Stripe Checkout Session** `mode:payment`
+  con `price_data` ad-hoc por importe. Devuelve `{ url, qr, sessionId, transactionId, status }`.
+  Sin `payment_method_types`, Checkout ofrece los métodos habilitados en la cuenta (tarjeta,
+  Apple/Google Pay y, en ES, **Bizum**). `qr` es un data-URL PNG (dep `qrcode`, carga perezosa).
+- ✅ `GET /v1/payments/checkout-sessions/:id` — poll del estado de la transacción (el cajero
+  ve cuándo el cliente ha pagado).
+- ✅ Persiste en `transactions` keyed por el id de sesión (`cs_...`) con `source=checkout_link`;
+  idempotencia (24h Redis) y dev-stub iguales que one-shot.
+- ✅ Reconciliación por webhook `checkout.session.*`: `completed` → `succeeded` solo si
+  `payment_status=paid` (los métodos asíncronos llegan `unpaid` y cierran con
+  `async_payment_succeeded`); `async_payment_failed` → `failed`; `expired` → `expired`.
+- ❌ Página de retorno (`success_url`/`cancel_url`) propia — hoy defaults vía env
+  `PAYMENTS_CHECKOUT_RETURN_BASE_URL`; falta la vista "gracias / pago cancelado".
+
 ## 2. PaymentIntents — cobro único (one-shot)
 
 - ✅ Tabla `platform_payments.transactions` usada por el servicio de PaymentIntents

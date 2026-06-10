@@ -8,6 +8,7 @@ import { StripeErrors, reloadStripeFromDb } from './lib/stripe.js'
 import { adminRoutes } from './routes/admin.routes.js'
 import { paymentRoutes } from './routes/payment.routes.js'
 import { terminalRoutes } from './routes/terminal.routes.js'
+import { checkoutRoutes } from './routes/checkout.routes.js'
 import { webhookRoutes } from './routes/webhook.routes.js'
 
 export { runMigrations } from './lib/migrate.js'
@@ -82,6 +83,7 @@ export async function register({ app, db, redis }) {
     await payments.register(adminRoutes, { prefix: '/v1/payments/admin' })
     await payments.register(paymentRoutes, { prefix: '/v1/payments' })
     await payments.register(terminalRoutes, { prefix: '/v1/payments/terminal' })
+    await payments.register(checkoutRoutes, { prefix: '/v1/payments' })
     await payments.register(webhookRoutes, { prefix: '/v1/payments/webhooks' })
   })
 
