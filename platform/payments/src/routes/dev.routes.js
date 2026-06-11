@@ -12,5 +12,11 @@ export async function devRoutes(fastify) {
   fastify.get('/checkout-tester', {
     config: { public: true },
     schema: { hide: true },
-  }, async (req, reply) => reply.type('text/html').send(HTML))
+  }, async (req, reply) => {
+    // platform-core's global helmet sets `script-src 'self'`, which blocks this
+    // page's inline <script>. Relax CSP for this dev-only page so it runs.
+    reply.header('content-security-policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'")
+    return reply.type('text/html').send(HTML)
+  })
 }
