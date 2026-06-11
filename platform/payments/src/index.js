@@ -9,6 +9,7 @@ import { adminRoutes } from './routes/admin.routes.js'
 import { paymentRoutes } from './routes/payment.routes.js'
 import { terminalRoutes } from './routes/terminal.routes.js'
 import { checkoutRoutes } from './routes/checkout.routes.js'
+import { devRoutes } from './routes/dev.routes.js'
 import { webhookRoutes } from './routes/webhook.routes.js'
 
 export { runMigrations } from './lib/migrate.js'
@@ -84,6 +85,10 @@ export async function register({ app, db, redis }) {
     await payments.register(paymentRoutes, { prefix: '/v1/payments' })
     await payments.register(terminalRoutes, { prefix: '/v1/payments/terminal' })
     await payments.register(checkoutRoutes, { prefix: '/v1/payments' })
+    // Dev-only web tester for the QR / payment-link flow (never in production).
+    if (process.env.NODE_ENV !== 'production') {
+      await payments.register(devRoutes, { prefix: '/v1/payments/dev' })
+    }
     await payments.register(webhookRoutes, { prefix: '/v1/payments/webhooks' })
   })
 
