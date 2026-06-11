@@ -41,3 +41,17 @@ export async function checkIdempotency(key) {
 export async function storeIdempotency(key, result) {
   await ensureRedis().setex(`payments:idem:${key}`, IDEMPOTENCY_TTL, JSON.stringify(result))
 }
+
+// ── Pay-link shortener (Redis, TTL = session expiry) ─────────────────────────
+// Maps a short opaque code → the full hosted checkout URL so the QR can encode a
+// short, branded link (https://host/v1/payments/pay/<code>) instead of the long
+// Stripe URL. The public redirect endpoint resolves the code back to the URL.
+const PAYLINK_PREFIX = 'payments:paylink:'
+
+export async function storePayLink(code, url, ttlSeconds) {
+  await ensureRedis().setex(`${PAYLINK_PREFIX}${code}`, ttlSeconds, url)
+}
+
+export async function getPayLink(code) {
+  return ensureRedis().get(`${PAYLINK_PREFIX}${code}`)
+}

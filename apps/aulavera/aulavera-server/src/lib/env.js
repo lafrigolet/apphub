@@ -3,7 +3,9 @@ import { z } from 'zod'
 const envSchema = z.object({
   NODE_ENV:               z.enum(['development', 'test', 'production']).default('development'),
   PORT:                   z.coerce.number().default(3031),
-  DATABASE_URL:           z.string().url(),
+  // Opcional desde ADR 018: hospedado en apps-servers el Pool lo inyecta el
+  // orquestador (DATABASE_URL_AULAVERA); solo el modo standalone lo necesita.
+  DATABASE_URL:           z.string().url().optional(),
   MIGRATION_DATABASE_URL: z.string().url().optional(),
   REDIS_URL:              z.string().url(),
   PLATFORM_JWT_SECRET:    z.string().min(32),

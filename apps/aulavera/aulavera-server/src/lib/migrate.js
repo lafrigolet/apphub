@@ -9,8 +9,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const MIGRATIONS_DIR = join(__dirname, '../../migrations')
 const SCHEMA = 'app_aulavera'
 
-export async function runMigrations() {
-  const url = env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL
+export async function runMigrations(superuserUrl) {
+  const url = superuserUrl ?? env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL
   const migrationPool = new pg.Pool({ connectionString: url })
   const client = await migrationPool.connect()
   try {

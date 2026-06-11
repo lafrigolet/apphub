@@ -54,6 +54,7 @@ describe('KEYS — catálogo cerrado de claves permitidas', () => {
       'stripe_live_publishable_key',
       'stripe_live_webhook_secret',
       'stripe_mode',
+      'terminal_location_id',
     ])
   })
 
@@ -113,7 +114,7 @@ describe('listConfig — surface admin: qué keys están configuradas (sin expon
       ],
     })
     const list = await repo.listConfig(client)
-    expect(list).toHaveLength(7)
+    expect(list).toHaveLength(8)
     const byKey = Object.fromEntries(list.map(x => [x.key, x]))
     expect(byKey.stripe_test_publishable_key.configured).toBe(true)
     expect(byKey.stripe_test_secret_key.configured).toBe(false)

@@ -2,20 +2,22 @@ import fp from 'fastify-plugin'
 import { UnauthorizedError, AppMismatchError } from './errors.js'
 
 /**
- * Fastify plugin that validates JWT app_id against EXPECTED_APP_ID env var.
+ * Núcleo del guard como factory: devuelve el preHandler que valida el JWT
+ * contra un app_id esperado concreto.
  *
- * Platform services set EXPECTED_APP_ID=platform.
- * App-specific services set EXPECTED_APP_ID=aikikan, split-pay, etc.
- *
- * Sets req.identity = { userId, appId, tenantId, subTenantId, role, email }
+ * Lo consumen dos envoltorios:
+ *  - `appGuard` (plugin fastify-plugin, hook GLOBAL) — un proceso, un
+ *    EXPECTED_APP_ID. Es lo que usan los monolitos platform-* y los
+ *    app-servers en modo standalone.
+ *  - `scopedAppGuard(appId)` (plugin SIN fastify-plugin, hook ENCAPSULADO) —
+ *    para orquestadores que hospedan varios apps en un proceso (ADR 018,
+ *    apps-servers): cada app registra su guard dentro de su propio scope y
+ *    un token de aikikan no puede tocar rutas de aulavera.
  */
-export const appGuard = fp(async (fastify) => {
-  const expectedAppId = process.env.EXPECTED_APP_ID
-  if (!expectedAppId) throw new Error('EXPECTED_APP_ID env var is required')
+export function makeAppGuardHook(expectedAppId) {
+  if (!expectedAppId) throw new Error('makeAppGuardHook: expectedAppId is required')
 
-  fastify.decorateRequest('identity', null)
-
-  fastify.addHook('preHandler', async (req) => {
+  return async (req) => {
     if (req.routeOptions?.config?.public) return
     if (req.url === '/health') return
     if (req.url.startsWith('/internal')) return
@@ -52,8 +54,44 @@ export const appGuard = fp(async (fastify) => {
       if (err instanceof UnauthorizedError || err instanceof AppMismatchError) throw err
       throw new UnauthorizedError('Invalid token')
     }
-  })
+  }
+}
+
+/**
+ * Fastify plugin that validates JWT app_id against EXPECTED_APP_ID env var.
+ *
+ * Platform services set EXPECTED_APP_ID=platform.
+ * App-specific services set EXPECTED_APP_ID=aikikan, split-pay, etc.
+ *
+ * Sets req.identity = { userId, appId, tenantId, subTenantId, role, email }
+ */
+export const appGuard = fp(async (fastify) => {
+  const expectedAppId = process.env.EXPECTED_APP_ID
+  if (!expectedAppId) throw new Error('EXPECTED_APP_ID env var is required')
+
+  fastify.decorateRequest('identity', null)
+
+  fastify.addHook('preHandler', makeAppGuardHook(expectedAppId))
 })
+
+/**
+ * Variante ENCAPSULADA del guard: el hook solo aplica a las rutas
+ * registradas dentro del mismo scope (no usa fastify-plugin a propósito).
+ * El orquestador debe haber decorado `identity` en el root (o registrar
+ * `appGuard` global con EXPECTED_APP_ID=platform NO es equivalente: ese
+ * acepta cualquier app_id).
+ *
+ * Uso (dentro del register() de un app-server hospedado):
+ *   await app.register(async (scope) => {
+ *     scope.addHook('preHandler', makeAppGuardHook('aikikan'))
+ *     await scope.register(routes)
+ *   })
+ */
+export async function ensureIdentityDecorator(fastify) {
+  if (!fastify.hasRequestDecorator('identity')) {
+    fastify.decorateRequest('identity', null)
+  }
+}
 
 export function requireRole(...roles) {
   return async (req) => {

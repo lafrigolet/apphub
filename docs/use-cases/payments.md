@@ -53,6 +53,48 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
   al guardar.
 - ❌ Soporte multi-cuenta Stripe por `app_id` (hoy hay una única cuenta global por instancia).
 
+## 2bis. Terminal — Tap to Pay (card-present)
+
+- ✅ `POST /v1/payments/terminal/connection-token` — emite un Stripe Terminal ConnectionToken
+  para el SDK nativo y devuelve el `locationId` (Location creada perezosamente y cacheada en
+  `platform_payments.config` clave `terminal_location_id`, migración `0005`).
+- ✅ `POST /v1/payments/terminal/intents` — crea un PaymentIntent **`card_present`** para el
+  importe del teclado (`payment_method_types: ['card_present']` — la única excepción donde
+  Stripe admite ese parámetro; capture automático). Persiste en `transactions` con
+  `metadata.source = 'tap_to_pay'`; idempotencia y dev-stub iguales que one-shot.
+- ✅ El cobro lo confirma el SDK **en el dispositivo** (el móvil es el lector); el webhook
+  `payment_intent.succeeded` ya existente reconcilia la transacción — sin cambios.
+- 🔧 Cliente: **app nativa Expo** `apps/tpv/tpv-app` (Tap to Pay solo existe en SDK nativo,
+  no en web/PWA). V1 en modo test con reader simulado; tap físico requiere dispositivo
+  compatible + Tap to Pay habilitado en la cuenta.
+- ❌ Emisión de recibo fiscal `platform/tpv` tras el cobro (fase 2).
+
+## 2ter. Cobro por QR / payment link (Checkout hosted)
+
+"Cobrar desde el móvil" **sin** lector NFC ni hardware: el cajero genera el cobro y muestra
+un **QR** (o comparte el enlace); el **cliente paga en SU propio dispositivo**. Al no leerse
+la tarjeta en el móvil del comercio, **no entra en PCI CPoC/MPoC** ni requiere certificación.
+
+- ✅ `POST /v1/payments/checkout-sessions` — crea una **Stripe Checkout Session** `mode:payment`
+  con `price_data` ad-hoc por importe. Devuelve `{ url, qr, sessionId, transactionId, status }`.
+  Sin `payment_method_types`, Checkout ofrece los métodos habilitados en la cuenta (tarjeta,
+  Apple/Google Pay y, en ES, **Bizum**). `qr` es un data-URL PNG (dep `qrcode`, carga perezosa).
+- ✅ `GET /v1/payments/checkout-sessions/:id` — poll del estado de la transacción (el cajero
+  ve cuándo el cliente ha pagado).
+- ✅ **Acortador de pay-links** (opcional, `PAYMENTS_PUBLIC_BASE_URL`): el QR codifica un
+  enlace corto propio `…/v1/payments/pay/<code>` que **302-redirige** a la URL larga de
+  Stripe (QR menos denso + enlaces propios/revocables). `code → url` en Redis con el TTL de
+  la sesión. `GET /v1/payments/pay/:code` es **público** (el pagador no es usuario; el code
+  es la capability). Sin la env, el QR lleva la URL directa de Stripe (default dev, donde el
+  móvil del cliente no alcanzaría nuestro host de redirección).
+- ✅ Persiste en `transactions` keyed por el id de sesión (`cs_...`) con `source=checkout_link`;
+  idempotencia (24h Redis) y dev-stub iguales que one-shot.
+- ✅ Reconciliación por webhook `checkout.session.*`: `completed` → `succeeded` solo si
+  `payment_status=paid` (los métodos asíncronos llegan `unpaid` y cierran con
+  `async_payment_succeeded`); `async_payment_failed` → `failed`; `expired` → `expired`.
+- ❌ Página de retorno (`success_url`/`cancel_url`) propia — hoy defaults vía env
+  `PAYMENTS_CHECKOUT_RETURN_BASE_URL`; falta la vista "gracias / pago cancelado".
+
 ## 2. PaymentIntents — cobro único (one-shot)
 
 - ✅ Tabla `platform_payments.transactions` usada por el servicio de PaymentIntents

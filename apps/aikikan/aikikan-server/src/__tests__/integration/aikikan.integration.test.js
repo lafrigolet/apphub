@@ -59,7 +59,7 @@ beforeAll(async () => {
   await servicesMigrate(process.env.MIGRATION_DATABASE_URL)
   await bookingsMigrate(process.env.MIGRATION_DATABASE_URL)
   await runMigrations()
-  app = createApp()
+  app = await createApp()
   await app.ready()
 })
 

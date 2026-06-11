@@ -39,6 +39,16 @@ services:
     ports: !reset []
     volumes: !reset []
 
+  # ── Apps-servers (prod, ADR 018) ──────────────────────────────
+  apps-servers:
+    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-apps-servers:${IMAGE_TAG:-latest}
+    build:
+      target: production
+    environment:
+      NODE_ENV: production
+    ports: !reset []
+    volumes: !reset []
+
   # ── Infra: NO publicar puertos al host en prod ────────────────
   # En dev el compose base publica 5432/6379/9000/9001 al host para
   # comodidad del desarrollador (psql, redis-cli, consola MinIO en
@@ -74,6 +84,11 @@ services:
       # apps / tenants (e.g. `aikikan.hulkstein.com`). Defaults to hulkstein.com
       # in dev; overridden here for the production domain.
       PLATFORM_PUBLIC_DOMAIN: hulkstein.com
+      # Public base for the payments pay-link shortener: the QR encodes
+      # https://hulkstein.com/api/payments/pay/<code> (302 → Stripe). Set only in
+      # prod so the customer's phone can reach the redirect host; in dev it stays
+      # unset and the QR carries the raw Stripe URL.
+      PAYMENTS_PUBLIC_BASE_URL: https://hulkstein.com
 
   platform-marketplace:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-marketplace:${IMAGE_TAG:-latest}
@@ -95,18 +110,6 @@ services:
 
   platform-scheduler:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-scheduler:${IMAGE_TAG:-latest}
-    volumes: !reset []
-    environment:
-      NODE_ENV: production
-
-  aikikan-server:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aikikan-server:${IMAGE_TAG:-latest}
-    volumes: !reset []
-    environment:
-      NODE_ENV: production
-
-  aulavera-server:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-aulavera-server:${IMAGE_TAG:-latest}
     volumes: !reset []
     environment:
       NODE_ENV: production
@@ -145,4 +148,4 @@ services:
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
       portals:                 { condition: service_started }
-      aulavera-server:         { condition: service_started }
+      apps-servers:            { condition: service_started }

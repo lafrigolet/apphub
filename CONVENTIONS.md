@@ -80,9 +80,32 @@ Register `appGuard` in every Fastify app. Set `EXPECTED_APP_ID` in the environme
 // platform services
 EXPECTED_APP_ID=platform
 
-// app-specific services
+// app-specific services (standalone mode)
 EXPECTED_APP_ID=aikikan       // or split-pay, etc.
 ```
+
+### Multi-app processes: the per-scope guard (ADR 018)
+
+`appGuard` is a `fastify-plugin` — its hook applies process-wide and validates a
+single `EXPECTED_APP_ID`. In the `apps-servers` orchestrator (several app-servers
+in one process) that cannot isolate apps, so each hosted module guards its OWN
+routes inside an encapsulated scope:
+
+```js
+import { makeAppGuardHook, ensureIdentityDecorator } from '@apphub/platform-sdk/app-guard'
+
+export async function register({ app, db, redis, logger }) {
+  await ensureIdentityDecorator(app)            // idempotente entre módulos
+  await app.register(async (scope) => {
+    scope.addHook('preHandler', makeAppGuardHook('aikikan'))  // app_id LITERAL
+    await scope.register(routes)                // un token de otro app → 403 APP_MISMATCH
+  })
+}
+```
+
+Reglas: el orquestador NO define `EXPECTED_APP_ID` ni registra `appGuard` global;
+las constantes `APP_ID` de services/handlers van como **literal** (el env del
+contenedor es compartido entre módulos, no puede llevar valores por-app).
 
 ## API design
 

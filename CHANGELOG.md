@@ -6,7 +6,103 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
+  `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
+  certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o
+  comparte el enlace) y el **cliente paga en SU propio dispositivo** (tarjeta,
+  Apple/Google Pay y, en ES, **Bizum** si está habilitado en la cuenta). No es
+  card-present → no hay lectura de tarjeta en el móvil del comercio.
+  - `POST /v1/payments/checkout-sessions` (`checkout.service.js` +
+    `routes/checkout.routes.js`): crea una Stripe Checkout Session `mode:payment`
+    con `price_data` ad-hoc por importe, devuelve `{ url, qr, sessionId,
+    transactionId, status }`. Sin `payment_method_types` Checkout ofrece los
+    métodos habilitados en la cuenta. `qr` es un data-URL PNG (dep `qrcode`,
+    carga perezosa: si falta, devuelve `qr:null` y el cliente renderiza el QR
+    desde `url`). `GET /v1/payments/checkout-sessions/:id` para poll de estado.
+  - Persiste la transacción keyed por el id de sesión (`cs_...`) con
+    `source=checkout_link`; reconciliación por webhook
+    (`checkout.session.completed` → `succeeded` solo si `payment_status=paid`;
+    `async_payment_succeeded/failed`, `expired`). Reutiliza cliente Stripe,
+    idempotencia (24h Redis), persistencia de transacciones y el receptor de
+    webhooks existentes. Modo stub e2e sin claves. +8 tests (5 ruta, 3 webhook).
+  - **Acortador de pay-links** (opcional): con `PAYMENTS_PUBLIC_BASE_URL`
+    configurado, el QR codifica un enlace corto propio
+    (`https://<base>/api/payments/pay/<code>`, la ruta pública del gateway) que
+    **302-redirige** a la URL larga de Stripe → QR mucho menos denso y enlaces
+    propios/revocables. El mapeo `code → url` vive en Redis con el TTL de la
+    sesión. Sin esa env el QR sigue llevando la URL directa de Stripe (default
+    dev). **Producción ya cableada**: `docker-compose.prod.yml` fija
+    `PAYMENTS_PUBLIC_BASE_URL=https://hulkstein.com`. +2 tests de redirect.
+- **TPV "Tap to Pay" — app nativa Expo + endpoints Stripe Terminal (V1, modo
+  test).** El móvil como TPV: teclado moderno (con tecla **"00"**) para
+  introducir el importe y cobrar **acercando la tarjeta del cliente al móvil**
+  (Stripe Tap to Pay). Bloqueante de diseño documentado: el "tap" =
+  NFC/EMV contactless = **solo SDK nativo** (no web/PWA: el navegador no
+  expone EMV ni pasa la atestación de dispositivo) → se elige **Expo / React
+  Native** con `@stripe/stripe-terminal-react-native`.
+  - **Backend (EXTEND `platform/payments`)**: `terminal.service.js` +
+    `routes/terminal.routes.js` →
+    `POST /v1/payments/terminal/connection-token` (ConnectionToken + Location
+    cacheada en config `terminal_location_id`, migración 0005) y
+    `POST /v1/payments/terminal/intents` (PaymentIntent `card_present` —
+    única excepción donde Stripe admite `payment_method_types`). Reutiliza el
+    cliente Stripe, la persistencia de transacciones, idempotencia y el
+    webhook existentes; el cobro se reconcilia con `payment_intent.succeeded`
+    sin cambios. +5 tests.
+  - **App `apps/tpv/tpv-app`** (Expo, **fuera del pnpm workspace** — install
+    propio, no se despliega en Docker): lógica pura del teclado
+    (`src/lib/amount.js`, 8 tests incl. "00"), login silencioso del cajero,
+    flujo Tap to Pay (`StripeTerminalProvider` + `useStripeTerminal`) con
+    reader **simulado** en test. Requiere dev-client (no Expo Go).
+  - **Seed** `apps/tpv/seed.sql`: app `tpv`, tenant de prueba y cajero
+    `cajero@tpv.local`. Verificado e2e en modo stub: login → JWT(app_id=tpv)
+    → connection-token + terminal intent → transacción `source=tap_to_pay`.
+  - Fuera de V1 (documentado en `apps/tpv/README.md`): web en
+    `tpv.hulkstein.local` (Expo web export + QR-Checkout), recibo fiscal
+    `platform/tpv`, login real, y el tap físico con hardware + Tap to Pay
+    habilitado en la cuenta.
+
+### Fixed
+- **Webhook de Stripe roto a través del gateway (producción).** El bloque NGINX
+  `location /api/payments/webhooks/stripe` hacía `proxy_pass …/v1/webhooks/stripe`
+  (sin el segmento `payments`), pero el módulo lo sirve en
+  `/v1/payments/webhooks/stripe` → en prod Stripe recibía **404** y **ningún
+  pago se reconciliaba** (QR, Terminal y one-shot quedaban `pending`). Corregido
+  el `proxy_pass` a `…/v1/payments/webhooks/stripe`. Verificado vía gateway:
+  ahora el handler responde `400 MISSING_SIGNATURE` (llega a la app) en vez de 404.
+- **TPV connection-token devolvía `502 STRIPE_ERROR` con claves Stripe reales.**
+  `terminal.service.js#ensureLocation` creaba la Terminal Location con una
+  dirección placeholder inválida para España (`postal_code: '00000'` y sin
+  `state`), que Stripe rechaza (`Invalid ES postal code` →
+  `Missing required address field … address[state]`). Se sustituye por una
+  dirección ES válida (`Madrid`, `state: 'Madrid'`, `28013`). El modo stub no
+  lo detectaba porque no llega a llamar a Stripe; sólo afloraba con claves
+  test/live configuradas. Verificado e2e con claves test: connection-token →
+  `pst_test_…` + `locationId` reales.
+
 ### Changed
+- **Contenedor `apps-servers` único para todos los servidores específicos de
+  app ([ADR 018](docs/adr/018-apps-servers-orchestrator.md)).** aikikan-server
+  y aulavera-server pasan de contenedores propios a MÓDULOS de un orquestador
+  (`apps/apps-servers/`, puerto 3030) con el mismo contrato
+  `register/runMigrations` de los monolitos platform-*: un proceso Fastify,
+  plugins transversales una vez, un Pool por app ligado a su rol
+  `svc_app_<app>` (+ `ensureModuleRole` y hook `enforceGrants` opcional).
+  Pieza de seguridad nueva en el SDK: `makeAppGuardHook(expectedAppId)` +
+  `ensureIdentityDecorator` — guard **por scope** (el `appGuard` global es
+  fastify-plugin y solo valida un `EXPECTED_APP_ID` por proceso); cada módulo
+  protege sus rutas en su propio scope y un token de otro app recibe
+  `403 APP_MISMATCH` (verificado e2e: token aulavera → ruta aikikan → 403).
+  Las constantes `APP_ID` de services/handlers pasan a literal (el env del
+  contenedor es compartido); los suscriptores Redis de cada app se mueven de
+  su `server.js` a su `register()` (cierre vía `onClose`, flag
+  `subscribe:false` para tests de integración). Cada app conserva
+  `server.js`+`app.js`+`Dockerfile` como artefactos ready-to-split (criterio
+  ADR 016). Wiring: compose dev+prod (2 servicios → 1), upstreams
+  `aikikan_server`/`aulavera_server` → `apps-servers:3030`,
+  `deploy/services.json` (2 entradas → 1, imagen `apphub-apps-servers`).
+  Suites verdes: aikikan 121 · aulavera 61 · platform-sdk 158.
 - **Contenedor `portals` único para los 9 frontends
   ([ADR 017](docs/adr/017-unified-portals-container.md)).** Antes: 9
   contenedores (vite en dev, nginx-alpine casi idénticos en prod). Ahora:

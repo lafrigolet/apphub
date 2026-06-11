@@ -13,7 +13,10 @@ notifications, catalog, basket, tenant-config, subscriptions).
 capabilities ship together as **modules** of a single Node container called `platform-core`
 (port 3000). Each module keeps its own routes, repository, PostgreSQL schema, and dedicated
 DB role, so any module can be extracted back to its own container with minimal effort. The
-app-specific services under `apps/*/` keep their own containers.
+app-specific servers under `apps/*/` are hosted the same way: modules of a single
+`apps-servers` container (port 3030, ADR 018) with per-app scoped guards, each one
+keeping `server.js`+`Dockerfile` ready-to-split. Frontends ship in a single `portals`
+container (ADR 017).
 
 ## Repository structure
 
@@ -60,9 +63,11 @@ apphub/
 │   ├── practitioner-payouts/  # Practitioner-payouts module (in platform-appointments) — schema platform_practitioner_payouts
 │   └── subscriptions/         # Subscriptions module (planned, slot reserved)
 ├── apps/                      # App bundles (frontends + app-specific services)
+│   ├── apps-servers/          # Orquestador de TODOS los app-servers — port 3030 (ADR 018)
 │   ├── portal/                # AppHub admin UI — port 5173 (served by the single `portals` container, ADR 017)
 │   ├── split-pay/             # Split Pay frontend (splitpay-portal) — port 5175 (portals container)
-│   ├── aikikan/               # Aikikan Aikido portal — port 5176 (portals container)
+│   ├── aikikan/               # Aikikan portal (5176, portals container) + aikikan-server (módulo de apps-servers)
+│   ├── aulavera/              # Aulavera portal (5179, portals container) + aulavera-server (módulo de apps-servers)
 │   └── __app-template__/      # Blueprint for new apps (never deployed)
 ├── packages/                  # Internal shared packages (pnpm workspaces)
 │   ├── eslint-config/         # @splitpay/eslint-config
@@ -121,6 +126,9 @@ Every JWT issued by `platform/auth` carries:
 7. **sub_tenant_id is nullable** — code must handle both single-level and two-level tenancy.
 8. **Use `appGuard` from `@apphub/platform-sdk`** — never write a custom JWT guard. Set
    `EXPECTED_APP_ID` in the service env; the guard returns `403 APP_MISMATCH` on mismatch.
+   In multi-app processes (the `apps-servers` orchestrator, ADR 018) use the scoped
+   variant instead: `makeAppGuardHook('<app>')` as a `preHandler` inside the module's
+   own Fastify scope — one global `appGuard` cannot isolate apps sharing a process.
 9. **Write JavaScript, not TypeScript** — all services and frontends use `.js` / `.jsx`.
 10. **Check the platform registry before building anything new — and ASK where it should
     live.** Before scaffolding *any* new microservice, module, table, or significant
@@ -148,7 +156,10 @@ Every JWT issued by `platform/auth` carries:
     in `@apphub/platform-sdk`. This is what keeps the monolith ready to split.
 14. **App-specific code is a monolith with one schema** — see ADR 013. New apps live in
     `apps/<app>/<app>-server/` with a single schema `app_<app>` and a single role
-    `svc_app_<app>`. Granular schema separation is reserved for `platform_*`. Tenant
+    `svc_app_<app>`. Since ADR 018 every app-server is HOSTED as a module of the
+    `apps-servers` container (port 3030): it exports `register/runMigrations` from
+    `src/index.js`, guards its routes with `makeAppGuardHook('<app>')` in its own
+    scope, and keeps `server.js`+`Dockerfile` ready-to-split. Granular schema separation is reserved for `platform_*`. Tenant
     isolation in `app_<app>` is by row (`(app_id, tenant_id, sub_tenant_id)` + RLS),
     same as in `platform_*`. The app monolith MUST NOT cross-schema-read `platform_*`;
     it talks to platform via HTTP module APIs or Redis events. New apps default to
@@ -358,12 +369,16 @@ entrada a la tabla anterior.
 ## Where to start when adding a new app
 
 1. `cp -r apps/__app-template__/ apps/my-app/` — rename dirs, update `package.json` names
-2. Assign ports: frontend at 5176+, services at 3030+
+2. Assign the frontend port (5183+) and register the portal inside the shared
+   `portals` container (ADR 017 — see `/opendragon-bootstrap-app`)
 3. Register in DB: `INSERT INTO platform_tenants.apps ...`
 4. Create PostgreSQL schema: `infra/postgres/init/0N_my_app_schema.sql`
-5. Add services to `docker-compose.yml`
-6. Add NGINX server block `infra/nginx/conf.d/my-app.conf` with
-   `include /etc/nginx/snippets/platform-routes.conf`
+5. Backend: the app-server exports `register/runMigrations` and is hosted in the
+   `apps-servers` container (ADR 018) — add the workspace dep + descriptor line in
+   `apps/apps-servers/src/server.js`, `DATABASE_URL_<APP>` in env/compose, COPYs in
+   `apps/apps-servers/Dockerfile`, and the path glob in `deploy/services.json`
+6. Add NGINX server block `infra/nginx/seed/my-app.conf` with
+   `include /etc/nginx/snippets/platform-routes.conf` (API routes → `apps_servers`)
 7. Add `/etc/hosts` entry: `127.0.0.1 myapp.hulkstein.local`
 
 ## Platform module registry

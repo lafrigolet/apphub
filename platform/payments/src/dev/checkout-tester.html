@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>TPV · Cobro por QR (test)</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; min-height: 100vh; background: #0b0d12; color: #f5f7fa;
+      font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex; flex-direction: column; align-items: center; padding: 20px 16px 40px;
+    }
+    h1 { font-size: 18px; font-weight: 600; margin: 4px 0 2px; }
+    .sub { color: #9aa3b2; font-size: 13px; margin-bottom: 20px; }
+    .card { width: 100%; max-width: 420px; background: #131722; border: 1px solid #232a39;
+            border-radius: 18px; padding: 20px; }
+    label { display: block; color: #9aa3b2; font-size: 13px; margin: 0 0 6px; }
+    .amount-row { display: flex; align-items: baseline; gap: 8px; }
+    .amount-row .eur { font-size: 34px; font-weight: 700; color: #6b7689; }
+    input#amount {
+      flex: 1; background: transparent; border: none; outline: none; color: #f5f7fa;
+      font-size: 44px; font-weight: 700; width: 100%; padding: 0;
+    }
+    input#desc {
+      width: 100%; margin-top: 14px; background: #0e1119; border: 1px solid #232a39;
+      border-radius: 12px; color: #f5f7fa; font-size: 15px; padding: 12px 14px; outline: none;
+    }
+    button {
+      width: 100%; margin-top: 18px; border: none; border-radius: 14px; padding: 16px;
+      font-size: 17px; font-weight: 600; color: #06210f; background: #34d27b; cursor: pointer;
+    }
+    button:disabled { opacity: .5; }
+    button.secondary { background: #1b1f29; color: #f5f7fa; }
+    .qr-wrap { text-align: center; margin-top: 8px; }
+    .qr-wrap img { width: 88vw; max-width: 360px; height: auto; aspect-ratio: 1; background: #fff; border-radius: 14px; padding: 14px; image-rendering: pixelated; }
+    .qr-amount { font-size: 30px; font-weight: 700; margin: 12px 0 2px; }
+    .hint { color: #9aa3b2; font-size: 13px; margin: 6px 0 14px; }
+    .status { margin-top: 14px; font-size: 15px; text-align: center; min-height: 22px; }
+    .status.ok { color: #34d27b; font-weight: 700; font-size: 22px; }
+    .status.err { color: #ff6b6b; }
+    .status.wait { color: #9aa3b2; }
+    a.link { color: #6ea8ff; word-break: break-all; font-size: 13px; }
+    .hidden { display: none !important; }
+    details { margin-top: 18px; }
+    summary { color: #6b7689; font-size: 12px; cursor: pointer; }
+    .creds { margin-top: 10px; display: grid; gap: 8px; }
+    .creds input { background: #0e1119; border: 1px solid #232a39; border-radius: 10px;
+                   color: #cfd6e4; font-size: 13px; padding: 9px 11px; }
+    .badge { font-size: 11px; color: #6b7689; }
+  </style>
+</head>
+<body>
+  <h1>Cobro por QR</h1>
+  <div class="sub">Stripe Checkout · el cliente paga en su móvil <span id="mode" class="badge"></span></div>
+
+  <!-- Pantalla 1: importe -->
+  <div class="card" id="screen-amount">
+    <label>Importe a cobrar</label>
+    <div class="amount-row">
+      <input id="amount" type="number" inputmode="decimal" placeholder="0,00" step="0.01" min="0.50" autofocus />
+      <span class="eur">€</span>
+    </div>
+    <input id="desc" type="text" placeholder="Concepto (ej. Mesa 4)" />
+    <button id="btn-charge" disabled>Generar QR de cobro</button>
+    <div class="status wait" id="status-amount">Iniciando sesión del cajero…</div>
+
+    <details>
+      <summary>Credenciales del cajero (test)</summary>
+      <div class="creds">
+        <input id="c-base" value="" placeholder="API base (vacío = mismo origen)" />
+        <input id="c-app" value="tpv" />
+        <input id="c-tenant" value="60000000-0000-0000-0000-000000000001" />
+        <input id="c-email" value="cajero@tpv.local" />
+        <input id="c-pass" value="tpv1234" />
+        <button class="secondary" id="btn-relogin" style="margin-top:4px">Reintentar login</button>
+      </div>
+    </details>
+  </div>
+
+  <!-- Pantalla 2: QR -->
+  <div class="card hidden" id="screen-qr">
+    <div class="qr-wrap">
+      <img id="qr-img" alt="QR de pago" />
+      <div class="qr-amount" id="qr-amount"></div>
+      <div class="hint">Escanea el QR con el móvil del cliente para pagar</div>
+      <a class="link" id="qr-link" target="_blank" rel="noopener">Abrir página de pago</a>
+    </div>
+    <div class="status wait" id="status-qr">Esperando el pago…</div>
+    <button class="secondary" id="btn-new">Nuevo cobro</button>
+  </div>
+
+<script>
+(function () {
+  var token = null, pollTimer = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function base() { return ($('c-base').value || '').replace(/\/+$/, ''); }
+  function setMode(stub) { $('mode').textContent = stub ? '· modo stub' : '· Stripe test'; }
+
+  async function api(method, path, body) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    var res = await fetch(base() + path, {
+      method: method, headers: headers,
+      body: body != null ? JSON.stringify(body) : undefined,
+    });
+    var text = await res.text();
+    var json = text ? JSON.parse(text) : {};
+    if (!res.ok) throw new Error((json.error && (json.error.message || json.error.code)) || ('HTTP ' + res.status));
+    return json;
+  }
+
+  async function login() {
+    $('btn-charge').disabled = true;
+    setStatus('status-amount', 'wait', 'Iniciando sesión del cajero…');
+    try {
+      var r = await api('POST', '/v1/auth/login', {
+        appId: $('c-app').value, tenantId: $('c-tenant').value,
+        email: $('c-email').value, password: $('c-pass').value,
+      });
+      token = (r.data && (r.data.accessToken || (r.data.tokens && r.data.tokens.accessToken)));
+      if (!token) throw new Error('Login sin accessToken');
+      setStatus('status-amount', 'wait', 'Listo. Introduce un importe y genera el QR.');
+      $('btn-charge').disabled = false;
+    } catch (e) {
+      setStatus('status-amount', 'err', 'Login: ' + e.message);
+    }
+  }
+
+  function setStatus(id, cls, msg) {
+    var el = $(id); el.className = 'status ' + cls; el.textContent = msg;
+  }
+
+  async function charge() {
+    var euros = parseFloat(($('amount').value || '').replace(',', '.'));
+    if (!euros || euros < 0.5) { setStatus('status-amount', 'err', 'Importe mínimo 0,50 €'); return; }
+    var amountCents = Math.round(euros * 100);
+    $('btn-charge').disabled = true;
+    setStatus('status-amount', 'wait', 'Creando cobro…');
+    try {
+      var r = await api('POST', '/v1/payments/checkout-sessions', {
+        amountCents: amountCents,
+        description: $('desc').value || undefined,
+      });
+      var d = r.data;
+      setMode(d.stub);
+      showQr(d, euros);
+      poll(d.transactionId);
+    } catch (e) {
+      setStatus('status-amount', 'err', e.message);
+      $('btn-charge').disabled = false;
+    }
+  }
+
+  function showQr(d, euros) {
+    $('screen-amount').classList.add('hidden');
+    $('screen-qr').classList.remove('hidden');
+    $('qr-amount').textContent = euros.toFixed(2).replace('.', ',') + ' €';
+    var target = d.payUrl || d.url;
+    $('qr-link').href = target;
+    if (d.qr) { $('qr-img').src = d.qr; $('qr-img').classList.remove('hidden'); }
+    else {
+      // Sin data-URL (qrcode no instalado): generar el QR vía servicio externo de imagen.
+      $('qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=520x520&data=' + encodeURIComponent(target);
+    }
+    setStatus('status-qr', 'wait', 'Esperando el pago…');
+  }
+
+  function poll(transactionId) {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(async function () {
+      try {
+        var r = await api('GET', '/v1/payments/checkout-sessions/' + transactionId);
+        var st = r.data && r.data.status;
+        if (st === 'succeeded') {
+          clearInterval(pollTimer);
+          setStatus('status-qr', 'ok', '✅ Pagado');
+        } else if (st === 'failed' || st === 'expired' || st === 'canceled') {
+          clearInterval(pollTimer);
+          setStatus('status-qr', 'err', 'Estado: ' + st);
+        }
+      } catch (e) { /* sigue intentando */ }
+    }, 2500);
+  }
+
+  function reset() {
+    clearInterval(pollTimer);
+    $('screen-qr').classList.add('hidden');
+    $('screen-amount').classList.remove('hidden');
+    $('amount').value = ''; $('desc').value = '';
+    $('btn-charge').disabled = !token;
+    setStatus('status-amount', 'wait', 'Listo. Introduce un importe y genera el QR.');
+    $('amount').focus();
+  }
+
+  $('btn-charge').addEventListener('click', charge);
+  $('btn-new').addEventListener('click', reset);
+  $('btn-relogin').addEventListener('click', login);
+  login();
+})();
+</script>
+</body>
+</html>

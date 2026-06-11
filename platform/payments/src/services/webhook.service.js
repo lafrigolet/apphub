@@ -39,6 +39,21 @@ export async function handleWebhookEvent(event) {
       case 'payment_intent.requires_action':
         await syncIntent(event.data.object, 'requires_action', 'payment.requires_action')
         break
+      case 'checkout.session.completed':
+        // Sync (síncrono: tarjeta/wallet). Solo a 'succeeded' si quedó pagado;
+        // los métodos asíncronos (algunos Bizum/transferencia) llegan 'unpaid'
+        // y se cierran luego con async_payment_succeeded.
+        await syncCheckoutSession(event.data.object, 'succeeded', 'payment.succeeded')
+        break
+      case 'checkout.session.async_payment_succeeded':
+        await syncCheckoutSession(event.data.object, 'succeeded', 'payment.succeeded')
+        break
+      case 'checkout.session.async_payment_failed':
+        await syncCheckoutSession(event.data.object, 'failed', 'payment.failed')
+        break
+      case 'checkout.session.expired':
+        await syncCheckoutSession(event.data.object, 'expired', 'payment.checkout.expired')
+        break
       case 'charge.refund.updated':
         await syncRefund(event.data.object)
         break
@@ -81,6 +96,36 @@ async function syncIntent(intent, status, eventType, errorCode = null) {
     ...(errorCode ? { errorCode } : {}),
   })
   logger.info({ intentId: intent.id, status }, 'PaymentIntent status synced')
+}
+
+// checkout.session.*: the transaction was persisted keyed by the session id
+// (cs_...) at creation, with app_id/tenant_id stamped in the session metadata.
+// For 'completed' we only mark succeeded when payment_status is actually 'paid'
+// (async methods arrive 'unpaid' and resolve later via async_payment_*).
+async function syncCheckoutSession(session, status, eventType) {
+  const ctx = ctxFromMetadata(session.metadata)
+  if (!ctx) {
+    logger.warn({ sessionId: session.id }, 'checkout.session.* without tenant metadata — ignoring')
+    return
+  }
+  const finalStatus = (status === 'succeeded' && session.payment_status && session.payment_status !== 'paid')
+    ? 'pending'
+    : status
+  const updated = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId,
+    (client) => txRepo.updateStatusByProviderTxId(client, session.id, finalStatus, null))
+  if (!updated) {
+    logger.warn({ sessionId: session.id }, 'checkout.session.* for unknown transaction — ignoring')
+    return
+  }
+  await emit(ctx, eventType, {
+    transactionId: updated.id,
+    providerTxId: session.id,
+    paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+    amountCents: updated.amountCents,
+    currency: updated.currency,
+    status: finalStatus,
+  })
+  logger.info({ sessionId: session.id, status: finalStatus }, 'Checkout session synced')
 }
 
 // charge.refund.updated: sync the refund row state by provider_refund_id. The

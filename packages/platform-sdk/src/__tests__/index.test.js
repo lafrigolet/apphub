@@ -10,8 +10,9 @@ import * as sdk from '../index.js'
 describe('public surface', () => {
   // Si añades un export legítimo, AGRÉGALO aquí y al cambio que lo motiva.
   const EXPECTED_EXPORTS = [
-    // app-guard
-    'appGuard', 'requireRole',
+    // app-guard (makeAppGuardHook + ensureIdentityDecorator: guard por
+    // scope para orquestadores multi-app — ADR 018)
+    'appGuard', 'requireRole', 'makeAppGuardHook', 'ensureIdentityDecorator',
     // db
     'createPool', 'setTenantContext', 'withTenantTransaction', 'withTransaction', 'ensureModuleRole',
     // errors

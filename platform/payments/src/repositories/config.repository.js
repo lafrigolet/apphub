@@ -12,7 +12,8 @@ const SECRET_KEYS = [
   'stripe_live_webhook_secret',
 ]
 const PLAIN_KEYS = [
-  'stripe_mode', // 'test' | 'live'
+  'stripe_mode',          // 'test' | 'live'
+  'terminal_location_id', // Stripe Terminal Location id (Tap to Pay), created lazily
 ]
 export const KEYS = [...SECRET_KEYS, ...PLAIN_KEYS]
 

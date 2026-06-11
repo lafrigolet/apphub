@@ -413,14 +413,16 @@ services:
       platform-appointments: { condition: service_started }
 
 
-  # ── Aikikan backend monolith (port 3030) ──────────────────────
-  # First app to follow the pattern in ADR 013: one container, one schema
-  # `app_aikikan`, one role `svc_app_aikikan`. Domain code (members,
-  # events, dues, …) lives in folders under src/, NOT in separate schemas.
-  aikikan-server:
+  # ── Apps-servers — orquestador de app-servers (puerto 3030, ADR 018) ──
+  # UN proceso Fastify hospeda todos los servidores específicos de app
+  # (aikikan, aulavera, …) como módulos con guard de app_id POR SCOPE y un
+  # Pool por app ligado a su rol svc_app_<app>. Cada app conserva su
+  # server.js + Dockerfile como artefactos ready-to-split (ADR 016).
+  # OJO: NO se define EXPECTED_APP_ID — el guard es por módulo.
+  apps-servers:
     build:
       context: .
-      dockerfile: apps/aikikan/aikikan-server/Dockerfile
+      dockerfile: apps/apps-servers/Dockerfile
       target: development
     restart: unless-stopped
     networks: [app, data]
@@ -429,60 +431,30 @@ services:
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
-      PORT: '3030'
-      DATABASE_URL: postgresql://svc_app_aikikan:app_aikikan_secret@postgres:5432/splitpay
+      APPS_SERVERS_PORT: '3030'
       MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
       REDIS_URL: redis://redis:6379
       PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
-      EXPECTED_APP_ID: aikikan
+      # Un Pool por app, cada uno con su rol dedicado
+      DATABASE_URL_AIKIKAN:  postgresql://svc_app_aikikan:app_aikikan_secret@postgres:5432/splitpay
+      DATABASE_URL_AULAVERA: postgresql://svc_app_aulavera:app_aulavera_secret@postgres:5432/splitpay
       # Pagos — aikikan delega en `splitpay` (módulo de platform-core).
       # Stripe credentials viven en splitpay; aikikan solo necesita la URL
       # interna del platform-core para crear sesiones por loopback HTTP.
-      # Para activar pagos:
-      #   1. Configurar Stripe en console / splitpay/admin/config.
-      #   2. Crear Products + Prices en Stripe y guardar los Price IDs en
-      #      app_aikikan.fee_products via PATCH /v1/aikikan/fees/products/:code/stripe-price.
-      #   3. Configurar el webhook endpoint en Stripe apuntando al endpoint
-      #      público de splitpay (/v1/splitpay/webhooks/stripe).
       SPLITPAY_BASE_URL:  http://platform-core:3000
+      PLATFORM_CORE_URL:  http://platform-core:3000
       AIKIKAN_PUBLIC_URL: ${AIKIKAN_PUBLIC_URL:-http://aikikan.hulkstein.local:8080}
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-    volumes:
-      - ./apps/aikikan/aikikan-server/src:/app/apps/aikikan/aikikan-server/src:ro
-      - ./apps/aikikan/aikikan-server/migrations:/app/apps/aikikan/aikikan-server/migrations:ro
-
-  # ── Aulavera backend monolith (port 3031) ────────────────────
-  # Second app to follow ADR 013: one container, schema `app_aulavera`,
-  # role `svc_app_aulavera`. Domain code (events/disciplines/resources)
-  # lives in folders under src/, NOT separate schemas.
-  aulavera-server:
-    build:
-      context: .
-      dockerfile: apps/aulavera/aulavera-server/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [app, data]
-    ports:
-      - '3031:3031'
-    environment:
-      NODE_ENV: development
-      LOG_LEVEL: debug
-      PORT: '3031'
-      DATABASE_URL: postgresql://svc_app_aulavera:app_aulavera_secret@postgres:5432/splitpay
-      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
-      EXPECTED_APP_ID: aulavera
-      PLATFORM_CORE_URL: http://platform-core:3000
       AULAVERA_PUBLIC_URL: ${AULAVERA_PUBLIC_URL:-http://aulavera.hulkstein.local:8080}
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
     volumes:
+      - ./apps/apps-servers/src:/app/apps/apps-servers/src:ro
+      - ./apps/aikikan/aikikan-server/src:/app/apps/aikikan/aikikan-server/src:ro
+      - ./apps/aikikan/aikikan-server/migrations:/app/apps/aikikan/aikikan-server/migrations:ro
       - ./apps/aulavera/aulavera-server/src:/app/apps/aulavera/aulavera-server/src:ro
       - ./apps/aulavera/aulavera-server/migrations:/app/apps/aulavera/aulavera-server/migrations:ro
+      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
 
   # ── Gateway ────────────────────────────────────────────────────
   # Custom image: NGINX + redis-cli + sidecar that hydrates per-subdomain
@@ -519,8 +491,7 @@ services:
       platform-restaurant:     { condition: service_started }
       platform-appointments:   { condition: service_started }
       portals:                 { condition: service_started }
-      aikikan-server:          { condition: service_started }
-      aulavera-server:         { condition: service_started }
+      apps-servers:            { condition: service_started }
 
 volumes:
   postgres_data:
