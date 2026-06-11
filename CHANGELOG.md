@@ -7,6 +7,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
+  `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
+  certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o
+  comparte el enlace) y el **cliente paga en SU propio dispositivo** (tarjeta,
+  Apple/Google Pay y, en ES, **Bizum** si está habilitado en la cuenta). No es
+  card-present → no hay lectura de tarjeta en el móvil del comercio.
+  - `POST /v1/payments/checkout-sessions` (`checkout.service.js` +
+    `routes/checkout.routes.js`): crea una Stripe Checkout Session `mode:payment`
+    con `price_data` ad-hoc por importe, devuelve `{ url, qr, sessionId,
+    transactionId, status }`. Sin `payment_method_types` Checkout ofrece los
+    métodos habilitados en la cuenta. `qr` es un data-URL PNG (dep `qrcode`,
+    carga perezosa: si falta, devuelve `qr:null` y el cliente renderiza el QR
+    desde `url`). `GET /v1/payments/checkout-sessions/:id` para poll de estado.
+  - Persiste la transacción keyed por el id de sesión (`cs_...`) con
+    `source=checkout_link`; reconciliación por webhook
+    (`checkout.session.completed` → `succeeded` solo si `payment_status=paid`;
+    `async_payment_succeeded/failed`, `expired`). Reutiliza cliente Stripe,
+    idempotencia (24h Redis), persistencia de transacciones y el receptor de
+    webhooks existentes. Modo stub e2e sin claves. +8 tests (5 ruta, 3 webhook).
+  - **Acortador de pay-links** (opcional): con `PAYMENTS_PUBLIC_BASE_URL`
+    configurado, el QR codifica un enlace corto propio
+    (`https://<base>/api/payments/pay/<code>`, la ruta pública del gateway) que
+    **302-redirige** a la URL larga de Stripe → QR mucho menos denso y enlaces
+    propios/revocables. El mapeo `code → url` vive en Redis con el TTL de la
+    sesión. Sin esa env el QR sigue llevando la URL directa de Stripe (default
+    dev). **Producción ya cableada**: `docker-compose.prod.yml` fija
+    `PAYMENTS_PUBLIC_BASE_URL=https://hulkstein.com`. +2 tests de redirect.
 - **TPV "Tap to Pay" — app nativa Expo + endpoints Stripe Terminal (V1, modo
   test).** El móvil como TPV: teclado moderno (con tecla **"00"**) para
   introducir el importe y cobrar **acercando la tarjeta del cliente al móvil**
@@ -35,22 +62,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **TPV — fase 2 (recibo fiscal) + target web (QR Checkout).** Extiende lo
   anterior:
   - **Recibo tras el cobro**: el webhook de `platform/payments` propaga `source`
-    en `payment.succeeded` y maneja `checkout.session.completed`; `platform/tpv`
-    gana `services/payments-events.handler.js` que, ante un cobro
-    `tap_to_pay`/`tpv_checkout`, crea un `billing_fact` (importe IVA incluido al
-    `default_sale_tax_rate` del tenant — settings 0002) y auto-emite el ticket
-    simplificado correlativo (reusa `issueReceiptCore`; numeración + snapshot +
-    feed Veri*Factu). Verificado e2e: `payment.succeeded` → recibo A-000001
-    (1210 = base 1000 + IVA 210). +5 tests.
+    en `payment.succeeded` (tanto en `payment_intent.*` como en
+    `checkout.session.*`); `platform/tpv` gana `services/payments-events.handler.js`
+    que, ante un cobro `tap_to_pay`/`checkout_link`, crea un `billing_fact`
+    (importe IVA incluido al `default_sale_tax_rate` del tenant — settings 0002)
+    y auto-emite el ticket simplificado correlativo (reusa `issueReceiptCore`;
+    numeración + snapshot + feed Veri*Factu). Verificado e2e: `payment.succeeded`
+    → recibo A-000001 (1210 = base 1000 + IVA 210). +5 tests.
   - **Target web `apps/tpv/tpv-portal`** (Vite/React) en `tpv.hulkstein.local`
     vía el contenedor `portals` (puerto 5183, ADR 017): teclado (con "00") +
-    **cobro por QR** — `POST /v1/payments/checkout-sessions` (+ `GET /:id`
-    estado) crea una Stripe Checkout Session y el portal muestra su QR; el
-    cliente paga en su móvil y el polling pasa a "Pagado". Es el fallback sin
-    Tap to Pay para cualquier navegador. Cableado completo: pnpm-workspace
+    **cobro por QR** reutilizando el endpoint de Checkout Sessions de arriba
+    (`POST /v1/payments/checkout-sessions`, `source=checkout_link`); el portal
+    muestra el QR (`payUrl`/`url`) y hace poll del estado por `transactionId`
+    (`GET /:id`) hasta `succeeded`. Es el fallback sin Tap to Pay para cualquier
+    navegador. Cableado completo: pnpm-workspace
     (ruta exacta `apps/tpv/tpv-portal` para excluir la app Expo), Dockerfile/
     portals.conf/dev-entrypoint de `portals`, compose, upstreams dev+prod,
     seed nginx `tpv.conf`, `deploy/services.json`.
+
+### Fixed
+- **Webhook de Stripe roto a través del gateway (producción).** El bloque NGINX
+  `location /api/payments/webhooks/stripe` hacía `proxy_pass …/v1/webhooks/stripe`
+  (sin el segmento `payments`), pero el módulo lo sirve en
+  `/v1/payments/webhooks/stripe` → en prod Stripe recibía **404** y **ningún
+  pago se reconciliaba** (QR, Terminal y one-shot quedaban `pending`). Corregido
+  el `proxy_pass` a `…/v1/payments/webhooks/stripe`. Verificado vía gateway:
+  ahora el handler responde `400 MISSING_SIGNATURE` (llega a la app) en vez de 404.
+- **TPV connection-token devolvía `502 STRIPE_ERROR` con claves Stripe reales.**
+  `terminal.service.js#ensureLocation` creaba la Terminal Location con una
+  dirección placeholder inválida para España (`postal_code: '00000'` y sin
+  `state`), que Stripe rechaza (`Invalid ES postal code` →
+  `Missing required address field … address[state]`). Se sustituye por una
+  dirección ES válida (`Madrid`, `state: 'Madrid'`, `28013`). El modo stub no
+  lo detectaba porque no llega a llamar a Stripe; sólo afloraba con claves
+  test/live configuradas. Verificado e2e con claves test: connection-token →
+  `pst_test_…` + `locationId` reales.
 
 ### Changed
 - **Contenedor `apps-servers` único para todos los servidores específicos de

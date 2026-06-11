@@ -39,11 +39,23 @@ export async function handleWebhookEvent(event) {
       case 'payment_intent.requires_action':
         await syncIntent(event.data.object, 'requires_action', 'payment.requires_action')
         break
+      case 'checkout.session.completed':
+        // Sync (síncrono: tarjeta/wallet). Solo a 'succeeded' si quedó pagado;
+        // los métodos asíncronos (algunos Bizum/transferencia) llegan 'unpaid'
+        // y se cierran luego con async_payment_succeeded.
+        await syncCheckoutSession(event.data.object, 'succeeded', 'payment.succeeded')
+        break
+      case 'checkout.session.async_payment_succeeded':
+        await syncCheckoutSession(event.data.object, 'succeeded', 'payment.succeeded')
+        break
+      case 'checkout.session.async_payment_failed':
+        await syncCheckoutSession(event.data.object, 'failed', 'payment.failed')
+        break
+      case 'checkout.session.expired':
+        await syncCheckoutSession(event.data.object, 'expired', 'payment.checkout.expired')
+        break
       case 'charge.refund.updated':
         await syncRefund(event.data.object)
-        break
-      case 'checkout.session.completed':
-        await syncCheckout(event.data.object)
         break
       default:
         logger.debug({ type: event.type }, 'Unhandled webhook event type')
@@ -89,29 +101,37 @@ async function syncIntent(intent, status, eventType, errorCode = null) {
   logger.info({ intentId: intent.id, status }, 'PaymentIntent status synced')
 }
 
-// checkout.session.completed (path web / QR): la sesión Checkout no tiene una
-// transacción nuestra previa (se crea hosted), así que solo emitimos el evento
-// unificado payment.succeeded con el PI resultante. platform/tpv lo consume
-// para crear el billing_fact + recibo (bill_id = PI id, idempotente).
-async function syncCheckout(session) {
+// checkout.session.*: the transaction was persisted keyed by the session id
+// (cs_...) at creation, with app_id/tenant_id stamped in the session metadata.
+// For 'completed' we only mark succeeded when payment_status is actually 'paid'
+// (async methods arrive 'unpaid' and resolve later via async_payment_*).
+async function syncCheckoutSession(session, status, eventType) {
   const ctx = ctxFromMetadata(session.metadata)
   if (!ctx) {
-    logger.warn({ sessionId: session.id }, 'checkout.session.completed without tenant metadata — ignoring')
+    logger.warn({ sessionId: session.id }, 'checkout.session.* without tenant metadata — ignoring')
     return
   }
-  if (session.payment_status !== 'paid') {
-    logger.info({ sessionId: session.id, paymentStatus: session.payment_status }, 'checkout session not paid — ignoring')
+  const finalStatus = (status === 'succeeded' && session.payment_status && session.payment_status !== 'paid')
+    ? 'pending'
+    : status
+  const updated = await withTenantTransaction(pool, ctx.appId, ctx.tenantId, ctx.subTenantId,
+    (client) => txRepo.updateStatusByProviderTxId(client, session.id, finalStatus, null))
+  if (!updated) {
+    logger.warn({ sessionId: session.id }, 'checkout.session.* for unknown transaction — ignoring')
     return
   }
-  await emit(ctx, 'payment.succeeded', {
-    transactionId: null,
-    providerTxId: session.payment_intent,
-    amountCents: session.amount_total,
-    currency: session.currency,
-    status: 'succeeded',
-    source: session.metadata?.source ?? null,
+  await emit(ctx, eventType, {
+    transactionId: updated.id,
+    providerTxId: session.id,
+    paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+    amountCents: updated.amountCents,
+    currency: updated.currency,
+    status: finalStatus,
+    // source (p.ej. 'checkout_link') viaja para que consumidores como
+    // platform/tpv puedan filtrar los cobros QR que deben generar recibo.
+    source: updated.metadata?.source ?? null,
   })
-  logger.info({ sessionId: session.id, pi: session.payment_intent }, 'Checkout session completed')
+  logger.info({ sessionId: session.id, status: finalStatus }, 'Checkout session synced')
 }
 
 // charge.refund.updated: sync the refund row state by provider_refund_id. The

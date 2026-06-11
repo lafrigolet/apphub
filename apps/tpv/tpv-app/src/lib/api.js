@@ -1,4 +1,4 @@
-import { API_BASE, APP_ID, TENANT_ID, DEV_EMAIL, DEV_PASSWORD, CURRENCY } from '../config.js'
+import { API_BASE, API_PREFIX, APP_ID, TENANT_ID, DEV_EMAIL, DEV_PASSWORD, CURRENCY } from '../config.js'
 
 let _token = null
 
@@ -21,7 +21,7 @@ async function req(method, path, { body, auth = true } = {}) {
 
 // Login silencioso del cajero → guarda el access token para el resto de llamadas.
 export async function login() {
-  const { data } = await req('POST', '/api/auth/login', {
+  const { data } = await req('POST', `${API_PREFIX}/auth/login`, {
     auth: false,
     body: { appId: APP_ID, tenantId: TENANT_ID, email: DEV_EMAIL, password: DEV_PASSWORD },
   })
@@ -36,13 +36,13 @@ export function isLoggedIn() {
 
 // tokenProvider del SDK de Stripe Terminal: devuelve el connection token secret.
 export async function fetchConnectionToken() {
-  const { data } = await req('POST', '/api/payments/terminal/connection-token')
+  const { data } = await req('POST', `${API_PREFIX}/payments/terminal/connection-token`)
   return data // { secret, locationId, stub }
 }
 
 // Crea el PaymentIntent card_present para el importe del teclado.
 export async function createTerminalIntent(amountCents) {
-  const { data } = await req('POST', '/api/payments/terminal/intents', {
+  const { data } = await req('POST', `${API_PREFIX}/payments/terminal/intents`, {
     body: { amountCents, currency: CURRENCY },
   })
   return data // { paymentIntentId, clientSecret, status, stub }

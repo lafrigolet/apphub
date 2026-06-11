@@ -62,11 +62,11 @@ describe('payments-events.handler — payment.succeeded', () => {
     }))
   })
 
-  it('source tpv_checkout → método card_online', async () => {
+  it('source checkout_link → método card_online', async () => {
     factsRepo.insertIfAbsent.mockResolvedValue({ id: 'fact-2' })
     const { redis, emit } = makeRedisStub()
     startPaymentsEventsHandler({ redis })
-    await emit(paid('tpv_checkout'))
+    await emit(paid('checkout_link'))
     expect(factsRepo.insertIfAbsent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       payments: [expect.objectContaining({ method: 'card_online' })],
     }))

@@ -21,9 +21,10 @@ importe y cobrar **acercando la tarjeta del cliente al móvil del cajero** (Stri
   se emita el recibo (fase 2).
 - **Backend** — `platform/payments` (módulo de platform-core):
   - Terminal: `POST /api/payments/terminal/{connection-token,intents}` (PaymentIntent `card_present`).
-  - Checkout (web/QR): `POST /api/payments/checkout-sessions` (+ `GET /:id` para el estado).
+  - Checkout (web/QR): `POST /api/payments/checkout-sessions` (+ `GET /:id` para el estado,
+    por `transactionId`).
   - Ambos los reconcilia el webhook; en `payment_intent.succeeded` / `checkout.session.completed`
-    se emite `payment.succeeded` con `source` (`tap_to_pay` / `tpv_checkout`).
+    se emite `payment.succeeded` con `source` (`tap_to_pay` / `checkout_link`).
 - **Recibo (fase 2)** — `platform/tpv` consume ese `payment.succeeded`
   (`services/payments-events.handler.js`): crea un `billing_fact` (IVA incluido al
   `default_sale_tax_rate` del tenant) y, con `auto_issue_simplified`, emite el ticket

@@ -119,6 +119,37 @@ describe('handleWebhookEvent — status sync', () => {
     expect(refundRepo.updateStatusByProviderRefundId).toHaveBeenCalledWith({}, 're_1', 'succeeded')
   })
 
+  it('checkout.session.completed (paid) → tx succeeded + payment.succeeded', async () => {
+    txRepo.updateStatusByProviderTxId.mockResolvedValue({ id: 'tx-9', amountCents: 1234, currency: 'eur' })
+    await handleWebhookEvent({
+      id: 'evt_6', type: 'checkout.session.completed',
+      data: { object: { id: 'cs_1', payment_status: 'paid', payment_intent: 'pi_9', metadata: { app_id: 'a', tenant_id: 't' } } },
+    })
+    expect(txRepo.updateStatusByProviderTxId).toHaveBeenCalledWith({}, 'cs_1', 'succeeded', null)
+    expect(redisMock.publish).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'payment.succeeded',
+      payload: expect.objectContaining({ providerTxId: 'cs_1', paymentIntentId: 'pi_9' }),
+    }))
+  })
+
+  it('checkout.session.completed (unpaid/async) → stays pending', async () => {
+    txRepo.updateStatusByProviderTxId.mockResolvedValue({ id: 'tx-9', amountCents: 1234, currency: 'eur' })
+    await handleWebhookEvent({
+      id: 'evt_7', type: 'checkout.session.completed',
+      data: { object: { id: 'cs_2', payment_status: 'unpaid', metadata: { app_id: 'a', tenant_id: 't' } } },
+    })
+    expect(txRepo.updateStatusByProviderTxId).toHaveBeenCalledWith({}, 'cs_2', 'pending', null)
+  })
+
+  it('checkout.session.expired → tx expired', async () => {
+    txRepo.updateStatusByProviderTxId.mockResolvedValue({ id: 'tx-9', amountCents: 1234, currency: 'eur' })
+    await handleWebhookEvent({
+      id: 'evt_8', type: 'checkout.session.expired',
+      data: { object: { id: 'cs_3', metadata: { app_id: 'a', tenant_id: 't' } } },
+    })
+    expect(txRepo.updateStatusByProviderTxId).toHaveBeenCalledWith({}, 'cs_3', 'expired', null)
+  })
+
   it('unknown event type → no-op but still marked processed', async () => {
     await handleWebhookEvent({ id: 'evt_5', type: 'invoice.created', data: { object: {} } })
     expect(eventRepo.markProcessed).toHaveBeenCalledWith({}, 'evt_5')

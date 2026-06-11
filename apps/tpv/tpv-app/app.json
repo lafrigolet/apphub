@@ -6,6 +6,10 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0b0d12",
+    "splash": {
+      "backgroundColor": "#0b0d12",
+      "resizeMode": "contain"
+    },
     "ios": {
       "bundleIdentifier": "com.hulkstein.tpv",
       "supportsTablet": false,
@@ -15,10 +19,25 @@
     },
     "android": {
       "package": "com.hulkstein.tpv",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "NFC"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NFC"
+      ]
     },
     "plugins": [
       "expo-dev-client",
+      "./plugins/force-recyclerview",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34
+          }
+        }
+      ],
       [
         "@stripe/stripe-terminal-react-native",
         {
@@ -26,6 +45,12 @@
           "locationWhenInUsePermission": "La ubicación es necesaria para aceptar pagos con Tap to Pay."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "554b2242-1961-42fd-8e1c-23e727f2ebb8"
+      }
+    },
+    "owner": "lafrigolet"
   }
 }

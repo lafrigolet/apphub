@@ -13,6 +13,10 @@ const DEFAULT_BASE = Platform.select({
 
 export const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? DEFAULT_BASE
 
+// Prefijo de las rutas. Contra el gateway NGINX: '/api' (reescribe a /v1 en core).
+// Contra platform-core directo (dev en dispositivo físico, sin routing por Host): '/v1'.
+export const API_PREFIX = process.env.EXPO_PUBLIC_API_PREFIX ?? '/api'
+
 // Tenant de prueba + credenciales del cajero seedeadas por apps/tpv/seed.sql.
 // Login silencioso (V1 sin pantalla de login). En producción esto se sustituye
 // por un login real del cajero.

@@ -19,13 +19,16 @@ export default function App() {
   async function onCharge() {
     try {
       const session = await createCheckoutSession(amount)
-      setQrUrl(session.url)
+      // payUrl: enlace corto de marca cuando hay base pública; si no, la URL de
+      // Stripe directa. Ambos sirven como contenido del QR.
+      setQrUrl(session.payUrl ?? session.url)
       setScreen(S.QR)
-      // Polling del estado: en cuanto Stripe marca paid → pantalla "Pagado".
+      // Polling del estado: en cuanto el webhook marca la transacción 'succeeded'
+      // → pantalla "Pagado".
       poll.current = setInterval(async () => {
         try {
-          const st = await getCheckoutStatus(session.id)
-          if (st.paymentStatus === 'paid' || st.status === 'complete') {
+          const st = await getCheckoutStatus(session.transactionId)
+          if (st.status === 'succeeded') {
             clearInterval(poll.current); setScreen(S.DONE)
           }
         } catch { /* reintenta en el siguiente tick */ }

@@ -8,11 +8,12 @@ import { issueReceiptCore, buildIssuedPayload } from './receipts.service.js'
 const PATTERN = '*.events'
 
 // Cobros sin pos cuyo recibo emite tpv: Tap to Pay (source 'tap_to_pay') y QR
-// Checkout web (source 'tpv_checkout'). Ambos llegan como `payment.succeeded`
-// de platform/payments (el webhook propaga `source`). Mismo patrón que
-// pos-events.handler: crea un billing_fact (idempotente por bill_id = PI id) y,
-// si el tenant tiene auto_issue_simplified, emite el ticket simplificado.
-const TPV_SOURCES = new Set(['tap_to_pay', 'tpv_checkout'])
+// Checkout web (source 'checkout_link', el cobro hosted de platform/payments).
+// Ambos llegan como `payment.succeeded` de platform/payments (el webhook propaga
+// `source`). Mismo patrón que pos-events.handler: crea un billing_fact
+// (idempotente por bill_id = PI/session id) y, si el tenant tiene
+// auto_issue_simplified, emite el ticket simplificado.
+const TPV_SOURCES = new Set(['tap_to_pay', 'checkout_link'])
 
 export function startPaymentsEventsHandler({ redis }) {
   const sub = redis.duplicate()
@@ -54,7 +55,7 @@ async function onPaymentSucceeded(event) {
     const base = Math.round(total / (1 + rate / 100))
     const tax = total - base
     const currency = (p.currency ?? 'eur').toUpperCase()
-    const method = p.source === 'tpv_checkout' ? 'card_online' : 'card_present'
+    const method = p.source === 'checkout_link' ? 'card_online' : 'card_present'
 
     const fact = await factsRepo.insertIfAbsent(c, {
       appId: p.appId,

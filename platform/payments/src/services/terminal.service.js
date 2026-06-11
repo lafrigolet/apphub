@@ -48,7 +48,7 @@ export async function ensureLocation() {
     try {
       location = await stripe.terminal.locations.create({
         display_name: 'AppHub TPV',
-        address: { country: 'ES', line1: 'N/A', city: 'N/A', postal_code: '00000' },
+        address: { country: 'ES', line1: 'Calle Mayor 1', city: 'Madrid', state: 'Madrid', postal_code: '28013' },
       })
     } catch (err) {
       logger.error({ err }, 'Stripe Terminal Location creation failed')

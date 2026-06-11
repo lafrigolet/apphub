@@ -36,10 +36,12 @@ export async function createCheckoutSession(amountCents) {
       cancelUrl: `${origin}/?canceled=1`,
     },
   })
-  return data // { id, url, stub }
+  return data // { transactionId, sessionId, url, payUrl, qr, status, stub }
 }
 
-export async function getCheckoutStatus(id) {
-  const { data } = await req('GET', `/api/payments/checkout-sessions/${id}`)
-  return data // { status, paymentStatus }
+// Polling por transactionId: el webhook checkout.session.completed marca la
+// transacción 'succeeded'.
+export async function getCheckoutStatus(transactionId) {
+  const { data } = await req('GET', `/api/payments/checkout-sessions/${transactionId}`)
+  return data // transacción { id, status, ... }
 }

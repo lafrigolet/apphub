@@ -71,14 +71,34 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
   con `source` y `platform/tpv` (handler `payments-events`) crea el `billing_fact` + ticket
   simplificado (IVA incluido al `default_sale_tax_rate` del tenant).
 
-## 2ter. Checkout Sessions — cobro web por QR
+## 2ter. Cobro por QR / payment link (Checkout hosted)
 
-- ✅ `POST /v1/payments/checkout-sessions` — crea una Stripe Checkout Session hospedada para
-  un importe (mode `payment`, `source: 'tpv_checkout'` en metadata) y devuelve la `url` (→ QR).
-  Usado por el portal web `tpv.hulkstein.local`: el cliente paga en SU móvil escaneando el QR.
-- ✅ `GET /v1/payments/checkout-sessions/:id` — estado de la sesión (polling `paid` → recibo).
-- ✅ Webhook `checkout.session.completed` → emite `payment.succeeded` (con el PI resultante y
-  `source`), que dispara el recibo en `platform/tpv` igual que Tap to Pay.
+"Cobrar desde el móvil" **sin** lector NFC ni hardware: el cajero genera el cobro y muestra
+un **QR** (o comparte el enlace); el **cliente paga en SU propio dispositivo**. Al no leerse
+la tarjeta en el móvil del comercio, **no entra en PCI CPoC/MPoC** ni requiere certificación.
+
+- ✅ `POST /v1/payments/checkout-sessions` — crea una **Stripe Checkout Session** `mode:payment`
+  con `price_data` ad-hoc por importe. Devuelve `{ url, qr, sessionId, transactionId, status }`.
+  Sin `payment_method_types`, Checkout ofrece los métodos habilitados en la cuenta (tarjeta,
+  Apple/Google Pay y, en ES, **Bizum**). `qr` es un data-URL PNG (dep `qrcode`, carga perezosa).
+- ✅ `GET /v1/payments/checkout-sessions/:id` — poll del estado de la transacción (el cajero
+  ve cuándo el cliente ha pagado).
+- ✅ **Acortador de pay-links** (opcional, `PAYMENTS_PUBLIC_BASE_URL`): el QR codifica un
+  enlace corto propio `…/v1/payments/pay/<code>` que **302-redirige** a la URL larga de
+  Stripe (QR menos denso + enlaces propios/revocables). `code → url` en Redis con el TTL de
+  la sesión. `GET /v1/payments/pay/:code` es **público** (el pagador no es usuario; el code
+  es la capability). Sin la env, el QR lleva la URL directa de Stripe (default dev, donde el
+  móvil del cliente no alcanzaría nuestro host de redirección).
+- ✅ Persiste en `transactions` keyed por el id de sesión (`cs_...`) con `source=checkout_link`;
+  idempotencia (24h Redis) y dev-stub iguales que one-shot.
+- ✅ Reconciliación por webhook `checkout.session.*`: `completed` → `succeeded` solo si
+  `payment_status=paid` (los métodos asíncronos llegan `unpaid` y cierran con
+  `async_payment_succeeded`); `async_payment_failed` → `failed`; `expired` → `expired`.
+  El `payment.succeeded` lleva `source=checkout_link`, que dispara el recibo fiscal en
+  `platform/tpv` (handler `payments-events`) igual que Tap to Pay. El portal web
+  `tpv.hulkstein.local` consume este flujo: muestra el QR y hace poll por `transactionId`.
+- ❌ Página de retorno (`success_url`/`cancel_url`) propia — hoy defaults vía env
+  `PAYMENTS_CHECKOUT_RETURN_BASE_URL`; falta la vista "gracias / pago cancelado".
 
 ## 2. PaymentIntents — cobro único (one-shot)
 
