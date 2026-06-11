@@ -58,10 +58,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   - **Seed** `apps/tpv/seed.sql`: app `tpv`, tenant de prueba y cajero
     `cajero@tpv.local`. Verificado e2e en modo stub: login → JWT(app_id=tpv)
     → connection-token + terminal intent → transacción `source=tap_to_pay`.
-  - Fuera de V1 (documentado en `apps/tpv/README.md`): web en
-    `tpv.hulkstein.local` (Expo web export + QR-Checkout), recibo fiscal
-    `platform/tpv`, login real, y el tap físico con hardware + Tap to Pay
-    habilitado en la cuenta.
+  - Fuera de la V1 inicial (luego añadido, ver abajo): recibo fiscal y target web.
+- **TPV — fase 2 (recibo fiscal) + target web (QR Checkout).** Extiende lo
+  anterior:
+  - **Recibo tras el cobro**: el webhook de `platform/payments` propaga `source`
+    en `payment.succeeded` (tanto en `payment_intent.*` como en
+    `checkout.session.*`); `platform/tpv` gana `services/payments-events.handler.js`
+    que, ante un cobro `tap_to_pay`/`checkout_link`, crea un `billing_fact`
+    (importe IVA incluido al `default_sale_tax_rate` del tenant — settings 0002)
+    y auto-emite el ticket simplificado correlativo (reusa `issueReceiptCore`;
+    numeración + snapshot + feed Veri*Factu). Verificado e2e: `payment.succeeded`
+    → recibo A-000001 (1210 = base 1000 + IVA 210). +5 tests.
+  - **Target web `apps/tpv/tpv-portal`** (Vite/React) en `tpv.hulkstein.local`
+    vía el contenedor `portals` (puerto 5183, ADR 017): teclado (con "00") +
+    **cobro por QR** reutilizando el endpoint de Checkout Sessions de arriba
+    (`POST /v1/payments/checkout-sessions`, `source=checkout_link`); el portal
+    muestra el QR (`payUrl`/`url`) y hace poll del estado por `transactionId`
+    (`GET /:id`) hasta `succeeded`. Es el fallback sin Tap to Pay para cualquier
+    navegador. Cableado completo: pnpm-workspace
+    (ruta exacta `apps/tpv/tpv-portal` para excluir la app Expo), Dockerfile/
+    portals.conf/dev-entrypoint de `portals`, compose, upstreams dev+prod,
+    seed nginx `tpv.conf`, `deploy/services.json`.
 
 ### Fixed
 - **Webhook de Stripe roto a través del gateway (producción).** El bloque NGINX

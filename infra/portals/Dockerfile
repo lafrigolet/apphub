@@ -28,6 +28,7 @@ COPY apps/aulavera/aulavera-portal/package.json                ./apps/aulavera/a
 COPY apps/js-electric/js-electric-portal/package.json          ./apps/js-electric/js-electric-portal/package.json
 COPY apps/macabeo/macabeo-portal/package.json                  ./apps/macabeo/macabeo-portal/package.json
 COPY apps/verifactu/verifactu-portal/package.json              ./apps/verifactu/verifactu-portal/package.json
+COPY apps/tpv/tpv-portal/package.json                          ./apps/tpv/tpv-portal/package.json
 # '*portal*' matchea los 9 paquetes (@splitpay/portal incluido) y nada más.
 RUN pnpm install --no-frozen-lockfile --filter '*portal*...'
 
@@ -44,10 +45,11 @@ COPY apps/aulavera/aulavera-portal              ./apps/aulavera/aulavera-portal
 COPY apps/js-electric/js-electric-portal        ./apps/js-electric/js-electric-portal
 COPY apps/macabeo/macabeo-portal                ./apps/macabeo/macabeo-portal
 COPY apps/verifactu/verifactu-portal            ./apps/verifactu/verifactu-portal
+COPY apps/tpv/tpv-portal                        ./apps/tpv/tpv-portal
 COPY infra/portals/dev-entrypoint.sh /dev-entrypoint.sh
 RUN chmod +x /dev-entrypoint.sh
 
-EXPOSE 5173 5175 5176 5177 5178 5179 5180 5181 5182
+EXPOSE 5173 5175 5176 5177 5178 5179 5180 5181 5182 5183
 CMD ["/dev-entrypoint.sh"]
 
 # ── Build (todos los dist/) ───────────────────────────────────────────
@@ -62,6 +64,7 @@ COPY apps/aulavera/aulavera-portal              ./apps/aulavera/aulavera-portal
 COPY apps/js-electric/js-electric-portal        ./apps/js-electric/js-electric-portal
 COPY apps/macabeo/macabeo-portal                ./apps/macabeo/macabeo-portal
 COPY apps/verifactu/verifactu-portal            ./apps/verifactu/verifactu-portal
+COPY apps/tpv/tpv-portal                        ./apps/tpv/tpv-portal
 
 # VITE_API_BASE_URL vacío → cada SPA llama /api/* en relativo y el gateway
 # enruta por subdominio (mismo criterio que tenían los Dockerfiles
@@ -74,7 +77,8 @@ RUN pnpm --filter @splitpay/portal build \
  && pnpm --filter @aulavera/aulavera-portal build \
  && pnpm --filter @js-electric/js-electric-portal build \
  && pnpm --filter @macabeo/macabeo-portal build \
- && pnpm --filter @verifactu/verifactu-portal build
+ && pnpm --filter @verifactu/verifactu-portal build \
+ && pnpm --filter @tpv/tpv-portal build
 
 # ── Production ────────────────────────────────────────────────────────
 FROM nginx:alpine AS production
@@ -87,8 +91,9 @@ COPY --from=build /app/apps/aulavera/aulavera-portal/dist               /usr/sha
 COPY --from=build /app/apps/js-electric/js-electric-portal/dist         /usr/share/nginx/html/js-electric
 COPY --from=build /app/apps/macabeo/macabeo-portal/dist                 /usr/share/nginx/html/macabeo
 COPY --from=build /app/apps/verifactu/verifactu-portal/dist             /usr/share/nginx/html/verifactu
+COPY --from=build /app/apps/tpv/tpv-portal/dist                         /usr/share/nginx/html/tpv
 COPY infra/portals/spa-locations.conf /etc/nginx/snippets/spa-locations.conf
 COPY infra/portals/portals.conf       /etc/nginx/conf.d/default.conf
-EXPOSE 5173 5175 5176 5177 5178 5179 5180 5181 5182
+EXPOSE 5173 5175 5176 5177 5178 5179 5180 5181 5182 5183
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD wget -qO- http://127.0.0.1:5173/_health || exit 1

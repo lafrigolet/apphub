@@ -67,7 +67,9 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
 - 🔧 Cliente: **app nativa Expo** `apps/tpv/tpv-app` (Tap to Pay solo existe en SDK nativo,
   no en web/PWA). V1 en modo test con reader simulado; tap físico requiere dispositivo
   compatible + Tap to Pay habilitado en la cuenta.
-- ❌ Emisión de recibo fiscal `platform/tpv` tras el cobro (fase 2).
+- ✅ Emisión de recibo fiscal `platform/tpv` tras el cobro: el webhook emite `payment.succeeded`
+  con `source` y `platform/tpv` (handler `payments-events`) crea el `billing_fact` + ticket
+  simplificado (IVA incluido al `default_sale_tax_rate` del tenant).
 
 ## 2ter. Cobro por QR / payment link (Checkout hosted)
 
@@ -92,6 +94,9 @@ la tarjeta en el móvil del comercio, **no entra en PCI CPoC/MPoC** ni requiere 
 - ✅ Reconciliación por webhook `checkout.session.*`: `completed` → `succeeded` solo si
   `payment_status=paid` (los métodos asíncronos llegan `unpaid` y cierran con
   `async_payment_succeeded`); `async_payment_failed` → `failed`; `expired` → `expired`.
+  El `payment.succeeded` lleva `source=checkout_link`, que dispara el recibo fiscal en
+  `platform/tpv` (handler `payments-events`) igual que Tap to Pay. El portal web
+  `tpv.hulkstein.local` consume este flujo: muestra el QR y hace poll por `transactionId`.
 - ❌ Página de retorno (`success_url`/`cancel_url`) propia — hoy defaults vía env
   `PAYMENTS_CHECKOUT_RETURN_BASE_URL`; falta la vista "gracias / pago cancelado".
 

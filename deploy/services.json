@@ -120,6 +120,7 @@
         "apps/js-electric/js-electric-portal/**",
         "apps/macabeo/macabeo-portal/**",
         "apps/verifactu/verifactu-portal/**",
+        "apps/tpv/tpv-portal/**",
         "packages/**",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml"

@@ -10,12 +10,34 @@ importe y cobrar **acercando la tarjeta del cliente al móvil del cajero** (Stri
 
 ## Piezas
 
-- **`tpv-app/`** — app **Expo** (React Native). *Fuera del pnpm workspace del monorepo*
-  (install propio) para no chocar con el hoisting de Expo+pnpm. No se despliega en Docker.
-- **`seed.sql`** — registra el app `tpv`, un tenant de prueba y el cajero `cajero@tpv.local`.
-- **Backend** — `platform/payments` (módulo de platform-core) expone los endpoints Terminal:
-  `POST /api/payments/terminal/connection-token` y `POST /api/payments/terminal/intents`
-  (PaymentIntent `card_present`). El cobro lo reconcilia el webhook existente.
+- **`tpv-app/`** — app **Expo** (React Native) con **Tap to Pay** (acercar tarjeta al móvil).
+  *Fuera del pnpm workspace* (install propio) para no chocar con el hoisting de Expo+pnpm.
+  No se despliega en Docker.
+- **`tpv-portal/`** — **portal web** (Vite/React) servido en `tpv.hulkstein.local` por el
+  contenedor `portals` (puerto 5183, ADR 017). Teclado + **cobro por QR** (Stripe Checkout):
+  el cliente paga en SU móvil escaneando el QR. Fallback sin Tap to Pay para cualquier navegador.
+- **`seed.sql`** — registra el app `tpv`, un tenant de prueba, el cajero `cajero@tpv.local`
+  y los **settings fiscales** del tenant (emisor + `auto_issue_simplified` + serie A) para que
+  se emita el recibo (fase 2).
+- **Backend** — `platform/payments` (módulo de platform-core):
+  - Terminal: `POST /api/payments/terminal/{connection-token,intents}` (PaymentIntent `card_present`).
+  - Checkout (web/QR): `POST /api/payments/checkout-sessions` (+ `GET /:id` para el estado,
+    por `transactionId`).
+  - Ambos los reconcilia el webhook; en `payment_intent.succeeded` / `checkout.session.completed`
+    se emite `payment.succeeded` con `source` (`tap_to_pay` / `checkout_link`).
+- **Recibo (fase 2)** — `platform/tpv` consume ese `payment.succeeded`
+  (`services/payments-events.handler.js`): crea un `billing_fact` (IVA incluido al
+  `default_sale_tax_rate` del tenant) y, con `auto_issue_simplified`, emite el ticket
+  simplificado correlativo (numeración + snapshot + feed Veri*Factu).
+
+## Target web — tpv.hulkstein.local
+
+1. Stack arriba con claves Stripe **test** en console. Seed aplicado (`seed.sql`).
+2. `/etc/hosts`: `127.0.0.1 tpv.hulkstein.local`.
+3. `docker compose up -d --build portals nginx`.
+4. Abrir `http://tpv.hulkstein.local:8080` → teclear importe (prueba **"00"**) → **Cobrar** →
+   aparece el **QR** → el cliente lo escanea y paga en su móvil → al completarse, la pantalla
+   pasa a **"Pagado ✅"** (polling) y `platform/tpv` emite el recibo.
 
 ## Puesta en marcha (modo test / reader simulado)
 

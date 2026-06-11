@@ -93,6 +93,9 @@ async function syncIntent(intent, status, eventType, errorCode = null) {
     amountCents: updated.amountCents,
     currency: updated.currency,
     status,
+    // source (p.ej. 'tap_to_pay') viaja para que consumidores como
+    // platform/tpv puedan filtrar los cobros que deben generar recibo.
+    source: updated.metadata?.source ?? null,
     ...(errorCode ? { errorCode } : {}),
   })
   logger.info({ intentId: intent.id, status }, 'PaymentIntent status synced')
@@ -124,6 +127,9 @@ async function syncCheckoutSession(session, status, eventType) {
     amountCents: updated.amountCents,
     currency: updated.currency,
     status: finalStatus,
+    // source (p.ej. 'checkout_link') viaja para que consumidores como
+    // platform/tpv puedan filtrar los cobros QR que deben generar recibo.
+    source: updated.metadata?.source ?? null,
   })
   logger.info({ sessionId: session.id, status: finalStatus }, 'Checkout session synced')
 }

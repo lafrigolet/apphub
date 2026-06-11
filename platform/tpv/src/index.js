@@ -10,6 +10,7 @@ import { reportsRoutes } from './routes/reports.routes.js'
 import { settingsRoutes } from './routes/settings.routes.js'
 import { adminRoutes } from './routes/admin.routes.js'
 import { startPosEventsHandler } from './services/pos-events.handler.js'
+import { startPaymentsEventsHandler } from './services/payments-events.handler.js'
 import { startVerifactuEventsHandler } from './services/verifactu-events.handler.js'
 
 export { runMigrations } from './lib/migrate.js'
@@ -36,6 +37,7 @@ export async function register({ app, db, redis, logger }) {
 
   if (redis) {
     startPosEventsHandler({ redis })
+    startPaymentsEventsHandler({ redis })
     startVerifactuEventsHandler({ redis })
   }
 

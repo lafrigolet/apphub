@@ -44,4 +44,7 @@ VITE_API_BASE_URL="http://macabeo.${GW}" \
 VITE_API_BASE_URL="http://verifactu.${GW}" \
   pnpm --filter @verifactu/verifactu-portal exec vite --host &
 
+# tpv-portal usa /api relativo (no necesita VITE_API_BASE_URL).
+pnpm --filter @tpv/tpv-portal exec vite --host &
+
 wait
