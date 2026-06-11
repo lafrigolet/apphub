@@ -8,10 +8,10 @@
 // La transacción se persiste keyed por el id de sesión (`cs_...`) y se reconcilia
 // con los eventos checkout.session.* en webhook.service.js (no con
 // payment_intent.succeeded, porque al crear la sesión aún no existe el PI).
-import { randomUUID } from 'node:crypto'
+import { randomUUID, randomBytes } from 'node:crypto'
 import { pool, withTenantTransaction } from '../lib/db.js'
 import { stripe, isStubbed } from '../lib/stripe.js'
-import { checkIdempotency, storeIdempotency, publish } from '../lib/redis.js'
+import { checkIdempotency, storeIdempotency, storePayLink, publish } from '../lib/redis.js'
 import * as txRepo from '../repositories/transaction.repository.js'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { logger } from '../lib/logger.js'
@@ -52,11 +52,13 @@ async function maybeQr(text) {
     catch { _qrLib = null; logger.warn('qrcode no instalado — checkout devuelve solo `url` (sin data-URL QR)') }
   }
   if (!_qrLib) return null
-  try { return await _qrLib.toDataURL(text, { margin: 1, width: 320 }) }
+  // errorCorrectionLevel 'L' (7%) usa menos módulos que el default 'M' (15%) →
+  // QR menos denso para la URL larga de Stripe Checkout, más fácil de escanear.
+  try { return await _qrLib.toDataURL(text, { errorCorrectionLevel: 'L', margin: 2, width: 600 }) }
   catch (err) { logger.warn({ err }, 'QR generation failed'); return null }
 }
 
-export async function createCheckoutSession(ctx, input) {
+export async function createCheckoutSession(ctx, input, opts = {}) {
   const idemKey = input.idempotencyKey ?? randomUUID()
   const scope = `${ctx.appId}:${ctx.tenantId}:${idemKey}`
   const cached = await checkIdempotency(scope)
@@ -116,6 +118,20 @@ export async function createCheckoutSession(ctx, input) {
     status = 'pending'
   }
 
+  // Pay-link shortener: when a public base URL is configured, the QR encodes a
+  // short branded link (https://base/v1/payments/pay/<code>) that 302-redirects
+  // to the long Stripe URL — far less dense, easier to scan. Without a base we
+  // keep encoding the raw Stripe URL (e.g. local dev, where the customer's phone
+  // can't reach our redirect host). The code → URL mapping lives in Redis with
+  // the same TTL as the session.
+  let payUrl = null
+  if (opts.publicBase) {
+    const code = randomBytes(6).toString('base64url')
+    const ttl = (input.expiresInMinutes ?? 30) * 60
+    await storePayLink(code, url, ttl)
+    payUrl = `${opts.publicBase.replace(/\/+$/, '')}/v1/payments/pay/${code}`
+  }
+
   const tx = await tenantTx(ctx, (client) => txRepo.insertTransaction(client, ctx, {
     userId: ctx.userId ?? null,
     provider: 'stripe',
@@ -127,8 +143,8 @@ export async function createCheckoutSession(ctx, input) {
     metadata: { source: 'checkout_link', ...input.metadata },
   }))
 
-  const qr = await maybeQr(url)
-  const result = { transactionId: tx.id, sessionId, url, qr, status, stub }
+  const qr = await maybeQr(payUrl ?? url)
+  const result = { transactionId: tx.id, sessionId, url, payUrl, qr, status, stub }
   await storeIdempotency(scope, result)
   await emit(ctx, 'payment.checkout.created', {
     transactionId: tx.id, sessionId, amountCents: input.amountCents, currency, status, source: 'checkout_link',

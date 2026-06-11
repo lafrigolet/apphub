@@ -26,6 +26,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     `async_payment_succeeded/failed`, `expired`). Reutiliza cliente Stripe,
     idempotencia (24h Redis), persistencia de transacciones y el receptor de
     webhooks existentes. Modo stub e2e sin claves. +8 tests (5 ruta, 3 webhook).
+  - **Acortador de pay-links** (opcional): con `PAYMENTS_PUBLIC_BASE_URL`
+    configurado, el QR codifica un enlace corto propio
+    (`https://<base>/v1/payments/pay/<code>`) que **302-redirige** a la URL
+    larga de Stripe → QR mucho menos denso y enlaces propios/revocables. El
+    mapeo `code → url` vive en Redis con el TTL de la sesión. Sin esa env el QR
+    sigue llevando la URL directa de Stripe (default dev). +2 tests de redirect.
 - **TPV "Tap to Pay" — app nativa Expo + endpoints Stripe Terminal (V1, modo
   test).** El móvil como TPV: teclado moderno (con tecla **"00"**) para
   introducir el importe y cobrar **acercando la tarjeta del cliente al móvil**

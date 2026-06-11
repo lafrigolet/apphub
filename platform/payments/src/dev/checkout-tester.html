@@ -34,7 +34,7 @@
     button:disabled { opacity: .5; }
     button.secondary { background: #1b1f29; color: #f5f7fa; }
     .qr-wrap { text-align: center; margin-top: 8px; }
-    .qr-wrap img { width: 260px; height: 260px; background: #fff; border-radius: 14px; padding: 10px; }
+    .qr-wrap img { width: 88vw; max-width: 360px; height: auto; aspect-ratio: 1; background: #fff; border-radius: 14px; padding: 14px; image-rendering: pixelated; }
     .qr-amount { font-size: 30px; font-weight: 700; margin: 12px 0 2px; }
     .hint { color: #9aa3b2; font-size: 13px; margin: 6px 0 14px; }
     .status { margin-top: 14px; font-size: 15px; text-align: center; min-height: 22px; }
@@ -158,11 +158,12 @@
     $('screen-amount').classList.add('hidden');
     $('screen-qr').classList.remove('hidden');
     $('qr-amount').textContent = euros.toFixed(2).replace('.', ',') + ' €';
-    $('qr-link').href = d.url;
+    var target = d.payUrl || d.url;
+    $('qr-link').href = target;
     if (d.qr) { $('qr-img').src = d.qr; $('qr-img').classList.remove('hidden'); }
     else {
       // Sin data-URL (qrcode no instalado): generar el QR vía servicio externo de imagen.
-      $('qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=520x520&data=' + encodeURIComponent(d.url);
+      $('qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=520x520&data=' + encodeURIComponent(target);
     }
     setStatus('status-qr', 'wait', 'Esperando el pago…');
   }

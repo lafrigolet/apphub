@@ -81,6 +81,12 @@ la tarjeta en el móvil del comercio, **no entra en PCI CPoC/MPoC** ni requiere 
   Apple/Google Pay y, en ES, **Bizum**). `qr` es un data-URL PNG (dep `qrcode`, carga perezosa).
 - ✅ `GET /v1/payments/checkout-sessions/:id` — poll del estado de la transacción (el cajero
   ve cuándo el cliente ha pagado).
+- ✅ **Acortador de pay-links** (opcional, `PAYMENTS_PUBLIC_BASE_URL`): el QR codifica un
+  enlace corto propio `…/v1/payments/pay/<code>` que **302-redirige** a la URL larga de
+  Stripe (QR menos denso + enlaces propios/revocables). `code → url` en Redis con el TTL de
+  la sesión. `GET /v1/payments/pay/:code` es **público** (el pagador no es usuario; el code
+  es la capability). Sin la env, el QR lleva la URL directa de Stripe (default dev, donde el
+  móvil del cliente no alcanzaría nuestro host de redirección).
 - ✅ Persiste en `transactions` keyed por el id de sesión (`cs_...`) con `source=checkout_link`;
   idempotencia (24h Redis) y dev-stub iguales que one-shot.
 - ✅ Reconciliación por webhook `checkout.session.*`: `completed` → `succeeded` solo si

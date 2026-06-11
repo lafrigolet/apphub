@@ -16,6 +16,10 @@ vi.mock('../services/payment.service.js', () => ({
   getIntent: vi.fn(),
 }))
 
+vi.mock('../lib/redis.js', () => ({
+  getPayLink: vi.fn(),
+}))
+
 vi.mock('@apphub/platform-sdk/app-guard', async () => {
   const { default: fp } = await import('fastify-plugin')
   return {
@@ -39,6 +43,7 @@ vi.mock('@apphub/platform-sdk/app-guard', async () => {
 import { checkoutRoutes } from '../routes/checkout.routes.js'
 import * as checkout from '../services/checkout.service.js'
 import * as payments from '../services/payment.service.js'
+import { getPayLink } from '../lib/redis.js'
 import { AppError } from '@apphub/platform-sdk/errors'
 import { validatorCompiler } from 'fastify-type-provider-zod'
 import { ZodError } from 'zod'
@@ -85,6 +90,7 @@ describe('POST /v1/payments/checkout-sessions', () => {
     expect(checkout.createCheckoutSession).toHaveBeenCalledWith(
       expect.objectContaining({ appId: 'tpv', tenantId: 't1' }),
       expect.objectContaining({ amountCents: 1234, currency: 'eur', expiresInMinutes: 30 }),
+      expect.objectContaining({ publicBase: null }), // unset PAYMENTS_PUBLIC_BASE_URL
     )
   })
 
@@ -129,5 +135,21 @@ describe('GET /v1/payments/checkout-sessions/:id', () => {
       expect.objectContaining({ appId: 'tpv', tenantId: 't1' }),
       '11111111-1111-1111-1111-111111111111',
     )
+  })
+})
+
+describe('GET /v1/payments/pay/:code (public redirect)', () => {
+  it('302 to the resolved checkout URL (no auth required)', async () => {
+    getPayLink.mockResolvedValue('https://checkout.stripe.com/c/pay/cs_test_X')
+    const res = await app.inject({ method: 'GET', url: '/v1/payments/pay/abc123' })
+    expect(res.statusCode).toBe(302)
+    expect(res.headers.location).toBe('https://checkout.stripe.com/c/pay/cs_test_X')
+    expect(getPayLink).toHaveBeenCalledWith('abc123')
+  })
+
+  it('404 for an unknown/expired code', async () => {
+    getPayLink.mockResolvedValue(null)
+    const res = await app.inject({ method: 'GET', url: '/v1/payments/pay/nope' })
+    expect(res.statusCode).toBe(404)
   })
 })
