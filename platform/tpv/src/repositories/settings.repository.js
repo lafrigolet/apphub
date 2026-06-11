@@ -5,7 +5,8 @@ const COLUMNS = `
   issuer_postal_code, issuer_city, issuer_country, auto_issue_simplified,
   cash_out_manager_threshold_cents, session_autoclose_hours, convert_window_days,
   default_simplified_series_code, default_invoice_series_code,
-  default_credit_note_series_code, receipt_footer, created_at, updated_at
+  default_credit_note_series_code, receipt_footer, default_sale_tax_rate,
+  created_at, updated_at
 `
 
 export const DEFAULTS = {
@@ -23,6 +24,7 @@ export const DEFAULTS = {
   default_invoice_series_code: 'B',
   default_credit_note_series_code: 'R',
   receipt_footer: null,
+  default_sale_tax_rate: 21.00,
 }
 
 export async function findForTenant(client) {

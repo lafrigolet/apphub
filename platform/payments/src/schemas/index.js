@@ -43,6 +43,18 @@ export const CreateTerminalIntentSchema = z.object({
   metadata: z.record(z.string()).optional(),
 })
 
+// ── Checkout Sessions (hosted, web/QR) ───────────────────────────────────────
+
+export const CreateCheckoutSessionSchema = z.object({
+  amountCents: z.number().int().positive(),
+  currency: z.string().length(3).toLowerCase().default('eur'),
+  productName: z.string().min(1).max(120).optional(),
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
+})
+
+export const CheckoutSessionParamsSchema = z.object({ id: z.string().min(1) })
+
 // ── Refunds ──────────────────────────────────────────────────────────────────
 
 export const CreateRefundSchema = z.object({

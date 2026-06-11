@@ -67,7 +67,18 @@ Leyenda: ✅ implementado · 🔧 parcial / skeleton · ❌ no implementado.
 - 🔧 Cliente: **app nativa Expo** `apps/tpv/tpv-app` (Tap to Pay solo existe en SDK nativo,
   no en web/PWA). V1 en modo test con reader simulado; tap físico requiere dispositivo
   compatible + Tap to Pay habilitado en la cuenta.
-- ❌ Emisión de recibo fiscal `platform/tpv` tras el cobro (fase 2).
+- ✅ Emisión de recibo fiscal `platform/tpv` tras el cobro: el webhook emite `payment.succeeded`
+  con `source` y `platform/tpv` (handler `payments-events`) crea el `billing_fact` + ticket
+  simplificado (IVA incluido al `default_sale_tax_rate` del tenant).
+
+## 2ter. Checkout Sessions — cobro web por QR
+
+- ✅ `POST /v1/payments/checkout-sessions` — crea una Stripe Checkout Session hospedada para
+  un importe (mode `payment`, `source: 'tpv_checkout'` en metadata) y devuelve la `url` (→ QR).
+  Usado por el portal web `tpv.hulkstein.local`: el cliente paga en SU móvil escaneando el QR.
+- ✅ `GET /v1/payments/checkout-sessions/:id` — estado de la sesión (polling `paid` → recibo).
+- ✅ Webhook `checkout.session.completed` → emite `payment.succeeded` (con el PI resultante y
+  `source`), que dispara el recibo en `platform/tpv` igual que Tap to Pay.
 
 ## 2. PaymentIntents — cobro único (one-shot)
 

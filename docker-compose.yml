@@ -343,6 +343,7 @@ services:
       - '5180:5180'
       - '5181:5181'
       - '5182:5182'
+      - '5183:5183'
     environment:
       NODE_ENV: development
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -378,6 +379,9 @@ services:
       - ./apps/verifactu/verifactu-portal/index.html:/app/apps/verifactu/verifactu-portal/index.html:ro
       - ./apps/verifactu/verifactu-portal/tailwind.config.js:/app/apps/verifactu/verifactu-portal/tailwind.config.js:ro
       - ./apps/verifactu/verifactu-portal/postcss.config.js:/app/apps/verifactu/verifactu-portal/postcss.config.js:ro
+      - ./apps/tpv/tpv-portal/src:/app/apps/tpv/tpv-portal/src:ro
+      - ./apps/tpv/tpv-portal/index.html:/app/apps/tpv/tpv-portal/index.html:ro
+      - ./apps/tpv/tpv-portal/vite.config.js:/app/apps/tpv/tpv-portal/vite.config.js:ro
 
   platform-scheduler:
     build:

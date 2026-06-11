@@ -42,6 +42,9 @@ export async function handleWebhookEvent(event) {
       case 'charge.refund.updated':
         await syncRefund(event.data.object)
         break
+      case 'checkout.session.completed':
+        await syncCheckout(event.data.object)
+        break
       default:
         logger.debug({ type: event.type }, 'Unhandled webhook event type')
     }
@@ -78,9 +81,37 @@ async function syncIntent(intent, status, eventType, errorCode = null) {
     amountCents: updated.amountCents,
     currency: updated.currency,
     status,
+    // source (p.ej. 'tap_to_pay') viaja para que consumidores como
+    // platform/tpv puedan filtrar los cobros que deben generar recibo.
+    source: updated.metadata?.source ?? null,
     ...(errorCode ? { errorCode } : {}),
   })
   logger.info({ intentId: intent.id, status }, 'PaymentIntent status synced')
+}
+
+// checkout.session.completed (path web / QR): la sesión Checkout no tiene una
+// transacción nuestra previa (se crea hosted), así que solo emitimos el evento
+// unificado payment.succeeded con el PI resultante. platform/tpv lo consume
+// para crear el billing_fact + recibo (bill_id = PI id, idempotente).
+async function syncCheckout(session) {
+  const ctx = ctxFromMetadata(session.metadata)
+  if (!ctx) {
+    logger.warn({ sessionId: session.id }, 'checkout.session.completed without tenant metadata — ignoring')
+    return
+  }
+  if (session.payment_status !== 'paid') {
+    logger.info({ sessionId: session.id, paymentStatus: session.payment_status }, 'checkout session not paid — ignoring')
+    return
+  }
+  await emit(ctx, 'payment.succeeded', {
+    transactionId: null,
+    providerTxId: session.payment_intent,
+    amountCents: session.amount_total,
+    currency: session.currency,
+    status: 'succeeded',
+    source: session.metadata?.source ?? null,
+  })
+  logger.info({ sessionId: session.id, pi: session.payment_intent }, 'Checkout session completed')
 }
 
 // charge.refund.updated: sync the refund row state by provider_refund_id. The

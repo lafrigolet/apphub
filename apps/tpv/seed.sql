@@ -51,4 +51,25 @@ ON CONFLICT (id) DO UPDATE SET
   display_name  = EXCLUDED.display_name,
   revoked_at    = NULL;
 
+-- 4. Settings fiscales del tenant TPV (necesarios para emitir recibo, fase 2):
+--    emisor + auto-emisión del ticket simplificado al cobrar.
+INSERT INTO platform_tpv.settings
+  (app_id, tenant_id, sub_tenant_id, issuer_nif, issuer_name, issuer_city,
+   issuer_country, auto_issue_simplified, default_sale_tax_rate)
+VALUES
+  ('tpv', '60000000-0000-0000-0000-000000000001', NULL,
+   'B12345678', 'TPV de Prueba SL', 'Sevilla', 'ES', TRUE, 21.00)
+ON CONFLICT (app_id, tenant_id, sub_tenant_id) DO UPDATE SET
+  issuer_nif            = EXCLUDED.issuer_nif,
+  issuer_name           = EXCLUDED.issuer_name,
+  auto_issue_simplified = EXCLUDED.auto_issue_simplified,
+  default_sale_tax_rate = EXCLUDED.default_sale_tax_rate;
+
+-- 5. Serie de numeración 'A' (simplificadas) para el tenant.
+INSERT INTO platform_tpv.number_series
+  (app_id, tenant_id, sub_tenant_id, code, kind, prefix)
+VALUES
+  ('tpv', '60000000-0000-0000-0000-000000000001', NULL, 'A', 'simplified', '')
+ON CONFLICT (app_id, tenant_id, sub_tenant_id, code) DO NOTHING;
+
 COMMIT;
