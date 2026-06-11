@@ -28,10 +28,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     webhooks existentes. Modo stub e2e sin claves. +8 tests (5 ruta, 3 webhook).
   - **Acortador de pay-links** (opcional): con `PAYMENTS_PUBLIC_BASE_URL`
     configurado, el QR codifica un enlace corto propio
-    (`https://<base>/v1/payments/pay/<code>`) que **302-redirige** a la URL
-    larga de Stripe → QR mucho menos denso y enlaces propios/revocables. El
-    mapeo `code → url` vive en Redis con el TTL de la sesión. Sin esa env el QR
-    sigue llevando la URL directa de Stripe (default dev). +2 tests de redirect.
+    (`https://<base>/api/payments/pay/<code>`, la ruta pública del gateway) que
+    **302-redirige** a la URL larga de Stripe → QR mucho menos denso y enlaces
+    propios/revocables. El mapeo `code → url` vive en Redis con el TTL de la
+    sesión. Sin esa env el QR sigue llevando la URL directa de Stripe (default
+    dev). **Producción ya cableada**: `docker-compose.prod.yml` fija
+    `PAYMENTS_PUBLIC_BASE_URL=https://hulkstein.com`. +2 tests de redirect.
 - **TPV "Tap to Pay" — app nativa Expo + endpoints Stripe Terminal (V1, modo
   test).** El móvil como TPV: teclado moderno (con tecla **"00"**) para
   introducir el importe y cobrar **acercando la tarjeta del cliente al móvil**
@@ -62,6 +64,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     habilitado en la cuenta.
 
 ### Fixed
+- **Webhook de Stripe roto a través del gateway (producción).** El bloque NGINX
+  `location /api/payments/webhooks/stripe` hacía `proxy_pass …/v1/webhooks/stripe`
+  (sin el segmento `payments`), pero el módulo lo sirve en
+  `/v1/payments/webhooks/stripe` → en prod Stripe recibía **404** y **ningún
+  pago se reconciliaba** (QR, Terminal y one-shot quedaban `pending`). Corregido
+  el `proxy_pass` a `…/v1/payments/webhooks/stripe`. Verificado vía gateway:
+  ahora el handler responde `400 MISSING_SIGNATURE` (llega a la app) en vez de 404.
 - **TPV connection-token devolvía `502 STRIPE_ERROR` con claves Stripe reales.**
   `terminal.service.js#ensureLocation` creaba la Terminal Location con una
   dirección placeholder inválida para España (`postal_code: '00000'` y sin

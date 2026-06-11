@@ -84,6 +84,11 @@ services:
       # apps / tenants (e.g. `aikikan.hulkstein.com`). Defaults to hulkstein.com
       # in dev; overridden here for the production domain.
       PLATFORM_PUBLIC_DOMAIN: hulkstein.com
+      # Public base for the payments pay-link shortener: the QR encodes
+      # https://hulkstein.com/api/payments/pay/<code> (302 → Stripe). Set only in
+      # prod so the customer's phone can reach the redirect host; in dev it stays
+      # unset and the QR carries the raw Stripe URL.
+      PAYMENTS_PUBLIC_BASE_URL: https://hulkstein.com
 
   platform-marketplace:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-marketplace:${IMAGE_TAG:-latest}

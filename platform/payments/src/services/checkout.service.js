@@ -119,17 +119,18 @@ export async function createCheckoutSession(ctx, input, opts = {}) {
   }
 
   // Pay-link shortener: when a public base URL is configured, the QR encodes a
-  // short branded link (https://base/v1/payments/pay/<code>) that 302-redirects
-  // to the long Stripe URL — far less dense, easier to scan. Without a base we
-  // keep encoding the raw Stripe URL (e.g. local dev, where the customer's phone
-  // can't reach our redirect host). The code → URL mapping lives in Redis with
-  // the same TTL as the session.
+  // short branded link that 302-redirects to the long Stripe URL — far less
+  // dense, easier to scan. Without a base we keep encoding the raw Stripe URL
+  // (e.g. local dev, where the customer's phone can't reach our redirect host).
+  // The path is the PUBLIC gateway prefix `/api/payments/pay/<code>` (NGINX
+  // rewrites /api/payments/ → /v1/payments/), not the internal /v1 route. The
+  // code → URL mapping lives in Redis with the same TTL as the session.
   let payUrl = null
   if (opts.publicBase) {
     const code = randomBytes(6).toString('base64url')
     const ttl = (input.expiresInMinutes ?? 30) * 60
     await storePayLink(code, url, ttl)
-    payUrl = `${opts.publicBase.replace(/\/+$/, '')}/v1/payments/pay/${code}`
+    payUrl = `${opts.publicBase.replace(/\/+$/, '')}/api/payments/pay/${code}`
   }
 
   const tx = await tenantTx(ctx, (client) => txRepo.insertTransaction(client, ctx, {
