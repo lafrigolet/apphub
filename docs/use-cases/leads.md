@@ -105,12 +105,17 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 11. Analítica y reporting
 
-- ❌ Embudo de conversión por etapa.
-- ❌ Tasas: new→contacted→qualified→won, tiempos medios por etapa.
-- ❌ Leads por fuente / campaña / industria / app / periodo.
-- ❌ Productividad por comercial.
-- ❌ Dashboards y export (CSV) de leads filtrados.
-- ❌ Cohortes y tendencia temporal.
+- ✅ Embudo de conversión por etapa (`GET /admin/analytics/funnel`: recuento por
+  estado + hitos alcanzados desde el timeline).
+- ✅ Tasas new→contacted→qualified→won y tiempo medio hasta cada hito (desde el
+  alta, vía `lead_activities`).
+- ✅ Leads por fuente / campaña / industria / app
+  (`GET /admin/analytics/by-dimension`) + periodo (`createdFrom`/`createdTo`).
+- ✅ Productividad por comercial (`GET /admin/analytics/by-owner`).
+- 🔧 Export CSV de leads filtrados (`GET /admin/analytics/export.csv`);
+  dashboards UI pendientes (los datos ya se sirven por API).
+- ✅ Tendencia temporal (`GET /admin/analytics/timeseries?granularity=day|week|month`);
+  cohortes avanzadas pendientes.
 
 ## 12. Atribución y marketing
 
@@ -183,4 +188,5 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 7. ✅ ~~**Conversión lead → tenant**~~ (`POST /:id/convert`, falta automatizar la provisión vía `tenant-config`).
 8. **Lead scoring automático** y enrichment — refinamiento posterior.
 9. **Vistas UI en consola** (kanban, timeline, bandejas) — el API ya lo soporta.
-10. **Analítica de embudo** (tasas por etapa, conversión por fuente/UTM) — los datos ya se capturan.
+10. ✅ ~~**Analítica de embudo**~~ (funnel, by-dimension, by-owner, timeseries,
+    export CSV); dashboards UI pendientes.

@@ -7,6 +7,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Analítica de embudo y reporting de leads (EXTEND `platform/leads`,
+  use-cases §11).** Cinco endpoints admin de solo lectura sobre los datos ya
+  capturados (sin migración):
+  - `GET /v1/leads/admin/analytics/funnel` — recuento por estado + hitos del
+    embudo (cuántos leads llegaron alguna vez a contacted/qualified/won/lost y
+    tiempo medio desde el alta, derivado del timeline `lead_activities`).
+  - `GET …/analytics/by-dimension?dimension=source|app_id|industry|utm_source|utm_campaign`
+    — volumen + ganados/perdidos por dimensión (columna por whitelist, no
+    user-input libre).
+  - `GET …/analytics/by-owner` — productividad por comercial (total, won, lost,
+    open, horas medias a ganado).
+  - `GET …/analytics/timeseries?granularity=day|week|month` — creados vs.
+    ganados por bucket temporal.
+  - `GET …/analytics/export.csv` — export CSV (RFC 4180) de leads filtrados,
+    reutilizando exactamente los filtros del listado del CRM.
+  - Todos `requireRole('super_admin','staff')` y acotables por
+    `createdFrom`/`createdTo`. Nuevos `analytics.repository.js` +
+    `analytics.service.js`. +13 tests (servicio + CSV + rutas); SQL validado
+    contra Postgres real.
 - **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
   `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
   certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o

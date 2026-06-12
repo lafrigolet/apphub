@@ -16,6 +16,14 @@ vi.mock('../services/leads.service.js', () => ({
   listActivities: vi.fn(),
 }))
 
+vi.mock('../services/analytics.service.js', () => ({
+  funnel:      vi.fn(),
+  byDimension: vi.fn(),
+  byOwner:     vi.fn(),
+  timeseries:  vi.fn(),
+  exportCsv:   vi.fn(),
+}))
+
 // app-guard stub con fastify-plugin para encapsulación correcta.
 vi.mock('@apphub/platform-sdk/app-guard', async () => {
   const { default: fp } = await import('fastify-plugin')
@@ -45,6 +53,7 @@ vi.mock('@apphub/platform-sdk/app-guard', async () => {
 
 import { publicRoutes, adminRoutes } from '../routes/leads.routes.js'
 import * as service from '../services/leads.service.js'
+import * as analytics from '../services/analytics.service.js'
 
 async function buildApp() {
   const app = Fastify({ logger: false, ignoreTrailingSlash: true })
@@ -399,6 +408,69 @@ describe("GET / con assignedTo 'me' → traduce al userId del staff", () => {
     })
     expect(res.statusCode).toBe(200)
     expect(service.listLeads).toHaveBeenCalledWith(expect.objectContaining({ assignedTo: 'u1' }))
+  })
+})
+
+describe('analítica — role-gated + delegación', () => {
+  it('user normal → 403 en funnel', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/analytics/funnel',
+      headers: { Authorization: 'Bearer user-token' },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(analytics.funnel).not.toHaveBeenCalled()
+  })
+
+  it('staff obtiene el funnel', async () => {
+    analytics.funnel.mockResolvedValue({ statusCounts: [{ status: 'new', count: 3 }], milestones: [] })
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/analytics/funnel',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.statusCounts[0].count).toBe(3)
+  })
+
+  it('by-dimension extrae dimension del query y pasa el rango', async () => {
+    analytics.byDimension.mockResolvedValue([])
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/analytics/by-dimension?dimension=utm_campaign',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(analytics.byDimension).toHaveBeenCalledWith('utm_campaign', expect.any(Object))
+  })
+
+  it('by-dimension rechaza una dimensión no permitida', async () => {
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/analytics/by-dimension?dimension=email',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect([400, 422, 500]).toContain(res.statusCode)
+    expect(analytics.byDimension).not.toHaveBeenCalled()
+  })
+
+  it('timeseries pasa la granularidad', async () => {
+    analytics.timeseries.mockResolvedValue([])
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/analytics/timeseries?granularity=month',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(analytics.timeseries).toHaveBeenCalledWith('month', expect.any(Object))
+  })
+
+  it('export.csv devuelve text/csv y traduce assignedTo=me', async () => {
+    analytics.exportCsv.mockResolvedValue('id,email\nl1,a@b.com')
+    const res = await app.inject({
+      method: 'GET', url: '/v1/leads/admin/analytics/export.csv?assignedTo=me',
+      headers: { Authorization: 'Bearer staff-token' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toContain('text/csv')
+    expect(res.headers['content-disposition']).toContain('leads-export.csv')
+    expect(analytics.exportCsv).toHaveBeenCalledWith(expect.objectContaining({ assignedTo: 'u1' }))
+    expect(res.body).toContain('l1,a@b.com')
   })
 })
 

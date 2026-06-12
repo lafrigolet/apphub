@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { requireRole } from '@apphub/platform-sdk/app-guard'
 import * as service from '../services/leads.service.js'
+import * as analytics from '../services/analytics.service.js'
 
 const STATUSES = ['new', 'contacted', 'qualified', 'won', 'lost', 'closed']
 
@@ -72,6 +73,18 @@ const activitiesQuery = z.object({
 
 const convertBody = z.object({
   tenantId: z.string().uuid(),
+})
+
+// ── Analítica ────────────────────────────────────────────────────────────
+const rangeQuery = z.object({
+  createdFrom: z.coerce.date().optional(),
+  createdTo:   z.coerce.date().optional(),
+})
+const dimensionQuery = rangeQuery.extend({
+  dimension: z.enum(['source', 'app_id', 'industry', 'utm_source', 'utm_campaign']).default('source'),
+})
+const timeseriesQuery = rangeQuery.extend({
+  granularity: z.enum(['day', 'week', 'month']).default('day'),
 })
 
 export async function publicRoutes(fastify) {
@@ -192,6 +205,58 @@ export async function adminRoutes(fastify) {
         return { error: { code: 'ALREADY_CONVERTED', message: 'Lead is already linked to a tenant' } }
       }
       return { data: result.lead }
+    },
+  )
+
+  // ── Analítica / reporting ──────────────────────────────────────────────
+
+  fastify.get(
+    '/analytics/funnel',
+    { schema: { tags: ['leads-admin'], summary: 'Funnel: status counts + stage milestones/timing', querystring: rangeQuery } },
+    async (req) => {
+      const range = rangeQuery.parse(req.query ?? {})
+      return { data: await analytics.funnel(range) }
+    },
+  )
+
+  fastify.get(
+    '/analytics/by-dimension',
+    { schema: { tags: ['leads-admin'], summary: 'Leads + won/lost grouped by source/app/industry/utm', querystring: dimensionQuery } },
+    async (req) => {
+      const { dimension, ...range } = dimensionQuery.parse(req.query ?? {})
+      return { data: await analytics.byDimension(dimension, range) }
+    },
+  )
+
+  fastify.get(
+    '/analytics/by-owner',
+    { schema: { tags: ['leads-admin'], summary: 'Productivity per assigned staff owner', querystring: rangeQuery } },
+    async (req) => {
+      const range = rangeQuery.parse(req.query ?? {})
+      return { data: await analytics.byOwner(range) }
+    },
+  )
+
+  fastify.get(
+    '/analytics/timeseries',
+    { schema: { tags: ['leads-admin'], summary: 'Created vs won leads bucketed by day/week/month', querystring: timeseriesQuery } },
+    async (req) => {
+      const { granularity, ...range } = timeseriesQuery.parse(req.query ?? {})
+      return { data: await analytics.timeseries(granularity, range) }
+    },
+  )
+
+  fastify.get(
+    '/analytics/export.csv',
+    { schema: { tags: ['leads-admin'], summary: 'Export filtered leads as CSV', querystring: listQuery } },
+    async (req, reply) => {
+      const q = listQuery.parse(req.query ?? {})
+      if (q.assignedTo === 'me') q.assignedTo = req.identity?.userId
+      const csv = await analytics.exportCsv(q)
+      reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', 'attachment; filename="leads-export.csv"')
+      return csv
     },
   )
 
