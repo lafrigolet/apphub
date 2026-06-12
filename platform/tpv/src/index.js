@@ -1,5 +1,6 @@
 import { configurePool } from './lib/db.js'
 import { configureRedis } from './lib/redis.js'
+import { resolveTenantScope } from './lib/tenant-scope.js'
 import { devicesRoutes } from './routes/devices.routes.js'
 import { seriesRoutes } from './routes/series.routes.js'
 import { sessionsRoutes } from './routes/sessions.routes.js'
@@ -26,14 +27,27 @@ export async function register({ app, db, redis, logger }) {
   }))
 
   await app.register(devicesRoutes,      { prefix: '/v1/tpv/devices' })
-  await app.register(seriesRoutes,       { prefix: '/v1/tpv/series' })
   await app.register(sessionsRoutes,     { prefix: '/v1/tpv/sessions' })
   await app.register(billingFactsRoutes, { prefix: '/v1/tpv/billing-facts' })
   await app.register(receiptsRoutes,     { prefix: '/v1/tpv/receipts' })
   await app.register(creditNotesRoutes,  { prefix: '/v1/tpv/credit-notes' })
   await app.register(reportsRoutes,      { prefix: '/v1/tpv/reports' })
-  await app.register(settingsRoutes,     { prefix: '/v1/tpv/settings' })
   await app.register(adminRoutes,        { prefix: '/v1/tpv/admin' })
+
+  // Config per-tenant (settings fiscales + series): staff/super_admin pueden
+  // scopear la petición a CUALQUIER tenant vía ?appId=&tenantId= (mismo patrón
+  // que platform/splitpay), para que console gestione la configuración en
+  // nombre de un tenant. Los usuarios normales nunca pueden sobreescribir su
+  // propio tenant. Las rutas leen req.tenant en vez de req.identity.
+  await app.register(async (scoped) => {
+    scoped.decorateRequest('tenant', null)
+    scoped.addHook('preHandler', async (req) => {
+      if (!req.identity) return
+      req.tenant = resolveTenantScope(req.identity, req.query)
+    })
+    await scoped.register(seriesRoutes,   { prefix: '/v1/tpv/series' })
+    await scoped.register(settingsRoutes, { prefix: '/v1/tpv/settings' })
+  })
 
   if (redis) {
     startPosEventsHandler({ redis })

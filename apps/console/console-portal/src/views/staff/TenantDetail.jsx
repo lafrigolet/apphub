@@ -7,6 +7,7 @@ import { icons } from '../../lib/icons'
 import { StatusBadge, StripeBadge, PlanBadge, RoleBadge, TwoFABadge, Avatar, DlRow, MiniMetric } from '../../lib/ui'
 import { SuspendModal, ReactivateModal, ArchiveModal, RestoreModal, ExportModal } from './modals/TenantActionModals'
 import { SplitpayConfigTabs } from './SplitpayPanels'
+import { TpvConfigTabs } from './TpvPanels'
 import EmailDomainsManager from '../../components/EmailDomainsManager'
 import SubscriptionPanel from './SubscriptionPanel'
 
@@ -189,6 +190,27 @@ function TabStripe({ t, app }) {
         </div>
       </div>
       <SplitpayConfigTabs scopeQuery={scopeQuery} onToast={toast} />
+    </div>
+  )
+}
+
+function TabTpv({ t, app }) {
+  const { toast } = useApp()
+
+  // Staff impersonation: the tpv module's preHandler honours appId/tenantId
+  // query params for staff/super_admin (same pattern as splitpay). Without it,
+  // settings/series would scope to the staff member's own tenant.
+  const scopeQuery = `?appId=${encodeURIComponent(app?.app_id ?? t.app_id)}&tenantId=${encodeURIComponent(t.id)}`
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-line rounded-xl shadow-card p-5">
+        <div className="font-display text-[20px]">TPV / Caja</div>
+        <div className="text-xs text-ink3 mt-0.5">
+          Configurando como staff en nombre de <span className="font-medium text-ink">{t.name}</span>
+        </div>
+      </div>
+      <TpvConfigTabs scopeQuery={scopeQuery} onToast={toast} />
     </div>
   )
 }
@@ -614,6 +636,12 @@ export default function TenantDetail() {
 
   const color = tenantColor(t.id)
 
+  // Show the TPV tab only for apps that have the tpv module enabled.
+  const tpvEnabled = Array.isArray(app?.enabled_modules) && app.enabled_modules.includes('tpv')
+  const tabs = tpvEnabled
+    ? TABS.flatMap((tb) => (tb.k === 'stripe' ? [tb, { k: 'tpv', label: 'TPV / Caja' }] : [tb]))
+    : TABS
+
   const { toast } = useApp()
 
   function tabContent() {
@@ -621,6 +649,7 @@ export default function TenantDetail() {
       case 'identity':     return <TabIdentity t={t} />
       case 'state':        return <TabState t={t} />
       case 'stripe':       return <TabStripe t={t} app={app} />
+      case 'tpv':          return tpvEnabled ? <TabTpv t={t} app={app} /> : <TabIdentity t={t} />
       case 'admins':       return <TabAdmins t={t} admins={admins} onRefresh={refresh} />
       case 'subscription': return <TabSubscription t={t} onRefresh={refresh} onToast={toast} />
       case 'audit':        return <TabAudit t={t} log={audit} />
@@ -665,7 +694,7 @@ export default function TenantDetail() {
 
       <div className="border-b border-line mb-6">
         <div className="flex">
-          {TABS.map(tb => (
+          {tabs.map(tb => (
             <div key={tb.k} className={`tab ${tenantTab === tb.k ? 'active' : ''}`} onClick={() => setTenantTab(tb.k)}>
               {tb.label}
             </div>

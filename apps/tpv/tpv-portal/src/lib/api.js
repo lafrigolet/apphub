@@ -1,7 +1,11 @@
 // API client del portal web. Llamadas relativas a /api/* → el gateway NGINX
 // las enruta (auth, payments). En dev las proxya vite a nginx:80.
-const APP_ID = 'tpv'
-const TENANT_ID = '60000000-0000-0000-0000-000000000001'
+//
+// El appId/tenantId NO se hardcodean: se resuelven por subdominio del host
+// (tpv.hulkstein.com → tenant) vía resolveScope(), para que un mismo portal
+// sirva a cualquier tenant configurado desde console.
+import { resolveScope } from './tenant.js'
+
 const DEV_EMAIL = 'cajero@tpv.local'
 const DEV_PASSWORD = 'tpv1234'
 
@@ -18,10 +22,12 @@ async function req(method, path, { body, auth = true } = {}) {
 }
 
 // Login silencioso del cajero (V1 sin pantalla de login — creds dev del seed).
+// Resuelve appId/tenantId por subdominio antes de autenticar.
 export async function login() {
+  const { appId, tenantId } = await resolveScope()
   const { data } = await req('POST', '/api/auth/login', {
     auth: false,
-    body: { appId: APP_ID, tenantId: TENANT_ID, email: DEV_EMAIL, password: DEV_PASSWORD },
+    body: { appId, tenantId, email: DEV_EMAIL, password: DEV_PASSWORD },
   })
   _token = data.accessToken ?? data.tokens?.accessToken
   if (!_token) throw new Error('Login sin accessToken')

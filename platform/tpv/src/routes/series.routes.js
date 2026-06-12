@@ -31,7 +31,7 @@ export async function seriesRoutes(fastify) {
     async (req, reply) => {
       const body = createBody.parse(req.body ?? {})
       reply.code(201)
-      return { data: await service.createSeries(req.identity, body) }
+      return { data: await service.createSeries(req.tenant, body) }
     },
   )
 
@@ -42,7 +42,7 @@ export async function seriesRoutes(fastify) {
     },
     async (req) => {
       const q = listQuery.parse(req.query ?? {})
-      return { data: await service.listSeries(req.identity, q) }
+      return { data: await service.listSeries(req.tenant, q) }
     },
   )
 }
