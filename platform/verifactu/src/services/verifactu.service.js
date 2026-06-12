@@ -197,37 +197,28 @@ export function crearCliente(scope, input) {
 }
 
 // ── Administrador ─────────────────────────────────────────────────────
-export function listCertificados(scope) {
-  return tx(scope, async (c) => {
-    const rows = await repo.listCertificados(c)
-    return rows.map((r) => ({ nombre: r.nombre, meta: r.meta, estado: r.estado, tone: r.tone, iconTone: r.icon_tone }))
-  })
-}
+// (Certificados → services/certificados.service.js)
+const mapConfig = (row) => ({
+  tiempoEsperaEnvio: row.tiempo_espera_envio,
+  maxRegistrosLote: row.max_registros_lote,
+  reintentos: row.reintentos,
+  dlqEnabled: row.dlq_enabled,
+  nifObligado: row.nif_obligado ?? null,
+  nombreObligado: row.nombre_obligado ?? null,
+  entorno: row.entorno ?? 'test',
+})
 
 export function getConfig(scope) {
   return tx(scope, async (c) => {
-    const row = (await repo.getConfig(c)) ?? { tiempo_espera_envio: 60, max_registros_lote: 1000, reintentos: 3, dlq_enabled: true }
-    return {
-      tiempoEsperaEnvio: row.tiempo_espera_envio,
-      maxRegistrosLote: row.max_registros_lote,
-      reintentos: row.reintentos,
-      dlqEnabled: row.dlq_enabled,
-      nifObligado: row.nif_obligado ?? null,
-      nombreObligado: row.nombre_obligado ?? null,
+    const row = (await repo.getConfig(c)) ?? {
+      tiempo_espera_envio: 60, max_registros_lote: 1000, reintentos: 3, dlq_enabled: true, entorno: 'test',
     }
+    return mapConfig(row)
   })
 }
 
 export function patchConfig(scope, patch) {
-  return tx(scope, async (c) => {
-    const row = await repo.upsertConfig(c, scope.appId, scope.tenantId, patch)
-    return {
-      tiempoEsperaEnvio: row.tiempo_espera_envio,
-      maxRegistrosLote: row.max_registros_lote,
-      reintentos: row.reintentos,
-      dlqEnabled: row.dlq_enabled,
-    }
-  })
+  return tx(scope, async (c) => mapConfig(await repo.upsertConfig(c, scope.appId, scope.tenantId, patch)))
 }
 
 // ── Receptor ──────────────────────────────────────────────────────────

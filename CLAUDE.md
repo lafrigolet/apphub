@@ -400,7 +400,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Leads (landing contact form, lead CRM) | `platform/leads` | `platform_leads` | `svc_platform_leads` | ✅ Implemented |
 | Donations (one-shot + recurring + fiscal Ley 49/2002 + AEAT 182) | `platform/donations` | `platform_donations` | `svc_platform_donations` | ✅ Implemented |
 | Inquiries (per-tenant contact form, email-only V1) | `platform/inquiries` | `platform_inquiries` | `svc_platform_inquiries` | ✅ Implemented |
-| Verifactu (SIF / facturación verificable AEAT: registros, cadena de huellas, eventos, remisiones, cotejo) | `platform/verifactu` | `platform_verifactu` | `svc_platform_verifactu` | 🔧 Skeleton (huella/firma/SOAP/QR stubbed — specs AEAT pendientes) |
+| Verifactu (SIF / facturación verificable AEAT: registros, cadena de huellas con huella blindada al vector oficial, eventos, **remisión real a la AEAT** —cola con back-off/DLQ + worker del scheduler + mTLS con namespaces/XSD oficiales—, **certificados PKCS#12 cifrados at-rest**, firma XAdES enveloped, integración por eventos `order.completed`/`donation.created` —POS vía cadena TPV—, cotejo, endpoints autenticados con `appGuard`+`requireRole`) | `platform/verifactu` | `platform_verifactu` | `svc_platform_verifactu` | ✅ Implementado (pendiente sólo: perfil XAdES-EPES de política AEAT y validación XSD estricta en runtime) |
 | Chat (member chat: direct 1:1, group, support; real-time WebSocket gateway, presence, typing, reactions, attachments, threads, pins, forward, @mentions incl. roles, DM requests, invites/public groups, scheduled + ephemeral messages, read/delivered receipts, search, moderation/bans, CSAT, macros) | `platform/chat` | `platform_chat` | `svc_platform_chat` | ✅ Implemented |
 | TPV (terminal devices, cash sessions/arqueo, cash movements, gap-free sequential receipts + full invoices + simplified→invoice conversion, credit notes with manager authorization, X/Z reports, period aggregates + CSV export, per-tenant fiscal issuer settings, Veri*Factu event feed with async QR). Bill engine stays in `platform/pos` (platform-restaurant): tpv consumes `pos.bill.paid`/`pos.bill.cancelled` and adds the till/fiscal layer. Keeps `server.js`+`Dockerfile` ready-to-split ([ADR 015](docs/adr/015-platform-tpv-monolith.md)/[016](docs/adr/016-tpv-folded-into-platform-core.md)) | `platform/tpv` | `platform_tpv` | `svc_platform_tpv` | ✅ Implemented |
 
@@ -474,6 +474,8 @@ the docker network. See [ADR 007](docs/adr/007-platform-scheduler.md).
 | `messaging-sla` | `*/15 * * * *` | publish `messaging.vendor.sla_breached` (no vendor first reply within SLA) |
 | `telehealth-expire-stale` | `* * * * *` | flip stale telehealth rooms to expired + publish `telehealth.room.expired` |
 | `tpv-session-autoclose` | `*/15 * * * *` | force-close TPV cash sessions open beyond the tenant autoclose window + publish `tpv.session.force_closed` |
+| `verifactu-remision-retry` | `* * * * *` | publish `verifactu.remision.due` for tenants with pending/retryable remissions (verifactu drains its queue: cert mTLS + SOAP) |
+| `verifactu-dlq-alert` | `0 * * * *` | publish `verifactu.remision.dlq_alert` per tenant with dead-lettered remissions |
 
 ### Planned
 

@@ -7,6 +7,45 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Veri\*Factu — camino de remisión real + certificados + auth (EXTEND
+  `platform/verifactu`).** Cierra el ciclo de cumplimiento end-to-end sobre el
+  modelo ya existente (cadena de huellas blindada al vector oficial AEAT):
+  - **Certificados PKCS#12 (§12)** — `POST/GET:id/POST:id/renovar/DELETE`
+    `/v1/verifactu/certificados`. El .p12 (con clave privada) + passphrase se
+    guardan **cifrados AES-256-GCM** (`PLATFORM_CONFIG_ENCRYPTION_KEY`), nunca en
+    claro; se extraen metadatos reales (CN, emisor, nº de serie, caducidad) con
+    `node-forge` (`lib/pkcs12.js`). Migración 0008.
+  - **Firma XAdES (§4)** — `lib/xades.js` (xml-crypto): firma *enveloped*
+    RSA-SHA256 con KeyInfo X509, verificable; `POST /registros/:numSerie/firmar`.
+    Opcional en Veri\*Factu (resta el perfil EPES de política AEAT).
+  - **Remisión real (§5/§17)** — namespaces y XSD **oficiales** de la AEAT
+    (descargados en `schemas/aeat/`) en `lib/soap-envelope.js` (RegistroAlta
+    completo: IDFactura, Encadenamiento, SistemaInformatico, Desglose, Huella).
+    Cola `remision_queue` (estado mutable; los `registros` son append-only) con
+    back-off exponencial y DLQ; `services/remision.service.js` reclama→envía
+    (mTLS con el cert activo)→parsea `RespuestaLinea`→actualiza estado + CSV +
+    lote. Endpoints `POST /remitir`, `POST /registros/:numSerie/remitir`,
+    `GET /cola`, `POST /remision/dry-run`, `POST /dlq/:id/reintentar`,
+    `GET /lotes/:codigo`.
+  - **Worker (platform-scheduler)** — jobs `verifactu-remision-retry` (cada
+    minuto, publica `verifactu.remision.due` por tenant con trabajo) y
+    `verifactu-dlq-alert` (cada hora). El módulo consume el tick
+    (`remision-events.handler`) y drena; grant cross-schema de sólo lectura.
+  - **Integración por eventos (§15)** — `domain-events.handler` consume
+    `order.completed` y `donation.created` → registro de alta con dedupe por
+    `order_id`/`donation_id` (índices únicos parciales). POS NO se consume
+    directamente: ya fluye `pos.bill.*`→`tpv`→`tpv.receipt.issued` (sin doble
+    emisión).
+  - **Autenticación (§18)** — los endpoints dejan de ser públicos: scope desde
+    el JWT (`appGuard`), impersonación staff por query, y `requireRole(
+    'super_admin','staff')` en todas las mutaciones. +20 tests
+    (pkcs12/cifrado, XAdES, remisión, eventos de dominio, jobs del scheduler).
+  - **Gestión desde console.hulkstein (§11/§12)** — nueva vista
+    `console-portal` *Veri\*Factu (SIF)*: selector de tenant (cada obligado es una
+    entidad legal) + impersonación staff, edición del **NIF/razón del obligado**,
+    **entorno test/prod** (config gana columna `entorno`, migración 0009),
+    parámetros de remisión, **subida/renovación/baja de certificados PKCS#12**
+    (fichero → base64 → cifrado at-rest) y panel de estado de la cola. +3 tests.
 - **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
   `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
   certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o

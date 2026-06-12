@@ -55,17 +55,22 @@ describe('maxNumero / lastHuella — encadenado', () => {
 })
 
 describe('insertRegistro', () => {
-  it('INSERT con 19 params en orden; defaults aplicados (incluye id_emisor + gen_registro de 0007)', async () => {
+  it('INSERT con 23 params en orden; defaults aplicados (id_emisor/gen_registro de 0007 + refs cruzadas de 0008)', async () => {
     const c = mockClient([{ num_serie: 'A/1' }])
     await repo.insertRegistro(c, {
       appId: 'aikikan', tenantId: 't1', numero: 6, numSerie: '2027-A/000006',
       huella: 'H6', huellaAnterior: 'H5', qrUrl: 'http://q',
       importeTotal: 121, cuotaTotal: 21,
       idEmisor: 'B12345678', genRegistro: '2027-01-02T10:15:30+01:00',
+      origen: 'orders', orderId: 'o9',
     })
     const [sql, params] = c.query.mock.calls[0]
     expect(sql).toMatch(/INSERT INTO platform_verifactu\.registros/)
-    expect(sql).toMatch(/VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11,\$12,\$13,\$14,\$15,\$16,\$17,\$18,\$19\)/)
+    expect(sql).toMatch(/VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11,\$12,\$13,\$14,\$15,\$16,\$17,\$18,\$19,\$20,\$21,\$22,\$23\)/)
+    expect(params[19]).toBe('orders')   // origen
+    expect(params[20]).toBe('o9')       // order_id
+    expect(params[21]).toBeNull()       // donation_id
+    expect(params[22]).toBeNull()       // bill_id
     expect(params[0]).toBe('aikikan')
     expect(params[3]).toBe(6)            // numero
     expect(params[5]).toBe('alta')       // tipo default
@@ -162,7 +167,7 @@ describe('upsertConfig', () => {
     expect(sql).toMatch(/ON CONFLICT \(app_id, tenant_id\) DO UPDATE/)
     expect(sql).toMatch(/COALESCE/)
     // campos no provistos → null (el SQL aplica COALESCE al default)
-    expect(params).toEqual(['a', 't', null, null, 5, null])
+    expect(params).toEqual(['a', 't', null, null, 5, null, null, null, null])
   })
 })
 
@@ -200,8 +205,9 @@ describe('upsertConfig — patch completo (rama valores presentes)', () => {
     const c = mockClient([{ reintentos: 7 }])
     await repo.upsertConfig(c, 'a', 't', {
       tiempoEsperaEnvio: 30, maxRegistrosLote: 500, reintentos: 7, dlqEnabled: false,
+      nifObligado: 'B12345678', nombreObligado: 'ACME SL', entorno: 'prod',
     })
-    expect(c.query.mock.calls[0][1]).toEqual(['a', 't', 30, 500, 7, false])
+    expect(c.query.mock.calls[0][1]).toEqual(['a', 't', 30, 500, 7, false, 'B12345678', 'ACME SL', 'prod'])
   })
 })
 

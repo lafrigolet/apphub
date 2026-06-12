@@ -10,7 +10,23 @@ Orden exacto de campos de la huella de **RegistroAlta blindado contra el VECTOR 
 
 **Feed desde `platform/tpv` (ADR 015):** subscriber `services/tpv-events.handler.js` consume `tpv.receipt.issued` (→ registro de alta F1/F2 con `idEmisor` del emisor por-tenant del recibo) y `tpv.receipt.voided` (→ rectificativa R1 con importe negativo), y publica `verifactu.registro.created {receiptId|creditNoteId, numSerie, huella, qrPayload, qrDataUri}` (o `verifactu.registro.failed`) que tpv usa para completar el QR del documento async. `crearRegistro` acepta `input.idEmisor` explícito y devuelve `qrUrl`/`numero`.
 
-**Piezas stubbed / pendientes de specs AEAT:** firma XAdES (no implementada), WSDL/XSD oficiales del SOAP (namespaces ilustrativos), colas de remisión/reintentos/DLQ, cotejo externo contra la Sede AEAT, nivel de corrección de errores del QR, catálogo de tipos de evento (Orden HAC/1177/2024 no extraída de fuente oficial), vector oficial de RegistroAnulacion/RegistroEvento (el doc AEAT solo publica el ejemplo de alta).
+**Camino de remisión real (implementado):** certificados PKCS#12 cifrados at-rest
+(AES-256-GCM) con extracción de metadatos reales; firma XAdES *enveloped*
+RSA-SHA256 verificable (`lib/xades.js`); **namespaces y XSD oficiales de la AEAT**
+(`schemas/aeat/SuministroLR.xsd` + `SuministroInformacion.xsd`) en el envelope
+SOAP; cola de remisión `remision_queue` con back-off exponencial + DLQ y worker
+del `platform-scheduler` (`verifactu-remision-retry` / `verifactu-dlq-alert`) que
+publica ticks que el módulo drena vía mTLS; integración por eventos
+`order.completed` / `donation.created` (POS vía cadena TPV); endpoints
+autenticados (`appGuard` + `requireRole`).
+
+**Piezas pendientes de specs AEAT:** perfil **XAdES-EPES** (identificador de
+política de firma de la AEAT) sobre la base XML-DSig ya implementada; validación
+**XSD estricta en runtime** (los XSD oficiales se versionan en `schemas/aeat/`,
+falta enchufar un validador); cotejo externo contra la Sede AEAT; nivel de
+corrección de errores del QR; catálogo de tipos de evento (Orden HAC/1177/2024);
+vector oficial de RegistroAnulacion/RegistroEvento (el doc AEAT sólo publica el
+ejemplo de alta).
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -55,7 +71,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 4. Firma electrónica XAdES
 
-- ❌ Firma XAdES-T / XAdES-BES del registro antes de incluirlo en el envelope SOAP — **completamente no implementada**.
+- ✅ Firma **XML-DSig enveloped RSA-SHA256** del RegistroAlta con KeyInfo X509, verificable (`lib/xades.js`, xml-crypto), a partir del PKCS#12 descifrado; `POST /registros/:numSerie/firmar`. ~~❌~~ Base sobre la que añadir XAdES-EPES.
+- 🔧 Perfil **XAdES-BES/EPES** (QualifyingProperties: SigningTime, SigningCertificate, política de firma AEAT) encima de la firma XML-DSig — pendiente del identificador de política oficial. (En Veri\*Factu la firma es opcional.)
 - ❌ Firma con certificado cualificado (persona física o jurídica, PKCS#12).
 - ❌ Firma con sello electrónico cualificado (certificado de sello de empresa, endpoint `*10` del SOAP).
 - ❌ Validación de la firma recibida en la respuesta de la AEAT.
@@ -70,12 +87,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - 🔧 Endpoints test (`prewww1`) y producción (`www1`) y sus equivalentes de sello (`prewww10`/`www10`) correctamente diferenciados.
 - 🔧 `parseRespuesta` normaliza la respuesta XML a `{ estadoEnvio, csv, tiempoEsperaEnvio, lineas[] }`.
 - 🔧 `lotes` se persiste como resumen display (`codigo`, `info`, `label`, `tone`, `pulse`) — sin ligarlo a los registros individuales remitidos ni a la respuesta real de la AEAT.
-- ❌ Remisión real integrada al flujo de alta — `crearRegistro` nunca llama a `remitir`; `estado_remision` queda siempre en `pendiente`.
-- ❌ Cola de remisión asíncrona (batch de hasta 1 000 registros con `TiempoEsperaEnvio`).
-- ❌ Reintentos con back-off exponencial y DLQ (tabla config tiene `reintentos`/`dlq_enabled` pero no se usan).
-- ❌ Actualización de `estado_remision` (`ok`/`warn`/`err`) a partir de la respuesta de la AEAT.
-- ❌ Almacenamiento del CSV (código seguro de verificación) devuelto por la AEAT por registro.
-- ❌ Procesado de las `RespuestaLinea` individuales (errores por registro, reintento selectivo).
+- ✅ Remisión real vía cola: `services/remision.service.js` reclama los vencidos, construye el envelope (namespaces oficiales), firma opcional, envía por mTLS con el cert activo y persiste el resultado. Los `registros` son append-only → el estado vive en `remision_queue`. ~~❌~~
+- ✅ Cola de remisión asíncrona (`remision_queue`, batch ≤ `max_registros_lote`) drenada por el worker del scheduler. ~~❌~~
+- ✅ Reintentos con **back-off exponencial** (2^intentos min) y **DLQ** al agotar `max_intentos`; `POST /dlq/:id/reintentar`. ~~❌~~
+- ✅ Estado por registro (`pendiente`/`enviando`/`ok`/`warn`/`err`/`dlq`) actualizado desde la respuesta AEAT. ~~❌~~
+- ✅ Almacenamiento del **CSV** por registro y por lote (`csv_aeat` / `lotes.csv`). ~~❌~~
+- ✅ Procesado de las `RespuestaLinea` individuales (estado + código de error por registro; reintento selectivo desde DLQ). ~~❌~~
 - ❌ Endpoint REST alternativo (si la AEAT publica API REST además de SOAP).
 
 ## 6. Modo contingencia y operación offline
@@ -141,13 +158,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 11. Control de flujo y configuración por tenant
 
-- ✅ Tabla `config` con clave primaria `(app_id, tenant_id)`: `tiempo_espera_envio`, `max_registros_lote`, `reintentos`, `dlq_enabled`, `nif_obligado`, `nombre_obligado`.
+- ✅ Tabla `config` con clave primaria `(app_id, tenant_id)`: `tiempo_espera_envio`, `max_registros_lote`, `reintentos`, `dlq_enabled`, `nif_obligado`, `nombre_obligado`, `entorno` (migración 0009).
 - ✅ `GET /v1/verifactu/config` — lee la config del tenant (con defaults si no existe fila).
-- ✅ `PATCH /v1/verifactu/config` — upsert de cualquier subconjunto de campos.
+- ✅ `PATCH /v1/verifactu/config` — upsert de cualquier subconjunto (incluye `nifObligado`, `nombreObligado`, `entorno`).
+- ✅ **Gestión desde `console.hulkstein`** (vista *Veri\*Factu (SIF)* del `console-portal`): el staff elige el tenant (impersonación `?appId=&tenantId=`) y edita emisor, entorno, parámetros de flujo y certificados.
 - ✅ `nif_obligado` / `nombre_obligado` alimentan la cabecera SOAP y la URL de cotejo.
+- ✅ Configuración del entorno (`test` / `prod`) para la remisión por tenant (`entorno`, usado por la cola). ~~❌~~
 - 🔧 `max_registros_lote = 1000` — **verificar el límite oficial** en el WSDL/normativa AEAT.
-- 🔧 `tiempo_espera_envio` persistido pero no respetado por ningún worker todavía.
-- ❌ Configuración del entorno (`test` / `prod`) para la remisión por tenant.
 - ❌ Configuración de alertas: umbral de registros pendientes, SLA de remisión, notificación de lote rechazado.
 - ❌ Historial de cambios de config (audit log).
 - ❌ Configuración del productor del SIF (sustituir `SIF_IDENTITY` hard-coded por valores por tenant).
@@ -156,12 +173,11 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Tabla `certificados` con metadatos: `nombre`, `meta` (texto libre: "PKCS#12 · caduca 14-09-2027"), `estado` ("Vigente"), `tone`, `icon_tone`.
 - ✅ `GET /v1/verifactu/certificados` — lista los certificados del tenant.
-- 🔧 Solo lectura — sin endpoints de carga, renovación ni revocación.
-- ❌ Carga del fichero PKCS#12 cifrado (clave privada nunca en BD clara — almacenar en vault/HSM o cifrada con `PLATFORM_CONFIG_ENCRYPTION_KEY`).
-- ❌ Extracción y persistencia de metadatos reales del certificado: CN, emisor, fecha de expiración, número de serie, uso de clave.
+- ✅ CRUD completo: `POST/GET:id/POST:id/renovar/DELETE /v1/verifactu/certificados`. ~~🔧 solo lectura~~
+- ✅ Carga del PKCS#12 **cifrado** (clave privada nunca en claro — AES-256-GCM con `PLATFORM_CONFIG_ENCRYPTION_KEY`, base64 del DER; `repositories/certificados.repository.js`). ~~❌~~
+- ✅ Extracción y persistencia de metadatos reales (CN, emisor, nº de serie, caducidad, uso firma/sello) con `node-forge` (`lib/pkcs12.js`). ~~❌~~
+- ✅ Renovación (sustituye el PKCS#12 sin cambiar el id) y revocación/baja (DELETE). ~~❌~~
 - ❌ Alerta de caducidad (REUSE `platform/scheduler` → `verifactu.cert.expiring_soon`).
-- ❌ Renovación de certificado: subir el nuevo PKCS#12 sin interrupción del servicio.
-- ❌ Revocación/baja de certificado con rotación inmediata.
 - ❌ Soporte diferenciado: certificado de persona física (firma) vs certificado de sello (empresa).
 - ❌ Validación de la cadena de confianza del certificado cargado (CA raíz FNMT).
 
@@ -191,12 +207,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 15. Integración con módulos `orders`, `donations` y `pos`
 
-- ❌ Integración con `platform/orders`: al cerrar un pedido (`order.completed`) generar automáticamente el registro Veri\*Factu de alta con los datos del pedido (cliente, importe, IVA, fecha).
-- ❌ Integración con `platform/donations`: al registrar una donación generar el registro Veri\*Factu correspondiente (facturas de donativo con Ley 49/2002 para certificados fiscales AEAT 182).
-- ❌ Integración con `platform/pos`: al cerrar un `bill` del POS generar el registro Veri\*Factu (tique/factura simplificada).
-- ❌ Referencia cruzada `registro_id ↔ order_id` / `registro_id ↔ donation_id` / `registro_id ↔ bill_id` para trazabilidad.
-- ❌ Suscripción a eventos Redis (`platform.events`) de `order.completed`, `donation.created`, `pos.bill.closed` en lugar de integración HTTP directa.
-- ❌ Deduplicación: impedir doble emisión si el evento llega dos veces (idempotency key por `order_id`).
+- ✅ Integración con `platform/orders`: `order.completed` → registro de alta (F1) con los datos del pedido (`domain-events.handler.js`). ~~❌~~
+- ✅ Integración con `platform/donations`: `donation.created` → registro de alta. ~~❌~~ (la especialización fiscal Ley 49/2002 / AEAT 182 queda como mejora.)
+- ✅ POS: cubierto **transitivamente** por la cadena `pos.bill.*` → `platform/tpv` → `tpv.receipt.issued` (que ya consume `tpv-events.handler`). NO se consume `pos.bill.closed` aquí para no duplicar la emisión.
+- ✅ Referencia cruzada `order_id` / `donation_id` / `bill_id` en `registros` (columnas + índices únicos parciales). ~~❌~~
+- ✅ Suscripción a eventos Redis (`*.events`) en vez de integración HTTP directa. ~~❌~~
+- ✅ Deduplicación por índice único parcial `(app_id, tenant_id, order_id|donation_id|bill_id)` → reentrega no genera doble emisión (23505 → ignorado). ~~❌~~
 
 ## 16. Exportación legal y backup del SIF
 
@@ -221,10 +237,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 18. Autenticación, autorización y auditoría
 
-- 🔧 Todos los endpoints actuales son `public: true` — **el scope `(appId, tenantId)` viaja en query/body sin autenticación JWT**. Aceptable durante el desarrollo del portal pero **bloqueante para producción**.
-- 🔧 RLS en BD sí aísla los datos por `(app_id, tenant_id)` correctamente via `withTenantTransaction`.
-- ❌ Migración de endpoints a autenticación con `appGuard` + `requireRole` cuando el portal implemente login.
-- ❌ Endpoints de escritura (`POST /registros`, `POST /eventos`, `PATCH /config`) gateados por `staff` o `super_admin`.
+- ✅ Endpoints autenticados con `appGuard`: el scope `(appId, tenantId)` sale del **JWT** (`req.identity`), no de query/body. staff/super_admin pueden impersonar otro tenant por query (`?appId=&tenantId=`). ~~🔧 public~~
+- ✅ RLS en BD aísla los datos por `(app_id, tenant_id)` via `withTenantTransaction`.
+- ✅ Mutaciones (`POST /registros`, `/eventos`, `/clientes`, `/certificados`, `PATCH /config`, `/remitir`, `/series`, `/exportar`, …) gateadas por `requireRole('super_admin','staff')`. ~~❌~~
+- ❌ Audit log de accesos/mutaciones (quién creó/exportó/cambió config) y `user_id` en cada registro.
 - ❌ Audit log de accesos/mutaciones (quién creó cada registro, quién exportó, quién cambió config).
 - ✅ Inalterabilidad reforzada: trigger `deny_mutation` (migración 0007) bloquea `UPDATE`/`DELETE` sobre `registros` y `eventos` a nivel de motor (append-only). ~~❌~~ (registrar el intento como evento `ANOMALIA` sigue pendiente)
 - ❌ Trazabilidad `user_id` en cada registro de facturación (quién lo creó dentro del tenant).
@@ -234,13 +250,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
 1. ✅ ~~**Blindar el vector de test de la huella** contra la fuente oficial AEAT~~ — HECHO: el RegistroAlta reproduce exactamente el digest del ejemplo oficial AEAT (`89890001K / 12345678/G33` → `3C464DAF…F38F12F60`), blindado en `src/__tests__/huella.test.js` ("vector oficial AEAT" + "vector de encadenamiento"). Pendiente sólo el vector oficial de anulación/evento (el doc AEAT no los publica).
-2. **Firma XAdES** — requisito legal para Veri\*Factu; desbloquea toda la cadena de remisión. Usar `xmldsig-core` o librería equivalente; la clave privada del PKCS#12 ya se lee en `lib/remision.js`.
-3. **Cola de remisión + worker + actualización de `estado_remision`** — conectar `crearRegistro` al flujo real: insertar en cola → job del scheduler → `remitir` → actualizar estado. Config `reintentos`/`dlq_enabled` ya está.
-4. **Autenticación JWT en endpoints de escritura** (`appGuard` + `requireRole`) — bloqueo de seguridad antes del lanzamiento a producción.
-5. **Namespaces SOAP desde el WSDL oficial** — completar TODO D1/D4/E1 descargando el WSDL real de la AEAT y actualizando `NS` en `soap-envelope.js`.
-6. **Validación XSD oficial** (TODO E2) — imprescindible para evitar rechazos en remisión; requiere descargar `SuministroLR.xsd` + `SuministroInformacion.xsd`.
-7. **Carga de certificados PKCS#12** con almacenamiento cifrado (`PLATFORM_CONFIG_ENCRYPTION_KEY`) + alerta de caducidad via `platform/scheduler`.
-8. **Integración con `platform/orders` y `platform/pos`** vía eventos Redis — mayor impacto para las apps marketplace/restaurant que ya usan esos módulos.
+2. ✅ ~~**Firma XAdES**~~ — HECHO (base): firma *enveloped* RSA-SHA256 verificable con KeyInfo X509 (`lib/xades.js`, xml-crypto), a partir del PKCS#12 descifrado. Pendiente sólo el perfil **XAdES-EPES** (política de firma AEAT) encima. Nota: en Veri\*Factu la firma del registro es opcional (el `Signature` del XSD es opcional); obligatoria en NO-Veri\*Factu.
+3. ✅ ~~**Cola de remisión + worker + actualización de estado**~~ — HECHO: `remision_queue` (estado mutable, back-off, DLQ) + `services/remision.service.js` (reclamar→mTLS→parsear `RespuestaLinea`→estado+CSV+lote) + jobs `verifactu-remision-retry`/`verifactu-dlq-alert` del scheduler + subscriber `remision-events.handler`. Endpoints `POST /remitir`, `/registros/:numSerie/remitir`, `GET /cola`, `POST /remision/dry-run`, `POST /dlq/:id/reintentar`, `GET /lotes/:codigo`.
+4. ✅ ~~**Autenticación JWT en endpoints**~~ — HECHO: scope desde el JWT (`appGuard`), impersonación staff por query, `requireRole('super_admin','staff')` en todas las mutaciones.
+5. ✅ ~~**Namespaces SOAP oficiales**~~ — HECHO: `sf`/`sfLR` reales tomados de los XSD oficiales en `soap-envelope.js` (RegistroAlta completo con Encadenamiento, SistemaInformatico y Desglose).
+6. 🔧 **Validación XSD oficial en runtime** — los XSD oficiales ya se versionan en `platform/verifactu/schemas/aeat/`; resta enchufar un validador (libxmljs/equivalente) en `lib/validacion.js`.
+7. ✅ ~~**Carga de certificados PKCS#12** cifrados~~ — HECHO (cifrado AES-256-GCM + metadatos reales). Pendiente: alerta de caducidad vía `platform/scheduler`.
+8. ✅ ~~**Integración con `orders` (y `pos`)** vía eventos~~ — HECHO para `order.completed` y `donation.created` (con dedupe). POS cubierto transitivamente por la cadena `pos.bill.*`→`tpv`→`tpv.receipt.issued`.
 9. **Recálculo completo de la cadena** (`full re-hash`, TODO A1) — requiere persistir `FechaHoraHusoGenRegistro` exacto en cada registro; completar la auditoría de inalterabilidad.
 10. **Exportación legal** + evento `EXPORTACION` automático — obligación normativa; bajo coste una vez que el modelo de datos es estable.
 11. **Series de facturación** como entidad — necesario para ejercicios multi-serie (ventas / rectificativas / exportación).
