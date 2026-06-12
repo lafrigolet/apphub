@@ -106,10 +106,15 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 10. Conversión a tenant/cliente
 
 - ✅ Eventos `lead.created/status_changed/assigned/converted/deleted` publicados.
-- ❌ Convertir lead → tenant/app (provisión vía `platform/tenant-config`).
-- ❌ Generar invitación/onboarding al cerrar como ganado (REUSE `platform/auth`).
+- ✅ Convertir lead → tenant/app: desde `LeadDetail` ("Provisionar tenant
+  nuevo") se reutiliza el bootstrap de `platform/tenant-config`
+  (`POST /api/tenants/tenants/bootstrap`) pre-rellenado con los datos del lead;
+  al crearse se sella la conversión.
+- ✅ Invitación/onboarding al ganar: el bootstrap crea el owner y envía el
+  magic-link de activación (REUSE `platform/auth`).
 - ✅ Vincular `lead_id` al `tenant_id` resultante (`POST /:id/convert` → `converted_tenant_id` + status `won`, one-shot con 409).
-- ❌ Métricas de conversión lead→tenant.
+- 🔧 Métricas de conversión lead→tenant: cubiertas parcialmente por la analítica
+  (ganados por fuente/periodo); ratio lead→tenant dedicado pendiente.
 
 ## 11. Analítica y reporting
 
@@ -202,7 +207,8 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 4. ✅ ~~**Asignación + búsqueda + filtros**~~ (`assigned_to`, `?q=`, filtros combinados, `me|none`).
 5. ✅ ~~**Atribución UTM + won/lost + `lost_reason`**~~.
 6. ✅ ~~**GDPR**~~ (consentimiento sellado + `lead-retention-purge` + `DELETE /:id`; acceso/portabilidad pendientes).
-7. ✅ ~~**Conversión lead → tenant**~~ (`POST /:id/convert`, falta automatizar la provisión vía `tenant-config`).
+7. ✅ ~~**Conversión lead → tenant**~~ (`POST /:id/convert` + provisión
+   automatizada reutilizando el bootstrap de `tenant-config` desde `LeadDetail`).
 8. **Lead scoring automático** y enrichment — refinamiento posterior.
 9. ✅ ~~**Vistas UI en consola**~~ (lista/kanban, bandejas, timeline + acciones
    en `console/views/staff/Leads.jsx` + `LeadDetail`).

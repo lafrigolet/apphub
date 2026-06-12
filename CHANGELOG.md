@@ -7,6 +7,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Provisión de tenant desde un lead (apps/console, use-cases §10).** Desde
+  `LeadDetail`, "Provisionar tenant nuevo" reutiliza el bootstrap existente de
+  `platform/tenant-config` (`POST /api/tenants/tenants/bootstrap`, que crea
+  app+tenant+owner y envía el magic-link de activación vía `platform/auth`)
+  pre-rellenado con los datos del lead; al crearse el tenant se sella la
+  conversión (`POST /:id/convert`, enlace `lead_id → tenant_id` + status `won`).
+  `BootstrapTenantModal` acepta ahora una prop `initial` para el pre-relleno.
+  Reutiliza la orquestación ya probada en vez de duplicarla server-side. +2 tests.
 - **CRM de leads en console (apps/console, use-cases §17/§11).** Vistas staff
   para el módulo `platform/leads` (que ya exponía toda la API):
   - `views/staff/Leads.jsx` — lista + **kanban** por estado, bandejas (Todos /

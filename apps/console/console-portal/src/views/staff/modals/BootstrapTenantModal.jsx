@@ -42,19 +42,29 @@ function Field({ label, required, hint, children }) {
   )
 }
 
-export default function BootstrapTenantModal({ onCreated }) {
+export default function BootstrapTenantModal({ onCreated, initial }) {
   const { closeModal, toast } = useApp()
   const [apps, setApps] = useState([])
   const [appMode, setAppMode] = useState('existing')   // 'existing' | 'new'
   const [appId, setAppId] = useState('')
 
   const [appNew, setAppNew] = useState({ appId: '', displayName: '', subdomain: '', enabledModules: '' })
-  const [tenant, setTenant] = useState({
-    displayName: '', subdomain: '', legalName: '', cif: '', country: 'ES',
-    contactEmail: '', contactPhone: '', address: '', defaultLocale: 'es',
+  // `initial` permite pre-rellenar el formulario (p.ej. al provisionar desde un
+  // lead: nombre comercial → tenant, email del prospecto → owner).
+  const [tenant, setTenant] = useState(() => {
+    const t = {
+      displayName: '', subdomain: '', legalName: '', cif: '', country: 'ES',
+      contactEmail: '', contactPhone: '', address: '', defaultLocale: 'es',
+      ...(initial?.tenant ?? {}),
+    }
+    if (!t.subdomain && t.displayName) t.subdomain = slugify(t.displayName)
+    return t
   })
   const [tenantSubdomainTouched, setTenantSubdomainTouched] = useState(false)
-  const [owner, setOwner] = useState({ email: '', displayName: '' })
+  const [owner, setOwner] = useState(() => ({
+    email:       initial?.owner?.email ?? '',
+    displayName: initial?.owner?.displayName ?? '',
+  }))
   const [subscription, setSubscription] = useState({
     period: '', amountCents: '', currency: 'eur', stripePriceId: '', billingEmail: '',
   })

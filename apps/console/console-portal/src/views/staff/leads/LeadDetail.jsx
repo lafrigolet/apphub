@@ -3,6 +3,7 @@ import { useApp } from '../../../context/AppContext'
 import { fmtDate, relTime } from '../../../lib/utils'
 import { icons } from '../../../lib/icons'
 import LeadStatusBadge, { LEAD_STATUSES, statusLabel } from './LeadStatusBadge'
+import BootstrapTenantModal from '../modals/BootstrapTenantModal'
 import {
   getLead, getActivities, patchLead, addActivity, deleteLead, convertLead,
 } from './leadsApi'
@@ -21,7 +22,7 @@ function activityLine(a) {
 }
 
 export default function LeadDetail({ id, staffMap = {}, onChanged }) {
-  const { closeModal, toast, identity } = useApp()
+  const { closeModal, toast, identity, openModal } = useApp()
   const [lead, setLead] = useState(null)
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -106,6 +107,32 @@ export default function LeadDetail({ id, staffMap = {}, onChanged }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  // Provisión completa (REUSE bootstrap de tenant-config): abre el modal de
+  // bootstrap pre-rellenado con los datos del lead; al crearse el tenant
+  // sellamos la conversión (convert) para enlazar lead_id → tenant_id. El
+  // bootstrap ya crea app+tenant+owner y envía el magic-link de activación.
+  function provision() {
+    if (!lead) return
+    openModal(
+      <BootstrapTenantModal
+        initial={{
+          tenant: { displayName: lead.business_name || lead.contact_name, contactEmail: lead.email },
+          owner:  { email: lead.email, displayName: lead.contact_name },
+        }}
+        onCreated={async (res) => {
+          try {
+            if (res?.tenant?.id) await convertLead(id, res.tenant.id)
+            onChanged?.()
+            toast('Lead provisionado y convertido a tenant')
+          } catch {
+            toast('Tenant creado, pero no se pudo enlazar el lead', 'err')
+          }
+        }}
+      />,
+      { size: 'xl' },
+    )
   }
 
   async function remove() {
@@ -223,9 +250,13 @@ export default function LeadDetail({ id, staffMap = {}, onChanged }) {
 
           {!lead.converted_tenant_id && (
             <Panel label="Convertir a tenant">
+              <button onClick={provision} disabled={busy} className="btn btn-primary btn-sm w-full mb-2">
+                {icons.plus}<span>Provisionar tenant nuevo</span>
+              </button>
+              <div className="text-[11.5px] text-ink3 mb-2">…o enlazar a un tenant ya existente:</div>
               <div className="flex gap-2">
                 <input className="input flex-1" placeholder="tenant_id (UUID)" value={tenantId} onChange={(e) => setTenantId(e.target.value)} />
-                <button onClick={convert} disabled={busy} className="btn btn-primary btn-sm">Convertir</button>
+                <button onClick={convert} disabled={busy} className="btn btn-ghost btn-sm">Enlazar</button>
               </div>
             </Panel>
           )}
