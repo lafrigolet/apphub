@@ -44,9 +44,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 4. Deduplicación e identidad
 
-- ❌ Detección de duplicados (mismo email/teléfono/empresa) al crear.
-- ❌ Merge de leads duplicados con historial consolidado.
-- ❌ Reconocimiento de lead recurrente (mismo prospecto reenvía formulario).
+- 🔧 Detección de duplicados al crear: por **email + app_id** sobre leads
+  ABIERTOS (form y email entrante) → adjunta el mensaje como actividad en vez de
+  duplicar y emite `lead.resubmitted`. Por teléfono/empresa pendiente.
+- 🔧 Merge implícito de la resubmisión en el lead abierto existente (historial
+  consolidado en el timeline); merge manual de duplicados ya creados pendiente.
+- ✅ Reconocimiento de lead recurrente (mismo prospecto reenvía formulario →
+  se reconoce el lead abierto y se le adjunta la nueva entrada).
 - ❌ Vinculación lead ↔ usuario existente / lead ↔ tenant ya creado.
 - ❌ Concepto de "cuenta/empresa" agrupando varios contactos (B2B).
 

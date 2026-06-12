@@ -19,7 +19,12 @@ const { poolConnectMock, client, insertMock, redisMock } = vi.hoisted(() => {
 
 vi.mock('../lib/db.js', () => ({ pool: { connect: poolConnectMock }, configurePool: vi.fn() }))
 vi.mock('../lib/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }))
-vi.mock('../repositories/leads.repository.js', () => ({ insert: insertMock }))
+vi.mock('../repositories/leads.repository.js', () => ({
+  insert: insertMock,
+  findOpenByEmail: vi.fn().mockResolvedValue(null), // sin dedup en estos tests
+  touch: vi.fn(),
+  insertActivity: vi.fn(),
+}))
 vi.mock('../lib/redis.js', () => ({ getRedis: vi.fn(() => redisMock), configureRedis: vi.fn() }))
 
 import { create } from '../services/leads.service.js'

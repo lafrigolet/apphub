@@ -18,27 +18,62 @@ async function publish(type, payload) {
 export async function create(lead) {
   const client = await pool.connect()
   let created
+  let deduped = false
   try {
-    created = await repo.insert(client, {
-      ...lead,
-      // Consentimiento LOPDGDD: si el form mandó texto/versión, sellamos el
-      // momento de la aceptación.
-      consentAt: (lead.consentText || lead.consentVersion) ? new Date() : null,
-    })
-    logger.info({ leadId: created.id, industry: lead.industry }, 'Lead created')
+    // Dedup (§4): si ya existe un lead ABIERTO con este email (mismo app_id),
+    // no duplicamos: adjuntamos el mensaje como actividad y refrescamos el lead.
+    // Vale tanto para el formulario público como para el email entrante.
+    const existing = lead.email ? await repo.findOpenByEmail(client, lead.email, lead.appId ?? null) : null
+    if (existing) {
+      await client.query('BEGIN')
+      try {
+        await repo.insertActivity(client, existing.id, {
+          type:     'note',
+          body:     lead.message ?? null,
+          metadata: { resubmission: true, source: lead.source ?? null },
+        })
+        await repo.touch(client, existing.id)
+        await client.query('COMMIT')
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {})
+        throw err
+      }
+      created = existing
+      deduped = true
+      logger.info({ leadId: existing.id, source: lead.source }, 'Lead resubmission deduped')
+    } else {
+      created = await repo.insert(client, {
+        ...lead,
+        // Consentimiento LOPDGDD: si el form mandó texto/versión, sellamos el
+        // momento de la aceptación.
+        consentAt: (lead.consentText || lead.consentVersion) ? new Date() : null,
+      })
+      logger.info({ leadId: created.id, industry: lead.industry }, 'Lead created')
+    }
   } finally {
     client.release()
   }
 
-  await publish('lead.created', {
-    leadId:       created.id,
-    email:        lead.email,
-    contactName:  lead.contactName,
-    businessName: lead.businessName ?? null,
-    industry:     lead.industry ?? null,
-    source:       lead.source ?? null,
-    appId:        lead.appId ?? null,
-  })
+  // Una resubmisión no es un alta nueva: no dispara lead.created (ni su
+  // auto-respuesta). Emitimos lead.resubmitted para que staff pueda enterarse.
+  if (deduped) {
+    await publish('lead.resubmitted', {
+      leadId: created.id,
+      email:  lead.email,
+      source: lead.source ?? null,
+      appId:  lead.appId ?? null,
+    })
+  } else {
+    await publish('lead.created', {
+      leadId:       created.id,
+      email:        lead.email,
+      contactName:  lead.contactName,
+      businessName: lead.businessName ?? null,
+      industry:     lead.industry ?? null,
+      source:       lead.source ?? null,
+      appId:        lead.appId ?? null,
+    })
+  }
   return created
 }
 

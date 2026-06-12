@@ -7,6 +7,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Deduplicación de leads recurrentes (EXTEND `platform/leads`, use-cases §4).**
+  Al crear un lead (formulario público o email entrante), si ya existe uno
+  **abierto** (new/contacted/qualified) con el mismo **email + app_id**, no se
+  duplica: el mensaje se adjunta como actividad (`note`,
+  `metadata.resubmission`) al lead existente, se refresca su `updated_at` y se
+  emite `lead.resubmitted` en vez de `lead.created` (sin re-disparar la
+  auto-respuesta). Match case-insensitive y acotado por app (un mismo email en
+  dos portales = dos oportunidades). Migración `0003` (índice parcial
+  `lower(email)` sobre estados abiertos) + `findOpenByEmail`/`touch` en el
+  repo. +3 tests; query e índice validados contra Postgres real.
 - **Recordatorios de follow-up + SLA/estancados de leads (EXTEND
   `platform/scheduler`, use-cases §6/§9).** Dos jobs nuevos que vigilan el
   pipeline de leads y publican eventos al bus (patrón ventana, solo SELECT —
