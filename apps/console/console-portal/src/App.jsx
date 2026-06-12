@@ -27,6 +27,7 @@ import DeliveryDispatchConfig      from './views/staff/config/DeliveryDispatchCo
 import TelehealthConfig            from './views/staff/config/TelehealthConfig'
 import ShippingConfig              from './views/staff/config/ShippingConfig'
 import TpvConfig                   from './views/staff/config/TpvConfig'
+import VerifactuConfig             from './views/staff/config/VerifactuConfig'
 
 import TenantOverview  from './views/tenant/Overview'
 import TenantAdmins    from './views/tenant/Admins'
@@ -60,6 +61,7 @@ function MainContent() {
     if (view === 'config-telehealth')                      return <TelehealthConfig />
     if (view === 'config-shipping')                        return <ShippingConfig />
     if (view === 'config-tpv')                             return <TpvConfig />
+    if (view === 'config-verifactu')                       return <VerifactuConfig />
   } else {
     if (view === 'overview')  return <TenantOverview />
     if (view === 'admins')    return <TenantAdmins />
