@@ -44,6 +44,7 @@ describe('insertShipment', () => {
     })
     expect(c.query.mock.calls[0][1]).toEqual([
       APP, TEN, 'o1', 'ups', 'TC', 'shipped', 'r1', { k: 1 }, 500, 'EUR', true, null,
+      null, null,   // fromAddressId / toAddressId
     ])
   })
 

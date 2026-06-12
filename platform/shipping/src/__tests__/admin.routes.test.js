@@ -8,6 +8,7 @@ vi.mock('../repositories/settings.repository.js', () => ({
   listForAdmin: vi.fn(),
   upsertValue:  vi.fn(),
 }))
+vi.mock('../lib/easypost.js', () => ({ reloadEasyPostFromDb: vi.fn() }))
 
 vi.mock('@apphub/platform-sdk/app-guard', () => ({
   requireRole: (...roles) => async (req, reply) => {

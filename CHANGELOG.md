@@ -7,6 +7,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Envío automatizado origen→destino — integración EasyPost (EXTEND
+  `platform/shipping`).** Cierra el lado *saliente* del módulo (hasta ahora solo
+  recibía tracking por webhook). EasyPost es un agregador multi-carrier: una sola
+  API fronta UPS/FedEx/DHL/USPS/Correos/SEUR/… así que se integra una vez y el
+  carrier preferido de cada tenant queda accesible.
+  - **Cliente EasyPost** (`src/lib/easypost.js`): cliente `fetch` con HTTP Basic
+    auth (api key como usuario), cargado desde la config cifrada
+    (`easypost_api_key` + `easypost_enabled`) con recarga en caliente tras el
+    PATCH de admin (`reloadEasyPostFromDb`, patrón espejo de
+    `payments/reloadStripeFromDb`). Sin credenciales → DEV-STUB: las rutas
+    salientes responden 503, el resto del módulo intacto. Errores 4xx del carrier
+    → 422 (input del llamante), 5xx/red → 502.
+  - **Entidad de direcciones** (`platform_shipping.addresses`, migración 0006):
+    origen (almacén del tenant, `is_default`) y destino, RLS por
+    `(app_id, tenant_id)`, `easypost_address_id` cacheado. CRUD en
+    `/v1/shipping/addresses` + verificación/normalización contra EasyPost
+    (`POST /:id/verify`). El envío referencia `from_address_id` / `to_address_id`.
+  - **Rate-shopping** (`POST /v1/shipping/rate-shop`): rates multi-carrier en
+    tiempo real para un parcel (conversión g→oz, mm→in), ordenadas por precio.
+  - **Compra de etiqueta** (`POST /v1/shipping/shipments/:id/buy-label`): por
+    paquete crea un EasyPost Shipment, selecciona rate (`cheapest`/`fastest` o
+    filtro carrier/service), lo compra, **archiva el PDF en S3 via
+    `platform/storage`** (best-effort) y persiste tracking/label en
+    `shipment_packages` (`label_url`, `label_s3_key`, `tracking_url`,
+    `easypost_shipment_id/rate_id`, `rate_cents/currency`). El envío hereda
+    carrier+tracking del primer paquete y pasa a `in_transit`. Publica
+    `shipping.label.purchased` + `shipping.shipment.shipped`.
+  - **Pickups** (`platform_shipping.pickups` + `/v1/shipping/pickups`): programa
+    (y compra, si se da carrier+service) recogidas del transportista para una
+    dirección origen; FSM `scheduled → confirmed / cancelled / failed`. Publica
+    `shipping.pickup.scheduled/cancelled`.
+  - Reutiliza credenciales cifradas + admin existentes, `@apphub/platform-sdk/
+    storage`, RLS y el publicador de eventos. +15 tests (7 cliente, 8 servicio).
+    Pendiente cross-cutting: caché de rates en Redis, manifest/EOD, notificación
+    de etiqueta al comprador.
 - **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
   `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
   certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o

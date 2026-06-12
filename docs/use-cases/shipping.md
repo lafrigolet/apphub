@@ -4,7 +4,7 @@
 
 ## Estado actual (implementado)
 
-Zonas (`shipping_zones`) con `country_codes[]` + `region_codes[]`; tarifas (`shipping_rates`) por zona con rango de peso (`min_weight_g`, `max_weight_g`) y ETA (`eta_days_min/max`); cotización de tarifa (`GET /v1/shipping/quote?country=XX`); envíos (`shipments`) con FSM `pending → in_transit → delivered / returned`; log de eventos de tracking (`shipment_events`); multi-paquete (`shipment_packages`) con dimensiones + código de tracking individual; seguro (`insurance_amount_cents`) y firma requerida (`signature_required`); webhooks entrantes de transportistas (UPS/FedEx/DHL/EasyPost) con verificación HMAC (EasyPost completo, resto parcial), registro idempotente (`carrier_webhook_events`) y auto-transición de estado; configuración de credenciales de transportistas (AES-256-GCM, admin); RMA completo (`returns` + `return_items`) con FSM `requested → approved → label_issued → shipped → received → restocked → refunded / rejected / cancelled`; eventos en `platform.events` (`shipping.shipment.created/shipped/delivered`, `return.*`, `inventory.restock.requested`, `return.refund.requested`); escucha de `order.paid` para crear envío automático; aislamiento por `(app_id, tenant_id)` con RLS en todas las tablas.
+Zonas (`shipping_zones`) con `country_codes[]` + `region_codes[]`; tarifas (`shipping_rates`) por zona con rango de peso (`min_weight_g`, `max_weight_g`) y ETA (`eta_days_min/max`); cotización de tarifa (`GET /v1/shipping/quote?country=XX`); envíos (`shipments`) con FSM `pending → in_transit → delivered / returned`; log de eventos de tracking (`shipment_events`); multi-paquete (`shipment_packages`) con dimensiones + código de tracking individual; seguro (`insurance_amount_cents`) y firma requerida (`signature_required`); webhooks entrantes de transportistas (UPS/FedEx/DHL/EasyPost) con verificación HMAC (EasyPost completo, resto parcial), registro idempotente (`carrier_webhook_events`) y auto-transición de estado; configuración de credenciales de transportistas (AES-256-GCM, admin); **integración saliente EasyPost (agregador multi-carrier)**: entidad de direcciones origen/destino (`addresses`, con verificación + normalización contra EasyPost), rate-shopping en tiempo real (`POST /v1/shipping/rate-shop`), compra de etiqueta por paquete (`POST /v1/shipping/shipments/:id/buy-label`) con archivado del PDF en S3 (`platform/storage`) y persistencia de tracking/label en `shipment_packages`, y programación de recogidas del transportista (`pickups`); RMA completo (`returns` + `return_items`) con FSM `requested → approved → label_issued → shipped → received → restocked → refunded / rejected / cancelled`; eventos en `platform.events` (`shipping.shipment.created/shipped/delivered`, `shipping.label.purchased`, `shipping.pickup.scheduled/cancelled`, `return.*`, `inventory.restock.requested`, `return.refund.requested`); escucha de `order.paid` para crear envío automático; aislamiento por `(app_id, tenant_id)` con RLS en todas las tablas. El cliente EasyPost se carga desde la config cifrada (`easypost_api_key` + `easypost_enabled`) con recarga en caliente tras el PATCH de admin; sin credenciales el módulo degrada a DEV-STUB (las rutas salientes devuelven 503, el resto del módulo intacto).
 
 Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
@@ -58,9 +58,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - 🔧 Quote con peso real del pedido: el endpoint ya filtra por `weightG`; falta la integración automática que lo deriva de `platform/basket` o `platform/orders` (hoy lo pasa el llamante).
 - ❌ Quote multi-destino (un pedido con ítems enviados a direcciones distintas).
 - ❌ Estimación de entrega dinámica (ETA) basada en día/hora de corte del transportista.
-- ❌ Rate-shopping en tiempo real contra APIs de UPS/FedEx/DHL/EasyPost para obtener precios reales al checkout (hoy solo tarifas configuradas manualmente).
-- ❌ Presentar múltiples opciones de servicio por carrier (economy vs. express).
-- ❌ Caché de cotizaciones externas con TTL en Redis.
+- ✅ Rate-shopping en tiempo real contra EasyPost (agregador multi-carrier) para obtener precios reales: `POST /v1/shipping/rate-shop` con destino (inline `to` o `toAddressId`), origen (`fromAddressId` o el origen por defecto del tenant) y `parcel` (peso en g + dimensiones en mm, convertidos a oz/in); devuelve `rates[]` de todos los carriers de la cuenta ordenadas por precio.
+- ✅ Presentar múltiples opciones de servicio por carrier (economy vs. express): `rate-shop` devuelve cada `(carrier, service)` con su precio y `delivery_days`; `buy-label` selecciona por `strategy` (`cheapest`/`fastest`) o filtro `carrier`/`service`.
+- ❌ Caché de cotizaciones externas con TTL en Redis (rate-shop hoy llama a EasyPost en cada petición; cachear por hash de `(from,to,parcel)` queda pendiente).
 - ❌ Cotización por código postal destino (más granular que solo país).
 
 ## 4. Creación y gestión de envíos
@@ -77,7 +77,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ División de un pedido en múltiples envíos (split shipment por warehouse o vendor).
 - ❌ Envío parcial (partial fulfillment) — ítems de una línea del pedido enviados en varias tandas.
 - ✅ Fecha estimada de entrega almacenada en el envío (`estimated_delivery_date`, calculada al crear como `eta_days_max` de la tarifa en días laborables saltando fines de semana; se publica en `shipping.shipment.created`).
-- ❌ Dirección de destino almacenada en el envío (hoy solo `order_id`).
+- ✅ Direcciones origen/destino como entidad propia (`addresses`, RLS por `(app_id, tenant_id)`, rol `origin`/`destination`, `is_default` para el origen del tenant, `easypost_address_id` cacheado tras verificar); el envío referencia `from_address_id` / `to_address_id`. CRUD en `/v1/shipping/addresses` + verificación/normalización contra EasyPost (`POST /v1/shipping/addresses/:id/verify`).
 
 ## 5. Multi-paquete por envío
 
@@ -128,14 +128,14 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ✅ Configuración de credenciales para UPS, FedEx, DHL y EasyPost (cifradas AES-256-GCM) en tabla `settings`.
 - ✅ Admin para gestionar credenciales (`GET/PATCH /v1/shipping/admin/config`, requiere `super_admin|staff`).
-- 🔧 Las credenciales están almacenadas pero **no hay integración real** con las APIs de los carriers: no se llama a UPS/FedEx/DHL/EasyPost para obtener tarifas ni generar etiquetas desde el código de producción.
-- ❌ Rate-shopping real: cotizar el mismo envío contra múltiples carriers y devolver la opción más barata o más rápida.
-- ❌ Generación de etiquetas de envío (label generation): llamada a carrier API → PDF/ZPL → URL almacenada en el paquete (REUSE `platform/storage` para el PDF).
-- ❌ Validación de dirección de destino contra APIs de carrier antes de generar etiqueta.
+- ✅ **Integración real con EasyPost** (agregador multi-carrier): cliente `fetch` con HTTP Basic auth (`easypost_api_key` como usuario), cargado desde la config cifrada con recarga en caliente tras el PATCH de admin (`reloadEasyPostFromDb`, patrón espejo de `payments/reloadStripeFromDb`). Sin credenciales o con `easypost_enabled=false` → DEV-STUB (las rutas salientes responden 503, el resto del módulo intacto).
+- ✅ Rate-shopping real contra EasyPost (`POST /v1/shipping/rate-shop`): un EasyPost Shipment draft origen→destino+parcel → `rates[]` multi-carrier ordenadas por precio.
+- ✅ Generación de etiquetas (`POST /v1/shipping/shipments/:id/buy-label`): por cada paquete del envío crea un EasyPost Shipment, selecciona rate (`cheapest`/`fastest` o filtro carrier/service), lo compra, **archiva el PDF en S3 via `platform/storage`** (`labels/<app>/<tenant>/<packageId>.pdf`, best-effort: si S3 está caído se conserva la URL del carrier) y persiste `carrier`, `tracking_code`, `tracking_url`, `label_url`, `label_s3_key`, `easypost_shipment_id/rate_id`, `rate_cents/currency` en `shipment_packages`; el envío hereda carrier+tracking del primer paquete y transiciona a `in_transit`. Publica `shipping.label.purchased` + `shipping.shipment.shipped`.
+- ✅ Validación de dirección de destino contra EasyPost antes de generar etiqueta (`POST /v1/shipping/addresses/:id/verify` — normaliza + cachea `easypost_address_id`).
 - ❌ Manifest / EOD (End of Day) para cierre de jornada con UPS/FedEx.
-- ❌ Pickup scheduling (solicitar recogida al carrier).
-- ❌ Multi-carrier aggregator (EasyPost ya soportado en settings; activar llamada real a su API de rates + labels).
-- ❌ Sandbox / production toggle por carrier (campo `*_environment` ya existe en settings, listo para usarse).
+- ✅ Pickup scheduling (solicitar recogida al carrier): `POST /v1/shipping/pickups` crea (y compra, si se da carrier+service) una recogida EasyPost para una dirección origen; tabla `pickups` con FSM `scheduled → confirmed / cancelled / failed`, `GET` lista/detalle y `POST /:id/cancel`. Publica `shipping.pickup.scheduled/cancelled`.
+- ✅ Multi-carrier aggregator (EasyPost): rate-shopping + labels + pickups end-to-end vía su API; el diseño es agnóstico para añadir otro agregador (Sendcloud/Shippo) detrás del mismo modelo de datos.
+- 🔧 Sandbox / production toggle por carrier (`easypost_environment` informativo; la clave EasyPost — `EZTK…`=test, `EZAK…`=production — es la que determina el modo real).
 
 ## 9. Seguro y opciones de envío premium
 
@@ -258,7 +258,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## Recomendaciones de priorización (mayor valor / menor coste)
 
 1. **Notificaciones al comprador** (shipped / delivered / devolución aprobada / reembolso) — REUSE `platform/notifications` escuchando `shipping.shipment.*` y `return.*`; alta visibilidad para el comprador con coste bajo.
-2. **Rate-shopping real con EasyPost** — las credenciales ya están almacenadas; conectar la llamada a `GET /rates` de EasyPost en `quote()` y añadir label generation (`POST /shipments` de EasyPost → PDF a S3 via `platform/storage`).
+2. ✅ ~~**Rate-shopping real con EasyPost**~~ — integración saliente completa: `POST /v1/shipping/rate-shop` (rates multi-carrier en tiempo real), `POST /v1/shipping/shipments/:id/buy-label` (compra de etiqueta por paquete → PDF a S3 via `platform/storage`), entidad de direcciones origen/destino con verificación EasyPost, y `pickups` (programación de recogidas). Cliente cargado desde config cifrada con recarga en caliente; DEV-STUB sin credenciales. (Pendiente cross-cutting: caché de rates en Redis, manifest/EOD, notificación de etiqueta al comprador.)
 3. ✅ ~~**Filtro por peso en el quote**~~ — `GET /quote` acepta `weightG` y aplica `min/max_weight_g` en la query.
 4. ✅ ~~**Envío gratuito a partir de X€**~~ — `free_above_cents` en `shipping_rates`; el quote devuelve `effective_price_cents=0` + `free_shipping_applied=true` cuando el pedido supera el umbral (precio base preservado).
 5. ✅ ~~**PATCH zona y tarifa + listar envíos por pedido**~~ — `PATCH/DELETE` de zonas y tarifas (incl. `active` para desactivar), `GET /v1/shipping/shipments` con filtros (incl. `orderId`).

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { requireRole } from '@apphub/platform-sdk/app-guard'
 import * as repo from '../repositories/settings.repository.js'
 import { pool } from '../lib/db.js'
+import { reloadEasyPostFromDb } from '../lib/easypost.js'
 
 const envEnum = z.enum(['sandbox', 'production'])
 const boolish = z.union([z.boolean(), z.string()])
@@ -57,13 +58,19 @@ export async function adminRoutes(fastify) {
   }, async (req) => {
     const body = patchBody.parse(req.body ?? {})
     const client = await pool.connect()
+    let easypostTouched = false
     try {
       for (const [key, value] of Object.entries(body)) {
         if (value === undefined) continue
         const v = BOOL_KEYS.has(key) ? String(!!value) : value
         await repo.upsertValue(client, key, v)
+        if (key.startsWith('easypost_')) easypostTouched = true
       }
-      return { data: await repo.listForAdmin(client) }
+      const data = await repo.listForAdmin(client)
+      // Hot-reload the EasyPost client so new credentials take effect without
+      // a redeploy (mirrors payments' reloadStripeFromDb after a config PATCH).
+      if (easypostTouched) await reloadEasyPostFromDb()
+      return { data }
     } finally { client.release() }
   })
 }
