@@ -22,6 +22,8 @@ vi.mock('../lib/env.js', () => ({
     JOB_CHAT_RETENTION_PURGE_ENABLED: true,
     JOB_CHAT_SUPPORT_SLA_ENABLED: true,
     JOB_LEAD_RETENTION_PURGE_ENABLED: true,
+    JOB_LEAD_FOLLOWUP_DUE_ENABLED: true,
+    JOB_LEAD_SLA_ENABLED: true,
     JOB_SCHEDULER_RUNS_PURGE_ENABLED: true,
     JOB_AUTH_TOKEN_PURGE_ENABLED: true,
     JOB_NOTIFICATION_SEND_LOG_PURGE_ENABLED: true,
@@ -40,9 +42,9 @@ vi.mock('../lib/env.js', () => ({
 const mkLogger = () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() })
 
 describe('jobs registry (jobs/index.js)', () => {
-  it('expone los 24 jobs con meta/run/enabled, respetando los flags de env', async () => {
+  it('expone los 26 jobs con meta/run/enabled, respetando los flags de env', async () => {
     const { jobs } = await import('../jobs/index.js')
-    expect(jobs).toHaveLength(24)
+    expect(jobs).toHaveLength(26)
     for (const j of jobs) {
       expect(typeof j.meta.name).toBe('string')
       expect(typeof j.meta.cron).toBe('string')

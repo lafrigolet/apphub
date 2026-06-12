@@ -7,6 +7,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Recordatorios de follow-up + SLA/estancados de leads (EXTEND
+  `platform/scheduler`, use-cases §6/§9).** Dos jobs nuevos que vigilan el
+  pipeline de leads y publican eventos al bus (patrón ventana, solo SELECT —
+  sin migración ni grant nuevo: el scheduler ya tiene SELECT sobre
+  `platform_leads`):
+  - `lead-followup-due` (`*/15`): publica `lead.followup.due` cuando un snooze
+    (`next_follow_up_at`) de un lead abierto vence dentro del último tick.
+  - `lead-sla` (`*/30`): publica `lead.sla.uncontacted` (lead `new` sin tocar >
+    `LEADS_NEW_SLA_HOURS`, def. 24h) y `lead.stale` (lead abierto sin actividad
+    > `LEADS_STALE_DAYS`, def. 7d; "actividad" =
+    `greatest(updated_at, última lead_activity, created_at)` para que una
+    llamada/nota registrada mantenga el lead fresco).
+  - Flags `JOB_LEAD_FOLLOWUP_DUE_ENABLED` / `JOB_LEAD_SLA_ENABLED` +
+    `LEADS_NEW_SLA_HOURS` / `LEADS_STALE_DAYS`. +9 tests; SQL validado contra
+    Postgres real. Los consumirá `platform/notifications` (Fase notificaciones
+    internas).
 - **Analítica de embudo y reporting de leads (EXTEND `platform/leads`,
   use-cases §11).** Cinco endpoints admin de solo lectura sobre los datos ya
   capturados (sin migración):

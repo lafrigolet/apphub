@@ -65,7 +65,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Etapas de embudo configurables (pipeline kanban) más allá de 4 estados fijos.
 - ✅ Motivo de pérdida (`lost_reason`).
 - ✅ Historial de transiciones de estado (`lead_activities` type `status_change` con autor y from/to).
-- ❌ SLA por etapa (tiempo máximo en `new` sin contactar → alerta).
+- ✅ SLA de primer contacto (lead `new` sin tocar > `LEADS_NEW_SLA_HOURS` →
+  evento `lead.sla.uncontacted`, job `lead-sla`). SLA por cada etapa restante
+  pendiente.
 - ✅ Reapertura de leads cerrados (PATCH a cualquier estado, queda auditado en el timeline).
 - ✅ Snooze / "volver a contactar el …" (`next_follow_up_at` + filtro `followUpDue`).
 
@@ -91,8 +93,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ❌ Secuencias de drip-email automáticas.
 - ❌ Workflows por evento (si `industry=restaurant` → plantilla X).
-- ❌ Recordatorios automáticos de follow-up (REUSE `platform/scheduler` → `lead.followup.due`).
-- ❌ Alerta de leads "estancados" sin actividad N días.
+- ✅ Recordatorios automáticos de follow-up (`platform/scheduler` job
+  `lead-followup-due` → `lead.followup.due` al vencer `next_follow_up_at`).
+- ✅ Alerta de leads "estancados" sin actividad N días (job `lead-sla` →
+  `lead.stale`, ventana `LEADS_STALE_DAYS`).
 - ❌ Re-engagement de leads fríos.
 
 ## 10. Conversión a tenant/cliente

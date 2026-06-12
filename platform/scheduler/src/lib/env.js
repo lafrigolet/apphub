@@ -28,6 +28,8 @@ const envSchema = z.object({
   JOB_CHAT_RETENTION_PURGE_ENABLED:            z.coerce.boolean().default(true),
   JOB_CHAT_SUPPORT_SLA_ENABLED:                z.coerce.boolean().default(true),
   JOB_LEAD_RETENTION_PURGE_ENABLED:            z.coerce.boolean().default(true),
+  JOB_LEAD_FOLLOWUP_DUE_ENABLED:               z.coerce.boolean().default(true),
+  JOB_LEAD_SLA_ENABLED:                        z.coerce.boolean().default(true),
   JOB_SCHEDULER_RUNS_PURGE_ENABLED:            z.coerce.boolean().default(true),
   JOB_AUTH_TOKEN_PURGE_ENABLED:                z.coerce.boolean().default(true),
   JOB_NOTIFICATION_SEND_LOG_PURGE_ENABLED:     z.coerce.boolean().default(true),
@@ -47,6 +49,10 @@ const envSchema = z.object({
   NOTIFICATIONS_INBOUND_RETENTION_DAYS:        z.coerce.number().int().positive().default(365),
   // SLA de primera respuesta del vendor en messaging buyer↔vendor. 24h.
   MESSAGING_SLA_HOURS:                         z.coerce.number().int().positive().default(24),
+  // SLA de primer contacto de un lead 'new' antes de avisar (lead.sla.uncontacted). 24h.
+  LEADS_NEW_SLA_HOURS:                         z.coerce.number().int().positive().default(24),
+  // Días sin actividad tras los que un lead abierto se marca estancado (lead.stale). 7d.
+  LEADS_STALE_DAYS:                            z.coerce.number().int().positive().default(7),
 
   // Bloque A — dead-man switch / reintentos con backoff en el jobRunner.
   // Nº de reintentos ante fallo del run antes de registrar status='error'.
