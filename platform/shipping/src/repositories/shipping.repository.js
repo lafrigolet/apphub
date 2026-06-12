@@ -137,13 +137,15 @@ export async function insertShipment(client, appId, tenantId, s) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.shipments
        (app_id, tenant_id, order_id, carrier, tracking_code, status, rate_id, metadata,
-        insurance_amount_cents, insurance_currency, signature_required, estimated_delivery_date)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,FALSE),$12) RETURNING *`,
+        insurance_amount_cents, insurance_currency, signature_required, estimated_delivery_date,
+        from_address_id, to_address_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,FALSE),$12,$13,$14) RETURNING *`,
     [
       appId, tenantId, s.orderId, s.carrier ?? null, s.trackingCode ?? null,
       s.status ?? 'pending', s.rateId ?? null, s.metadata ?? {},
       s.insuranceAmountCents ?? null, s.insuranceCurrency ?? null,
       s.signatureRequired ?? false, s.estimatedDeliveryDate ?? null,
+      s.fromAddressId ?? null, s.toAddressId ?? null,
     ],
   )
   return rows[0]
@@ -263,6 +265,57 @@ export async function updatePackageStatus(client, appId, tenantId, packageId, st
   const { rows } = await client.query(
     `UPDATE ${SCHEMA}.shipment_packages SET ${sets.join(', ')}
        WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
+    params,
+  )
+  return rows[0] ?? null
+}
+
+// Persist the label artifacts on a package after an EasyPost label purchase.
+export async function updatePackageLabel(client, appId, tenantId, packageId, l) {
+  const cols = {
+    carrier: l.carrier, tracking_code: l.trackingCode, status: l.status,
+    easypost_shipment_id: l.easypostShipmentId, easypost_rate_id: l.easypostRateId,
+    label_url: l.labelUrl, label_s3_key: l.labelS3Key, tracking_url: l.trackingUrl,
+    rate_cents: l.rateCents, rate_currency: l.rateCurrency,
+  }
+  const sets = []
+  const params = [appId, tenantId, packageId]
+  for (const [col, val] of Object.entries(cols)) {
+    if (val !== undefined) { sets.push(`${col} = $${params.length + 1}`); params.push(val) }
+  }
+  if (sets.length === 0) return null
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.shipment_packages SET ${sets.join(', ')}
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
+    params,
+  )
+  return rows[0] ?? null
+}
+
+export async function findPackageById(client, appId, tenantId, id) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.shipment_packages WHERE app_id=$1 AND tenant_id=$2 AND id=$3`,
+    [appId, tenantId, id],
+  )
+  return rows[0] ?? null
+}
+
+// Link a shipment to its from/to addresses and the parent EasyPost shipment id,
+// and optionally set the resolved carrier/tracking after a label purchase.
+export async function updateShipmentFulfillment(client, appId, tenantId, id, f) {
+  const cols = {
+    from_address_id: f.fromAddressId, to_address_id: f.toAddressId,
+    easypost_shipment_id: f.easypostShipmentId, carrier: f.carrier, tracking_code: f.trackingCode,
+  }
+  const sets = []
+  const params = [appId, tenantId, id]
+  for (const [col, val] of Object.entries(cols)) {
+    if (val !== undefined) { sets.push(`${col} = $${params.length + 1}`); params.push(val) }
+  }
+  if (sets.length === 0) return findShipmentById(client, appId, tenantId, id)
+  const { rows } = await client.query(
+    `UPDATE ${SCHEMA}.shipments SET ${sets.join(', ')}
+      WHERE app_id=$1 AND tenant_id=$2 AND id=$3 RETURNING *`,
     params,
   )
   return rows[0] ?? null

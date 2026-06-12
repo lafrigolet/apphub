@@ -68,7 +68,7 @@ services. Each app gets its own subdomain and its own app-specific microservices
 | `/api/inventory/` | Stock per SKU | platform-marketplace | All subdomains |
 | `/api/reviews/` | Reviews + replies | platform-marketplace | All subdomains |
 | `/api/messages/` | Buyer ↔ vendor chat | platform-marketplace | All subdomains |
-| `/api/shipping/` | Shipments + tracking | platform-marketplace | All subdomains |
+| `/api/shipping/` | Shipments + tracking + EasyPost rate-shop/labels/pickups + addresses | platform-marketplace | All subdomains |
 | `/api/disputes/` | Operational disputes | platform-marketplace | All subdomains |
 | `/api/catalog/` | Product catalogue | platform-marketplace | All subdomains |
 | `/api/basket/` | Shopping cart (Redis) | platform-marketplace | All subdomains |

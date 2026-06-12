@@ -47,6 +47,8 @@ const shipmentBody = z.object({
   carrier:                z.string().max(64).optional(),
   trackingCode:           z.string().max(128).optional(),
   rateId:                 z.string().uuid().optional(),
+  fromAddressId:          z.string().uuid().optional(),
+  toAddressId:            z.string().uuid().optional(),
   metadata:               z.record(z.any()).optional(),
   insuranceAmountCents:   z.number().int().min(0).optional(),
   insuranceCurrency:      z.string().length(3).optional(),

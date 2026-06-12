@@ -189,6 +189,20 @@ services:
       EXPECTED_APP_ID: platform
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       PLATFORM_CORE_URL: http://platform-core:3000
+      # Decrypts module config secrets at rest (shipping carrier credentials:
+      # easypost_api_key, carrier webhook HMAC secrets). AES-256-GCM master key.
+      PLATFORM_CONFIG_ENCRYPTION_KEY: ${PLATFORM_CONFIG_ENCRYPTION_KEY}
+      # EasyPost (shipping outbound rate-shop/labels/pickups) — DB-backed config
+      # (easypost_api_key) is primary; this env is a dev/local fallback only.
+      EASYPOST_API_KEY: ${EASYPOST_API_KEY:-}
+      # S3/MinIO for archiving carrier label PDFs (shipping → platform/storage).
+      # Optional: absent → labels still purchase, we keep the carrier-hosted URL.
+      S3_ENDPOINT:         ${S3_ENDPOINT:-http://minio:9000}
+      S3_REGION:           ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY:       ${MINIO_ROOT_USER:-apphub}
+      S3_SECRET_KEY:       ${MINIO_ROOT_PASSWORD:-apphub_minio_secret}
+      S3_BUCKET:           ${S3_BUCKET:-apphub}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
       # Per-module DATABASE_URLs — one Pool per module, each with its dedicated DB role
       DATABASE_URL_ORDERS:    postgresql://svc_platform_orders:platform_orders_secret@postgres:5432/splitpay
       DATABASE_URL_INVENTORY: postgresql://svc_platform_inventory:platform_inventory_secret@postgres:5432/splitpay
