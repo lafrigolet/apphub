@@ -7,6 +7,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Landing `luciapassardi` (yoga) — restyle completo (ADR 017).** Nuevo portal
+  landing-only `apps/luciapassardi/luciapassardi-portal` (puerto 5184) servido por
+  el contenedor `portals`, en `luciapassardi.hulkstein.local`. Reutiliza el
+  contenido de `luciapassardiyoga.com` (clases grupales/privadas/colectivas,
+  retiros y talleres, enfoque asana/pranayama/meditación, credenciales) con una
+  **estética nueva "sereno/zen"** (paleta piedra/salvia/teal, Cormorant + Mulish,
+  blobs orgánicos, degradados, reveal on scroll), one-page con anclas y **contacto
+  directo** (WhatsApp/email/Instagram, sin backend). Estructura canónica
+  `data/ + components/ + views/ + hooks/`. Wiring completo: pnpm-workspace,
+  Dockerfile/portals.conf/dev-entrypoint de `portals`, compose, upstreams dev+prod,
+  seed nginx `luciapassardi.conf`, `deploy/services.json`. TODO: sustituir fotos
+  placeholder por imágenes reales de Lucía.
 - **Veri\*Factu — camino de remisión real + certificados + auth (EXTEND
   `platform/verifactu`).** Cierra el ciclo de cumplimiento end-to-end sobre el
   modelo ya existente (cadena de huellas blindada al vector oficial AEAT):

@@ -282,7 +282,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
 | `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
 | `platform-scheduler` | Single-runner cron for all 4 monoliths (9 jobs: hold purge, reminders, recurrence expander, expiry warnings, payout close, SLA breach, abandoned cart) | 3400 |
-| `portals` | All 9 frontends in one container ([ADR 017](docs/adr/017-unified-portals-container.md)): dev = 9 Vite processes, prod = nginx-alpine, one port per portal in both | 5173, 5175–5182 |
+| `portals` | All frontends in one container ([ADR 017](docs/adr/017-unified-portals-container.md)): dev = N Vite processes, prod = nginx-alpine, one port per portal in both | 5173, 5175–5184 |
 | `postgres` | PostgreSQL 16 | 5432 |
 | `redis` | Redis 7 | 6379 |
 | `minio` | S3-compatible object store (MinIO) | 9000 (API), 9001 (console) |
@@ -315,8 +315,8 @@ see [ADR 015](docs/adr/015-platform-tpv-monolith.md) /
 | 3300 | platform-appointments |
 | 3400 | platform-scheduler |
 | 3500+ | Future domain monoliths (3500 reserved for platform-tpv if tpv is split back out, ADR 016) |
-| 5173, 5175–5182 | Portals (single `portals` container — one port per frontend: 5173 apphub-admin, 5175 splitpay, 5176 aikikan, 5177 console, 5178 tenant-console, 5179 aulavera, 5180 js-electric, 5181 macabeo, 5182 verifactu) |
-| 5183+ | Future app portals (new server block + port in the `portals` container, ADR 017) |
+| 5173, 5175–5184 | Portals (single `portals` container — one port per frontend: 5173 apphub-admin, 5175 splitpay, 5176 aikikan, 5177 console, 5178 tenant-console, 5179 aulavera, 5180 js-electric, 5181 macabeo, 5182 verifactu, 5183 tpv, 5184 luciapassardi) |
+| 5185+ | Future app portals (new server block + port in the `portals` container, ADR 017) |
 
 ## Architecture Decision Records
 
