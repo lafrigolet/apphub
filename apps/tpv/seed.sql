@@ -29,7 +29,7 @@ ON CONFLICT (app_id) DO UPDATE SET
 INSERT INTO platform_tenants.tenants
   (id, app_id, display_name, subdomain, status, country, plan, contact_email, default_locale)
 VALUES
-  ('60000000-0000-0000-0000-000000000001', 'tpv', 'TPV de Prueba', 'tpv-demo',
+  ('60000000-0000-0000-0000-000000000001', 'tpv', 'TPV de Prueba', 'tpv',
    'active', 'ES', 'STARTER', 'cajero@tpv.local', 'es')
 ON CONFLICT (id) DO UPDATE SET
   display_name = EXCLUDED.display_name,

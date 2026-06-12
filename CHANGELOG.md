@@ -7,6 +7,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **TPV configurable desde console + portal que resuelve el tenant por
+  subdominio.** El emisor fiscal (NIF, razón social, dirección), los umbrales de
+  caja, las series por defecto y el pie de ticket de cada tenant — además del
+  alta de series de numeración — se gestionan ahora desde **console** como el
+  resto de módulos, en vez de un seed SQL.
+  - **Backend (`platform/tpv`)**: `/v1/tpv/settings` y `/v1/tpv/series` aceptan
+    impersonación de staff vía `?appId=&tenantId=` (mismo patrón que
+    `platform/splitpay`). Lógica extraída a `lib/tenant-scope.js`
+    (`resolveTenantScope`; solo `staff`/`super_admin` pueden sobreescribir su
+    tenant) + 5 tests. Las rutas leen `req.tenant` en vez de `req.identity`.
+  - **Console**: nueva pestaña **TPV / Caja** en `TenantDetail` (gateada por
+    `enabled_modules` del app) con paneles de emisor fiscal + series
+    (`views/staff/TpvPanels.jsx`), siguiendo el patrón de `SplitpayPanels`.
+  - **Portal TPV**: deja de hardcodear `appId`/`tenantId`; los resuelve por
+    subdominio (`tpv.hulkstein.com → tenant`) vía el endpoint público
+    `/api/tenants/tenants/by-subdomain/:subdomain` (`lib/tenant.js`), igual que
+    aikikan/js-electric. Seed dev alineado: el tenant pasa a `subdomain='tpv'`.
 - **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
   `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
   certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o

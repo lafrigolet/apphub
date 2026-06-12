@@ -34,7 +34,7 @@ export async function settingsRoutes(fastify) {
     },
     async (req) => {
       const data = await withTenantTransaction(
-        req.identity.appId, req.identity.tenantId, req.identity.subTenantId,
+        req.tenant.appId, req.tenant.tenantId, req.tenant.subTenantId,
         (c) => settingsRepo.getOrDefaults(c),
       )
       return { data }
@@ -49,11 +49,11 @@ export async function settingsRoutes(fastify) {
     async (req) => {
       const body = putBody.parse(req.body ?? {})
       const data = await withTenantTransaction(
-        req.identity.appId, req.identity.tenantId, req.identity.subTenantId,
+        req.tenant.appId, req.tenant.tenantId, req.tenant.subTenantId,
         (c) => settingsRepo.upsert(c, {
-          appId: req.identity.appId,
-          tenantId: req.identity.tenantId,
-          subTenantId: req.identity.subTenantId ?? null,
+          appId: req.tenant.appId,
+          tenantId: req.tenant.tenantId,
+          subTenantId: req.tenant.subTenantId ?? null,
           ...body,
         }),
       )
