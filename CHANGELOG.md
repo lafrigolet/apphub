@@ -220,6 +220,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   entra en `inputs` para invalidar la caché al cambiar la config de vitest.
 
 ### Added
+- **`docs/guides/landing-brief.md`** — plantilla de brief para describir una
+  landing nueva de forma que el asistente la construya de una pasada con el
+  flujo opendragon: identidad, objetivo de conversión (mapeado a los módulos
+  de plataforma que lo cubren), audiencia, secciones, contenido/assets,
+  formulario público (leads vs inquiries + RGPD), parámetros admin, SEO y
+  referencias. Con las secciones 1–4 basta para una V1; incluye ejemplo
+  rellenado y un **anexo-catálogo de objetos de diseño** (héroes, galerías,
+  bloques de contenido, social proof, navegación, formularios, efectos,
+  footers) con cuándo usar cada uno, caveats de CWV y marca ⚡ en los patrones
+  ya implementados en portales del repo.
 - **Claves Stripe test/live con switch de modo (console + `platform/payments` +
   `platform/splitpay`).** Cada módulo guarda ahora DOS juegos de claves
   (`stripe_test_*` / `stripe_live_*`; en splitpay también
