@@ -161,7 +161,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 16. Notificaciones internas
 
 - ✅ Evento `lead.created` (best-effort, no bloquea el alta).
-- ❌ Notificación de cambio de estado, asignación, SLA incumplido, lead sin tocar 24h.
+- ✅ Notificación de asignación (`lead.assigned` → push al owner), SLA
+  incumplido / lead sin tocar (`lead.sla.uncontacted`/`lead.stale` → email a
+  `STAFF_OPS_EMAIL` + push al owner) y follow-up vencido (`lead.followup.due` →
+  push al owner, email a ops si no hay owner). El owner se direcciona por push
+  (push_devices va por userId; leads no guarda emails de staff). Notificación de
+  cambio de estado se omite a propósito (ruido: suele cambiarlo el propio owner).
 - ❌ Resumen diario/semanal de leads al equipo.
 - ❌ Preferencias de notificación por comercial.
 

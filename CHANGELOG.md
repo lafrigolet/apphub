@@ -7,6 +7,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Notificaciones internas de leads a staff (EXTEND `platform/notifications`,
+  use-cases §16).** El consumer reacciona a los eventos del pipeline de leads:
+  `lead.assigned` → push al nuevo owner; `lead.followup.due` → push al owner (o
+  email a `STAFF_OPS_EMAIL` si no hay owner); `lead.sla.uncontacted` /
+  `lead.stale` → email a `STAFF_OPS_EMAIL` + push al owner si existe. El owner
+  se direcciona por **push** (push_devices va por userId; leads no guarda emails
+  de staff — auth sí, igual que reviews/disputes), las alertas de equipo por
+  email a ops (mismo patrón que `dispute.sla_breached`). Nuevo helper
+  `sendLeadSlaInternalEmail` (kinds uncontacted/stale/followup). `STAFF_OPS_EMAIL`
+  cableado en `docker-compose.yml` para platform-core (antes solo en
+  `.env.example` → la alerta de disputes tampoco llegaba). +7 tests.
 - **Deduplicación de leads recurrentes (EXTEND `platform/leads`, use-cases §4).**
   Al crear un lead (formulario público o email entrante), si ya existe uno
   **abierto** (new/contacted/qualified) con el mismo **email + app_id**, no se

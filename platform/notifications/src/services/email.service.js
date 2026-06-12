@@ -380,6 +380,32 @@ export async function sendDisputeSlaInternalEmail(to, { disputeId, orderId, open
   await send({ to, ...tmpl })
 }
 
+// Alerta interna de leads al buzón de ops (STAFF_OPS_EMAIL). Un solo helper
+// para los tres avisos del pipeline; `kind` discrimina copy y templateKey.
+// Mismo espíritu que sendDisputeSlaInternalEmail (envío a equipo, low-volume).
+export async function sendLeadSlaInternalEmail(to, { kind, leadId, createdAt, slaHours, staleDays, locale = 'es' }) {
+  const byKind = {
+    uncontacted: {
+      key: 'lead.sla_uncontacted.staff',
+      subject: '[STAFF] Lead nuevo sin contactar',
+      text: `El lead ${leadId} (creado ${createdAt}) lleva más de ${slaHours} h sin contactar. Asignar y contactar.`,
+    },
+    stale: {
+      key: 'lead.stale.staff',
+      subject: '[STAFF] Lead estancado sin actividad',
+      text: `El lead ${leadId} lleva más de ${staleDays} días sin actividad. Retomar o cerrar.`,
+    },
+    followup: {
+      key: 'lead.followup_due.staff',
+      subject: '[STAFF] Seguimiento de lead pendiente',
+      text: `El lead ${leadId} tiene un seguimiento programado que ha vencido y no tiene comercial asignado. Atender.`,
+    },
+  }
+  const c = byKind[kind] ?? byKind.uncontacted
+  const tmpl = await compose(c.key, { leadId, createdAt, slaHours, staleDays }, { subject: c.subject, text: c.text }, locale)
+  await send({ to, ...tmpl })
+}
+
 // ── New event senders (subscribed in event-consumer) ──────────────────
 
 export async function sendBookingConfirmedEmail(to, { name, startsAt, locale = 'es' }) {
