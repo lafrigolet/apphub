@@ -133,6 +133,9 @@ services:
       # Notifications module
       RESEND_API_KEY:      ${RESEND_API_KEY:-}
       EMAIL_FROM_ADDRESS:  ${EMAIL_FROM_ADDRESS:-noreply@hulkstein.local}
+      # Buzón de operaciones para alertas internas a staff (disputes SLA,
+      # leads sin contactar/estancados/follow-up sin owner). Vacío → no-op.
+      STAFF_OPS_EMAIL:     ${STAFF_OPS_EMAIL:-}
       # Payments module — Stripe
       PLATFORM_STRIPE_SECRET_KEY:     ${PLATFORM_STRIPE_SECRET_KEY:-sk_test_placeholder}
       PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}

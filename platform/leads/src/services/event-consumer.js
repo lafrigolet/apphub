@@ -5,9 +5,10 @@
 // text is the message. Closes the "captura desde email entrante" gap
 // (use-cases leads.md §1). Mirrors chat's consumer shape (redis.duplicate()).
 //
-// Known V1 limits (same as the form path): no dedup — the same sender mailing
-// twice creates two leads; notifications' per-sender rate limit (default 30/h)
-// is the abuse bound.
+// Dedup (§4): igual que el formulario, `create()` adjunta la nueva entrada
+// como actividad a un lead ABIERTO con el mismo email (mismo app_id) en vez de
+// duplicar; notifications' per-sender rate limit (default 30/h) sigue siendo el
+// tope de abuso aguas arriba.
 import { create } from './leads.service.js'
 
 export function startEventConsumer({ redis, logger }) {

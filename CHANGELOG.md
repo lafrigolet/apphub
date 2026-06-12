@@ -81,6 +81,85 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     storage`, RLS y el publicador de eventos. +15 tests (7 cliente, 8 servicio).
     Pendiente cross-cutting: caché de rates en Redis, manifest/EOD, notificación
     de etiqueta al comprador.
+- **Provisión de tenant desde un lead (apps/console, use-cases §10).** Desde
+  `LeadDetail`, "Provisionar tenant nuevo" reutiliza el bootstrap existente de
+  `platform/tenant-config` (`POST /api/tenants/tenants/bootstrap`, que crea
+  app+tenant+owner y envía el magic-link de activación vía `platform/auth`)
+  pre-rellenado con los datos del lead; al crearse el tenant se sella la
+  conversión (`POST /:id/convert`, enlace `lead_id → tenant_id` + status `won`).
+  `BootstrapTenantModal` acepta ahora una prop `initial` para el pre-relleno.
+  Reutiliza la orquestación ya probada en vez de duplicarla server-side. +2 tests.
+- **CRM de leads en console (apps/console, use-cases §17/§11).** Vistas staff
+  para el módulo `platform/leads` (que ya exponía toda la API):
+  - `views/staff/Leads.jsx` — lista + **kanban** por estado, bandejas (Todos /
+    Mis leads / Sin asignar / Follow-up vencido), búsqueda + filtro de estado,
+    export CSV. Entrada nueva en el sidebar.
+  - `views/staff/leads/LeadDetail.jsx` — modal con ficha, **timeline** de
+    actividad + compositor (nota/llamada/email/reunión) y acciones: cambio de
+    estado (lost exige motivo), asignar a mí / quitar, score, tags, snooze
+    (`next_follow_up_at`), convertir a tenant y borrado RGPD.
+  - `views/staff/LeadsAnalytics.jsx` — dashboard que consume los endpoints de
+    analítica: embudo por etapa, atribución por dimensión, productividad por
+    comercial y tendencia semanal.
+  - Helpers en `leads/leadsApi.js` (construcción de query + CSV blob download).
+    +10 tests (buildListQuery + smoke de la vista); suite console y build de
+    producción verdes.
+- **Notificaciones internas de leads a staff (EXTEND `platform/notifications`,
+  use-cases §16).** El consumer reacciona a los eventos del pipeline de leads:
+  `lead.assigned` → push al nuevo owner; `lead.followup.due` → push al owner (o
+  email a `STAFF_OPS_EMAIL` si no hay owner); `lead.sla.uncontacted` /
+  `lead.stale` → email a `STAFF_OPS_EMAIL` + push al owner si existe. El owner
+  se direcciona por **push** (push_devices va por userId; leads no guarda emails
+  de staff — auth sí, igual que reviews/disputes), las alertas de equipo por
+  email a ops (mismo patrón que `dispute.sla_breached`). Nuevo helper
+  `sendLeadSlaInternalEmail` (kinds uncontacted/stale/followup). `STAFF_OPS_EMAIL`
+  cableado en `docker-compose.yml` para platform-core (antes solo en
+  `.env.example` → la alerta de disputes tampoco llegaba). +7 tests.
+- **Deduplicación de leads recurrentes (EXTEND `platform/leads`, use-cases §4).**
+  Al crear un lead (formulario público o email entrante), si ya existe uno
+  **abierto** (new/contacted/qualified) con el mismo **email + app_id**, no se
+  duplica: el mensaje se adjunta como actividad (`note`,
+  `metadata.resubmission`) al lead existente, se refresca su `updated_at` y se
+  emite `lead.resubmitted` en vez de `lead.created` (sin re-disparar la
+  auto-respuesta). Match case-insensitive y acotado por app (un mismo email en
+  dos portales = dos oportunidades). Migración `0003` (índice parcial
+  `lower(email)` sobre estados abiertos) + `findOpenByEmail`/`touch` en el
+  repo. +3 tests; query e índice validados contra Postgres real.
+- **Recordatorios de follow-up + SLA/estancados de leads (EXTEND
+  `platform/scheduler`, use-cases §6/§9).** Dos jobs nuevos que vigilan el
+  pipeline de leads y publican eventos al bus (patrón ventana, solo SELECT —
+  sin migración ni grant nuevo: el scheduler ya tiene SELECT sobre
+  `platform_leads`):
+  - `lead-followup-due` (`*/15`): publica `lead.followup.due` cuando un snooze
+    (`next_follow_up_at`) de un lead abierto vence dentro del último tick.
+  - `lead-sla` (`*/30`): publica `lead.sla.uncontacted` (lead `new` sin tocar >
+    `LEADS_NEW_SLA_HOURS`, def. 24h) y `lead.stale` (lead abierto sin actividad
+    > `LEADS_STALE_DAYS`, def. 7d; "actividad" =
+    `greatest(updated_at, última lead_activity, created_at)` para que una
+    llamada/nota registrada mantenga el lead fresco).
+  - Flags `JOB_LEAD_FOLLOWUP_DUE_ENABLED` / `JOB_LEAD_SLA_ENABLED` +
+    `LEADS_NEW_SLA_HOURS` / `LEADS_STALE_DAYS`. +9 tests; SQL validado contra
+    Postgres real. Los consumirá `platform/notifications` (Fase notificaciones
+    internas).
+- **Analítica de embudo y reporting de leads (EXTEND `platform/leads`,
+  use-cases §11).** Cinco endpoints admin de solo lectura sobre los datos ya
+  capturados (sin migración):
+  - `GET /v1/leads/admin/analytics/funnel` — recuento por estado + hitos del
+    embudo (cuántos leads llegaron alguna vez a contacted/qualified/won/lost y
+    tiempo medio desde el alta, derivado del timeline `lead_activities`).
+  - `GET …/analytics/by-dimension?dimension=source|app_id|industry|utm_source|utm_campaign`
+    — volumen + ganados/perdidos por dimensión (columna por whitelist, no
+    user-input libre).
+  - `GET …/analytics/by-owner` — productividad por comercial (total, won, lost,
+    open, horas medias a ganado).
+  - `GET …/analytics/timeseries?granularity=day|week|month` — creados vs.
+    ganados por bucket temporal.
+  - `GET …/analytics/export.csv` — export CSV (RFC 4180) de leads filtrados,
+    reutilizando exactamente los filtros del listado del CRM.
+  - Todos `requireRole('super_admin','staff')` y acotables por
+    `createdFrom`/`createdTo`. Nuevos `analytics.repository.js` +
+    `analytics.service.js`. +13 tests (servicio + CSV + rutas); SQL validado
+    contra Postgres real.
 - **Cobro por QR / payment link — Stripe Checkout Sessions (EXTEND
   `platform/payments`).** "Cobrar desde el móvil" sin hardware ni
   certificación CPoC/MPoC: el cajero genera un cobro y muestra un **QR** (o

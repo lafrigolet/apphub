@@ -90,6 +90,29 @@ export async function findById(client, id) {
   return rows[0] ?? null
 }
 
+// Dedup (§4): localiza un lead ABIERTO con el mismo email, acotado al mismo
+// app_id (un mismo email en dos portales distintos = dos oportunidades, no un
+// duplicado). `IS NOT DISTINCT FROM` empareja también NULL = NULL (landing
+// genérica). Devuelve el más reciente. Usa idx_leads_open_email (lower(email)).
+export async function findOpenByEmail(client, email, appId = null) {
+  const { rows } = await client.query(
+    `SELECT * FROM ${SCHEMA}.leads
+      WHERE lower(email) = lower($1)
+        AND app_id IS NOT DISTINCT FROM $2
+        AND status IN ('new', 'contacted', 'qualified')
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [email, appId],
+  )
+  return rows[0] ?? null
+}
+
+// Refresca updated_at sin tocar otras columnas (p.ej. al adjuntar una
+// resubmisión: insertActivity no bombea el updated_at del lead).
+export async function touch(client, id) {
+  await client.query(`UPDATE ${SCHEMA}.leads SET updated_at = now() WHERE id = $1`, [id])
+}
+
 // Update parcial: solo toca las columnas presentes en `fields` (camelCase).
 // Siempre refresca updated_at. Devuelve la fila completa actualizada.
 const UPDATABLE = {

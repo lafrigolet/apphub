@@ -4,7 +4,7 @@ import { logger } from '../lib/logger.js'
 import {
   sendWelcomeEmail, sendPasswordResetEmail,
   sendBookingReminderEmail, sendReservationReminderEmail,
-  sendPackageExpiryEmail, sendDisputeSlaInternalEmail,
+  sendPackageExpiryEmail, sendDisputeSlaInternalEmail, sendLeadSlaInternalEmail,
   sendBookingConfirmedEmail, sendBookingCancelledEmail, sendBookingRescheduledEmail,
   sendReservationCreatedEmail, sendReservationCancelledEmail,
   sendPackageExhaustedEmail, sendPayoutPaidEmail,
@@ -290,6 +290,49 @@ export function startEventConsumer() {
           } catch (err) {
             logger.error({ err, leadId }, 'sendLeadAcknowledgementEmail failed')
           }
+        }
+      }
+
+      // ── Leads — alertas internas a staff (use-cases §16) ─────────────
+      // El owner se direcciona por PUSH (push_devices va por userId; leads no
+      // guarda emails de staff — auth sí, igual que reviews/disputes). Las
+      // alertas de equipo (sin owner, o SLA/estancado) van al buzón de ops
+      // STAFF_OPS_EMAIL, mismo patrón que dispute.sla_breached. tenant_id es
+      // null: los leads son globales (pre-tenant) y gated() falla-abierto.
+      if (event.type === 'lead.assigned') {
+        const { appId, leadId, assignedTo } = event.payload ?? {}
+        if (assignedTo) {
+          const ctx = { appId, tenantId: null, subTenantId: null, userId: assignedTo, role: 'system' }
+          await gated(assignedTo, event.type, 'push', () => sendPushToUser(ctx, assignedTo, {
+            title: 'Lead asignado', body: '', data: { type: 'lead.assigned', leadId },
+          }))
+        }
+      }
+
+      if (event.type === 'lead.followup.due') {
+        const { appId, leadId, assignedTo } = event.payload ?? {}
+        if (assignedTo) {
+          const ctx = { appId, tenantId: null, subTenantId: null, userId: assignedTo, role: 'system' }
+          await gated(assignedTo, event.type, 'push', () => sendPushToUser(ctx, assignedTo, {
+            title: 'Seguimiento de lead pendiente', body: '', data: { type: 'lead.followup.due', leadId },
+          }))
+        } else if (process.env.STAFF_OPS_EMAIL) {
+          // Sin comercial asignado → al buzón de ops, para que no se pierda.
+          await sendLeadSlaInternalEmail(process.env.STAFF_OPS_EMAIL, { kind: 'followup', leadId, locale })
+        }
+      }
+
+      if (event.type === 'lead.sla.uncontacted' || event.type === 'lead.stale') {
+        const { appId, leadId, assignedTo, createdAt, slaHours, staleDays } = event.payload ?? {}
+        const kind = event.type === 'lead.stale' ? 'stale' : 'uncontacted'
+        if (process.env.STAFF_OPS_EMAIL) {
+          await sendLeadSlaInternalEmail(process.env.STAFF_OPS_EMAIL, { kind, leadId, createdAt, slaHours, staleDays, locale })
+        }
+        if (assignedTo) {
+          const ctx = { appId, tenantId: null, subTenantId: null, userId: assignedTo, role: 'system' }
+          await gated(assignedTo, event.type, 'push', () => sendPushToUser(ctx, assignedTo, {
+            title: kind === 'stale' ? 'Lead estancado' : 'Lead sin contactar', body: '', data: { type: event.type, leadId },
+          }))
         }
       }
 

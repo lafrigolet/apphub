@@ -12,14 +12,16 @@ vi.mock('../lib/logger.js', () => ({
 }))
 vi.mock('../lib/redis.js', () => ({ getRedis: vi.fn() }))
 vi.mock('../repositories/leads.repository.js', () => ({
-  insert:         vi.fn(),
-  list:           vi.fn(),
-  findById:       vi.fn(),
-  update:         vi.fn(),
-  convert:        vi.fn(),
-  remove:         vi.fn(),
-  insertActivity: vi.fn(),
-  listActivities: vi.fn(),
+  insert:          vi.fn(),
+  list:            vi.fn(),
+  findById:        vi.fn(),
+  findOpenByEmail: vi.fn(),
+  touch:           vi.fn(),
+  update:          vi.fn(),
+  convert:         vi.fn(),
+  remove:          vi.fn(),
+  insertActivity:  vi.fn(),
+  listActivities:  vi.fn(),
 }))
 
 import * as service from '../services/leads.service.js'
@@ -31,6 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   getRedis.mockReturnValue(redis)
   stubClient.query.mockResolvedValue({ rows: [] }) // BEGIN/COMMIT/ROLLBACK
+  repo.findOpenByEmail.mockResolvedValue(null)      // por defecto: sin dedup
 })
 
 function publishedTypes() {
@@ -56,6 +59,41 @@ describe('create', () => {
   it('libera el cliente incluso si el repo lanza', async () => {
     repo.insert.mockRejectedValueOnce(new Error('db error'))
     await expect(service.create({ email: 'x@x' })).rejects.toThrow('db error')
+    expect(stubClient.release).toHaveBeenCalled()
+  })
+})
+
+describe('create — dedup de leads recurrentes (§4)', () => {
+  it('lead abierto con mismo email → adjunta actividad, NO inserta, emite lead.resubmitted', async () => {
+    repo.findOpenByEmail.mockResolvedValue({ id: 'existing', status: 'contacted' })
+    const r = await service.create({ contactName: 'X', email: 'x@x', message: 'otra vez', source: 'landing', appId: 'aikikan' })
+
+    expect(repo.findOpenByEmail).toHaveBeenCalledWith(stubClient, 'x@x', 'aikikan')
+    expect(repo.insert).not.toHaveBeenCalled()
+    expect(repo.insertActivity).toHaveBeenCalledWith(stubClient, 'existing', expect.objectContaining({
+      type: 'note', body: 'otra vez', metadata: { resubmission: true, source: 'landing' },
+    }))
+    expect(repo.touch).toHaveBeenCalledWith(stubClient, 'existing')
+    const sqls = stubClient.query.mock.calls.map(([s]) => s)
+    expect(sqls).toContain('BEGIN')
+    expect(sqls).toContain('COMMIT')
+    expect(publishedTypes()).toEqual(['lead.resubmitted'])
+    expect(r).toEqual({ id: 'existing', status: 'contacted' })
+  })
+
+  it('sin lead abierto previo → inserta normal y emite lead.created', async () => {
+    repo.findOpenByEmail.mockResolvedValue(null)
+    repo.insert.mockResolvedValue({ id: 'new1', status: 'new' })
+    await service.create({ contactName: 'X', email: 'nuevo@x', appId: 'aikikan' })
+    expect(repo.insert).toHaveBeenCalled()
+    expect(publishedTypes()).toEqual(['lead.created'])
+  })
+
+  it('error en la transacción de dedup → ROLLBACK y propaga', async () => {
+    repo.findOpenByEmail.mockResolvedValue({ id: 'existing', status: 'new' })
+    repo.insertActivity.mockRejectedValueOnce(new Error('boom'))
+    await expect(service.create({ email: 'x@x', message: 'm' })).rejects.toThrow('boom')
+    expect(stubClient.query.mock.calls.map(([s]) => s)).toContain('ROLLBACK')
     expect(stubClient.release).toHaveBeenCalled()
   })
 })

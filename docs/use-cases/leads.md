@@ -44,9 +44,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 ## 4. Deduplicación e identidad
 
-- ❌ Detección de duplicados (mismo email/teléfono/empresa) al crear.
-- ❌ Merge de leads duplicados con historial consolidado.
-- ❌ Reconocimiento de lead recurrente (mismo prospecto reenvía formulario).
+- 🔧 Detección de duplicados al crear: por **email + app_id** sobre leads
+  ABIERTOS (form y email entrante) → adjunta el mensaje como actividad en vez de
+  duplicar y emite `lead.resubmitted`. Por teléfono/empresa pendiente.
+- 🔧 Merge implícito de la resubmisión en el lead abierto existente (historial
+  consolidado en el timeline); merge manual de duplicados ya creados pendiente.
+- ✅ Reconocimiento de lead recurrente (mismo prospecto reenvía formulario →
+  se reconoce el lead abierto y se le adjunta la nueva entrada).
 - ❌ Vinculación lead ↔ usuario existente / lead ↔ tenant ya creado.
 - ❌ Concepto de "cuenta/empresa" agrupando varios contactos (B2B).
 
@@ -65,7 +69,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ❌ Etapas de embudo configurables (pipeline kanban) más allá de 4 estados fijos.
 - ✅ Motivo de pérdida (`lost_reason`).
 - ✅ Historial de transiciones de estado (`lead_activities` type `status_change` con autor y from/to).
-- ❌ SLA por etapa (tiempo máximo en `new` sin contactar → alerta).
+- ✅ SLA de primer contacto (lead `new` sin tocar > `LEADS_NEW_SLA_HOURS` →
+  evento `lead.sla.uncontacted`, job `lead-sla`). SLA por cada etapa restante
+  pendiente.
 - ✅ Reapertura de leads cerrados (PATCH a cualquier estado, queda auditado en el timeline).
 - ✅ Snooze / "volver a contactar el …" (`next_follow_up_at` + filtro `followUpDue`).
 
@@ -91,26 +97,39 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 
 - ❌ Secuencias de drip-email automáticas.
 - ❌ Workflows por evento (si `industry=restaurant` → plantilla X).
-- ❌ Recordatorios automáticos de follow-up (REUSE `platform/scheduler` → `lead.followup.due`).
-- ❌ Alerta de leads "estancados" sin actividad N días.
+- ✅ Recordatorios automáticos de follow-up (`platform/scheduler` job
+  `lead-followup-due` → `lead.followup.due` al vencer `next_follow_up_at`).
+- ✅ Alerta de leads "estancados" sin actividad N días (job `lead-sla` →
+  `lead.stale`, ventana `LEADS_STALE_DAYS`).
 - ❌ Re-engagement de leads fríos.
 
 ## 10. Conversión a tenant/cliente
 
 - ✅ Eventos `lead.created/status_changed/assigned/converted/deleted` publicados.
-- ❌ Convertir lead → tenant/app (provisión vía `platform/tenant-config`).
-- ❌ Generar invitación/onboarding al cerrar como ganado (REUSE `platform/auth`).
+- ✅ Convertir lead → tenant/app: desde `LeadDetail` ("Provisionar tenant
+  nuevo") se reutiliza el bootstrap de `platform/tenant-config`
+  (`POST /api/tenants/tenants/bootstrap`) pre-rellenado con los datos del lead;
+  al crearse se sella la conversión.
+- ✅ Invitación/onboarding al ganar: el bootstrap crea el owner y envía el
+  magic-link de activación (REUSE `platform/auth`).
 - ✅ Vincular `lead_id` al `tenant_id` resultante (`POST /:id/convert` → `converted_tenant_id` + status `won`, one-shot con 409).
-- ❌ Métricas de conversión lead→tenant.
+- 🔧 Métricas de conversión lead→tenant: cubiertas parcialmente por la analítica
+  (ganados por fuente/periodo); ratio lead→tenant dedicado pendiente.
 
 ## 11. Analítica y reporting
 
-- ❌ Embudo de conversión por etapa.
-- ❌ Tasas: new→contacted→qualified→won, tiempos medios por etapa.
-- ❌ Leads por fuente / campaña / industria / app / periodo.
-- ❌ Productividad por comercial.
-- ❌ Dashboards y export (CSV) de leads filtrados.
-- ❌ Cohortes y tendencia temporal.
+- ✅ Embudo de conversión por etapa (`GET /admin/analytics/funnel`: recuento por
+  estado + hitos alcanzados desde el timeline).
+- ✅ Tasas new→contacted→qualified→won y tiempo medio hasta cada hito (desde el
+  alta, vía `lead_activities`).
+- ✅ Leads por fuente / campaña / industria / app
+  (`GET /admin/analytics/by-dimension`) + periodo (`createdFrom`/`createdTo`).
+- ✅ Productividad por comercial (`GET /admin/analytics/by-owner`).
+- ✅ Export CSV de leads filtrados (`GET /admin/analytics/export.csv`) +
+  **dashboard UI** (`views/staff/LeadsAnalytics.jsx`: embudo, atribución por
+  dimensión, productividad por comercial, tendencia).
+- ✅ Tendencia temporal (`GET /admin/analytics/timeseries?granularity=day|week|month`);
+  cohortes avanzadas pendientes.
 
 ## 12. Atribución y marketing
 
@@ -148,7 +167,12 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 ## 16. Notificaciones internas
 
 - ✅ Evento `lead.created` (best-effort, no bloquea el alta).
-- ❌ Notificación de cambio de estado, asignación, SLA incumplido, lead sin tocar 24h.
+- ✅ Notificación de asignación (`lead.assigned` → push al owner), SLA
+  incumplido / lead sin tocar (`lead.sla.uncontacted`/`lead.stale` → email a
+  `STAFF_OPS_EMAIL` + push al owner) y follow-up vencido (`lead.followup.due` →
+  push al owner, email a ops si no hay owner). El owner se direcciona por push
+  (push_devices va por userId; leads no guarda emails de staff). Notificación de
+  cambio de estado se omite a propósito (ruido: suele cambiarlo el propio owner).
 - ❌ Resumen diario/semanal de leads al equipo.
 - ❌ Preferencias de notificación por comercial.
 
@@ -157,10 +181,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ List (filtro estado + paginación), get, patch (estado + notas).
 - ✅ Búsqueda (`?q=` ILIKE sobre nombre/email/empresa/mensaje).
 - ✅ Filtros combinados (estado, fuente, industria, fechas, owner, tag, app, follow-up due).
-- 🔧 Ordenación configurable (`sort`/`dir`); vista kanban pendiente (UI).
+- ✅ Vistas en console (`views/staff/Leads.jsx`): lista + **kanban**, bandejas
+  (Todos / Mis leads / Sin asignar / Follow-up vencido), búsqueda y filtro de
+  estado, ordenación por API.
 - ❌ Acciones masivas (bulk update/assign/delete/export).
-- ✅ Etiquetas/tags libres (`tags TEXT[]` + filtro).
-- 🔧 Timeline de actividad por API (`GET /:id/activities`); vista UI pendiente.
+- ✅ Etiquetas/tags libres (`tags TEXT[]` + filtro + edición en el detalle).
+- ✅ Timeline de actividad con vista UI (`LeadDetail`: timeline + compositor de
+  nota/llamada/email/reunión) sobre `GET/POST /:id/activities`.
 - ✅ Notas con autor y fecha (`lead_activities` type `note`; `staff_notes` queda como legacy).
 
 ## 18. Datos y modelo
@@ -180,7 +207,10 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 4. ✅ ~~**Asignación + búsqueda + filtros**~~ (`assigned_to`, `?q=`, filtros combinados, `me|none`).
 5. ✅ ~~**Atribución UTM + won/lost + `lost_reason`**~~.
 6. ✅ ~~**GDPR**~~ (consentimiento sellado + `lead-retention-purge` + `DELETE /:id`; acceso/portabilidad pendientes).
-7. ✅ ~~**Conversión lead → tenant**~~ (`POST /:id/convert`, falta automatizar la provisión vía `tenant-config`).
+7. ✅ ~~**Conversión lead → tenant**~~ (`POST /:id/convert` + provisión
+   automatizada reutilizando el bootstrap de `tenant-config` desde `LeadDetail`).
 8. **Lead scoring automático** y enrichment — refinamiento posterior.
-9. **Vistas UI en consola** (kanban, timeline, bandejas) — el API ya lo soporta.
-10. **Analítica de embudo** (tasas por etapa, conversión por fuente/UTM) — los datos ya se capturan.
+9. ✅ ~~**Vistas UI en consola**~~ (lista/kanban, bandejas, timeline + acciones
+   en `console/views/staff/Leads.jsx` + `LeadDetail`).
+10. ✅ ~~**Analítica de embudo**~~ (funnel, by-dimension, by-owner, timeseries,
+    export CSV + dashboard UI `LeadsAnalytics.jsx`).
