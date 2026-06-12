@@ -44,9 +44,9 @@ vi.mock('../lib/env.js', () => ({
 const mkLogger = () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() })
 
 describe('jobs registry (jobs/index.js)', () => {
-  it('expone los 26 jobs con meta/run/enabled, respetando los flags de env', async () => {
+  it('expone los 28 jobs con meta/run/enabled, respetando los flags de env', async () => {
     const { jobs } = await import('../jobs/index.js')
-    expect(jobs).toHaveLength(26)
+    expect(jobs).toHaveLength(28)
     for (const j of jobs) {
       expect(typeof j.meta.name).toBe('string')
       expect(typeof j.meta.cron).toBe('string')
