@@ -22,6 +22,8 @@ import * as notificationsInboundPurge         from './notifications-inbound-purg
 import * as messagingSla                       from './messaging-sla.job.js'
 import * as telehealthExpireStale              from './telehealth-expire-stale.job.js'
 import * as tpvSessionAutoclose                from './tpv-session-autoclose.job.js'
+import * as verifactuRemisionRetry             from './verifactu-remision-retry.job.js'
+import * as verifactuDlqAlert                   from './verifactu-dlq-alert.job.js'
 
 import { env } from '../lib/env.js'
 
@@ -53,6 +55,8 @@ export const jobs = [
   { mod: messagingSla,                 enabled: env.JOB_MESSAGING_SLA_ENABLED },
   { mod: telehealthExpireStale,        enabled: env.JOB_TELEHEALTH_EXPIRE_STALE_ENABLED },
   { mod: tpvSessionAutoclose,          enabled: env.JOB_TPV_SESSION_AUTOCLOSE_ENABLED },
+  { mod: verifactuRemisionRetry,       enabled: env.JOB_VERIFACTU_REMISION_RETRY_ENABLED },
+  { mod: verifactuDlqAlert,            enabled: env.JOB_VERIFACTU_DLQ_ALERT_ENABLED },
 ].map((j) => ({
   meta:    j.mod.meta,
   run:     j.mod.run,

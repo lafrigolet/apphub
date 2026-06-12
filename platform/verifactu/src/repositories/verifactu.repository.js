@@ -62,9 +62,10 @@ export async function insertRegistro(client, r) {
     `INSERT INTO ${SCHEMA}.registros
        (app_id, tenant_id, sub_tenant_id, numero, num_serie, tipo, tipo_factura,
         cliente_nombre, cliente_nif, fecha_expedicion, importe_total, cuota_total, total_display,
-        estado_remision, huella, huella_anterior, qr_url, id_emisor, gen_registro)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-     RETURNING numero, num_serie, cliente_nombre, cliente_nif, fecha_expedicion,
+        estado_remision, huella, huella_anterior, qr_url, id_emisor, gen_registro,
+        origen, order_id, donation_id, bill_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+     RETURNING id, numero, num_serie, cliente_nombre, cliente_nif, fecha_expedicion,
                total_display, estado_remision, huella, huella_anterior, qr_url`,
     [
       r.appId, r.tenantId, r.subTenantId ?? null, r.numero, r.numSerie, r.tipo ?? 'alta',
@@ -72,9 +73,23 @@ export async function insertRegistro(client, r) {
       r.fechaExpedicion ?? null, r.importeTotal ?? null, r.cuotaTotal ?? null, r.totalDisplay ?? null,
       r.estadoRemision ?? 'pendiente', r.huella ?? null, r.huellaAnterior ?? null, r.qrUrl ?? null,
       r.idEmisor ?? null, r.genRegistro ?? null,
+      r.origen ?? null, r.orderId ?? null, r.donationId ?? null, r.billId ?? null,
     ],
   )
   return rows[0]
+}
+
+// Dedupe de integración por eventos: ¿ya existe un registro para este documento
+// de origen? (los índices únicos parciales lo garantizan a nivel de motor, pero
+// comprobarlo antes evita la excepción y es idempotente ante reentrega).
+export async function existeRegistroPorRef(client, campo, valor) {
+  if (!['order_id', 'donation_id', 'bill_id'].includes(campo)) {
+    throw new Error(`campo de dedupe no permitido: ${campo}`)
+  }
+  const { rows } = await client.query(
+    `SELECT 1 FROM ${SCHEMA}.registros WHERE ${campo} = $1 LIMIT 1`, [valor],
+  )
+  return rows.length > 0
 }
 
 // Registros con TODOS los campos canónicos de la huella, ascendente por número,
@@ -169,7 +184,7 @@ export async function listCertificados(client) {
 export async function getConfig(client) {
   const { rows } = await client.query(
     `SELECT tiempo_espera_envio, max_registros_lote, reintentos, dlq_enabled,
-            nif_obligado, nombre_obligado
+            nif_obligado, nombre_obligado, entorno
        FROM ${SCHEMA}.config LIMIT 1`,
   )
   return rows[0] ?? null
@@ -178,15 +193,23 @@ export async function getConfig(client) {
 export async function upsertConfig(client, appId, tenantId, patch) {
   const { rows } = await client.query(
     `INSERT INTO ${SCHEMA}.config
-       (app_id, tenant_id, tiempo_espera_envio, max_registros_lote, reintentos, dlq_enabled)
-     VALUES ($1,$2,COALESCE($3,60),COALESCE($4,1000),COALESCE($5,3),COALESCE($6,true))
+       (app_id, tenant_id, tiempo_espera_envio, max_registros_lote, reintentos, dlq_enabled,
+        nif_obligado, nombre_obligado, entorno)
+     VALUES ($1,$2,COALESCE($3,60),COALESCE($4,1000),COALESCE($5,3),COALESCE($6,true),
+             $7,$8,COALESCE($9,'test'))
      ON CONFLICT (app_id, tenant_id) DO UPDATE SET
        tiempo_espera_envio = COALESCE($3, ${SCHEMA}.config.tiempo_espera_envio),
        max_registros_lote  = COALESCE($4, ${SCHEMA}.config.max_registros_lote),
        reintentos          = COALESCE($5, ${SCHEMA}.config.reintentos),
-       dlq_enabled         = COALESCE($6, ${SCHEMA}.config.dlq_enabled)
-     RETURNING tiempo_espera_envio, max_registros_lote, reintentos, dlq_enabled`,
-    [appId, tenantId, patch.tiempoEsperaEnvio ?? null, patch.maxRegistrosLote ?? null, patch.reintentos ?? null, patch.dlqEnabled ?? null],
+       dlq_enabled         = COALESCE($6, ${SCHEMA}.config.dlq_enabled),
+       nif_obligado        = COALESCE($7, ${SCHEMA}.config.nif_obligado),
+       nombre_obligado     = COALESCE($8, ${SCHEMA}.config.nombre_obligado),
+       entorno             = COALESCE($9, ${SCHEMA}.config.entorno)
+     RETURNING tiempo_espera_envio, max_registros_lote, reintentos, dlq_enabled,
+               nif_obligado, nombre_obligado, entorno`,
+    [appId, tenantId, patch.tiempoEsperaEnvio ?? null, patch.maxRegistrosLote ?? null,
+     patch.reintentos ?? null, patch.dlqEnabled ?? null,
+     patch.nifObligado ?? null, patch.nombreObligado ?? null, patch.entorno ?? null],
   )
   return rows[0]
 }

@@ -29,6 +29,8 @@ vi.mock('../lib/env.js', () => ({
     JOB_MESSAGING_SLA_ENABLED: true,
     JOB_TELEHEALTH_EXPIRE_STALE_ENABLED: true,
     JOB_TPV_SESSION_AUTOCLOSE_ENABLED: true,
+    JOB_VERIFACTU_REMISION_RETRY_ENABLED: true,
+    JOB_VERIFACTU_DLQ_ALERT_ENABLED: true,
     LEADS_RETENTION_DAYS: 1095,
     SCHEDULER_RUNS_RETENTION_DAYS: 90,
     NOTIFICATIONS_SEND_LOG_RETENTION_DAYS: 90,
@@ -40,9 +42,9 @@ vi.mock('../lib/env.js', () => ({
 const mkLogger = () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() })
 
 describe('jobs registry (jobs/index.js)', () => {
-  it('expone los 24 jobs con meta/run/enabled, respetando los flags de env', async () => {
+  it('expone los 26 jobs con meta/run/enabled, respetando los flags de env', async () => {
     const { jobs } = await import('../jobs/index.js')
-    expect(jobs).toHaveLength(24)
+    expect(jobs).toHaveLength(26)
     for (const j of jobs) {
       expect(typeof j.meta.name).toBe('string')
       expect(typeof j.meta.cron).toBe('string')

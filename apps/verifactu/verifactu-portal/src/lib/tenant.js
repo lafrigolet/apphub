@@ -3,12 +3,15 @@
 const cache = new Map()
 export const APP_ID = 'verifactu'
 
-// Tenant demo fijo mientras el portal no tiene login. Coincide con el seed
-// de platform/verifactu (migration 0002_seed_demo.sql). Cuando se cablee el
-// login real, el tenant saldrá del JWT y este helper desaparece.
+// Tenant demo fijo (seed de platform/verifactu, migration 0002_seed_demo.sql).
+// Desde la activación de auth (uso §18), el scope REAL sale del JWT que envía
+// api.js (Authorization: Bearer). Este id sólo se usa como destino de
+// IMPERSONACIÓN para tokens staff/super_admin vía ?appId=&tenantId= (igual que
+// la consola de payments). Con un token de tenant normal, el backend ignora el
+// query y usa el del token.
 export const DEMO_TENANT_ID = '11111111-1111-4111-8111-111111111111'
 
-// Query string de scope para los endpoints públicos del módulo verifactu.
+// Query string de impersonación (sólo efectiva con token staff/super_admin).
 export const scopeQS = () =>
   `appId=${encodeURIComponent(APP_ID)}&tenantId=${encodeURIComponent(DEMO_TENANT_ID)}`
 

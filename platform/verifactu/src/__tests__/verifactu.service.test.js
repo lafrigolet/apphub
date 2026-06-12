@@ -310,23 +310,29 @@ describe('getConfig / patchConfig', () => {
     expect(out).toMatchObject({ tiempoEsperaEnvio: 60, maxRegistrosLote: 1000, reintentos: 3, dlqEnabled: true })
   })
 
-  it('getConfig con row → camelCase mapeado', async () => {
+  it('getConfig con row → camelCase mapeado (incluye emisor + entorno)', async () => {
     repo.getConfig.mockResolvedValue({
       tiempo_espera_envio: 30, max_registros_lote: 500, reintentos: 5, dlq_enabled: false,
-      nif_obligado: 'B1', nombre_obligado: 'Obligado',
+      nif_obligado: 'B1', nombre_obligado: 'Obligado', entorno: 'prod',
     })
     const out = await service.getConfig(scope)
     expect(out).toEqual({
       tiempoEsperaEnvio: 30, maxRegistrosLote: 500, reintentos: 5, dlqEnabled: false,
-      nifObligado: 'B1', nombreObligado: 'Obligado',
+      nifObligado: 'B1', nombreObligado: 'Obligado', entorno: 'prod',
     })
   })
 
   it('patchConfig → upsertConfig con scope + devuelve camelCase', async () => {
-    repo.upsertConfig.mockResolvedValue({ tiempo_espera_envio: 10, max_registros_lote: 100, reintentos: 1, dlq_enabled: true })
-    const out = await service.patchConfig(scope, { tiempoEsperaEnvio: 10 })
-    expect(repo.upsertConfig).toHaveBeenCalledWith(client, 'aikikan', 't1', { tiempoEsperaEnvio: 10 })
-    expect(out).toEqual({ tiempoEsperaEnvio: 10, maxRegistrosLote: 100, reintentos: 1, dlqEnabled: true })
+    repo.upsertConfig.mockResolvedValue({
+      tiempo_espera_envio: 10, max_registros_lote: 100, reintentos: 1, dlq_enabled: true,
+      nif_obligado: 'B9', nombre_obligado: 'ACME', entorno: 'test',
+    })
+    const out = await service.patchConfig(scope, { nifObligado: 'B9', entorno: 'test' })
+    expect(repo.upsertConfig).toHaveBeenCalledWith(client, 'aikikan', 't1', { nifObligado: 'B9', entorno: 'test' })
+    expect(out).toEqual({
+      tiempoEsperaEnvio: 10, maxRegistrosLote: 100, reintentos: 1, dlqEnabled: true,
+      nifObligado: 'B9', nombreObligado: 'ACME', entorno: 'test',
+    })
   })
 })
 
@@ -426,13 +432,7 @@ describe('crearCliente', () => {
   })
 })
 
-describe('listCertificados', () => {
-  it('mapea certificados', async () => {
-    repo.listCertificados.mockResolvedValue([{ nombre: 'c', meta: 'm', estado: 'ok', tone: 't', icon_tone: 'it' }])
-    const r = await service.listCertificados(scope)
-    expect(r).toEqual([{ nombre: 'c', meta: 'm', estado: 'ok', tone: 't', iconTone: 'it' }])
-  })
-})
+// listCertificados se movió a services/certificados.service.js (ver certificados.test.js)
 
 describe('listCotejos', () => {
   it('mapea cotejos con ref compuesta', async () => {
