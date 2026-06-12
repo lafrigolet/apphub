@@ -19,6 +19,7 @@ export default function Sidebar() {
     { k: 'apps',      label: 'Apps',      icon: icons.apps },
     { k: 'tenants',    label: 'Tenants',    icon: icons.tenants },
     { k: 'onboarding', label: 'Onboarding', icon: icons.tenants },
+    { k: 'leads',      label: 'Leads',      icon: icons.spark },
     { k: 'staff',      label: 'Staff',      icon: icons.staff },
     { k: 'audit',     label: 'Audit log', icon: icons.audit },
     { _section: 'Configuración' },
@@ -80,7 +81,8 @@ export default function Sidebar() {
           // parent item when the editor is open so the sidebar remains
           // navigable from edit screens.
           const isTemplateEditor = view === 'config-notifications-template-edit' && it.k === 'config-notifications-templates'
-          const active = view === it.k || isTemplateEditor
+          const isLeadsAnalytics = view === 'leads-analytics' && it.k === 'leads'
+          const active = view === it.k || isTemplateEditor || isLeadsAnalytics
           return (
             <button
               key={it.k}

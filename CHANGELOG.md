@@ -7,6 +7,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **CRM de leads en console (apps/console, use-cases §17/§11).** Vistas staff
+  para el módulo `platform/leads` (que ya exponía toda la API):
+  - `views/staff/Leads.jsx` — lista + **kanban** por estado, bandejas (Todos /
+    Mis leads / Sin asignar / Follow-up vencido), búsqueda + filtro de estado,
+    export CSV. Entrada nueva en el sidebar.
+  - `views/staff/leads/LeadDetail.jsx` — modal con ficha, **timeline** de
+    actividad + compositor (nota/llamada/email/reunión) y acciones: cambio de
+    estado (lost exige motivo), asignar a mí / quitar, score, tags, snooze
+    (`next_follow_up_at`), convertir a tenant y borrado RGPD.
+  - `views/staff/LeadsAnalytics.jsx` — dashboard que consume los endpoints de
+    analítica: embudo por etapa, atribución por dimensión, productividad por
+    comercial y tendencia semanal.
+  - Helpers en `leads/leadsApi.js` (construcción de query + CSV blob download).
+    +10 tests (buildListQuery + smoke de la vista); suite console y build de
+    producción verdes.
 - **Notificaciones internas de leads a staff (EXTEND `platform/notifications`,
   use-cases §16).** El consumer reacciona a los eventos del pipeline de leads:
   `lead.assigned` → push al nuevo owner; `lead.followup.due` → push al owner (o

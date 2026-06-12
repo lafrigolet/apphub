@@ -12,6 +12,8 @@ import StaffTenants    from './views/staff/Tenants'
 import StaffOnboarding from './views/staff/Onboarding'
 import TenantDetail    from './views/staff/TenantDetail'
 import StaffList       from './views/staff/StaffList'
+import StaffLeads      from './views/staff/Leads'
+import LeadsAnalytics  from './views/staff/LeadsAnalytics'
 import AuditGlobal     from './views/staff/AuditGlobal'
 
 import AuthProviders               from './views/staff/config/AuthProviders'
@@ -46,6 +48,8 @@ function MainContent() {
     if (view === 'tenants')                                return <StaffTenants />
     if (view === 'onboarding')                             return <StaffOnboarding />
     if (view === 'staff')                                  return <StaffList />
+    if (view === 'leads')                                  return <StaffLeads />
+    if (view === 'leads-analytics')                        return <LeadsAnalytics />
     if (view === 'audit')                                  return <AuditGlobal />
     if (view === 'config-auth')                            return <AuthProviders />
     if (view === 'config-payments')                        return <PaymentsConfig />

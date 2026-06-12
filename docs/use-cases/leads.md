@@ -120,8 +120,9 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ Leads por fuente / campaña / industria / app
   (`GET /admin/analytics/by-dimension`) + periodo (`createdFrom`/`createdTo`).
 - ✅ Productividad por comercial (`GET /admin/analytics/by-owner`).
-- 🔧 Export CSV de leads filtrados (`GET /admin/analytics/export.csv`);
-  dashboards UI pendientes (los datos ya se sirven por API).
+- ✅ Export CSV de leads filtrados (`GET /admin/analytics/export.csv`) +
+  **dashboard UI** (`views/staff/LeadsAnalytics.jsx`: embudo, atribución por
+  dimensión, productividad por comercial, tendencia).
 - ✅ Tendencia temporal (`GET /admin/analytics/timeseries?granularity=day|week|month`);
   cohortes avanzadas pendientes.
 
@@ -175,10 +176,13 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 - ✅ List (filtro estado + paginación), get, patch (estado + notas).
 - ✅ Búsqueda (`?q=` ILIKE sobre nombre/email/empresa/mensaje).
 - ✅ Filtros combinados (estado, fuente, industria, fechas, owner, tag, app, follow-up due).
-- 🔧 Ordenación configurable (`sort`/`dir`); vista kanban pendiente (UI).
+- ✅ Vistas en console (`views/staff/Leads.jsx`): lista + **kanban**, bandejas
+  (Todos / Mis leads / Sin asignar / Follow-up vencido), búsqueda y filtro de
+  estado, ordenación por API.
 - ❌ Acciones masivas (bulk update/assign/delete/export).
-- ✅ Etiquetas/tags libres (`tags TEXT[]` + filtro).
-- 🔧 Timeline de actividad por API (`GET /:id/activities`); vista UI pendiente.
+- ✅ Etiquetas/tags libres (`tags TEXT[]` + filtro + edición en el detalle).
+- ✅ Timeline de actividad con vista UI (`LeadDetail`: timeline + compositor de
+  nota/llamada/email/reunión) sobre `GET/POST /:id/activities`.
 - ✅ Notas con autor y fecha (`lead_activities` type `note`; `staff_notes` queda como legacy).
 
 ## 18. Datos y modelo
@@ -200,6 +204,7 @@ Leyenda: ✅ implementado · 🔧 parcial · ❌ no implementado.
 6. ✅ ~~**GDPR**~~ (consentimiento sellado + `lead-retention-purge` + `DELETE /:id`; acceso/portabilidad pendientes).
 7. ✅ ~~**Conversión lead → tenant**~~ (`POST /:id/convert`, falta automatizar la provisión vía `tenant-config`).
 8. **Lead scoring automático** y enrichment — refinamiento posterior.
-9. **Vistas UI en consola** (kanban, timeline, bandejas) — el API ya lo soporta.
+9. ✅ ~~**Vistas UI en consola**~~ (lista/kanban, bandejas, timeline + acciones
+   en `console/views/staff/Leads.jsx` + `LeadDetail`).
 10. ✅ ~~**Analítica de embudo**~~ (funnel, by-dimension, by-owner, timeseries,
-    export CSV); dashboards UI pendientes.
+    export CSV + dashboard UI `LeadsAnalytics.jsx`).
