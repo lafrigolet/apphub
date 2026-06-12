@@ -38,13 +38,20 @@ describe('deploy.yml + services.json — aulavera sale del workflow', () => {
     expect(deploy).toMatch(/matrix/)
   })
 
-  it('services.json incluye aulavera-portal y aulavera-server con Dockerfile', () => {
+  it('aulavera entra en la matriz vía los contenedores consolidados (ADR 017/018)', () => {
+    // Tras ADR 017 (un solo contenedor `portals` para los frontends) y ADR 018
+    // (un solo `apps-servers` para los app-servers), no hay servicios standalone
+    // aulavera-portal/aulavera-server: el frontend de aulavera se construye con
+    // `portals` y el backend con `apps-servers`. Un cambio en aulavera sigue
+    // disparando build/deploy porque sus paths están en esos servicios.
     const list = services.services ?? services
     const byName = new Map(list.map((s) => [s.name, s]))
-    expect(byName.has('aulavera-portal')).toBe(true)
-    expect(byName.has('aulavera-server')).toBe(true)
-    expect(byName.get('aulavera-portal').dockerfile).toMatch(/apps\/aulavera\/aulavera-portal\/Dockerfile/)
-    expect(byName.get('aulavera-server').dockerfile).toMatch(/apps\/aulavera\/aulavera-server\/Dockerfile/)
+    const portals = byName.get('portals')
+    const appsServers = byName.get('apps-servers')
+    expect(portals).toBeTruthy()
+    expect(appsServers).toBeTruthy()
+    expect(portals.paths).toContain('apps/aulavera/aulavera-portal/**')
+    expect(appsServers.paths).toContain('apps/aulavera/aulavera-server/**')
   })
 
   it('cada servicio declara name + dockerfile + paths (contrato de la matriz)', () => {
