@@ -9,6 +9,7 @@ packages:
   - 'apps/macabeo/*'           # macabeo-portal
   - 'apps/verifactu/*'         # verifactu-portal
   - 'apps/tpv/tpv-portal'      # tpv-portal (ruta exacta: NO 'apps/tpv/*' para excluir la app Expo tpv-app, fuera del workspace)
+  - 'apps/luciapassardi/*'     # luciapassardi-portal (landing yoga)
   - 'apps/__app-template__/*'   # template (never deployed)
   - 'platform/*'                # shared platform services
   - 'packages/*'                # eslint-config, sdk-js, platform-sdk, tsconfig

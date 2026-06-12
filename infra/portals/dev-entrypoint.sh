@@ -47,4 +47,7 @@ VITE_API_BASE_URL="http://verifactu.${GW}" \
 # tpv-portal usa /api relativo (no necesita VITE_API_BASE_URL).
 pnpm --filter @tpv/tpv-portal exec vite --host &
 
+# luciapassardi: landing estática, sin llamadas a /api (contacto directo).
+pnpm --filter @luciapassardi/luciapassardi-portal exec vite --host &
+
 wait

@@ -121,6 +121,7 @@
         "apps/macabeo/macabeo-portal/**",
         "apps/verifactu/verifactu-portal/**",
         "apps/tpv/tpv-portal/**",
+        "apps/luciapassardi/luciapassardi-portal/**",
         "packages/**",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml"

@@ -361,6 +361,7 @@ services:
       - '5181:5181'
       - '5182:5182'
       - '5183:5183'
+      - '5184:5184'
     environment:
       NODE_ENV: development
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -399,6 +400,11 @@ services:
       - ./apps/tpv/tpv-portal/src:/app/apps/tpv/tpv-portal/src:ro
       - ./apps/tpv/tpv-portal/index.html:/app/apps/tpv/tpv-portal/index.html:ro
       - ./apps/tpv/tpv-portal/vite.config.js:/app/apps/tpv/tpv-portal/vite.config.js:ro
+      - ./apps/luciapassardi/luciapassardi-portal/src:/app/apps/luciapassardi/luciapassardi-portal/src:ro
+      - ./apps/luciapassardi/luciapassardi-portal/index.html:/app/apps/luciapassardi/luciapassardi-portal/index.html:ro
+      - ./apps/luciapassardi/luciapassardi-portal/vite.config.js:/app/apps/luciapassardi/luciapassardi-portal/vite.config.js:ro
+      - ./apps/luciapassardi/luciapassardi-portal/tailwind.config.js:/app/apps/luciapassardi/luciapassardi-portal/tailwind.config.js:ro
+      - ./apps/luciapassardi/luciapassardi-portal/postcss.config.js:/app/apps/luciapassardi/luciapassardi-portal/postcss.config.js:ro
 
   platform-scheduler:
     build:

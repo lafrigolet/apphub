@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Mulish', system-ui, sans-serif;
+    background: #ECEAE3;
+    color: #2B2A26;
+  }
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgba(110, 142, 138, 0.28);
+  }
+}
+
+@layer components {
+  /* Display serif con acento en cursiva teal (p.ej. "Encuentra tu *equilibrio*") */
+  .display {
+    font-family: 'Cormorant Garamond', 'Cormorant', serif;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.02;
+  }
+  .display em {
+    font-style: italic;
+    font-weight: 400;
+    color: #587571;
+  }
+
+  /* Etiqueta superior de sección */
+  .eyebrow {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    color: #6E7E64;
+    font-weight: 600;
+  }
+
+  /* Botón píldora */
+  .btn-zen {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    padding: 0.85rem 1.6rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: transform .3s ease, box-shadow .3s ease, background .3s ease, color .3s ease;
+  }
+  .btn-fill {
+    background: #587571;
+    color: #F6F4EF;
+    box-shadow: 0 12px 30px -14px rgba(88,117,113,0.7);
+  }
+  .btn-fill:hover {
+    background: #46615D;
+    transform: translateY(-2px);
+  }
+  .btn-outline {
+    border: 1px solid rgba(43,42,38,0.18);
+    color: #2B2A26;
+    background: transparent;
+  }
+  .btn-outline:hover {
+    border-color: #587571;
+    color: #587571;
+    transform: translateY(-2px);
+  }
+
+  /* Tarjeta */
+  .card-zen {
+    background: #F6F4EF;
+    border: 1px solid rgba(43,42,38,0.06);
+    border-radius: 1.75rem;
+    box-shadow: 0 1px 2px rgba(43,42,38,0.03), 0 16px 40px -24px rgba(43,42,38,0.18);
+    transition: transform .4s ease, box-shadow .4s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 30px 60px -30px rgba(88,117,113,0.32);
+  }
+
+  /* Blobs orgánicos que "respiran" */
+  .blob {
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+  }
+  @keyframes drift {
+    0%, 100% { border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; transform: translateY(0) rotate(0deg); }
+    50%      { border-radius: 60% 40% 38% 62% / 56% 58% 42% 44%; transform: translateY(-10px) rotate(3deg); }
+  }
+  .blob-drift { animation: drift 16s ease-in-out infinite; }
+
+  /* Lavados de color radiales para fondos */
+  .wash-salvia {
+    background:
+      radial-gradient(60% 60% at 75% 20%, rgba(156,174,148,0.45), transparent 70%),
+      radial-gradient(55% 55% at 15% 85%, rgba(110,142,138,0.30), transparent 70%);
+  }
+  .wash-soft {
+    background: linear-gradient(180deg, #F6F4EF 0%, #ECEAE3 100%);
+  }
+
+  /* Hairline divider */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(43,42,38,0.16), transparent);
+  }
+
+  /* Reveal on scroll */
+  .reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity 1s cubic-bezier(.2,.7,.2,1), transform 1s cubic-bezier(.2,.7,.2,1);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+  .reveal-delay-1 { transition-delay: .1s; }
+  .reveal-delay-2 { transition-delay: .2s; }
+  .reveal-delay-3 { transition-delay: .3s; }
+  .reveal-delay-4 { transition-delay: .4s; }
+
+  /* Punto que "respira" */
+  @keyframes breathe {
+    0%, 100% { opacity: .5; transform: scale(1); }
+    50%      { opacity: 1;  transform: scale(1.25); }
+  }
+  .breathe-dot { animation: breathe 3.4s ease-in-out infinite; }
+
+  /* Header al hacer scroll */
+  .site-header {
+    transition: background .35s ease, box-shadow .35s ease, backdrop-filter .35s ease;
+  }
+  .site-header.scrolled {
+    background: rgba(246,244,239,0.82);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 1px 0 rgba(43,42,38,0.06);
+  }
+
+  .ico { stroke-width: 1.5; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .blob-drift, .breathe-dot { animation: none; }
+  }
+}
