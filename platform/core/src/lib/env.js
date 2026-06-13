@@ -32,6 +32,33 @@ const envSchema = z.object({
   DATABASE_URL_TPV:            z.string().url(),
   DATABASE_URL_COMMERCE:       z.string().url(),
 
+  // Marketplace modules (consolidados, ADR 021). basket es Redis-only → sin URL.
+  DATABASE_URL_ORDERS:         z.string().url(),
+  DATABASE_URL_INVENTORY:      z.string().url(),
+  DATABASE_URL_REVIEWS:        z.string().url(),
+  DATABASE_URL_MESSAGING:      z.string().url(),
+  DATABASE_URL_SHIPPING:       z.string().url(),
+  DATABASE_URL_DISPUTES:       z.string().url(),
+  DATABASE_URL_CATALOG:        z.string().url(),
+
+  // Restaurant modules (consolidados, ADR 021)
+  DATABASE_URL_MENU:               z.string().url(),
+  DATABASE_URL_RESERVATIONS:       z.string().url(),
+  DATABASE_URL_FLOOR_PLAN:         z.string().url(),
+  DATABASE_URL_KDS:                z.string().url(),
+  DATABASE_URL_POS:                z.string().url(),
+  DATABASE_URL_DELIVERY_DISPATCH:  z.string().url(),
+
+  // Appointments modules (consolidados, ADR 021)
+  DATABASE_URL_SERVICES:              z.string().url(),
+  DATABASE_URL_RESOURCES:             z.string().url(),
+  DATABASE_URL_BOOKINGS:              z.string().url(),
+  DATABASE_URL_AVAILABILITY:          z.string().url(),
+  DATABASE_URL_INTAKE_FORMS:          z.string().url(),
+  DATABASE_URL_TELEHEALTH:            z.string().url(),
+  DATABASE_URL_PACKAGES:              z.string().url(),
+  DATABASE_URL_PRACTITIONER_PAYOUTS:  z.string().url(),
+
   // Storage module — S3-compatible object store (MinIO in dev, AWS S3/R2 in prod)
   S3_ENDPOINT:         z.string().url(),
   S3_REGION:           z.string().default('us-east-1'),

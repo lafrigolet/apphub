@@ -35,17 +35,6 @@
         "platform/chat/**",
         "platform/tpv/**",
         "platform/commerce/**",
-        "packages/platform-sdk/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "platform-marketplace",
-      "dockerfile": "platform/marketplace/Dockerfile",
-      "paths": [
-        "platform/marketplace/**",
         "platform/orders/**",
         "platform/inventory/**",
         "platform/reviews/**",
@@ -54,34 +43,12 @@
         "platform/disputes/**",
         "platform/catalog/**",
         "platform/basket/**",
-        "packages/platform-sdk/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "platform-restaurant",
-      "dockerfile": "platform/restaurant/Dockerfile",
-      "paths": [
-        "platform/restaurant/**",
         "platform/menu/**",
         "platform/reservations/**",
         "platform/floor-plan/**",
         "platform/kds/**",
         "platform/pos/**",
         "platform/delivery-dispatch/**",
-        "packages/platform-sdk/**",
-        "pnpm-lock.yaml",
-        "pnpm-workspace.yaml"
-      ],
-      "restart_policy": "rolling"
-    },
-    {
-      "name": "platform-appointments",
-      "dockerfile": "platform/appointments/Dockerfile",
-      "paths": [
-        "platform/appointments/**",
         "platform/services/**",
         "platform/resources/**",
         "platform/bookings/**",

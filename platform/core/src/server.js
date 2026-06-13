@@ -36,6 +36,35 @@ const moduleDescriptors = [
   { name: 'chat',          package: '@apphub/platform-chat',          databaseUrl: env.DATABASE_URL_CHAT,          schema: 'platform_chat'          },
   { name: 'tpv',           package: '@apphub/platform-tpv',           databaseUrl: env.DATABASE_URL_TPV,           schema: 'platform_tpv'           },
   { name: 'commerce',      package: '@apphub/platform-commerce',      databaseUrl: env.DATABASE_URL_COMMERCE,      schema: 'platform_commerce'      },
+
+  // ── Marketplace (consolidado desde platform-marketplace, ADR 021) ──
+  { name: 'orders',        package: '@apphub/platform-orders',        databaseUrl: env.DATABASE_URL_ORDERS,        schema: 'platform_orders'        },
+  { name: 'inventory',     package: '@apphub/platform-inventory',     databaseUrl: env.DATABASE_URL_INVENTORY,     schema: 'platform_inventory'     },
+  { name: 'reviews',       package: '@apphub/platform-reviews',       databaseUrl: env.DATABASE_URL_REVIEWS,       schema: 'platform_reviews'       },
+  { name: 'messaging',     package: '@apphub/platform-messaging',     databaseUrl: env.DATABASE_URL_MESSAGING,     schema: 'platform_messaging'     },
+  { name: 'shipping',      package: '@apphub/platform-shipping',      databaseUrl: env.DATABASE_URL_SHIPPING,      schema: 'platform_shipping'      },
+  { name: 'disputes',      package: '@apphub/platform-disputes',      databaseUrl: env.DATABASE_URL_DISPUTES,      schema: 'platform_disputes'      },
+  { name: 'catalog',       package: '@apphub/platform-catalog',       databaseUrl: env.DATABASE_URL_CATALOG,       schema: 'platform_catalog'       },
+  // basket is Redis-only — no databaseUrl, no Pool, no Postgres migrations.
+  { name: 'basket',        package: '@apphub/platform-basket',        databaseUrl: null,                           schema: null                     },
+
+  // ── Restaurant (consolidado desde platform-restaurant, ADR 021) ──
+  { name: 'menu',              package: '@apphub/platform-menu',              databaseUrl: env.DATABASE_URL_MENU,              schema: 'platform_menu'              },
+  { name: 'reservations',      package: '@apphub/platform-reservations',      databaseUrl: env.DATABASE_URL_RESERVATIONS,      schema: 'platform_reservations'      },
+  { name: 'floor-plan',        package: '@apphub/platform-floor-plan',        databaseUrl: env.DATABASE_URL_FLOOR_PLAN,        schema: 'platform_floor_plan'        },
+  { name: 'kds',               package: '@apphub/platform-kds',               databaseUrl: env.DATABASE_URL_KDS,               schema: 'platform_kds'               },
+  { name: 'pos',               package: '@apphub/platform-pos',               databaseUrl: env.DATABASE_URL_POS,               schema: 'platform_pos'               },
+  { name: 'delivery-dispatch', package: '@apphub/platform-delivery-dispatch', databaseUrl: env.DATABASE_URL_DELIVERY_DISPATCH, schema: 'platform_delivery_dispatch' },
+
+  // ── Appointments (consolidado desde platform-appointments, ADR 021) ──
+  { name: 'services',             package: '@apphub/platform-services',             databaseUrl: env.DATABASE_URL_SERVICES,             schema: 'platform_services'             },
+  { name: 'resources',            package: '@apphub/platform-resources',            databaseUrl: env.DATABASE_URL_RESOURCES,            schema: 'platform_resources'            },
+  { name: 'bookings',             package: '@apphub/platform-bookings',             databaseUrl: env.DATABASE_URL_BOOKINGS,             schema: 'platform_bookings'             },
+  { name: 'availability',         package: '@apphub/platform-availability',         databaseUrl: env.DATABASE_URL_AVAILABILITY,         schema: 'platform_availability'         },
+  { name: 'intake-forms',         package: '@apphub/platform-intake-forms',         databaseUrl: env.DATABASE_URL_INTAKE_FORMS,         schema: 'platform_intake_forms'         },
+  { name: 'telehealth',           package: '@apphub/platform-telehealth',           databaseUrl: env.DATABASE_URL_TELEHEALTH,           schema: 'platform_telehealth'           },
+  { name: 'packages',             package: '@apphub/platform-packages',             databaseUrl: env.DATABASE_URL_PACKAGES,             schema: 'platform_packages'             },
+  { name: 'practitioner-payouts', package: '@apphub/platform-practitioner-payouts', databaseUrl: env.DATABASE_URL_PRACTITIONER_PAYOUTS, schema: 'platform_practitioner_payouts' },
 ]
 
 async function loadModule(descriptor) {
@@ -60,10 +89,13 @@ export async function start() {
   for (const { descriptor, mod } of modules) {
     logger.info({ module: descriptor.name }, 'Running migrations')
     await mod.runMigrations(env.MIGRATION_DATABASE_URL)
-    await ensureModuleRole(env.MIGRATION_DATABASE_URL, {
-      schema:      descriptor.schema,
-      databaseUrl: descriptor.databaseUrl,
-    })
+    // Módulos Redis-only (basket) no tienen schema ni rol → sin reconciliación.
+    if (descriptor.databaseUrl) {
+      await ensureModuleRole(env.MIGRATION_DATABASE_URL, {
+        schema:      descriptor.schema,
+        databaseUrl: descriptor.databaseUrl,
+      })
+    }
     // Hook opcional del contrato: módulos con política de grants más
     // restrictiva que el DML uniforme de ensureModuleRole (p.ej. las tablas
     // de snapshot inmutable de tpv) la re-aplican aquí, DESPUÉS de la
@@ -76,6 +108,11 @@ export async function start() {
   // 2. Create one Pool per module, bound to its dedicated DB role
   const pools = {}
   for (const { descriptor } of modules) {
+    // Módulos sin databaseUrl (basket — Redis-only) reciben null.
+    if (!descriptor.databaseUrl) {
+      pools[descriptor.name] = null
+      continue
+    }
     const pool = createPool(descriptor.databaseUrl)
     pool.on('error', (err) => logger.error({ err, module: descriptor.name }, 'PostgreSQL pool error'))
     pools[descriptor.name] = pool
@@ -194,7 +231,7 @@ export async function start() {
     logger.info({ signal }, 'Shutdown signal received')
     try {
       await app.close()
-      await Promise.all(Object.values(pools).map((p) => p.end()))
+      await Promise.all(Object.values(pools).filter(Boolean).map((p) => p.end()))
       await redis.quit()
       logger.info('Graceful shutdown complete')
       process.exit(0)

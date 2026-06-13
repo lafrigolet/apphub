@@ -4,7 +4,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 process.env.MIGRATION_DATABASE_URL  ??= 'postgresql://x:y@localhost:5432/test'
 process.env.REDIS_URL               ??= 'redis://localhost:6379'
 process.env.PLATFORM_JWT_SECRET     ??= 'test_secret_at_least_32_characters_long_ok'
-for (const m of ['AUTH','NOTIFICATIONS','PAYMENTS','TENANT_CONFIG','SPLITPAY','STORAGE','LEADS','DONATIONS','INQUIRIES','VERIFACTU','CHAT']) {
+for (const m of [
+  'AUTH','NOTIFICATIONS','PAYMENTS','TENANT_CONFIG','SPLITPAY','STORAGE','LEADS','DONATIONS','INQUIRIES','VERIFACTU','CHAT','TPV','COMMERCE',
+  // Marketplace + restaurant + appointments (consolidados, ADR 021). basket no tiene DB.
+  'ORDERS','INVENTORY','REVIEWS','MESSAGING','SHIPPING','DISPUTES','CATALOG',
+  'MENU','RESERVATIONS','FLOOR_PLAN','KDS','POS','DELIVERY_DISPATCH',
+  'SERVICES','RESOURCES','BOOKINGS','AVAILABILITY','INTAKE_FORMS','TELEHEALTH','PACKAGES','PRACTITIONER_PAYOUTS',
+]) {
   process.env[`DATABASE_URL_${m}`]  ??= `postgresql://${m.toLowerCase()}:s@localhost:5432/test`
 }
 process.env.S3_ENDPOINT             ??= 'http://minio:9000'
@@ -79,6 +85,32 @@ const { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swagger
     verifactu:      mkModule('verifactu'),
     chat:           mkModule('chat'),
     tpv:            mkModule('tpv'),
+    commerce:       mkModule('commerce'),
+    // Marketplace (ADR 021)
+    orders:         mkModule('orders'),
+    inventory:      mkModule('inventory'),
+    reviews:        mkModule('reviews'),
+    messaging:      mkModule('messaging'),
+    shipping:       mkModule('shipping'),
+    disputes:       mkModule('disputes'),
+    catalog:        mkModule('catalog'),
+    basket:         mkModule('basket'),
+    // Restaurant (ADR 021)
+    menu:               mkModule('menu'),
+    reservations:       mkModule('reservations'),
+    floorPlan:          mkModule('floor-plan'),
+    kds:                mkModule('kds'),
+    pos:                mkModule('pos'),
+    deliveryDispatch:   mkModule('delivery-dispatch'),
+    // Appointments (ADR 021)
+    services:           mkModule('services'),
+    resources:          mkModule('resources'),
+    bookings:           mkModule('bookings'),
+    availability:       mkModule('availability'),
+    intakeForms:        mkModule('intake-forms'),
+    telehealth:         mkModule('telehealth'),
+    packages:           mkModule('packages'),
+    practitionerPayouts: mkModule('practitioner-payouts'),
   }
 
   return { fastifyApp, fastifyFactory, helmetMock, corsMock, rateLimitMock, swaggerMock, swaggerUiMock, zodMocks, appGuardMock, errorsMock, createPoolMock, ensureModuleRoleMock, createRedisMock, modulesMock }
@@ -107,6 +139,29 @@ vi.mock('@apphub/platform-inquiries',     () => modulesMock.inquiries)
 vi.mock('@apphub/platform-verifactu',     () => modulesMock.verifactu)
 vi.mock('@apphub/platform-chat',          () => modulesMock.chat)
 vi.mock('@apphub/platform-tpv',           () => modulesMock.tpv)
+vi.mock('@apphub/platform-commerce',      () => modulesMock.commerce)
+vi.mock('@apphub/platform-orders',        () => modulesMock.orders)
+vi.mock('@apphub/platform-inventory',     () => modulesMock.inventory)
+vi.mock('@apphub/platform-reviews',       () => modulesMock.reviews)
+vi.mock('@apphub/platform-messaging',     () => modulesMock.messaging)
+vi.mock('@apphub/platform-shipping',      () => modulesMock.shipping)
+vi.mock('@apphub/platform-disputes',      () => modulesMock.disputes)
+vi.mock('@apphub/platform-catalog',       () => modulesMock.catalog)
+vi.mock('@apphub/platform-basket',        () => modulesMock.basket)
+vi.mock('@apphub/platform-menu',                () => modulesMock.menu)
+vi.mock('@apphub/platform-reservations',        () => modulesMock.reservations)
+vi.mock('@apphub/platform-floor-plan',          () => modulesMock.floorPlan)
+vi.mock('@apphub/platform-kds',                 () => modulesMock.kds)
+vi.mock('@apphub/platform-pos',                 () => modulesMock.pos)
+vi.mock('@apphub/platform-delivery-dispatch',   () => modulesMock.deliveryDispatch)
+vi.mock('@apphub/platform-services',            () => modulesMock.services)
+vi.mock('@apphub/platform-resources',           () => modulesMock.resources)
+vi.mock('@apphub/platform-bookings',            () => modulesMock.bookings)
+vi.mock('@apphub/platform-availability',        () => modulesMock.availability)
+vi.mock('@apphub/platform-intake-forms',        () => modulesMock.intakeForms)
+vi.mock('@apphub/platform-telehealth',          () => modulesMock.telehealth)
+vi.mock('@apphub/platform-packages',            () => modulesMock.packages)
+vi.mock('@apphub/platform-practitioner-payouts',() => modulesMock.practitionerPayouts)
 vi.mock('@fastify/websocket',             () => ({ default: vi.fn() }))
 
 // ── tests ───────────────────────────────────────────────────────────
@@ -143,7 +198,7 @@ afterEach(() => {
 })
 
 describe('start() — boot sequence', () => {
-  it('runMigrations es llamado UNA vez por cada uno de los 12 módulos, en orden', async () => {
+  it('runMigrations es llamado UNA vez por cada uno de los 35 módulos, en orden', async () => {
     const { start } = await import('../server.js')
     await start()
 
@@ -157,7 +212,8 @@ describe('start() — boot sequence', () => {
     const { start } = await import('../server.js')
     await start()
 
-    expect(createPoolMock).toHaveBeenCalledTimes(12)
+    // 35 módulos registrados; basket es Redis-only (sin Pool) → 34 createPool.
+    expect(createPoolMock).toHaveBeenCalledTimes(34)
     const urls = createPoolMock.mock.calls.map((c) => c[0])
     expect(urls).toContain(process.env.DATABASE_URL_AUTH)
     expect(urls).toContain(process.env.DATABASE_URL_NOTIFICATIONS)
@@ -186,7 +242,7 @@ describe('start() — boot sequence', () => {
     expect(registerCalls).toContain(appGuardMock)
   })
 
-  it('cada uno de los 12 módulos.register({ app, db, redis, logger }) recibe sus deps', async () => {
+  it('cada uno de los 35 módulos.register({ app, db, redis, logger }) recibe sus deps', async () => {
     const { start } = await import('../server.js')
     await start()
 
@@ -224,9 +280,12 @@ describe('start() — boot sequence', () => {
     const r = await handler()
     expect(r.status).toBe('ok')
     expect(r.service).toBe('platform-core')
-    expect(r.modules).toEqual(
-      ['auth','notifications','payments','tenant-config','splitpay','storage','leads','donations','inquiries','verifactu','chat','tpv'],
-    )
+    expect(r.modules).toEqual([
+      'auth','notifications','payments','tenant-config','splitpay','storage','leads','donations','inquiries','verifactu','chat','tpv','commerce',
+      'orders','inventory','reviews','messaging','shipping','disputes','catalog','basket',
+      'menu','reservations','floor-plan','kds','pos','delivery-dispatch',
+      'services','resources','bookings','availability','intake-forms','telehealth','packages','practitioner-payouts',
+    ])
     expect(r.timestamp).toBeTypeOf('string')
   })
 

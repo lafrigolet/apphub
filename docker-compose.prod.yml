@@ -90,24 +90,6 @@ services:
       # unset and the QR carries the raw Stripe URL.
       PAYMENTS_PUBLIC_BASE_URL: https://hulkstein.com
 
-  platform-marketplace:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-marketplace:${IMAGE_TAG:-latest}
-    volumes: !reset []
-    environment:
-      NODE_ENV: production
-
-  platform-restaurant:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-restaurant:${IMAGE_TAG:-latest}
-    volumes: !reset []
-    environment:
-      NODE_ENV: production
-
-  platform-appointments:
-    image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-appointments:${IMAGE_TAG:-latest}
-    volumes: !reset []
-    environment:
-      NODE_ENV: production
-
   platform-scheduler:
     image: ${IMAGE_REGISTRY:-ghcr.io/lafrigolet}/apphub-platform-scheduler:${IMAGE_TAG:-latest}
     volumes: !reset []
@@ -144,8 +126,5 @@ services:
     depends_on:
       redis:                   { condition: service_healthy }
       platform-core:           { condition: service_started }
-      platform-marketplace:    { condition: service_started }
-      platform-restaurant:     { condition: service_started }
-      platform-appointments:   { condition: service_started }
       portals:                 { condition: service_started }
       apps-servers:            { condition: service_started }

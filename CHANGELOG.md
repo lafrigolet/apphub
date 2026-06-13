@@ -7,6 +7,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Changed
+- **Consolidación de contenedores (ADR 021).** Los 22 módulos de
+  `platform-marketplace` (orders, inventory, reviews, messaging, shipping,
+  disputes, catalog, basket), `platform-restaurant` (menu, reservations,
+  floor-plan, kds, pos, delivery-dispatch) y `platform-appointments` (services,
+  resources, bookings, availability, intake-forms, telehealth, packages,
+  practitioner-payouts) se pliegan en **`platform-core`** (≈35 módulos) y se
+  **eliminan los 3 contenedores**. `platform-scheduler` se mantiene. Sin cambios
+  de lógica: cada módulo conserva su esquema + rol + Pool; el boot loop de core
+  ya reconcilia roles. NGINX repunta los prefijos `/api/<módulo>/` a
+  `platform_core` (se borran los upstreams marketplace/restaurant/appointments).
+  Compose dev+prod, Dockerfile de core, `deploy/services.json` (de 8 a 5
+  servicios) y `reviews` (loopback `orders` → `platform-core` `/v1/orders`)
+  actualizados. Supersede la decisión de *despliegue* de ADR 004 (el diseño de
+  dominios se mantiene). Re-split por dominio sigue siendo el wiring de 4 pasos.
 - **Colapso a un tenant por defecto (ADR 020).** Las apps pasan a ser
   single-tenant: `app_id` es la frontera de cliente real (1 app = 1 tenant) y la
   subtenancy queda **reservada (siempre NULL)**. No es una eliminación física —

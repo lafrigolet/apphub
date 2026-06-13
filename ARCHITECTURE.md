@@ -28,18 +28,22 @@ services. Each app gets its own subdomain and its own app-specific microservices
                               │ 3030          │ │ 3020         │
                               └───────────────┘ └──────────────┘
                                        │                │
-              /api/auth, /api/payments, /api/orders, /api/menu, …
-        ┌──────────────────────┬─────────────────────┬──────────────────────┐
-        │                      │                     │                      │
-┌───────▼────────────┐ ┌───────▼─────────────┐ ┌─────▼───────────────┐
-│ platform-core:3000 │ │ platform-marketplace│ │ platform-restaurant │
-│                    │ │ :3100               │ │ :3200               │
-│ auth, payments,    │ │ orders, inventory,  │ │ menu, reservations, │
-│ notifications,     │ │ reviews, messaging, │ │ floor-plan, kds,    │
-│ tenant-config,     │ │ shipping, disputes, │ │ pos,                │
-│ splitpay           │ │ catalog, basket     │ │ delivery-dispatch   │
-└────────────────────┘ └─────────────────────┘ └─────────────────────┘
-                                  │                        │
+              /api/auth, /api/payments, /api/orders, /api/menu, /api/bookings, …
+        ┌───────────────────────────────────────────────────────────────────┐
+        │                                                                     │
+┌───────▼─────────────────────────────────────────┐   ┌─────────────────────┐
+│ platform-core:3000  (ADR 021 — ~35 módulos)      │   │ platform-scheduler   │
+│ auth, notifications, payments, tenant-config,    │   │ :3400 (cron)         │
+│ splitpay, storage, leads, donations, inquiries,  │   └─────────────────────┘
+│ verifactu, chat, tpv, commerce  +  marketplace   │
+│ (orders, inventory, reviews, messaging, shipping,│
+│ disputes, catalog, basket)  +  restaurant (menu, │
+│ reservations, floor-plan, kds, pos, delivery-    │
+│ dispatch)  +  appointments (services, resources, │
+│ bookings, availability, intake-forms, telehealth,│
+│ packages, practitioner-payouts)                  │
+└──────────────────────────────────────────────────┘
+                                  │
                           shared Postgres + Redis (platform.events)
 ```
 
@@ -64,20 +68,20 @@ services. Each app gets its own subdomain and its own app-specific microservices
 | `/api/storage/` | Object storage (MinIO/S3 presigned URLs) | platform-core | All subdomains |
 | `/api/leads/` | Public lead-capture + staff CRM | platform-core | Hulkstein landing |
 | `/api/donations/` | Donations (one-shot + recurring + fiscal) | platform-core | All subdomains |
-| `/api/orders/` | Orders ledger | platform-marketplace | All subdomains |
-| `/api/inventory/` | Stock per SKU | platform-marketplace | All subdomains |
-| `/api/reviews/` | Reviews + replies | platform-marketplace | All subdomains |
-| `/api/messages/` | Buyer ↔ vendor chat | platform-marketplace | All subdomains |
-| `/api/shipping/` | Shipments + tracking + EasyPost rate-shop/labels/pickups + addresses | platform-marketplace | All subdomains |
-| `/api/disputes/` | Operational disputes | platform-marketplace | All subdomains |
-| `/api/catalog/` | Product catalogue | platform-marketplace | All subdomains |
-| `/api/basket/` | Shopping cart (Redis) | platform-marketplace | All subdomains |
-| `/api/menu/` | F&B menu | platform-restaurant | All subdomains |
-| `/api/reservations/` | Reservations + waitlist | platform-restaurant | All subdomains |
-| `/api/floor-plan/` | Tables + sections | platform-restaurant | All subdomains |
-| `/api/kds/` | Kitchen Display System | platform-restaurant | All subdomains |
-| `/api/pos/` | POS bills + split + tips | platform-restaurant | All subdomains |
-| `/api/delivery-dispatch/` | Riders + delivery zones | platform-restaurant | All subdomains |
+| `/api/orders/` | Orders ledger | platform-core | All subdomains |
+| `/api/inventory/` | Stock per SKU | platform-core | All subdomains |
+| `/api/reviews/` | Reviews + replies | platform-core | All subdomains |
+| `/api/messages/` | Buyer ↔ vendor chat | platform-core | All subdomains |
+| `/api/shipping/` | Shipments + tracking + EasyPost rate-shop/labels/pickups + addresses | platform-core | All subdomains |
+| `/api/disputes/` | Operational disputes | platform-core | All subdomains |
+| `/api/catalog/` | Product catalogue | platform-core | All subdomains |
+| `/api/basket/` | Shopping cart (Redis) | platform-core | All subdomains |
+| `/api/menu/` | F&B menu | platform-core | All subdomains |
+| `/api/reservations/` | Reservations + waitlist | platform-core | All subdomains |
+| `/api/floor-plan/` | Tables + sections | platform-core | All subdomains |
+| `/api/kds/` | Kitchen Display System | platform-core | All subdomains |
+| `/api/pos/` | POS bills + split + tips | platform-core | All subdomains |
+| `/api/delivery-dispatch/` | Riders + delivery zones | platform-core | All subdomains |
 | `/api/app/...` | App-specific routes | (per-app service) | Only that subdomain |
 | `/` | App frontend | (per-app portal) | Only that subdomain |
 
@@ -153,7 +157,7 @@ PostgreSQL instance
 ├── platform_verifactu            (platform/verifactu)       role: svc_platform_verifactu
 ├── platform_chat                 (platform/chat)            role: svc_platform_chat
 │
-│ ── platform-marketplace modules ──
+│ ── platform-core modules ──
 ├── platform_orders               (platform/orders)          role: svc_platform_orders
 ├── platform_inventory            (platform/inventory)       role: svc_platform_inventory
 ├── platform_reviews              (platform/reviews)         role: svc_platform_reviews
@@ -163,7 +167,7 @@ PostgreSQL instance
 ├── platform_catalog              (platform/catalog)         role: svc_platform_catalog
 │   (basket has no schema — Redis-only)
 │
-│ ── platform-restaurant modules ──
+│ ── platform-core modules ──
 ├── platform_menu                 (platform/menu)            role: svc_platform_menu
 ├── platform_reservations         (platform/reservations)    role: svc_platform_reservations
 ├── platform_floor_plan           (platform/floor-plan)      role: svc_platform_floor_plan
@@ -283,9 +287,9 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | Docker service | What runs inside | Ports |
 |---|---|---|
 | `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay + storage + leads + donations + inquiries + verifactu + chat + tpv + commerce | 3000 |
-| `platform-marketplace` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes + catalog + basket | 3100 |
-| `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
-| `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
+| `platform-core` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes + catalog + basket | 3100 |
+| `platform-core` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
+| `platform-core` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |
 | `platform-scheduler` | Single-runner cron for all 4 monoliths (9 jobs: hold purge, reminders, recurrence expander, expiry warnings, payout close, SLA breach, abandoned cart) | 3400 |
 | `portals` | All frontends in one container ([ADR 017](docs/adr/017-unified-portals-container.md)): dev = N Vite processes, prod = nginx-alpine, one port per portal in both | 5173, 5175–5184 |
 | `postgres` | PostgreSQL 16 | 5432 |
@@ -293,14 +297,14 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 | `minio` | S3-compatible object store (MinIO) | 9000 (API), 9001 (console) |
 | `nginx` | NGINX gateway | 8080 |
 
-The **four monolith containers** (`platform-core`, `platform-marketplace`,
-`platform-restaurant` and `platform-appointments`) follow the same pattern: each owns a
+The **four monolith containers** (`platform-core`, `platform-core`,
+`platform-core` and `platform-core`) follow the same pattern: each owns a
 domain, exposes a single port, hosts its modules in-process, runs each module's migrations
 on boot, and shares the same Postgres + Redis instances. Cross-container communication is
 by Redis events (`platform.events` channel) and shared `PLATFORM_JWT_SECRET` so JWTs are
 accepted on all of them. See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md)
-for the rationale, [ADR 005](docs/adr/005-platform-restaurant-monolith.md) for the
-restaurant split, and [ADR 006](docs/adr/006-platform-appointments-monolith.md) for the
+for the rationale, [ADR 005](docs/adr/005-platform-core-monolith.md) for the
+restaurant split, and [ADR 006](docs/adr/006-platform-core-monolith.md) for the
 appointments split. The `tpv` module (point-of-sale) is hosted inside `platform-core`
 for operational economy but keeps its own `server.js` + `Dockerfile` ready-to-split —
 see [ADR 015](docs/adr/015-platform-tpv-monolith.md) /
@@ -315,9 +319,9 @@ see [ADR 015](docs/adr/015-platform-tpv-monolith.md) /
 | 3020–3029 | Split Pay app services |
 | 3030 | apps-servers (single orchestrator hosting every app-specific server — aikikan, aulavera, …; ADR 018) |
 | 3031–3099 | Reserved (re-split of individual app servers if scaling demands it) |
-| 3100 | platform-marketplace |
-| 3200 | platform-restaurant |
-| 3300 | platform-appointments |
+| 3100 | platform-core |
+| 3200 | platform-core |
+| 3300 | platform-core |
 | 3400 | platform-scheduler |
 | 3500+ | Future domain monoliths (3500 reserved for platform-tpv if tpv is split back out, ADR 016) |
 | 5173, 5175–5184 | Portals (single `portals` container — one port per frontend: 5173 apphub-admin, 5175 splitpay, 5176 aikikan, 5177 console, 5178 tenant-console, 5179 aulavera, 5180 js-electric, 5181 macabeo, 5182 verifactu, 5183 tpv, 5184 luciapassardi) |
@@ -332,9 +336,9 @@ ADRs are stored in `docs/adr/`. Current decisions:
 | 001 | Use PostgreSQL schemas instead of separate databases per service |
 | 002 | Three-level identity: app_id + tenant_id + sub_tenant_id |
 | 003 | Dynamic NGINX routing via Redis sidecar |
-| 004 | Domain-separated monolith containers (platform-core + platform-marketplace) |
-| 005 | platform-restaurant: third domain monolith for restaurant operations |
-| 006 | platform-appointments: fourth domain monolith for appointment / scheduling |
+| 004 | Domain-separated monolith containers (platform-core + platform-core) |
+| 005 | platform-core: third domain monolith for restaurant operations |
+| 006 | platform-core: fourth domain monolith for appointment / scheduling |
 | 007 | platform-scheduler: single-runner cron container for the 4 monoliths |
 | 008 | Object storage: MinIO + storage module of platform-core (presigned PUT/GET) |
 | 009 | reviews verified-purchase via HTTP loopback to orders |
