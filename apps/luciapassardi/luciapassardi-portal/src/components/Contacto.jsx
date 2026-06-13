@@ -13,7 +13,7 @@ export default function Contacto() {
     <section id="contacto" className="relative py-24 sm:py-32 overflow-hidden">
       <div className="absolute inset-0 wash-salvia opacity-70" aria-hidden="true" />
       <div className="relative max-w-5xl mx-auto px-5 sm:px-8 text-center">
-        <p className="eyebrow reveal">— 05 / Contacto</p>
+        <p className="eyebrow reveal">— 06 / Contacto</p>
         <h2 className="display text-4xl sm:text-6xl mt-4 reveal reveal-delay-1">
           ¿Empezamos? <em>Escríbeme</em>.
         </h2>

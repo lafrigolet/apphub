@@ -19,7 +19,7 @@ export default function RetirosTalleres() {
 
           {/* Lista */}
           <div className="lg:col-span-7">
-            <p className="eyebrow reveal">— 02 / Retiros y talleres</p>
+            <p className="eyebrow reveal">— 03 / Retiros y talleres</p>
             <h2 className="display text-4xl sm:text-5xl mt-4 mb-8 reveal reveal-delay-1">
               Parar, respirar, <em>reconectar</em>.
             </h2>

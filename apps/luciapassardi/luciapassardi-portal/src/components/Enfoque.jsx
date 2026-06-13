@@ -5,7 +5,7 @@ export default function Enfoque() {
     <section id="enfoque" className="relative py-24 sm:py-32">
       <div className="max-w-7xl mx-auto px-5 sm:px-8">
         <div className="max-w-3xl reveal">
-          <p className="eyebrow">— 03 / Mi enfoque</p>
+          <p className="eyebrow">— 04 / Mi enfoque</p>
           <h2 className="display text-4xl sm:text-5xl lg:text-6xl mt-4">
             No sólo ejercicio físico: un método para la <em>autorregulación</em>.
           </h2>

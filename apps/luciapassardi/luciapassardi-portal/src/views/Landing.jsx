@@ -3,6 +3,7 @@ import { useReveal, useHeaderShadow } from '../hooks/index.js'
 import Header from '../components/Header.jsx'
 import Hero from '../components/Hero.jsx'
 import Clases from '../components/Clases.jsx'
+import Horario from '../components/Horario.jsx'
 import RetirosTalleres from '../components/RetirosTalleres.jsx'
 import Enfoque from '../components/Enfoque.jsx'
 import SobreMi from '../components/SobreMi.jsx'
@@ -32,6 +33,7 @@ export default function Landing() {
       <main>
         <Hero variant={heroVariant} />
         <Clases />
+        <Horario />
         <RetirosTalleres />
         <Enfoque />
         <SobreMi />

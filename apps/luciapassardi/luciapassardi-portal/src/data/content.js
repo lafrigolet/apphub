@@ -16,6 +16,7 @@ export const contacto = {
 
 export const navLinks = [
   { href: '#clases', label: 'Clases' },
+  { href: '#horario', label: 'Horario' },
   { href: '#retiros', label: 'Retiros y talleres' },
   { href: '#enfoque', label: 'Mi enfoque' },
   { href: '#sobre-mi', label: 'Conóceme' },
@@ -41,6 +42,47 @@ export const proximosEventos = [
   { id: 'ev2', date: '2026-09-27', name: 'Taller de abdomen y suelo pélvico', location: 'Estudio · Las Matas' },
   { id: 'ev3', date: '2026-10-18', name: 'Retiro de fin de semana', location: 'Sierra de Madrid' },
   { id: 'ev4', date: '2027-01-10', name: 'Retiro de enero', location: 'Plazas limitadas' },
+]
+
+// Calendario de clases semanales. Una sola profesora (Lucía); varias ubicaciones.
+// TODO: horario FICTICIO de muestra — sustituir por el calendario real.
+export const ubicaciones = [
+  { id: 'matas',  nombre: 'Estudio Las Matas', dot: 'bg-teal-600',   text: 'text-teal-700',   soft: 'bg-teal-500/10' },
+  { id: 'pinar',  nombre: 'Centro El Pinar',   dot: 'bg-salvia-600', text: 'text-salvia-600', soft: 'bg-salvia-400/15' },
+  { id: 'online', nombre: 'Online (Zoom)',     dot: 'bg-tinta/55',   text: 'text-tinta/70',   soft: 'bg-tinta/[0.06]' },
+]
+
+export const horarioNota =
+  'Horario orientativo (ficticio) — se actualizará con el calendario real. ' +
+  'Clases privadas a domicilio bajo petición.'
+
+export const horario = [
+  { dia: 'Lunes', corto: 'LUN', clases: [
+    { hora: '09:30', dur: 75, tipo: 'Hatha',                   nivel: 'Todos',      ubicacion: 'matas' },
+    { hora: '18:30', dur: 75, tipo: 'Vinyasa',                 nivel: 'Intermedio', ubicacion: 'matas' },
+  ] },
+  { dia: 'Martes', corto: 'MAR', clases: [
+    { hora: '10:00', dur: 60, tipo: 'Yoga suave',              nivel: 'Todos',      ubicacion: 'pinar' },
+    { hora: '19:00', dur: 90, tipo: 'Ashtanga',               nivel: 'Intermedio', ubicacion: 'matas' },
+  ] },
+  { dia: 'Miércoles', corto: 'MIÉ', clases: [
+    { hora: '09:30', dur: 75, tipo: 'Hatha',                   nivel: 'Todos',      ubicacion: 'matas' },
+    { hora: '18:00', dur: 60, tipo: 'Yin y restaurativo',      nivel: 'Todos',      ubicacion: 'online' },
+  ] },
+  { dia: 'Jueves', corto: 'JUE', clases: [
+    { hora: '10:00', dur: 75, tipo: 'Vinyasa',                 nivel: 'Intermedio', ubicacion: 'pinar' },
+    { hora: '19:00', dur: 60, tipo: 'Pranayama y meditación',  nivel: 'Todos',      ubicacion: 'matas' },
+  ] },
+  { dia: 'Viernes', corto: 'VIE', clases: [
+    { hora: '09:30', dur: 75, tipo: 'Hatha',                   nivel: 'Todos',      ubicacion: 'matas' },
+    { hora: '18:30', dur: 90, tipo: 'Práctica colectiva',      nivel: 'Avanzado',   ubicacion: 'matas' },
+  ] },
+  { dia: 'Sábado', corto: 'SÁB', clases: [
+    { hora: '10:00', dur: 90, tipo: 'Vinyasa',                 nivel: 'Todos',      ubicacion: 'matas' },
+  ] },
+  { dia: 'Domingo', corto: 'DOM', clases: [
+    { hora: '10:30', dur: 60, tipo: 'Yoga suave y meditación', nivel: 'Todos',      ubicacion: 'online' },
+  ] },
 ]
 
 export const clases = [
