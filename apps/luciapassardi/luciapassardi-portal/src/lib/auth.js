@@ -75,11 +75,14 @@ async function mintGuest() {
   return guest.token
 }
 
-// Token para operar la cesta: el del usuario logueado si existe; si no, un guest
-// (cacheado, re-emitido si caducó). force=true re-emite (p.ej. tras un 401).
+// Token para operar la cesta: el del usuario logueado si su token sigue vigente;
+// si no hay (o caducó), un guest cacheado, re-emitido si caducó o si force=true
+// (p.ej. tras un 401). Importante validar la caducidad del token de usuario: un
+// lucia_access_token caducado en localStorage (de una sesión de backoffice
+// previa) haría fallar la cesta con 401 si se reutilizara a ciegas.
 export async function cartToken(force = false) {
   const user = getToken()
-  if (user) return user
+  if (user && !tokenExpired(user)) return user
   const guest = readGuest()
   if (!force && guest?.token && !tokenExpired(guest.token)) return guest.token
   return mintGuest()
