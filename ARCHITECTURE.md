@@ -97,36 +97,39 @@ See [ADR 003 — Dynamic NGINX routing via Redis sidecar](docs/adr/003-dynamic-n
 for the rationale, alternatives considered (Docker Configs, OpenResty, NGINX Plus, K8s Ingress),
 and operational details (bootstrap, debugging, tunables, migration to Kubernetes).
 
-## Identity model — three JWT claims
+## Identity model — JWT claims (single-tenant collapse, ADR 020)
 
 ```
 platform/auth  issues JWTs with:
   sub           →  user UUID
-  app_id        →  which app   (aikikan | split-pay | …)
-  tenant_id     →  which deployment of that app
-  sub_tenant_id →  sub-unit within the tenant (nullable)
+  app_id        →  which app   (aikikan | split-pay | …) — the customer boundary
+  tenant_id     →  the app's single tenant (derived from app_id, 1 app = 1 tenant)
   role          →  user role within that app
   email
+  (sub_tenant_id is NO LONGER emitted — reserved, always NULL)
 ```
 
 Every app-specific service registers the `appGuard` plugin from `@apphub/platform-sdk`.
 The guard reads `EXPECTED_APP_ID` from the environment and returns `403 APP_MISMATCH` if
 the token's `app_id` does not match. Platform services set `EXPECTED_APP_ID=platform`.
 
-## Multi-tenancy model
+## Multi-tenancy model (collapsed — ADR 020)
 
 ```
 Platform (AppHub)
-  └── App (aikikan, split-pay, …)           app_id
-        └── Tenant (a deployment)            tenant_id uuid
-              └── Sub-tenant (optional)      sub_tenant_id uuid (nullable)
+  └── App (aikikan, split-pay, …)           app_id          ← effective customer boundary
+        └── Tenant (exactly one per app)     tenant_id uuid  ← derived from app_id
+              └── (sub-tenant reserved)       sub_tenant_id   ← always NULL
                     └── End users
 ```
 
 - `app_id` is set at login from the request body and verified on every service call.
-- `tenant_id` is looked up from `platform_tenants.tenants` at login time.
-- `sub_tenant_id` is nullable — `NULL` means the resource belongs to the root tenant.
-- Row-level security in PostgreSQL enforces isolation on all three axes.
+- `tenant_id` is the app's single tenant — resolved from `app_id` (`resolveAppTenant`)
+  when a caller doesn't supply it; provisioning rejects a second tenant per app.
+- `sub_tenant_id` is **reserved (always NULL)** — subtenancy was collapsed away.
+- The columns, RLS policies and `app_id + tenant_id` scoping are **physically kept** so
+  multi-tenancy can be reintroduced per app later (app-local schema, or re-exposing
+  `tenant_id` in that app's JWT). Row-level security still enforces `app_id + tenant_id`.
 
 ## PostgreSQL schema isolation
 

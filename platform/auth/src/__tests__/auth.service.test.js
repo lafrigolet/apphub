@@ -80,16 +80,17 @@ describe('register', () => {
     expect(userRepo.createUser).not.toHaveBeenCalled()
   })
 
-  it('passes subTenantId through to createUser', async () => {
+  // Colapso a un tenant por defecto: la subtenancy queda reservada — register
+  // siempre persiste subTenantId=null aunque el caller intente forzar uno.
+  it('always persists subTenantId=null (subtenancy reserved)', async () => {
     const client = mockClient()
-    const SUB = '55555555-5555-5555-5555-555555555555'
     withTenantTransaction.mockImplementation(async (_pool, _appId, _tid, _stid, fn) => fn(client))
     userRepo.findByEmail.mockResolvedValue(null)
     bcrypt.hash.mockResolvedValue('h')
     userRepo.createUser.mockResolvedValue({ id: USER_ID, email: 'a@test.com', role: 'user' })
 
-    await register({ appId: APP_ID, tenantId: TENANT_ID, subTenantId: SUB, email: 'a@test.com', password: 'pw12345678' })
-    expect(userRepo.createUser).toHaveBeenCalledWith(client, expect.objectContaining({ subTenantId: SUB }))
+    await register({ appId: APP_ID, tenantId: TENANT_ID, email: 'a@test.com', password: 'pw12345678' })
+    expect(userRepo.createUser).toHaveBeenCalledWith(client, expect.objectContaining({ subTenantId: null }))
   })
 })
 

@@ -1,17 +1,17 @@
 import { z } from 'zod'
 import * as oauthService from '../services/oauth.service.js'
 
+// Colapso 1 app → 1 tenant: tenantId opcional (se deriva del app);
+// subTenantId reservado (no se acepta).
 const googleBody = z.object({
   appId:       z.string().min(1),
-  tenantId:    z.string().uuid(),
-  subTenantId: z.string().uuid().optional(),
+  tenantId:    z.string().uuid().optional(),
   credential:  z.string().min(1),
 })
 
 const facebookBody = z.object({
   appId:        z.string().min(1),
-  tenantId:     z.string().uuid(),
-  subTenantId:  z.string().uuid().optional(),
+  tenantId:     z.string().uuid().optional(),
   accessToken:  z.string().min(1),
 })
 

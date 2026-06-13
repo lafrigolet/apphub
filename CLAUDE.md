@@ -118,7 +118,7 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 </frontend_aesthetics>
 ```
 
-## Identity model — three JWT claims
+## Identity model — JWT claims (single-tenant collapse)
 
 Every JWT issued by `platform/auth` carries:
 
@@ -127,20 +127,27 @@ Every JWT issued by `platform/auth` carries:
   "sub": "user-uuid",
   "app_id": "aikikan",
   "tenant_id": "tenant-uuid",
-  "sub_tenant_id": "sub-tenant-uuid-or-null",
   "role": "user",
   "email": "user@example.com"
 }
 ```
 
-- `app_id` — which app this user belongs to (`aikikan`, `split-pay`, …)
-- `tenant_id` — which deployment of that app (e.g. one aikikan federation chapter)
-- `sub_tenant_id` — sub-unit within the tenant (e.g. a dojo branch), nullable
+- `app_id` — which app this user belongs to (`aikikan`, `split-pay`, …). **This is the
+  effective customer boundary** — one app per customer/brand.
+- `tenant_id` — the app's single tenant. Kept in the token and in every row + RLS policy,
+  but **derived from `app_id` (1 app = 1 tenant)**, never a management input or a UI choice.
+- `sub_tenant_id` — **reserved, always NULL.** Subtenancy was collapsed away (the token no
+  longer emits it; the guard forces `req.identity.subTenantId = null`). Columns stay in the
+  schema so multi-tenancy can be reintroduced **per app** later — either app-local (the
+  app's own `app_<app>` schema/server) or platform-level (re-exposing `tenant_id` in that
+  app's JWT). See ADR 020.
 
 ## Critical rules for AI assistants
 
 1. **Never remove `tenant_id` scoping** from any database query. Every SELECT, INSERT,
-   UPDATE, DELETE must be scoped to the current tenant.
+   UPDATE, DELETE must be scoped to the current tenant. The single-tenant collapse (ADR 020)
+   makes `tenant_id` *derived from `app_id`* and `sub_tenant_id` *always NULL* — but the
+   columns, RLS policies and the `tenant_id` query scoping all STAY. Do not drop them.
 2. **Always include `app_id` scoping** alongside `tenant_id`. An aikikan token must never
    read split-pay data even when `tenant_id` matches.
 3. **Always use idempotency keys** for Stripe API calls. Keys are stored in Redis with a 24h TTL.
@@ -150,7 +157,10 @@ Every JWT issued by `platform/auth` carries:
 5. **Validate webhook signatures** — every incoming Stripe webhook must verify `Stripe-Signature`.
 6. **Split reversals are proportional** — refund each Transfer by the same percentage as the
    original split, never a flat amount.
-7. **sub_tenant_id is nullable** — code must handle both single-level and two-level tenancy.
+7. **sub_tenant_id is reserved (always NULL)** — the single-tenant collapse (ADR 020)
+   disabled subtenancy. Keep the columns and write NULL; never surface a subtenant
+   selector or accept `subTenantId` as input. `tenant_id` is derived from `app_id`
+   (1 app = 1 tenant): when a caller omits it, resolve it via `resolveAppTenant(appId)`.
 8. **Use `appGuard` from `@apphub/platform-sdk`** — never write a custom JWT guard. Set
    `EXPECTED_APP_ID` in the service env; the guard returns `403 APP_MISMATCH` on mismatch.
    In multi-app processes (the `apps-servers` orchestrator, ADR 018) use the scoped

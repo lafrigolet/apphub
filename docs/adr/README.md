@@ -24,6 +24,7 @@ a record isn't edited; if the decision changes, a new ADR supersedes it.
 | [016](016-tpv-folded-into-platform-core.md) | `tpv` folded into `platform-core` (kept ready-to-split) | Accepted |
 | [017](017-unified-portals-container.md) | Single `portals` container for all frontends (port-per-portal) | Accepted |
 | [018](018-apps-servers-orchestrator.md) | `apps-servers` — single orchestrator for app-specific servers (per-scope guard) | Accepted |
+| [020](020-single-tenant-collapse.md) | Single-tenant collapse — `tenant_id` derived from `app_id`, `sub_tenant_id` reserved (columns/RLS kept) | Accepted |
 
 ## Writing a new ADR
 

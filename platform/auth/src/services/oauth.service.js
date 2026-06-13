@@ -8,7 +8,7 @@ import * as oauthRepo from '../repositories/oauth.repository.js'
 import * as providersRepo from '../repositories/oauth-providers.repository.js'
 import { publish } from '../lib/redis.js'
 import { AppError } from '../utils/errors.js'
-import { tenantRequiresApproval } from './auth.service.js'
+import { tenantRequiresApproval, resolveAppTenant } from './auth.service.js'
 
 const REFRESH_TTL = env.PLATFORM_JWT_REFRESH_DAYS * 24 * 60 * 60
 
@@ -34,12 +34,13 @@ async function resolveProviderConfig(provider) {
 }
 
 function signAccess(user) {
+  // Colapso a un tenant por defecto: sin sub_tenant_id en el JWT (ver
+  // auth.service.js#signAccess).
   return jwt.sign(
     {
       sub:           user.id,
       app_id:        user.app_id,
       tenant_id:     user.tenant_id,
-      sub_tenant_id: user.sub_tenant_id ?? undefined,
       role:          user.role,
       email:         user.email,
     },
@@ -59,7 +60,7 @@ async function issueTokens(user) {
   return { accessToken, refreshToken, userId: user.id, role: user.role }
 }
 
-async function resolveOAuthUser(client, { appId, tenantId, subTenantId, provider, providerUid, email, name, avatarUrl }) {
+async function resolveOAuthUser(client, { appId, tenantId, provider, providerUid, email, name, avatarUrl }) {
   const existing = await oauthRepo.findConnectionByProvider(client, provider, providerUid)
   if (existing) {
     await oauthRepo.upsertConnection(client, { userId: existing.user_id, provider, providerUid, email, name, avatarUrl })
@@ -81,7 +82,7 @@ async function resolveOAuthUser(client, { appId, tenantId, subTenantId, provider
   const pendingApproval = await tenantRequiresApproval(appId, tenantId)
   const id = uuidv4()
   const user = await oauthRepo.createUserWithOAuth(client, {
-    id, appId, tenantId, subTenantId: subTenantId ?? null,
+    id, appId, tenantId, subTenantId: null,
     email, role: 'user', provider, providerUid, name, avatarUrl,
     pendingApproval,
   })
@@ -91,14 +92,16 @@ async function resolveOAuthUser(client, { appId, tenantId, subTenantId, provider
       payload: { userId: id, email, displayName: name ?? null, notes: `Vía ${provider}`, appId, tenantId },
     })
   } else {
-    await publish({ type: 'user.registered', payload: { userId: id, email, role: 'user', appId, tenantId, subTenantId: subTenantId ?? null, provider } })
+    await publish({ type: 'user.registered', payload: { userId: id, email, role: 'user', appId, tenantId, subTenantId: null, provider } })
   }
   return user
 }
 
-export async function loginWithGoogle({ appId, tenantId, subTenantId, credential }) {
+export async function loginWithGoogle({ appId, tenantId, credential }) {
   const cfg = await resolveProviderConfig('google')
   if (!cfg || !cfg.enabled) throw new AppError('OAUTH_NOT_CONFIGURED', 'Google OAuth is not configured', 501)
+  // Colapso 1 app → 1 tenant: derivamos el tenant del app si no llega.
+  if (appId && !tenantId) tenantId = await resolveAppTenant(appId)
 
   const googleClient = new OAuth2Client(cfg.clientId)
   let ticket
@@ -115,17 +118,19 @@ export async function loginWithGoogle({ appId, tenantId, subTenantId, credential
   const avatarUrl = payload.picture
 
   return withTransaction(pool, async (client) => {
-    const user = await resolveOAuthUser(client, { appId, tenantId, subTenantId, provider: 'google', providerUid, email, name, avatarUrl })
+    const user = await resolveOAuthUser(client, { appId, tenantId, provider: 'google', providerUid, email, name, avatarUrl })
     if (user.pending_approval) throw new AppError('PENDING_APPROVAL', 'Tu solicitud está pendiente de aprobación', 403)
     return issueTokens(user)
   })
 }
 
-export async function loginWithFacebook({ appId, tenantId, subTenantId, accessToken }) {
+export async function loginWithFacebook({ appId, tenantId, accessToken }) {
   const cfg = await resolveProviderConfig('facebook')
   if (!cfg || !cfg.enabled || !cfg.clientId || !cfg.clientSecret) {
     throw new AppError('OAUTH_NOT_CONFIGURED', 'Facebook OAuth is not configured', 501)
   }
+  // Colapso 1 app → 1 tenant: derivamos el tenant del app si no llega.
+  if (appId && !tenantId) tenantId = await resolveAppTenant(appId)
 
   // Verify token with Facebook and fetch user data
   let profile
@@ -150,7 +155,7 @@ export async function loginWithFacebook({ appId, tenantId, subTenantId, accessTo
   const avatarUrl = profile.picture?.data?.url ?? null
 
   return withTransaction(pool, async (client) => {
-    const user = await resolveOAuthUser(client, { appId, tenantId, subTenantId, provider: 'facebook', providerUid, email, name, avatarUrl })
+    const user = await resolveOAuthUser(client, { appId, tenantId, provider: 'facebook', providerUid, email, name, avatarUrl })
     if (user.pending_approval) throw new AppError('PENDING_APPROVAL', 'Tu solicitud está pendiente de aprobación', 403)
     return issueTokens(user)
   })

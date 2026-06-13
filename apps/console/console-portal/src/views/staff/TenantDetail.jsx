@@ -659,7 +659,7 @@ export default function TenantDetail() {
   return (
     <div className="p-8 max-w-7xl fade-up">
       <div className="flex items-center gap-1.5 text-[13px] text-ink3 mb-4">
-        <button onClick={() => { navigate('tenants'); }} className="hover:text-ink">Tenants</button>
+        <button onClick={() => { navigate('tenants'); }} className="hover:text-ink">Cuentas</button>
         <span>{icons.chevronR}</span>
         <span className="text-ink">{t.name}</span>
       </div>

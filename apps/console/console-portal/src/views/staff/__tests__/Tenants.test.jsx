@@ -37,19 +37,19 @@ beforeEach(() => {
 })
 
 describe('Tenants', () => {
-  it('carga tenants y muestra el recuento "2 de 2 tenants"', async () => {
+  it('carga cuentas y muestra el recuento "2 de 2 cuentas"', async () => {
     render(<Tenants />)
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/tenants/tenants'))
-    await waitFor(() => expect(screen.getByText(/2 de 2 tenants/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/2 de 2 cuentas/)).toBeInTheDocument())
     expect(screen.getByText('Tienda Ana')).toBeInTheDocument()
     expect(screen.getByText('Pedro Market')).toBeInTheDocument()
   })
 
-  it('"Nuevo tenant" → openModal(CreateTenantModal)', async () => {
+  it('"Nueva cuenta" → openModal(CreateTenantModal)', async () => {
     render(<Tenants />)
-    await waitFor(() => expect(screen.getByText(/2 de 2 tenants/)).toBeInTheDocument())
-    // El botón "Nuevo tenant" (texto exacto, distinto de "Bootstrap nuevo tenant").
-    fireEvent.click(screen.getByText('Nuevo tenant'))
+    await waitFor(() => expect(screen.getByText(/2 de 2 cuentas/)).toBeInTheDocument())
+    // El botón "Nueva cuenta" (texto exacto, distinto de "Bootstrap nueva cuenta").
+    fireEvent.click(screen.getByText('Nueva cuenta'))
     expect(openModal).toHaveBeenCalled()
   })
 })

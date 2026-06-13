@@ -7,6 +7,7 @@ vi.mock('../lib/env.js', () => ({
     NODE_ENV: 'test', LOG_LEVEL: 'error',
     DATABASE_URL_TENANTS: 'postgresql://x@y/z', REDIS_URL: 'redis://localhost',
     PLATFORM_CORE_URL: 'http://platform-core.hulkstein.local:3000',
+    PLATFORM_DEFAULT_SUPERADMIN_EMAIL: 'super@x.com',
   },
 }))
 vi.mock('../lib/logger.js', () => ({
@@ -76,6 +77,40 @@ describe('bootstrapTenant', () => {
     expect(sdkPublish).toHaveBeenCalledWith({}, 'platform', expect.objectContaining({ type: 'tenant.bootstrap_started' }))
     expect(r.owner.userId).toBe('o1')
     expect(r.owner.magicLinkUrl).toContain('dojo.hulkstein.local')
+  })
+
+  it('app nueva: crea super_admin inicial (POST /internal/auth/users role=super_admin) + evento de activación', async () => {
+    appsRepo.findByAppId.mockResolvedValue(null)
+    appsRepo.create.mockResolvedValue({ app_id: 'aikikan', display_name: 'Aikikan', subdomain: 'aikikan' })
+    appsRepo.updateEnabledModules.mockResolvedValue({ app_id: 'aikikan', display_name: 'Aikikan', subdomain: 'aikikan' })
+    const tenantRow = { id: 't1', display_name: 'Dojo Centro', subdomain: 'dojo', app_id: 'aikikan' }
+    withTransaction.mockImplementation(async (_p, fn) => fn(makeClient(tenantRow)))
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ data: { userId: 'o1', plainToken: 'tok', expiresAt: 'soon' } }) })
+
+    await bootstrapTenant(basePayload, actor)
+
+    // Segunda llamada interna: alta del super_admin con su rol.
+    const usersCall = global.fetch.mock.calls.find(([url]) => /\/internal\/auth\/users$/.test(url))
+    expect(usersCall).toBeTruthy()
+    expect(JSON.parse(usersCall[1].body)).toMatchObject({ email: 'super@x.com', role: 'super_admin', appId: 'aikikan', tenantId: 't1' })
+    // Evento de activación para el superadmin (reutiliza tenant.bootstrap_started).
+    expect(sdkPublish).toHaveBeenCalledWith({}, 'platform', expect.objectContaining({
+      type: 'tenant.bootstrap_started',
+      payload: expect.objectContaining({ ownerEmail: 'super@x.com', ownerDisplayName: 'Super Admin' }),
+    }))
+  })
+
+  it('superadmin == owner email → no se duplica el alta', async () => {
+    appsRepo.findByAppId.mockResolvedValue(null)
+    appsRepo.create.mockResolvedValue({ app_id: 'aikikan', display_name: 'Aikikan', subdomain: 'aikikan' })
+    appsRepo.updateEnabledModules.mockResolvedValue({ app_id: 'aikikan', display_name: 'Aikikan', subdomain: 'aikikan' })
+    const tenantRow = { id: 't1', display_name: 'Dojo', subdomain: 'dojo', app_id: 'aikikan' }
+    withTransaction.mockImplementation(async (_p, fn) => fn(makeClient(tenantRow)))
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ data: { userId: 'o1', plainToken: 'tok', expiresAt: 's' } }) })
+
+    await bootstrapTenant({ ...basePayload, owner: { email: 'super@x.com', displayName: 'Owner' } }, actor)
+    const usersCall = global.fetch.mock.calls.find(([url]) => /\/internal\/auth\/users$/.test(url))
+    expect(usersCall).toBeFalsy()
   })
 
   it('actor undefined → audit con actorUserId/role/ip = null (ramas ?? null)', async () => {

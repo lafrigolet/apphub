@@ -136,6 +136,9 @@ services:
       # Buzón de operaciones para alertas internas a staff (disputes SLA,
       # leads sin contactar/estancados/follow-up sin owner). Vacío → no-op.
       STAFF_OPS_EMAIL:     ${STAFF_OPS_EMAIL:-}
+      # Tenant-config — colapso a un tenant por defecto: super_admin inicial
+      # creado en cada app nueva (activación por email). Override por env.
+      PLATFORM_DEFAULT_SUPERADMIN_EMAIL: ${PLATFORM_DEFAULT_SUPERADMIN_EMAIL:-luisarturo.frigolet@gmail.com}
       # Payments module — Stripe
       PLATFORM_STRIPE_SECRET_KEY:     ${PLATFORM_STRIPE_SECRET_KEY:-sk_test_placeholder}
       PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}

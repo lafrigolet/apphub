@@ -91,10 +91,10 @@ export default function StaffTenants() {
         <div>
           <div className="text-[12px] uppercase tracking-[0.18em] text-ink3 mb-2">Plataforma</div>
           <h1 className="font-display text-[44px] leading-none tracking-tight">
-            <span className="italic font-normal">Tenants</span>
+            <span className="italic font-normal">Cuentas</span>
           </h1>
           <p className="text-ink3 mt-3 max-w-xl">
-            {filtered.length} de {tenants.length} tenants · gestiona el ciclo de vida completo desde el alta hasta el archivado.
+            {filtered.length} de {tenants.length} cuentas · una cuenta por app · gestiona el ciclo de vida completo desde el alta hasta el archivado.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -102,13 +102,13 @@ export default function StaffTenants() {
             onClick={() => openModal(<CreateTenantModal />, { size: 'lg' })}
             className="btn btn-ghost"
           >
-            {icons.plus}<span>Nuevo tenant</span>
+            {icons.plus}<span>Nueva cuenta</span>
           </button>
           <button
             onClick={() => openModal(<BootstrapTenantModal />, { size: 'xl' })}
             className="btn btn-primary"
           >
-            {icons.plus}<span>Bootstrap nuevo tenant</span>
+            {icons.plus}<span>Bootstrap nueva cuenta</span>
           </button>
         </div>
       </div>

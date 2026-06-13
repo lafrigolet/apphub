@@ -3,8 +3,9 @@ import * as authService from '../services/auth.service.js'
 
 const registerBody = z.object({
   appId:      z.string().min(1),
-  tenantId:   z.string().uuid(),
-  subTenantId: z.string().uuid().optional(),
+  // Colapso 1 app → 1 tenant: tenantId es opcional; si no llega, auth lo
+  // deriva del app. subTenantId queda reservado (no se acepta ya).
+  tenantId:   z.string().uuid().optional(),
   email:      z.string().email(),
   password:   z.string().min(8),
   role:       z.string().default('user'),
@@ -58,6 +59,17 @@ const internalCreateOwnerBody = z.object({
   tenantId:    z.string().uuid(),
   email:       z.string().email(),
   displayName: z.string().min(1).max(128),
+  ttlDays:     z.number().int().min(1).max(30).optional(),
+})
+
+// Alta interna genérica de usuario con activación (rol parametrizable). La
+// usa tenant-config para crear el super_admin inicial de cada app nueva.
+const internalCreateUserBody = z.object({
+  appId:       z.string().min(1),
+  tenantId:    z.string().uuid(),
+  email:       z.string().email(),
+  displayName: z.string().min(1).max(128),
+  role:        z.enum(['owner', 'admin', 'staff', 'super_admin', 'user']).default('owner'),
   ttlDays:     z.number().int().min(1).max(30).optional(),
 })
 
@@ -191,6 +203,15 @@ export async function internalRoutes(fastify) {
   // owner con password_hash NULL y un activation_token, devuelve el plano
   // del token. Caller responsibility: enviar el email con el magic-link.
   fastify.post('/auth/owners', { schema: { body: internalCreateOwnerBody }, config: { public: true } }, async (req, reply) => {
+    const result = await authService.createOwnerWithActivation(req.body)
+    return reply.status(201).send({ data: result })
+  })
+
+  // Internal: alta genérica de usuario con activación (rol parametrizable).
+  // La consume tenant-config para crear el super_admin inicial de cada app.
+  // Idempotencia: si el email ya existe en el tenant → 409 (el caller lo trata
+  // como no-fatal y continúa).
+  fastify.post('/auth/users', { schema: { body: internalCreateUserBody }, config: { public: true } }, async (req, reply) => {
     const result = await authService.createOwnerWithActivation(req.body)
     return reply.status(201).send({ data: result })
   })

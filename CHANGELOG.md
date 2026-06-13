@@ -6,6 +6,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- **Colapso a un tenant por defecto (ADR 020).** Las apps pasan a ser
+  single-tenant: `app_id` es la frontera de cliente real (1 app = 1 tenant) y la
+  subtenancy queda **reservada (siempre NULL)**. No es una eliminación física —
+  columnas `tenant_id`/`sub_tenant_id`, las políticas RLS y el scoping por
+  `app_id + tenant_id` **se mantienen intactos**; lo que cambia es que `tenant_id`
+  deja de ser un input de gestión y se **deriva de `app_id`**, y `sub_tenant_id`
+  deja de propagarse:
+  - **Identidad** — el JWT (`platform/auth` + OAuth) ya no emite `sub_tenant_id`;
+    el guard (`@apphub/platform-sdk/app-guard`) fuerza `req.identity.subTenantId = null`.
+    Nuevo helper `resolveAppTenant(appId)` en `auth.service` (mismo patrón que
+    `resolveUserTenant`); `register`/`requestMembership`/OAuth derivan el tenant del
+    app cuando no se pasa, y `tenantId` es opcional en sus schemas.
+  - **Provisión** — `tenant-config` impone 1 app = 1 tenant (rechaza un segundo
+    tenant por app) y cada app NUEVA crea un `super_admin` inicial
+    (`PLATFORM_DEFAULT_SUPERADMIN_EMAIL`, default `luisarturo.frigolet@gmail.com`)
+    con activación por email (reutiliza el magic-link del owner). Nueva ruta interna
+    `POST /internal/auth/users` (rol parametrizable).
+  - **Console** — la sección "Tenants" pasa a **"Cuentas"** (gestión por cliente:
+    fiscal, stripe, admins, owner); "Apps" sigue siendo el registro técnico. El
+    bootstrap se reetiqueta a "Bootstrap nueva cuenta". El seed colapsa los 12
+    tenants demo a 3 cuentas, **cada una su propia app** (1 app = 1 tenant).
+
 ### Added
 - **Landing `luciapassardi` (yoga) — restyle completo (ADR 017).** Nuevo portal
   landing-only `apps/luciapassardi/luciapassardi-portal` (puerto 5184) servido por

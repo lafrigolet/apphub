@@ -186,20 +186,22 @@ describe('appGuard — app_id mismatch matrix (regla CLAUDE.md #2)', () => {
 // ── identity poblado ──────────────────────────────────────────────────
 
 describe('appGuard — req.identity', () => {
-  it('pobla los 6 campos del payload (sub→userId, app_id, tenant_id, sub_tenant_id, role, email)', async () => {
+  it('pobla los campos del payload (sub→userId, app_id, tenant_id, role, email); subTenantId reservado→null', async () => {
     const tok = makeToken({
       sub: 'u-1', app_id: 'aulavera', tenant_id: 't-1',
-      sub_tenant_id: 'st-1', role: 'admin', email: 'admin@x',
+      role: 'admin', email: 'admin@x',
     })
     const res = await app.inject({ method: 'GET', url: '/private', headers: { Authorization: `Bearer ${tok}` } })
     expect(res.json().identity).toEqual({
       userId: 'u-1', appId: 'aulavera', tenantId: 't-1',
-      subTenantId: 'st-1', role: 'admin', email: 'admin@x',
+      subTenantId: null, role: 'admin', email: 'admin@x',
     })
   })
 
-  it('sub_tenant_id ausente → null (nullable, regla CLAUDE.md #7)', async () => {
-    const tok = makeToken({ sub: 'u1', app_id: 'aulavera', tenant_id: 't1' })
+  // Colapso a un tenant por defecto: subTenantId siempre NULL, incluso si un
+  // token legacy aún trae sub_tenant_id (se ignora).
+  it('subTenantId siempre null (subtenancy reservada), ignora claim legacy', async () => {
+    const tok = makeToken({ sub: 'u1', app_id: 'aulavera', tenant_id: 't1', sub_tenant_id: 'st-legacy' })
     const res = await app.inject({ method: 'GET', url: '/private', headers: { Authorization: `Bearer ${tok}` } })
     expect(res.json().identity.subTenantId).toBeNull()
   })
