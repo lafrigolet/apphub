@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Landing from './views/Landing.jsx'
-import AdminConsole from './components/admin/AdminShell.jsx'
 import EventosAdmin from './components/admin/EventosAdmin.jsx'
 import CalendarioAdmin from './components/admin/CalendarioAdmin.jsx'
 import ProductosAdmin from './components/admin/ProductosAdmin.jsx'
 import PedidosAdmin from './components/admin/PedidosAdmin.jsx'
 import SuscripcionAdmin from './components/admin/SuscripcionAdmin.jsx'
-import Login from './components/admin/Login.jsx'
+import UsersAdmin from './components/admin/UsersAdmin.jsx'
+import ConsultasAdmin from './components/admin/ConsultasAdmin.jsx'
 import { getIdentity, isAdmin, logout, ensureSession, refreshSession } from './lib/auth.js'
 
-// /admin → área del owner. Sin sesión (o rol insuficiente) muestra el login;
-// con sesión válida: /admin = consola reutilizada (@apphub/tenant-console-ui),
-// /admin/eventos = gestión de próximos eventos.
+// /admin → área del owner. Sin sesión (o rol insuficiente) redirige a la landing
+// con ?acceder=1 para usar el único punto de acceso ("Acceder"); con sesión
+// válida: /admin = consola reutilizada (@apphub/tenant-console-ui) + secciones.
 function AdminRoute() {
   const [identity, setIdentity] = useState(() => getIdentity())
   const [booting, setBooting] = useState(() => !getIdentity())
@@ -46,16 +46,19 @@ function AdminRoute() {
   if (booting) {
     return <div className="min-h-screen bg-piedra flex items-center justify-center text-tinta/50">Cargando…</div>
   }
-  if (!identity || !isAdmin(identity.role)) return <Login onLogged={setIdentity} />
+  // Sin sesión o sin rol admin → al único punto de acceso ("Acceder" de la landing).
+  if (!identity || !isAdmin(identity.role)) return <Navigate to="/?acceder=1" replace />
   const onExit = () => { logout(); setIdentity(null) }
   return (
     <Routes>
-      <Route index element={<AdminConsole onExit={onExit} />} />
+      <Route index element={<Navigate to="/admin/calendario" replace />} />
       <Route path="calendario" element={<CalendarioAdmin onExit={onExit} />} />
       <Route path="eventos" element={<EventosAdmin onExit={onExit} />} />
       <Route path="productos" element={<ProductosAdmin onExit={onExit} />} />
       <Route path="pedidos" element={<PedidosAdmin onExit={onExit} />} />
       <Route path="suscripcion" element={<SuscripcionAdmin onExit={onExit} />} />
+      <Route path="usuarios" element={<UsersAdmin onExit={onExit} />} />
+      <Route path="consultas" element={<ConsultasAdmin onExit={onExit} />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   )

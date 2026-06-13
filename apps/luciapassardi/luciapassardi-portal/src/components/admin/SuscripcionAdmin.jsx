@@ -67,8 +67,7 @@ export default function SuscripcionAdmin() {
   const metodo = METODO_ES[sub?.paymentMethod] ?? 'Tarjeta'
 
   return (
-    <div className="min-h-screen bg-piedra text-tinta">
-      <AdminBar active="suscripcion" />
+    <AdminBar active="suscripcion">
       <div className="max-w-2xl mx-auto px-5 py-10">
         <p className="eyebrow">Backoffice · Plataforma</p>
         <h1 className="display text-4xl sm:text-5xl mt-2 mb-2">Suscripción a Hulkstein</h1>
@@ -135,6 +134,6 @@ export default function SuscripcionAdmin() {
           </div>
         )}
       </div>
-    </div>
+    </AdminBar>
   )
 }

@@ -3,11 +3,13 @@ import { navLinks, contacto } from '../data/content.js'
 import { Menu, Close, Leaf, Bag } from './icons.jsx'
 import { useCart } from '../context/CartContext.jsx'
 import { useSession } from '../context/SessionContext.jsx'
+import { isAdmin } from '../lib/auth.js'
 
-// Botón de cuenta: "Acceder" si no hay sesión; inicial + "Mi cuenta" si la hay.
+// Botón de cuenta ÚNICO ("Acceder"): sin sesión abre el login; con sesión muestra
+// la inicial y va al backoffice (admin) o abre Mi cuenta (alumna).
 function AccountButton({ className = '' }) {
   const { identity, setAuthOpen, setAccountOpen } = useSession()
-  if (!identity || identity.role !== 'user') {
+  if (!identity) {
     return (
       <button onClick={() => setAuthOpen(true)}
         className={`text-sm font-semibold px-3 py-1.5 rounded-full text-tinta/70 hover:text-teal-600 transition-colors ${className}`}>
@@ -15,9 +17,12 @@ function AccountButton({ className = '' }) {
       </button>
     )
   }
+  const admin = isAdmin(identity.role)
   const inicial = (identity.email?.[0] || 'A').toUpperCase()
   return (
-    <button onClick={() => setAccountOpen(true)} aria-label="Mi cuenta"
+    <button onClick={() => admin ? (window.location.href = '/admin') : setAccountOpen(true)}
+      title={admin ? 'Ir al backoffice' : 'Mi cuenta'}
+      aria-label={admin ? 'Backoffice' : 'Mi cuenta'}
       className={`w-9 h-9 rounded-full bg-teal-600 text-crema font-bold flex items-center justify-center hover:bg-teal-700 transition-colors ${className}`}>
       {inicial}
     </button>

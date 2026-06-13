@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useSession } from '../context/SessionContext.jsx'
+import { isAdmin } from '../lib/auth.js'
 import { Close, Leaf } from './icons.jsx'
 
-// Modal de acceso de alumna: login + registro (platform/auth). Tras autenticar,
-// SessionContext ejecuta la acción encolada (reservar / comprar bono).
+// Modal de acceso ÚNICO de la landing: login + registro (platform/auth). Tras
+// autenticar: si el rol es admin (owner/staff…) → al backoffice (/admin); si es
+// alumna → se ejecuta la acción encolada (reservar/comprar) o se abre Mi cuenta.
 export default function AuthModal() {
-  const { authOpen, setAuthOpen, login, register } = useSession()
+  const { authOpen, setAuthOpen, setAccountOpen, login, register } = useSession()
   const [modo, setModo] = useState('login')   // 'login' | 'registro'
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [err, setErr] = useState('')
@@ -18,8 +20,12 @@ export default function AuthModal() {
     e.preventDefault()
     setErr(''); setBusy(true)
     try {
-      if (modo === 'registro') await register(form)
-      else await login({ email: form.email, password: form.password })
+      const id = modo === 'registro'
+        ? await register(form)
+        : await login({ email: form.email, password: form.password })
+      // Owner/admin/staff → al backoffice. Alumna → Mi cuenta (si no había una
+      // acción encolada que ya se ejecutó en SessionContext).
+      if (isAdmin(id?.role)) window.location.href = '/admin'
     } catch (e2) {
       setErr(e2.message ?? 'No se pudo completar')
     } finally { setBusy(false) }
