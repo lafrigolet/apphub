@@ -2,33 +2,7 @@ import { useState } from 'react'
 import { navLinks, contacto } from '../data/content.js'
 import { Menu, Close, Leaf } from './icons.jsx'
 
-const VARIANTES = [
-  ['strip', 'Tira'],
-  ['bento', 'Bento'],
-  ['card', 'Tarjeta'],
-]
-
-// Control segmentado para alternar la variante del hero (demo de elección).
-function LayoutSwitch({ variant, onVariant, className = '' }) {
-  return (
-    <div className={`inline-flex items-center gap-0.5 rounded-full border border-tinta/15 bg-crema/60 p-0.5 ${className}`} role="group" aria-label="Layout del hero">
-      {VARIANTES.map(([v, label]) => (
-        <button
-          key={v}
-          onClick={() => onVariant(v)}
-          aria-pressed={variant === v}
-          className={`seg-btn px-3 py-1 rounded-full text-[12px] font-semibold ${
-            variant === v ? 'bg-teal-600 text-crema' : 'text-tinta/60 hover:text-teal-600'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-export default function Header({ variant, onVariant }) {
+export default function Header() {
   const [open, setOpen] = useState(false)
 
   return (
@@ -48,11 +22,6 @@ export default function Header({ variant, onVariant }) {
         </nav>
 
         <div className="hidden md:flex items-center gap-3 shrink-0">
-          {/* Control de layout (elige entre las 3 variantes) */}
-          <div className="hidden lg:flex items-center gap-1.5">
-            <span className="text-[11px] uppercase tracking-widest text-tinta/40 font-semibold">Layout</span>
-            <LayoutSwitch variant={variant} onVariant={onVariant} />
-          </div>
           <a href={contacto.whatsappMsg} target="_blank" rel="noopener noreferrer"
             className="btn-zen btn-fill text-[14px] py-2.5 px-5">
             Reserva una clase
@@ -79,11 +48,6 @@ export default function Header({ variant, onVariant }) {
                 <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="hover:text-teal-600">{l.label}</a>
               ))}
             </nav>
-
-            <div className="mt-8">
-              <span className="block text-[11px] uppercase tracking-widest text-tinta/40 font-semibold mb-2">Layout del hero</span>
-              <LayoutSwitch variant={variant} onVariant={onVariant} />
-            </div>
 
             <a href={contacto.whatsappMsg} target="_blank" rel="noopener noreferrer"
               onClick={() => setOpen(false)} className="btn-zen btn-fill justify-center mt-auto">
