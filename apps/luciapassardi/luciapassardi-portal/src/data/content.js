@@ -33,6 +33,16 @@ export const hero = {
     'sino como un método para la autorregulación y para volver a ti.',
 }
 
+// Próximos eventos mostrados en el hero (mismo patrón que aikikan). Aikikan los
+// trae por API (/api/services/sessions/upcoming); aquí la landing no tiene
+// backend, así que son estáticos. TODO: actualizar con fechas reales.
+export const proximosEventos = [
+  { id: 'ev1', date: '2026-07-12', name: 'Yoga al aire libre', location: 'Parque de Las Matas' },
+  { id: 'ev2', date: '2026-09-27', name: 'Taller de abdomen y suelo pélvico', location: 'Estudio · Las Matas' },
+  { id: 'ev3', date: '2026-10-18', name: 'Retiro de fin de semana', location: 'Sierra de Madrid' },
+  { id: 'ev4', date: '2027-01-10', name: 'Retiro de enero', location: 'Plazas limitadas' },
+]
+
 export const clases = [
   {
     num: '01',
