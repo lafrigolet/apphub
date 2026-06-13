@@ -1,5 +1,11 @@
-import { hero, contacto, fotos } from '../data/content.js'
+import { hero, contacto, fotos, proximosEventos } from '../data/content.js'
 import { Arrow } from './icons.jsx'
+
+const MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
+function fmtFecha(iso) {
+  const d = new Date(`${iso}T00:00:00`)
+  return { dia: String(d.getDate()).padStart(2, '0'), mes: MESES[d.getMonth()], anio: d.getFullYear() }
+}
 
 export default function Hero() {
   return (
@@ -7,9 +13,9 @@ export default function Hero() {
       {/* Lavado de color de fondo */}
       <div className="absolute inset-0 wash-salvia opacity-80" aria-hidden="true" />
       <div className="relative max-w-7xl mx-auto px-5 sm:px-8 pt-16 sm:pt-24 pb-20 sm:pb-28">
-        <div className="grid lg:grid-cols-12 gap-12 items-center">
+        <div className="grid lg:grid-cols-12 gap-12 items-center lg:items-start">
           {/* Texto */}
-          <div className="lg:col-span-6">
+          <div className="lg:col-span-6 lg:pt-6">
             <p className="eyebrow reveal">{hero.kicker}</p>
             <h1 className="display text-5xl sm:text-6xl lg:text-7xl mt-5 reveal reveal-delay-1">
               {hero.titleLead} <em>{hero.titleEm}</em><br />
@@ -43,6 +49,38 @@ export default function Hero() {
                 <span className="w-2.5 h-2.5 rounded-full bg-teal-500 breathe-dot" />
                 <span className="text-sm font-medium text-tinta">Clases íntimas en {contacto.zona}</span>
               </div>
+            </div>
+
+            {/* Próximos eventos (mismo patrón que aikikan) */}
+            <div className="mt-12 lg:mt-14 reveal reveal-delay-3">
+              <div className="flex items-center justify-between mb-3">
+                <p className="eyebrow">Próximos eventos</p>
+                <a href="#retiros" className="text-sm font-semibold text-teal-700 hover:text-teal-600 inline-flex items-center gap-1.5">
+                  Ver agenda <Arrow className="w-3.5 h-3.5" />
+                </a>
+              </div>
+              <ul className="divide-y divide-tinta/10 border-t border-tinta/10">
+                {proximosEventos.slice(0, 4).map((e) => {
+                  const { dia, mes, anio } = fmtFecha(e.date)
+                  return (
+                    <li key={e.id}>
+                      <a href="#retiros" className="group grid grid-cols-[auto_1fr_auto] items-center gap-4 py-3.5">
+                        <span className="text-center leading-none">
+                          <span className="display block text-2xl text-teal-600">{dia}</span>
+                          <span className="block text-[11px] font-semibold tracking-widest text-tinta/45">{mes} {anio}</span>
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-tinta truncate">{e.name}</span>
+                          <span className="block text-sm text-tinta/55 truncate">{e.location}</span>
+                        </span>
+                        <span className="text-teal-600 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all">
+                          <Arrow className="w-4 h-4" />
+                        </span>
+                      </a>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           </div>
         </div>
