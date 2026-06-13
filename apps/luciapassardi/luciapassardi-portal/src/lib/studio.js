@@ -42,6 +42,15 @@ export async function crearEvento({ titulo, startsAt, endsAt, location, capacity
   })
 }
 
+export async function editarEvento(sessionId, { titulo, startsAt, endsAt, location, capacity }) {
+  return req('PATCH', `/api/services/sessions/${sessionId}`, {
+    startsAt, endsAt,
+    description: titulo,
+    location: location || undefined,
+    capacity: capacity ? Number(capacity) : undefined,
+  })
+}
+
 export async function borrarEvento(sessionId) {
   return req('DELETE', `/api/services/sessions/${sessionId}`)
 }
