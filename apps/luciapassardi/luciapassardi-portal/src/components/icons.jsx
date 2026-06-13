@@ -38,3 +38,6 @@ export const Youtube = (p) => (
 export const Sun = (p) => (
   <Stroke {...p}><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" /></Stroke>
 )
+export const Bag = (p) => (
+  <Stroke {...p}><path d="M6 8h12l-1 12H7L6 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></Stroke>
+)

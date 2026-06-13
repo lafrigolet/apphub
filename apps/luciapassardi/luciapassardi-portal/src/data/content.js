@@ -20,6 +20,7 @@ export const navLinks = [
   { href: '#retiros', label: 'Retiros y talleres' },
   { href: '#enfoque', label: 'Mi enfoque' },
   { href: '#sobre-mi', label: 'Conóceme' },
+  { href: '#tienda', label: 'Tienda' },
   { href: '#contacto', label: 'Contacto' },
 ]
 
@@ -83,6 +84,37 @@ export const horario = [
   { dia: 'Domingo', corto: 'DOM', clases: [
     { hora: '10:30', dur: 60, tipo: 'Yoga suave y meditación', nivel: 'Todos',      ubicacion: 'online' },
   ] },
+]
+
+// Tienda. Catálogo FICTICIO de muestra — habrá muchos productos, así que la
+// sección filtra por categoría y pagina ("cargar más"). TODO: sustituir por el
+// catálogo real (y fotos). Sin backend: el "pedido" se hace por WhatsApp.
+export const categorias = [
+  { id: 'esterillas', nombre: 'Esterillas' },
+  { id: 'props',      nombre: 'Props' },
+  { id: 'ropa',       nombre: 'Ropa' },
+  { id: 'bienestar',  nombre: 'Bienestar' },
+  { id: 'bonos',      nombre: 'Bonos' },
+]
+
+export const productos = [
+  { id: 'p01', nombre: 'Esterilla Sattva (caucho natural)', categoria: 'esterillas', precio: 69, desc: 'Agarre y amortiguación, 4,5 mm.', badge: 'Top ventas' },
+  { id: 'p02', nombre: 'Esterilla de viaje plegable',       categoria: 'esterillas', precio: 45, desc: 'Ligera, 1,5 mm, cabe en la mochila.' },
+  { id: 'p03', nombre: 'Esterilla algodón tejida',          categoria: 'esterillas', precio: 39, desc: 'Tradicional, ideal para Ashtanga.' },
+  { id: 'p04', nombre: 'Par de bloques de corcho',          categoria: 'props',      precio: 22, desc: 'Estables y naturales.' },
+  { id: 'p05', nombre: 'Cinturón de algodón',               categoria: 'props',      precio: 12, desc: 'Hebilla metálica, 2,5 m.' },
+  { id: 'p06', nombre: 'Bolster de meditación',             categoria: 'props',      precio: 49, desc: 'Relleno firme, funda lavable.' },
+  { id: 'p07', nombre: 'Manta de yoga',                     categoria: 'props',      precio: 35, desc: 'Para relajación y soporte.' },
+  { id: 'p08', nombre: 'Leggings Respira',                  categoria: 'ropa',       precio: 39, desc: 'Cintura alta, tejido técnico.', badge: 'Nuevo' },
+  { id: 'p09', nombre: 'Top sujeción media',               categoria: 'ropa',       precio: 29, desc: 'Suave, sin costuras.' },
+  { id: 'p10', nombre: 'Sudadera "Respira y avanza"',       categoria: 'ropa',       precio: 45, desc: 'Algodón orgánico.' },
+  { id: 'p11', nombre: 'Incienso natural (pack 3)',         categoria: 'bienestar',  precio: 9,  desc: 'Lavanda, sándalo y palo santo.' },
+  { id: 'p12', nombre: 'Aceite esencial de lavanda',        categoria: 'bienestar',  precio: 14, desc: 'Para relajación y descanso.' },
+  { id: 'p13', nombre: 'Mala de 108 cuentas',               categoria: 'bienestar',  precio: 25, desc: 'Semillas de rudraksha.' },
+  { id: 'p14', nombre: 'Cojín de ojos (lavanda)',           categoria: 'bienestar',  precio: 18, desc: 'Para savasana y meditación.' },
+  { id: 'p15', nombre: 'Bono 5 clases',                     categoria: 'bonos',      precio: 60, desc: 'Caduca a los 2 meses.' },
+  { id: 'p16', nombre: 'Bono 10 clases',                    categoria: 'bonos',      precio: 110, desc: 'El mejor precio por clase.', badge: 'Ahorra' },
+  { id: 'p17', nombre: 'Tarjeta regalo',                    categoria: 'bonos',      precio: 25, desc: 'Regala práctica. Importe a elegir.', desde: true },
 ]
 
 export const clases = [
