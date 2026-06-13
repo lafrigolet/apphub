@@ -413,12 +413,18 @@ importers:
 
   apps/luciapassardi/luciapassardi-portal:
     dependencies:
+      '@apphub/tenant-console-ui':
+        specifier: workspace:*
+        version: link:../../../packages/tenant-console-ui
       react:
         specifier: ^18.3.0
         version: 18.3.1
       react-dom:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
+      react-router-dom:
+        specifier: ^6.26.0
+        version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@vitejs/plugin-react':
         specifier: ^4.3.0
@@ -1049,6 +1055,28 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
 
+  platform/commerce:
+    dependencies:
+      '@apphub/platform-sdk':
+        specifier: workspace:*
+        version: link:../../packages/platform-sdk
+      fastify:
+        specifier: ^5.0.0
+        version: 5.8.4
+      pg:
+        specifier: ^8.12.0
+        version: 8.20.0
+      pino:
+        specifier: ^9.3.0
+        version: 9.14.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
+
   platform/core:
     dependencies:
       '@apphub/platform-auth':
@@ -1057,6 +1085,9 @@ importers:
       '@apphub/platform-chat':
         specifier: workspace:*
         version: link:../chat
+      '@apphub/platform-commerce':
+        specifier: workspace:*
+        version: link:../commerce
       '@apphub/platform-donations':
         specifier: workspace:*
         version: link:../donations

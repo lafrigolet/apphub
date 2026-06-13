@@ -30,6 +30,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     tenants demo a 3 cuentas, **cada una su propia app** (1 app = 1 tenant).
 
 ### Added
+- **Backoffice de `luciapassardi` (V1) — reutilizando módulos de plataforma.**
+  Convierte la landing en una app con tenant + login + consola, sin reinventar:
+  - **Módulo nuevo `platform/commerce`** ([ADR 019](docs/adr/019-platform-commerce-orchestration.md)):
+    orquestación de comercio dirigida por eventos — `checkouts` + subscriber a
+    `payment.succeeded` que emite `commerce.purchase.paid`; `platform/packages`
+    crea el bono y `platform/bookings` confirma la reserva al consumirlo. Schema
+    `platform_commerce`, registrado en platform-core, ruta `/api/commerce/`,
+    init/role/compose. +7 tests.
+  - **Aprovisionamiento + seed** (`apps/luciapassardi/seed.sql`): app+tenant+owner
+    (`platform_tenants`/`platform_auth`) y dominio real reutilizando
+    `platform/services` (clases), `platform/resources` (ubicaciones como salas),
+    `platform/packages` (bonos 5/10) y `service_sessions` (horario semanal de las
+    próximas 3 semanas + retiros/talleres).
+  - **Portal admin**: login (`platform/auth`) en `/admin` + consola reutilizada
+    `@apphub/tenant-console-ui` (servicios, recursos, reservas, bonos,
+    notificaciones, usuarios/practicantes). Acceso desde el footer.
+  - **Landing en vivo**: el hero (próximos eventos) y la sección Horario leen
+    datos reales (`/api/services/sessions/upcoming`) con fallback estático;
+    `/api` enrutado en el seed nginx. Helpers `reservarSesion`/`comprarBono`
+    (commerce + payments) listos. **Recordatorios** de clase y caducidad de bono
+    salen gratis del `platform-scheduler`.
 - **Landing `luciapassardi` (yoga) — restyle completo (ADR 017).** Nuevo portal
   landing-only `apps/luciapassardi/luciapassardi-portal` (puerto 5184) servido por
   el contenedor `portals`, en `luciapassardi.hulkstein.local`. Reutiliza el

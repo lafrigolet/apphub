@@ -418,4 +418,25 @@ export async function handleEvent(event) {
   }
 }
 
+// Fulfillment de comercio: cuando platform/commerce confirma el pago de un bono
+// (commerce.purchase.paid, kind=package), creamos la compra del bono. La
+// unicidad la garantiza commerce (un único evento por checkout pagado).
+export async function handleCommercePaid(event) {
+  const p = event?.payload ?? {}
+  if (p.kind !== 'package') return
+  if (!p.appId || !p.tenantId || !p.refId) return
+  const ctx = { appId: p.appId, tenantId: p.tenantId, subTenantId: p.subTenantId ?? null, userId: p.clientUserId ?? null, role: 'system' }
+  try {
+    await purchase(ctx, {
+      templateId: p.refId,
+      clientUserId: p.clientUserId ?? null,
+      pricePaidCents: p.amountCents ?? null,
+      metadata: { checkoutId: p.checkoutId, source: 'commerce' },
+    })
+    logger.info({ checkoutId: p.checkoutId, templateId: p.refId }, 'packages: bono creado desde commerce')
+  } catch (err) {
+    logger.warn({ err, checkoutId: p.checkoutId }, 'packages commerce fulfillment error')
+  }
+}
+
 export { subscribe }

@@ -214,6 +214,8 @@ Eventos clave emitidos por el dominio dinero:
 | `platform/verifactu` | `verifactu.registro.created`, `verifactu.registro.failed` | tras encadenar (o fallar) el registro de facturación | `platform/tpv` (completa QR/estado fiscal del recibo o abono) |
 | `platform-scheduler` → `platform/verifactu` | `verifactu.remision.due`, `verifactu.remision.dlq_alert` | registros pendientes/reintentables de remitir, o entradas en DLQ | `platform/verifactu` drena la cola (mTLS + SOAP a la AEAT) · notifications (alerta DLQ) |
 | `platform/orders`, `platform/donations` → `platform/verifactu` | `order.completed`, `donation.created` | venta/donación completada | `platform/verifactu` (registro de alta con dedupe por order_id/donation_id; POS va vía la cadena TPV) |
+| `platform/payments` → `platform/commerce` | `payment.succeeded`, `payment.failed` | se cobra/falla un pago enlazado a un checkout | `platform/commerce` casa el checkout y emite `commerce.purchase.paid` |
+| `platform/commerce` → `platform/packages`, `platform/bookings` | `commerce.purchase.paid` | checkout pagado (kind=package/booking) | `packages` crea el bono · `bookings` confirma la reserva (cada uno escribe su esquema) |
 | `platform-scheduler` → `platform/tpv` | `tpv.session.force_closed` | sesión de caja abierta más allá de la ventana de autocierre | apps/portales TPV (aviso al manager) |
 | `platform/notifications` | `email.inbound.received` + el evento de la ruta/token (`inquiry.reply.received`, `lead.email.received`, …) | al ingerir y enrutar un correo entrante (Resend Inbound) | `platform/inquiries` (respuesta → timeline), `platform/leads` (leads@ → lead), cualquier módulo con regla en `inbound_routes` |
 | `platform-scheduler` → `platform/notifications` | `notifications.inbound.purge_due` | diario 05:15 (`notifications-inbound-purge`) | el consumidor de notifications borra `inbound_emails` caducados + objetos S3 + reply tokens expirados |
@@ -280,7 +282,7 @@ Keys are stored in Redis with a 24-hour TTL to prevent duplicate charges on netw
 
 | Docker service | What runs inside | Ports |
 |---|---|---|
-| `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay + storage + leads + donations + inquiries + verifactu + chat + tpv | 3000 |
+| `platform-core` | Modular monolith: auth + notifications + payments + tenant-config + splitpay + storage + leads + donations + inquiries + verifactu + chat + tpv + commerce | 3000 |
 | `platform-marketplace` | Modular monolith: orders + inventory + reviews + messaging + shipping + disputes + catalog + basket | 3100 |
 | `platform-restaurant` | Modular monolith: menu + reservations + floor-plan + kds + pos + delivery-dispatch | 3200 |
 | `platform-appointments` | Modular monolith: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts | 3300 |

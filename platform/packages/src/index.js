@@ -19,9 +19,12 @@ export async function register({ app, db, redis, logger }) {
     subscribe(async (_channel, raw) => {
       let event
       try { event = JSON.parse(raw) } catch { return }
-      if (!['booking.completed', 'booking.cancelled', 'booking.no_show'].includes(event.type)) return
-      await service.handleEvent(event)
+      if (['booking.completed', 'booking.cancelled', 'booking.no_show'].includes(event.type)) {
+        await service.handleEvent(event)
+      } else if (event.type === 'commerce.purchase.paid') {
+        await service.handleCommercePaid(event)
+      }
     })
-    logger?.info('packages subscribed to booking lifecycle events')
+    logger?.info('packages subscribed to booking + commerce events')
   })
 }

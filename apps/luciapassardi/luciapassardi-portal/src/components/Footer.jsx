@@ -42,7 +42,10 @@ export default function Footer() {
         <div className="hairline my-10 opacity-30" />
         <div className="flex flex-col sm:flex-row justify-between gap-3 text-sm text-crema/45">
           <span>© {year} Lucía Passardi. Todos los derechos reservados.</span>
-          <span>Hecho con calma · yoga y movimiento</span>
+          <span className="flex items-center gap-4">
+            <a href="/admin" className="hover:text-crema transition-colors">Acceso</a>
+            <span>Hecho con calma · yoga y movimiento</span>
+          </span>
         </div>
       </div>
     </footer>

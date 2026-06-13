@@ -1,11 +1,13 @@
-import { hero, contacto, fotos, proximosEventos } from '../data/content.js'
+import { hero, contacto, fotos } from '../data/content.js'
 import { fmtFecha } from '../lib/fecha.js'
+import { useProximosEventos } from '../hooks/index.js'
 import { Arrow } from './icons.jsx'
 
 // Variante "tarjeta flotante": el hero se mantiene compacto y la agenda vive en
 // una tarjeta translúcida superpuesta a la foto. Cambio mínimo respecto al hero
 // original; la agenda queda visible junto a la foto al cargar.
 export default function HeroCard() {
+  const proximosEventos = useProximosEventos()
   return (
     <section id="inicio" className="relative overflow-hidden pt-[72px]">
       <div className="absolute inset-0 wash-salvia opacity-80" aria-hidden="true" />
