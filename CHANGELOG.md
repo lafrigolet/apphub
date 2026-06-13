@@ -7,6 +7,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Cesta de la compra en la landing de `luciapassardi` (cesta real + checkout).**
+  Reutiliza `platform/basket` (Redis), `platform/orders` y `payments`:
+  - **Token de invitado en `platform/auth`** (capacidad nueva): `POST /v1/auth/guest`
+    emite un JWT `role='guest'` (sin fila en BD, 30d) para que visitantes anónimos
+    operen la cesta y creen pedidos sin login. `guestUserId` opcional reanuda una
+    cesta previa.
+  - **Frontend**: `CartProvider` + panel lateral con badge en el menú, alta/baja de
+    cantidades sobre `platform/basket`, y botón "Añadir" en la tienda. El checkout
+    crea un **pedido real** en `platform/orders` (aparece en el backoffice de Pedidos)
+    e intenta iniciar el pago por Stripe; si el pago no está disponible, el pedido
+    queda registrado y se confirma al cliente.
 - **Secciones de backoffice de `luciapassardi` (gestión real, reutilizando plataforma).**
   - **Eventos / Calendario / Tienda / Pedidos**: CRUD real sobre
     `platform/services` (sesiones de eventos y clases con edición/borrado inline

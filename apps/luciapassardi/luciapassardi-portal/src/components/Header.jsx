@@ -1,6 +1,23 @@
 import { useState } from 'react'
 import { navLinks, contacto } from '../data/content.js'
-import { Menu, Close, Leaf } from './icons.jsx'
+import { Menu, Close, Leaf, Bag } from './icons.jsx'
+import { useCart } from '../context/CartContext.jsx'
+
+// Botón de cesta con badge de unidades.
+function CartButton({ className = '' }) {
+  const { count, setOpen } = useCart()
+  return (
+    <button onClick={() => setOpen(true)} aria-label="Abrir cesta"
+      className={`relative p-2 text-tinta/70 hover:text-teal-600 transition-colors ${className}`}>
+      <Bag className="w-6 h-6" />
+      {count > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-teal-600 text-crema text-[11px] font-bold flex items-center justify-center">
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
 
 export default function Header() {
   const [open, setOpen] = useState(false)
@@ -22,15 +39,19 @@ export default function Header() {
         </nav>
 
         <div className="hidden md:flex items-center gap-3 shrink-0">
+          <CartButton />
           <a href={contacto.whatsappMsg} target="_blank" rel="noopener noreferrer"
             className="btn-zen btn-fill text-[14px] py-2.5 px-5">
             Reserva una clase
           </a>
         </div>
 
-        <button className="md:hidden text-tinta p-2" onClick={() => setOpen(true)} aria-label="Abrir menú">
-          <Menu className="w-6 h-6" />
-        </button>
+        <div className="md:hidden flex items-center gap-1">
+          <CartButton />
+          <button className="text-tinta p-2" onClick={() => setOpen(true)} aria-label="Abrir menú">
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Drawer móvil */}

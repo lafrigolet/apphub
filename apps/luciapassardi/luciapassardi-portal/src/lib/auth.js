@@ -43,3 +43,44 @@ export function getIdentity() {
 
 const ADMIN_ROLES = new Set(['owner', 'admin', 'staff', 'super_admin'])
 export function isAdmin(role) { return ADMIN_ROLES.has(role) }
+
+// ── Sesión de invitado para la cesta de la landing (visitante anónimo) ──
+// platform/basket y platform/orders exigen identidad; los visitantes anónimos
+// usan un JWT role='guest' emitido por platform/auth (POST /api/auth/guest).
+// Se cachea con su guestUserId para reanudar la misma cesta entre visitas.
+const GUEST_KEY = 'lucia_guest'
+
+function readGuest() {
+  try { return JSON.parse(localStorage.getItem(GUEST_KEY) || 'null') } catch { return null }
+}
+function tokenExpired(token) {
+  try {
+    const p = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return p.exp && p.exp * 1000 < Date.now()
+  } catch { return true }
+}
+
+async function mintGuest() {
+  const prev = readGuest()
+  const res = await fetch(`${BASE}/api/auth/guest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appId: APP_ID, tenantId: TENANT_ID, guestUserId: prev?.userId ?? null }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`)
+  const data = json?.data ?? json
+  const guest = { token: data.accessToken, userId: data.userId }
+  localStorage.setItem(GUEST_KEY, JSON.stringify(guest))
+  return guest.token
+}
+
+// Token para operar la cesta: el del usuario logueado si existe; si no, un guest
+// (cacheado, re-emitido si caducó). force=true re-emite (p.ej. tras un 401).
+export async function cartToken(force = false) {
+  const user = getToken()
+  if (user) return user
+  const guest = readGuest()
+  if (!force && guest?.token && !tokenExpired(guest.token)) return guest.token
+  return mintGuest()
+}

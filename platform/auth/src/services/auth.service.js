@@ -60,6 +60,28 @@ function signAccess(user) {
   )
 }
 
+// Sesión de invitado para visitantes anónimos de una landing pública: emite un
+// JWT con role='guest' y un userId recién generado (sin fila en BD). Sirve para
+// que módulos con identidad obligatoria (platform/basket, platform/orders)
+// puedan atender la cesta de un visitante sin login. Vida larga (30d) para que
+// la cesta persista entre visitas; el guestUserId opcional permite reanudar una
+// cesta previa guardada en el cliente.
+export function guestSession({ appId, tenantId, subTenantId = null, guestUserId = null }) {
+  const userId = (guestUserId && UUID_RE.test(guestUserId)) ? guestUserId : uuidv4()
+  const accessToken = jwt.sign(
+    {
+      sub:           userId,
+      app_id:        appId,
+      tenant_id:     tenantId,
+      sub_tenant_id: subTenantId ?? undefined,
+      role:          'guest',
+    },
+    env.PLATFORM_JWT_SECRET,
+    { expiresIn: '30d' },
+  )
+  return { accessToken, userId, role: 'guest' }
+}
+
 export async function register({ appId, tenantId, subTenantId, email, password, role = 'user' }) {
   return withTenantTransaction(pool, appId, tenantId, subTenantId, async (client) => {
     const existing = await userRepo.findByEmail(client, appId, tenantId, email)

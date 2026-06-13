@@ -17,6 +17,13 @@ const loginBody = z.object({
   password: z.string(),
 })
 
+const guestBody = z.object({
+  appId:       z.string().min(1),
+  tenantId:    z.string().uuid(),
+  subTenantId: z.string().uuid().nullable().optional(),
+  guestUserId: z.string().uuid().nullable().optional(),
+})
+
 const refreshBody = z.object({
   appId:        z.string().min(1),
   tenantId:     z.string().uuid(),
@@ -123,6 +130,13 @@ export async function authRoutes(fastify) {
 
   fastify.post('/login', { schema: { body: loginBody, tags: ['auth'], summary: 'Login with email + password' }, config: { public: true, rateLimit: TIGHT_LIMIT } }, async (req, reply) => {
     const result = await authService.login({ ...req.body, ...clientMeta(req) })
+    return reply.send({ data: result })
+  })
+
+  // Sesión de invitado: visitantes anónimos de una landing obtienen un JWT
+  // role='guest' para usar la cesta (platform/basket) y crear pedidos sin login.
+  fastify.post('/guest', { schema: { body: guestBody, tags: ['auth'], summary: 'Mint a guest session token for anonymous storefront visitors' }, config: { public: true, rateLimit: MEDIUM_LIMIT } }, async (req, reply) => {
+    const result = authService.guestSession(req.body)
     return reply.send({ data: result })
   })
 
