@@ -18,7 +18,7 @@ export default function SobreMi() {
 
           {/* Bio + credenciales */}
           <div className="lg:col-span-7">
-            <p className="eyebrow reveal">— 04 / Conóceme</p>
+            <p className="eyebrow reveal">— 05 / Conóceme</p>
             <h2 className="display text-4xl sm:text-5xl mt-4 reveal reveal-delay-1">
               Hola, soy <em>Lucía</em>.
             </h2>
