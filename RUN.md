@@ -180,6 +180,26 @@ docker compose up -d postgres redis
 pnpm test
 ```
 
+### Option D — Portales estáticos (bajo consumo de RAM)
+
+En vez de ~11 procesos vite (HMR), el contenedor `portals` sirve los `dist/`
+con un único nginx, montados como volumen desde el host. Mucha menos RAM; el
+precio es que no hay HMR (reconstruyes el `dist/` y refrescas, sin tocar Docker).
+
+```bash
+# 1. Construir los dist/ en el host (todos, o uno: ./infra/portals/build-portals.sh aikikan)
+./infra/portals/build-portals.sh
+
+# 2. Levantar con el override estático
+docker compose -f docker-compose.yml -f docker-compose.portals-static.yml up -d
+
+# 3. Tras editar un portal → reconstruir solo ese dist y refrescar el navegador
+./infra/portals/build-portals.sh aikikan
+```
+
+Notas: si un `dist/` no existe todavía, ese portal devuelve 404 hasta construirlo.
+Para trabajar el frontend con hot-reload, usa la Opción A (vite) sin el override.
+
 ---
 
 ## 7. Verify everything works

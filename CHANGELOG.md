@@ -6,6 +6,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- **Modo dev estático de `portals` (bajo consumo de RAM).** Override opcional
+  `docker-compose.portals-static.yml` + nuevo stage `static` en
+  `infra/portals/Dockerfile` (nginx sin hornear dist) + script
+  `infra/portals/build-portals.sh`. Sirve los portales como estático con UN solo
+  nginx, montando cada `apps/<portal>/dist` como volumen desde el host: se
+  reconstruye con `vite build` (segundos) y se refresca, **sin reconstruir la
+  imagen Docker**. Trade-off: sin HMR (para frontend activo se usa el
+  `docker compose up` normal con vite). Puertos y upstreams del gateway sin
+  cambios; las `VITE_*` (splitpay APP_ID, aikikan OAuth/tenant) se inyectan en el
+  build del host.
+
 ### Changed
 - **Consolidación de contenedores (ADR 021).** Los 22 módulos de
   `platform-marketplace` (orders, inventory, reviews, messaging, shipping,
