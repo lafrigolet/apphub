@@ -9,7 +9,7 @@ a record isn't edited; if the decision changes, a new ADR supersedes it.
 | [001](001-postgres-schemas-per-service.md) | PostgreSQL schemas instead of separate databases per service | Accepted |
 | [002](002-two-level-tenancy.md) | Three-level identity: `app_id + tenant_id + sub_tenant_id` | Accepted |
 | [003](003-dynamic-nginx-routing.md) | Dynamic NGINX routing via Redis sidecar | Accepted |
-| [004](004-domain-separated-monolith-containers.md) | Domain-separated monolith containers | Accepted |
+| [004](004-domain-separated-monolith-containers.md) | Domain-separated monolith containers | Superseded by 021 (deployment only; module grouping stands) |
 | [005](005-platform-restaurant-monolith.md) | `platform-restaurant` — third monolith for restaurant operations | Accepted |
 | [006](006-platform-appointments-monolith.md) | `platform-appointments` — fourth monolith for scheduling | Accepted |
 | [007](007-platform-scheduler.md) | `platform-scheduler` — single-runner cron for the 4 monoliths | Accepted |
@@ -26,6 +26,7 @@ a record isn't edited; if the decision changes, a new ADR supersedes it.
 | [018](018-apps-servers-orchestrator.md) | `apps-servers` — single orchestrator for app-specific servers (per-scope guard) | Accepted |
 | [019](019-platform-commerce-orchestration.md) | `platform/commerce` — checkout orchestration over bookings/packages/catalog | Accepted |
 | [020](020-single-tenant-collapse.md) | Single-tenant collapse — `tenant_id` derived from `app_id`, `sub_tenant_id` reserved (columns/RLS kept) | Accepted |
+| [021](021-consolidate-domain-monoliths-into-platform-core.md) | Consolidate marketplace/restaurant/appointments modules into platform-core (delete those 3 containers) | Accepted |
 
 ## Writing a new ADR
 

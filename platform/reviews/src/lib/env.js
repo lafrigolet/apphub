@@ -8,9 +8,9 @@ const envSchema = z.object({
   EXPECTED_APP_ID:        z.string().default('platform'),
   LOG_LEVEL:              z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
-  // Loopback for verified-purchase HTTP check. Defaults to localhost because
-  // reviews runs inside the platform-marketplace container alongside orders.
-  PLATFORM_MARKETPLACE_URL: z.string().url().default('http://localhost:3100'),
+  // Loopback for the verified-purchase HTTP check. orders y reviews viven en el
+  // mismo proceso platform-core (ADR 021); apunta a core y pega a /v1/orders.
+  PLATFORM_CORE_URL: z.string().url().default('http://platform-core:3000'),
 })
 
 const parsed = envSchema.safeParse(process.env)

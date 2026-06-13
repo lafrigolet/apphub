@@ -22,12 +22,9 @@ container (ADR 017).
 
 ```
 apphub/
-├── platform/                  # Platform-side services. Five monolith containers (platform-core + platform-marketplace + platform-restaurant + platform-appointments + platform-scheduler).
-│   ├── core/                  # platform-core orchestrator — port 3000 (auth/notifications/payments/tenant-config/splitpay)
-│   ├── marketplace/           # platform-marketplace orchestrator — port 3100 (orders/inventory/reviews/messaging/shipping/disputes/catalog/basket)
-│   ├── restaurant/            # platform-restaurant orchestrator — port 3200 (menu/reservations/floor-plan/kds/pos/delivery-dispatch)
-│   ├── appointments/          # platform-appointments orchestrator — port 3300 (services/resources/bookings/availability/intake-forms/telehealth/packages/practitioner-payouts)
-│   ├── scheduler/             # platform-scheduler — port 3400, single-runner cron for all 4 monoliths
+├── platform/                  # Platform-side services. TWO monolith containers (platform-core + platform-scheduler) since ADR 021 folded marketplace/restaurant/appointments into core.
+│   ├── core/                  # platform-core orchestrator — port 3000. Hosts ALL ~35 horizontal + domain modules (ADR 021): auth/notifications/payments/tenant-config/splitpay/storage/leads/donations/inquiries/verifactu/chat/tpv/commerce + marketplace + restaurant + appointments modules.
+│   ├── scheduler/             # platform-scheduler — port 3400, single-runner cron
 │   ├── tpv/                   # TPV module (in platform-core) — schema platform_tpv; devices, cash sessions, receipts, credit notes, X/Z reports, Veri*Factu feed (ADR 015/016; keeps server.js+Dockerfile ready-to-split)
 │   ├── auth/                  # Auth module (in platform-core) — schema platform_auth
 │   ├── payments/              # Payments module (in platform-core) — schema platform_payments
@@ -425,9 +422,17 @@ entrada a la tabla anterior.
 
 ## Platform module registry
 
-apphub ships **two monolith containers**, each hosting a coherent domain.
-See [ADR 004](docs/adr/004-domain-separated-monolith-containers.md) for the rationale.
-Before adding any new horizontal capability, check whether it already exists in one of them.
+apphub ships **two monolith containers**: `platform-core` (port 3000) hosts ALL
+platform modules (~35), and `platform-scheduler` (port 3400) runs cron. The
+marketplace/restaurant/appointments domains used to be their own containers
+(3100/3200/3300) but were folded into `platform-core` —
+see [ADR 021](docs/adr/021-consolidate-domain-monoliths-into-platform-core.md)
+(supersedes the deployment decision of
+[ADR 004](docs/adr/004-domain-separated-monolith-containers.md)).
+The sections below keep the domain grouping for navigation; **all of them now
+run inside `platform-core`** and every `/api/<module>/` route proxies to the
+`platform_core` upstream.
+Before adding any new horizontal capability, check whether it already exists.
 
 ### platform-core (port 3000) — horizontal infrastructure
 
@@ -447,7 +452,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | TPV (terminal devices, cash sessions/arqueo, cash movements, gap-free sequential receipts + full invoices + simplified→invoice conversion, credit notes with manager authorization, X/Z reports, period aggregates + CSV export, per-tenant fiscal issuer settings, Veri*Factu event feed with async QR). Bill engine stays in `platform/pos` (platform-restaurant): tpv consumes `pos.bill.paid`/`pos.bill.cancelled` and adds the till/fiscal layer. Keeps `server.js`+`Dockerfile` ready-to-split ([ADR 015](docs/adr/015-platform-tpv-monolith.md)/[016](docs/adr/016-tpv-folded-into-platform-core.md)) | `platform/tpv` | `platform_tpv` | `svc_platform_tpv` | ✅ Implemented |
 | Commerce orchestration (convierte un pago en compra cumplida sin cruzar esquemas: checkouts + subscriber a `payment.succeeded` → emite `commerce.purchase.paid`, que `packages`/`bookings` consumen para crear el bono / confirmar la reserva; [ADR 019](docs/adr/019-platform-commerce-orchestration.md)) | `platform/commerce` | `platform_commerce` | `svc_platform_commerce` | ✅ Implemented |
 
-### platform-marketplace (port 3100) — marketplace transactions
+### marketplace modules (in platform-core since ADR 021; was platform-marketplace:3100) — marketplace transactions
 
 | Capability | Module | Schema | DB role | Status |
 |---|---|---|---|---|
@@ -460,7 +465,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Product & service catalogue | `platform/catalog` | `platform_catalog` | `svc_platform_catalog` | ✅ Implemented |
 | Shopping cart (Redis-only) | `platform/basket` | — | — | ✅ Implemented |
 
-### platform-restaurant (port 3200) — restaurant operations
+### restaurant modules (in platform-core since ADR 021; was platform-restaurant:3200) — restaurant operations
 
 | Capability | Module | Schema | DB role | Status |
 |---|---|---|---|---|
@@ -471,7 +476,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | POS bills / split / tips / mixed payments | `platform/pos` | `platform_pos` | `svc_platform_pos` | ✅ Implemented |
 | Delivery dispatch (riders, zones, GPS, fleet) | `platform/delivery-dispatch` | `platform_delivery_dispatch` | `svc_platform_delivery_dispatch` | ✅ Implemented |
 
-### platform-appointments (port 3300) — appointment / scheduling
+### appointments modules (in platform-core since ADR 021; was platform-appointments:3300) — appointment / scheduling
 
 | Capability | Module | Schema | DB role | Status |
 |---|---|---|---|---|

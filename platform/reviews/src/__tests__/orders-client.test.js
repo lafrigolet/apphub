@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('../lib/env.js', () => ({
   env: { NODE_ENV: 'test', LOG_LEVEL: 'error',
     DATABASE_URL: 'postgresql://x@y/z', REDIS_URL: 'redis://l',
-    PLATFORM_MARKETPLACE_URL: 'http://localhost:3100',
+    PLATFORM_CORE_URL: 'http://platform-core:3000',
   },
 }))
 vi.mock('../lib/logger.js', () => ({
@@ -62,7 +62,7 @@ describe('fetchOrder', () => {
     global.fetch.mockResolvedValue({ status: 200, ok: true, json: async () => ({}) })
     await fetchOrder(ORDER_ID, JWT)
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:3100/api/orders/' + ORDER_ID,
+      'http://platform-core:3000/v1/orders/' + ORDER_ID,
       expect.objectContaining({
         headers: { Authorization: `Bearer ${JWT}` },
       }),

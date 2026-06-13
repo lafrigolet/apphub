@@ -721,79 +721,6 @@ importers:
 
   packages/tsconfig: {}
 
-  platform/appointments:
-    dependencies:
-      '@apphub/platform-availability':
-        specifier: workspace:*
-        version: link:../availability
-      '@apphub/platform-bookings':
-        specifier: workspace:*
-        version: link:../bookings
-      '@apphub/platform-intake-forms':
-        specifier: workspace:*
-        version: link:../intake-forms
-      '@apphub/platform-packages':
-        specifier: workspace:*
-        version: link:../packages
-      '@apphub/platform-practitioner-payouts':
-        specifier: workspace:*
-        version: link:../practitioner-payouts
-      '@apphub/platform-resources':
-        specifier: workspace:*
-        version: link:../resources
-      '@apphub/platform-sdk':
-        specifier: workspace:*
-        version: link:../../packages/platform-sdk
-      '@apphub/platform-services':
-        specifier: workspace:*
-        version: link:../services
-      '@apphub/platform-telehealth':
-        specifier: workspace:*
-        version: link:../telehealth
-      '@fastify/cors':
-        specifier: ^10.0.0
-        version: 10.1.0
-      '@fastify/helmet':
-        specifier: ^12.0.0
-        version: 12.0.1
-      '@fastify/rate-limit':
-        specifier: ^10.0.0
-        version: 10.3.0
-      '@fastify/swagger':
-        specifier: ^9.0.0
-        version: 9.7.0
-      '@fastify/swagger-ui':
-        specifier: ^5.0.0
-        version: 5.2.6
-      fastify:
-        specifier: ^5.0.0
-        version: 5.8.4
-      fastify-type-provider-zod:
-        specifier: ^4.0.0
-        version: 4.0.2(fastify@5.8.4)(zod@3.25.76)
-      ioredis:
-        specifier: ^5.4.1
-        version: 5.10.1
-      pg:
-        specifier: ^8.12.0
-        version: 8.20.0
-      pino:
-        specifier: ^9.3.0
-        version: 9.14.0
-      pino-pretty:
-        specifier: ^11.2.0
-        version: 11.3.0
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
-    devDependencies:
-      '@vitest/coverage-v8':
-        specifier: ^2.0.0
-        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
-
   platform/auth:
     dependencies:
       '@apphub/platform-sdk':
@@ -1082,36 +1009,102 @@ importers:
       '@apphub/platform-auth':
         specifier: workspace:*
         version: link:../auth
+      '@apphub/platform-availability':
+        specifier: workspace:*
+        version: link:../availability
+      '@apphub/platform-basket':
+        specifier: workspace:*
+        version: link:../basket
+      '@apphub/platform-bookings':
+        specifier: workspace:*
+        version: link:../bookings
+      '@apphub/platform-catalog':
+        specifier: workspace:*
+        version: link:../catalog
       '@apphub/platform-chat':
         specifier: workspace:*
         version: link:../chat
       '@apphub/platform-commerce':
         specifier: workspace:*
         version: link:../commerce
+      '@apphub/platform-delivery-dispatch':
+        specifier: workspace:*
+        version: link:../delivery-dispatch
+      '@apphub/platform-disputes':
+        specifier: workspace:*
+        version: link:../disputes
       '@apphub/platform-donations':
         specifier: workspace:*
         version: link:../donations
+      '@apphub/platform-floor-plan':
+        specifier: workspace:*
+        version: link:../floor-plan
       '@apphub/platform-inquiries':
         specifier: workspace:*
         version: link:../inquiries
+      '@apphub/platform-intake-forms':
+        specifier: workspace:*
+        version: link:../intake-forms
+      '@apphub/platform-inventory':
+        specifier: workspace:*
+        version: link:../inventory
+      '@apphub/platform-kds':
+        specifier: workspace:*
+        version: link:../kds
       '@apphub/platform-leads':
         specifier: workspace:*
         version: link:../leads
+      '@apphub/platform-menu':
+        specifier: workspace:*
+        version: link:../menu
+      '@apphub/platform-messaging':
+        specifier: workspace:*
+        version: link:../messaging
       '@apphub/platform-notifications':
         specifier: workspace:*
         version: link:../notifications
+      '@apphub/platform-orders':
+        specifier: workspace:*
+        version: link:../orders
+      '@apphub/platform-packages':
+        specifier: workspace:*
+        version: link:../packages
       '@apphub/platform-payments':
         specifier: workspace:*
         version: link:../payments
+      '@apphub/platform-pos':
+        specifier: workspace:*
+        version: link:../pos
+      '@apphub/platform-practitioner-payouts':
+        specifier: workspace:*
+        version: link:../practitioner-payouts
+      '@apphub/platform-reservations':
+        specifier: workspace:*
+        version: link:../reservations
+      '@apphub/platform-resources':
+        specifier: workspace:*
+        version: link:../resources
+      '@apphub/platform-reviews':
+        specifier: workspace:*
+        version: link:../reviews
       '@apphub/platform-sdk':
         specifier: workspace:*
         version: link:../../packages/platform-sdk
+      '@apphub/platform-services':
+        specifier: workspace:*
+        version: link:../services
+      '@apphub/platform-shipping':
+        specifier: workspace:*
+        version: link:../shipping
       '@apphub/platform-splitpay':
         specifier: workspace:*
         version: link:../splitpay
       '@apphub/platform-storage':
         specifier: workspace:*
         version: link:../storage
+      '@apphub/platform-telehealth':
+        specifier: workspace:*
+        version: link:../telehealth
       '@apphub/platform-tenant-config':
         specifier: workspace:*
         version: link:../tenant-config
@@ -1494,79 +1487,6 @@ importers:
       uuid:
         specifier: ^10.0.0
         version: 10.0.0
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
-
-  platform/marketplace:
-    dependencies:
-      '@apphub/platform-basket':
-        specifier: workspace:*
-        version: link:../basket
-      '@apphub/platform-catalog':
-        specifier: workspace:*
-        version: link:../catalog
-      '@apphub/platform-disputes':
-        specifier: workspace:*
-        version: link:../disputes
-      '@apphub/platform-inventory':
-        specifier: workspace:*
-        version: link:../inventory
-      '@apphub/platform-messaging':
-        specifier: workspace:*
-        version: link:../messaging
-      '@apphub/platform-orders':
-        specifier: workspace:*
-        version: link:../orders
-      '@apphub/platform-reviews':
-        specifier: workspace:*
-        version: link:../reviews
-      '@apphub/platform-sdk':
-        specifier: workspace:*
-        version: link:../../packages/platform-sdk
-      '@apphub/platform-shipping':
-        specifier: workspace:*
-        version: link:../shipping
-      '@fastify/cors':
-        specifier: ^10.0.0
-        version: 10.1.0
-      '@fastify/helmet':
-        specifier: ^12.0.0
-        version: 12.0.1
-      '@fastify/rate-limit':
-        specifier: ^10.0.0
-        version: 10.3.0
-      '@fastify/swagger':
-        specifier: ^9.0.0
-        version: 9.7.0
-      '@fastify/swagger-ui':
-        specifier: ^5.0.0
-        version: 5.2.6
-      fastify:
-        specifier: ^5.0.0
-        version: 5.8.4
-      fastify-type-provider-zod:
-        specifier: ^4.0.0
-        version: 4.0.2(fastify@5.8.4)(zod@3.25.76)
-      ioredis:
-        specifier: ^5.4.1
-        version: 5.10.1
-      pg:
-        specifier: ^8.12.0
-        version: 8.20.0
-      pino:
-        specifier: ^9.3.0
-        version: 9.14.0
-      pino-pretty:
-        specifier: ^11.2.0
-        version: 11.3.0
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
-    devDependencies:
-      '@vitest/coverage-v8':
-        specifier: ^2.0.0
-        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
@@ -1963,73 +1883,6 @@ importers:
       uuid:
         specifier: ^10.0.0
         version: 10.0.0
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
-    devDependencies:
-      '@vitest/coverage-v8':
-        specifier: ^2.0.0
-        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(jsdom@25.0.1))
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@20.19.39)(jsdom@25.0.1)
-
-  platform/restaurant:
-    dependencies:
-      '@apphub/platform-delivery-dispatch':
-        specifier: workspace:*
-        version: link:../delivery-dispatch
-      '@apphub/platform-floor-plan':
-        specifier: workspace:*
-        version: link:../floor-plan
-      '@apphub/platform-kds':
-        specifier: workspace:*
-        version: link:../kds
-      '@apphub/platform-menu':
-        specifier: workspace:*
-        version: link:../menu
-      '@apphub/platform-pos':
-        specifier: workspace:*
-        version: link:../pos
-      '@apphub/platform-reservations':
-        specifier: workspace:*
-        version: link:../reservations
-      '@apphub/platform-sdk':
-        specifier: workspace:*
-        version: link:../../packages/platform-sdk
-      '@fastify/cors':
-        specifier: ^10.0.0
-        version: 10.1.0
-      '@fastify/helmet':
-        specifier: ^12.0.0
-        version: 12.0.1
-      '@fastify/rate-limit':
-        specifier: ^10.0.0
-        version: 10.3.0
-      '@fastify/swagger':
-        specifier: ^9.0.0
-        version: 9.7.0
-      '@fastify/swagger-ui':
-        specifier: ^5.0.0
-        version: 5.2.6
-      fastify:
-        specifier: ^5.0.0
-        version: 5.8.4
-      fastify-type-provider-zod:
-        specifier: ^4.0.0
-        version: 4.0.2(fastify@5.8.4)(zod@3.25.76)
-      ioredis:
-        specifier: ^5.4.1
-        version: 5.10.1
-      pg:
-        specifier: ^8.12.0
-        version: 8.20.0
-      pino:
-        specifier: ^9.3.0
-        version: 9.14.0
-      pino-pretty:
-        specifier: ^11.2.0
-        version: 11.3.0
       zod:
         specifier: ^3.23.0
         version: 3.25.76

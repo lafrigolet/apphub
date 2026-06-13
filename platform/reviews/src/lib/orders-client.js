@@ -3,10 +3,11 @@
 // post-payment state. Lives behind a small client so the rest of the service
 // stays unaware of HTTP details.
 //
-// Loopback by default: PLATFORM_MARKETPLACE_URL = http://localhost:3100,
-// because reviews runs in the same Node process as orders. When orders is
-// extracted to its own container the env var changes to the new host —
-// no code changes here.
+// Loopback by default: PLATFORM_CORE_URL = http://platform-core:3000, because
+// reviews y orders corren en el mismo proceso platform-core (ADR 021). Se pega
+// a la ruta real del módulo orders (/v1/orders/:id), no al prefijo /api/ del
+// gateway nginx. Si orders se extrajera a su propio contenedor, basta cambiar
+// el env var — sin tocar código.
 
 import { env } from './env.js'
 import { logger } from './logger.js'
@@ -16,7 +17,7 @@ const VALID_STATUSES = new Set(['paid', 'fulfilled', 'shipped', 'delivered', 'co
 
 export async function fetchOrder(orderId, jwt) {
   if (!orderId || !jwt) return null
-  const url = `${env.PLATFORM_MARKETPLACE_URL}/api/orders/${orderId}`
+  const url = `${env.PLATFORM_CORE_URL}/v1/orders/${orderId}`
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${jwt}` },

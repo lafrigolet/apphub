@@ -124,6 +124,32 @@ services:
       DATABASE_URL_CHAT:          postgresql://svc_platform_chat:platform_chat_secret@postgres:5432/splitpay
       DATABASE_URL_TPV:           postgresql://svc_platform_tpv:platform_tpv_secret@postgres:5432/splitpay
       DATABASE_URL_COMMERCE:      postgresql://svc_platform_commerce:platform_commerce_secret@postgres:5432/splitpay
+      # ── Marketplace modules (consolidados, ADR 021) ── basket es Redis-only.
+      DATABASE_URL_ORDERS:        postgresql://svc_platform_orders:platform_orders_secret@postgres:5432/splitpay
+      DATABASE_URL_INVENTORY:     postgresql://svc_platform_inventory:platform_inventory_secret@postgres:5432/splitpay
+      DATABASE_URL_REVIEWS:       postgresql://svc_platform_reviews:platform_reviews_secret@postgres:5432/splitpay
+      DATABASE_URL_MESSAGING:     postgresql://svc_platform_messaging:platform_messaging_secret@postgres:5432/splitpay
+      DATABASE_URL_SHIPPING:      postgresql://svc_platform_shipping:platform_shipping_secret@postgres:5432/splitpay
+      DATABASE_URL_DISPUTES:      postgresql://svc_platform_disputes:platform_disputes_secret@postgres:5432/splitpay
+      DATABASE_URL_CATALOG:       postgresql://svc_platform_catalog:platform_catalog_secret@postgres:5432/splitpay
+      # ── Restaurant modules (consolidados, ADR 021) ──
+      DATABASE_URL_MENU:              postgresql://svc_platform_menu:platform_menu_secret@postgres:5432/splitpay
+      DATABASE_URL_RESERVATIONS:      postgresql://svc_platform_reservations:platform_reservations_secret@postgres:5432/splitpay
+      DATABASE_URL_FLOOR_PLAN:        postgresql://svc_platform_floor_plan:platform_floor_plan_secret@postgres:5432/splitpay
+      DATABASE_URL_KDS:               postgresql://svc_platform_kds:platform_kds_secret@postgres:5432/splitpay
+      DATABASE_URL_POS:               postgresql://svc_platform_pos:platform_pos_secret@postgres:5432/splitpay
+      DATABASE_URL_DELIVERY_DISPATCH: postgresql://svc_platform_delivery_dispatch:platform_delivery_dispatch_secret@postgres:5432/splitpay
+      # ── Appointments modules (consolidados, ADR 021) ──
+      DATABASE_URL_SERVICES:             postgresql://svc_platform_services:platform_services_secret@postgres:5432/splitpay
+      DATABASE_URL_RESOURCES:            postgresql://svc_platform_resources:platform_resources_secret@postgres:5432/splitpay
+      DATABASE_URL_BOOKINGS:             postgresql://svc_platform_bookings:platform_bookings_secret@postgres:5432/splitpay
+      DATABASE_URL_AVAILABILITY:         postgresql://svc_platform_availability:platform_availability_secret@postgres:5432/splitpay
+      DATABASE_URL_INTAKE_FORMS:         postgresql://svc_platform_intake_forms:platform_intake_forms_secret@postgres:5432/splitpay
+      DATABASE_URL_TELEHEALTH:           postgresql://svc_platform_telehealth:platform_telehealth_secret@postgres:5432/splitpay
+      DATABASE_URL_PACKAGES:             postgresql://svc_platform_packages:platform_packages_secret@postgres:5432/splitpay
+      DATABASE_URL_PRACTITIONER_PAYOUTS: postgresql://svc_platform_practitioner_payouts:platform_practitioner_payouts_secret@postgres:5432/splitpay
+      # EasyPost (shipping rate-shop/labels/pickups) — DB-backed config primaria; fallback dev.
+      EASYPOST_API_KEY: ${EASYPOST_API_KEY:-}
       PLATFORM_CORE_BASE_URL:     http://platform-core:3000
       # Storage module — S3-compatible object store (MinIO in dev, AWS S3/R2 in prod)
       S3_ENDPOINT:         ${S3_ENDPOINT:-http://minio:9000}
@@ -177,61 +203,7 @@ services:
       - ./platform/tpv/migrations:/app/platform/tpv/migrations:ro
       - ./platform/commerce/src:/app/platform/commerce/src:ro
       - ./platform/commerce/migrations:/app/platform/commerce/migrations:ro
-      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
-    depends_on:
-      postgres:    { condition: service_healthy }
-      redis:       { condition: service_healthy }
-      minio:       { condition: service_healthy }
-      minio-init:  { condition: service_completed_successfully }
-
-  # ── Platform Marketplace (modular monolith — port 3100) ─────────
-  # Hosts marketplace modules (orders, inventory, reviews, messaging,
-  # shipping, disputes). Communicates with platform-core via Redis events
-  # and shared PLATFORM_JWT_SECRET (so JWTs issued by auth on platform-core
-  # are accepted here without round-trip).
-  platform-marketplace:
-    build:
-      context: .
-      dockerfile: platform/marketplace/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [app, data]
-    ports:
-      - '3100:3100'
-    environment:
-      NODE_ENV: development
-      PLATFORM_MARKETPLACE_PORT: 3100
-      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
-      EXPECTED_APP_ID: platform
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-      PLATFORM_CORE_URL: http://platform-core:3000
-      # Decrypts module config secrets at rest (shipping carrier credentials:
-      # easypost_api_key, carrier webhook HMAC secrets). AES-256-GCM master key.
-      PLATFORM_CONFIG_ENCRYPTION_KEY: ${PLATFORM_CONFIG_ENCRYPTION_KEY}
-      # EasyPost (shipping outbound rate-shop/labels/pickups) — DB-backed config
-      # (easypost_api_key) is primary; this env is a dev/local fallback only.
-      EASYPOST_API_KEY: ${EASYPOST_API_KEY:-}
-      # S3/MinIO for archiving carrier label PDFs (shipping → platform/storage).
-      # Optional: absent → labels still purchase, we keep the carrier-hosted URL.
-      S3_ENDPOINT:         ${S3_ENDPOINT:-http://minio:9000}
-      S3_REGION:           ${S3_REGION:-us-east-1}
-      S3_ACCESS_KEY:       ${MINIO_ROOT_USER:-apphub}
-      S3_SECRET_KEY:       ${MINIO_ROOT_PASSWORD:-apphub_minio_secret}
-      S3_BUCKET:           ${S3_BUCKET:-apphub}
-      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
-      # Per-module DATABASE_URLs — one Pool per module, each with its dedicated DB role
-      DATABASE_URL_ORDERS:    postgresql://svc_platform_orders:platform_orders_secret@postgres:5432/splitpay
-      DATABASE_URL_INVENTORY: postgresql://svc_platform_inventory:platform_inventory_secret@postgres:5432/splitpay
-      DATABASE_URL_REVIEWS:   postgresql://svc_platform_reviews:platform_reviews_secret@postgres:5432/splitpay
-      DATABASE_URL_MESSAGING: postgresql://svc_platform_messaging:platform_messaging_secret@postgres:5432/splitpay
-      DATABASE_URL_SHIPPING:  postgresql://svc_platform_shipping:platform_shipping_secret@postgres:5432/splitpay
-      DATABASE_URL_DISPUTES:  postgresql://svc_platform_disputes:platform_disputes_secret@postgres:5432/splitpay
-      DATABASE_URL_CATALOG:   postgresql://svc_platform_catalog:platform_catalog_secret@postgres:5432/splitpay
-      # basket is Redis-only; no DATABASE_URL_BASKET needed
-    volumes:
-      - ./platform/marketplace/src:/app/platform/marketplace/src:ro
+      # ── Marketplace modules (consolidados, ADR 021) ──
       - ./platform/orders/src:/app/platform/orders/src:ro
       - ./platform/orders/migrations:/app/platform/orders/migrations:ro
       - ./platform/inventory/src:/app/platform/inventory/src:ro
@@ -247,41 +219,7 @@ services:
       - ./platform/catalog/src:/app/platform/catalog/src:ro
       - ./platform/catalog/migrations:/app/platform/catalog/migrations:ro
       - ./platform/basket/src:/app/platform/basket/src:ro
-      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
-
-  # ── Platform-restaurant: menu + reservations + floor-plan + kds + pos + delivery-dispatch ──
-  platform-restaurant:
-    build:
-      context: .
-      dockerfile: platform/restaurant/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [app, data]
-    ports:
-      - '3200:3200'
-    environment:
-      NODE_ENV: development
-      PLATFORM_RESTAURANT_PORT: 3200
-      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
-      EXPECTED_APP_ID: platform
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-      PLATFORM_CORE_URL: http://platform-core:3000
-      PLATFORM_MARKETPLACE_URL: http://platform-marketplace:3100
-      # Per-module DATABASE_URLs — one Pool per module, each with its dedicated DB role
-      DATABASE_URL_MENU:              postgresql://svc_platform_menu:platform_menu_secret@postgres:5432/splitpay
-      DATABASE_URL_RESERVATIONS:      postgresql://svc_platform_reservations:platform_reservations_secret@postgres:5432/splitpay
-      DATABASE_URL_FLOOR_PLAN:        postgresql://svc_platform_floor_plan:platform_floor_plan_secret@postgres:5432/splitpay
-      DATABASE_URL_KDS:               postgresql://svc_platform_kds:platform_kds_secret@postgres:5432/splitpay
-      DATABASE_URL_POS:               postgresql://svc_platform_pos:platform_pos_secret@postgres:5432/splitpay
-      DATABASE_URL_DELIVERY_DISPATCH: postgresql://svc_platform_delivery_dispatch:platform_delivery_dispatch_secret@postgres:5432/splitpay
-    volumes:
-      - ./platform/restaurant/src:/app/platform/restaurant/src:ro
+      # ── Restaurant modules (consolidados, ADR 021) ──
       - ./platform/menu/src:/app/platform/menu/src:ro
       - ./platform/menu/migrations:/app/platform/menu/migrations:ro
       - ./platform/reservations/src:/app/platform/reservations/src:ro
@@ -294,42 +232,7 @@ services:
       - ./platform/pos/migrations:/app/platform/pos/migrations:ro
       - ./platform/delivery-dispatch/src:/app/platform/delivery-dispatch/src:ro
       - ./platform/delivery-dispatch/migrations:/app/platform/delivery-dispatch/migrations:ro
-      - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
-
-  # ── Platform-appointments: services + resources + bookings + availability + intake-forms + telehealth + packages + practitioner-payouts ──
-  platform-appointments:
-    build:
-      context: .
-      dockerfile: platform/appointments/Dockerfile
-      target: development
-    restart: unless-stopped
-    networks: [app, data]
-    ports:
-      - '3300:3300'
-    environment:
-      NODE_ENV: development
-      PLATFORM_APPOINTMENTS_PORT: 3300
-      MIGRATION_DATABASE_URL: postgresql://splitpay:splitpay@postgres:5432/splitpay
-      REDIS_URL: redis://redis:6379
-      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET}
-      EXPECTED_APP_ID: platform
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-      PLATFORM_CORE_URL: http://platform-core:3000
-      PLATFORM_MARKETPLACE_URL: http://platform-marketplace:3100
-      DATABASE_URL_SERVICES:             postgresql://svc_platform_services:platform_services_secret@postgres:5432/splitpay
-      DATABASE_URL_RESOURCES:            postgresql://svc_platform_resources:platform_resources_secret@postgres:5432/splitpay
-      DATABASE_URL_BOOKINGS:             postgresql://svc_platform_bookings:platform_bookings_secret@postgres:5432/splitpay
-      DATABASE_URL_AVAILABILITY:         postgresql://svc_platform_availability:platform_availability_secret@postgres:5432/splitpay
-      DATABASE_URL_INTAKE_FORMS:         postgresql://svc_platform_intake_forms:platform_intake_forms_secret@postgres:5432/splitpay
-      DATABASE_URL_TELEHEALTH:           postgresql://svc_platform_telehealth:platform_telehealth_secret@postgres:5432/splitpay
-      DATABASE_URL_PACKAGES:             postgresql://svc_platform_packages:platform_packages_secret@postgres:5432/splitpay
-      DATABASE_URL_PRACTITIONER_PAYOUTS: postgresql://svc_platform_practitioner_payouts:platform_practitioner_payouts_secret@postgres:5432/splitpay
-    volumes:
-      - ./platform/appointments/src:/app/platform/appointments/src:ro
+      # ── Appointments modules (consolidados, ADR 021) ──
       - ./platform/services/src:/app/platform/services/src:ro
       - ./platform/services/migrations:/app/platform/services/migrations:ro
       - ./platform/resources/src:/app/platform/resources/src:ro
@@ -348,9 +251,10 @@ services:
       - ./platform/practitioner-payouts/migrations:/app/platform/practitioner-payouts/migrations:ro
       - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
-      postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
-
+      postgres:    { condition: service_healthy }
+      redis:       { condition: service_healthy }
+      minio:       { condition: service_healthy }
+      minio-init:  { condition: service_completed_successfully }
 
   # ── Platform-scheduler: cron runner for the 4 monoliths ─────────
   # ── Portals — contenedor unificado de los 9 frontends (ADR 017) ──
@@ -450,9 +354,6 @@ services:
       postgres:              { condition: service_healthy }
       redis:                 { condition: service_healthy }
       platform-core:         { condition: service_started }
-      platform-marketplace:  { condition: service_started }
-      platform-restaurant:   { condition: service_started }
-      platform-appointments: { condition: service_started }
 
 
   # ── Apps-servers — orquestador de app-servers (puerto 3030, ADR 018) ──
@@ -529,9 +430,6 @@ services:
     depends_on:
       redis: { condition: service_healthy }
       platform-core:           { condition: service_started }
-      platform-marketplace:    { condition: service_started }
-      platform-restaurant:     { condition: service_started }
-      platform-appointments:   { condition: service_started }
       portals:                 { condition: service_started }
       apps-servers:            { condition: service_started }
 
