@@ -103,6 +103,25 @@ export async function borrarProducto(id) {
   return req('DELETE', `/api/catalog/items/${id}`)
 }
 
+// ── Admin de pedidos del marketplace (platform/orders) ───────────────
+export async function listPedidos(opts = {}) {
+  const params = new URLSearchParams()
+  if (opts.status) params.set('status', opts.status)
+  params.set('limit', String(opts.limit ?? 100))
+  // Slash final obligatorio: nginx redirige /api/orders → /api/orders/ (301).
+  const j = await req('GET', `/api/orders/?${params.toString()}`)
+  return Array.isArray(j) ? j : (j?.data ?? [])
+}
+export async function getPedido(id) {
+  return req('GET', `/api/orders/${id}`)
+}
+export async function cambiarEstadoPedido(id, status, reason) {
+  return req('PATCH', `/api/orders/${id}/status`, { status, reason: reason || undefined })
+}
+export async function cancelarPedido(id, reason) {
+  return req('POST', `/api/orders/${id}/cancel`, { reason: reason || undefined })
+}
+
 // Sesiones públicas próximas (kind: 'event' | 'appointment').
 export async function fetchUpcoming(kind, limit) {
   const j = await req('GET', `/api/services/sessions/upcoming?${qs(kind, limit)}`)

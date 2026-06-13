@@ -140,4 +140,66 @@ ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name, description = EXCLUDED.description, price_cents = EXCLUDED.price_cents,
   category = EXCLUDED.category, item_type = EXCLUDED.item_type, status = EXCLUDED.status, active = EXCLUDED.active;
 
+-- ── 8. Pedidos del marketplace (platform_orders) ─────────────────────
+-- Pedidos reales que las practicantes han hecho en la tienda. El backoffice
+-- los lista y permite avanzar su estado (FSM pending→paid→…→completed).
+-- buyer_user_id no tiene FK; el nombre/email del comprador va en metadata.
+DELETE FROM platform_orders.orders
+ WHERE app_id = 'luciapassardi' AND tenant_id = '70000000-0000-0000-0000-000000000001'
+   AND id::text LIKE '70000006-%';
+
+INSERT INTO platform_orders.orders
+  (id, app_id, tenant_id, buyer_user_id, status, currency,
+   subtotal_cents, tax_cents, shipping_cents, total_cents, metadata, created_at, updated_at)
+VALUES
+  ('70000006-0000-0000-0000-000000000001','luciapassardi','70000000-0000-0000-0000-000000000001','70000007-0000-0000-0000-000000000001','paid','EUR',
+   9100,0,500,9600,'{"buyerName":"Marta Ruiz","buyerEmail":"marta.ruiz@example.com"}'::jsonb, now() - interval '2 days', now() - interval '2 days'),
+  ('70000006-0000-0000-0000-000000000002','luciapassardi','70000000-0000-0000-0000-000000000001','70000007-0000-0000-0000-000000000002','fulfilled','EUR',
+   6800,0,500,7300,'{"buyerName":"Carlos Vidal","buyerEmail":"carlos.vidal@example.com"}'::jsonb, now() - interval '5 days', now() - interval '4 days'),
+  ('70000006-0000-0000-0000-000000000003','luciapassardi','70000000-0000-0000-0000-000000000001','70000007-0000-0000-0000-000000000003','shipped','EUR',
+   11000,0,0,11000,'{"buyerName":"Ana Soler","buyerEmail":"ana.soler@example.com"}'::jsonb, now() - interval '8 days', now() - interval '6 days'),
+  ('70000006-0000-0000-0000-000000000004','luciapassardi','70000000-0000-0000-0000-000000000001','70000007-0000-0000-0000-000000000004','delivered','EUR',
+   8400,0,500,8900,'{"buyerName":"Lucía Romero","buyerEmail":"lucia.romero@example.com"}'::jsonb, now() - interval '14 days', now() - interval '10 days'),
+  ('70000006-0000-0000-0000-000000000005','luciapassardi','70000000-0000-0000-0000-000000000001','70000007-0000-0000-0000-000000000005','completed','EUR',
+   4800,0,500,5300,'{"buyerName":"Sofía Marín","buyerEmail":"sofia.marin@example.com"}'::jsonb, now() - interval '21 days', now() - interval '15 days'),
+  ('70000006-0000-0000-0000-000000000006','luciapassardi','70000000-0000-0000-0000-000000000001','70000007-0000-0000-0000-000000000006','cancelled','EUR',
+   4500,0,500,5000,'{"buyerName":"Diego Pérez","buyerEmail":"diego.perez@example.com"}'::jsonb, now() - interval '3 days', now() - interval '3 days');
+
+INSERT INTO platform_orders.order_items
+  (app_id, tenant_id, order_id, sku, product_name, qty, unit_price_cents)
+VALUES
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000001','esterilla-sattva','Esterilla Sattva (caucho natural)',1,6900),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000001','bloques-corcho','Par de bloques de corcho',1,2200),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000002','leggings-respira','Leggings Respira',1,3900),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000002','top-sujecion-media','Top sujeción media',1,2900),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000003','bono-10','Bono 10 clases',1,11000),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000004','bolster-meditacion','Bolster de meditación',1,4900),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000004','manta-yoga','Manta de yoga',1,3500),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000005','incienso-natural','Incienso natural (pack 3)',1,900),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000005','aceite-lavanda','Aceite esencial de lavanda',1,1400),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000005','mala-108','Mala de 108 cuentas',1,2500),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000006','sudadera-respira','Sudadera Respira y avanza',1,4500);
+
+INSERT INTO platform_orders.order_addresses
+  (app_id, tenant_id, order_id, kind, full_name, line1, city, region, postal_code, country, phone)
+VALUES
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000001','shipping','Marta Ruiz','C/ del Sol 12','Las Rozas','Madrid','28232','ES','+34600111222'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000002','shipping','Carlos Vidal','Av. de Europa 8','Las Matas','Madrid','28290','ES','+34600333444'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000004','shipping','Lucía Romero','C/ Mayor 3','Torrelodones','Madrid','28250','ES','+34600555666'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000005','shipping','Sofía Marín','C/ Real 45','Galapagar','Madrid','28260','ES','+34600777888'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000006','shipping','Diego Pérez','C/ Nueva 7','Las Matas','Madrid','28290','ES','+34600999000');
+
+INSERT INTO platform_orders.order_status_history
+  (app_id, tenant_id, order_id, from_status, to_status, actor_role, reason, ts)
+VALUES
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000001',NULL,'pending','system','order created', now() - interval '2 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000001','pending','paid','system','payment completed', now() - interval '2 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000002','pending','paid','system','payment completed', now() - interval '5 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000002','paid','fulfilled','owner','preparado para envío', now() - interval '4 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000003','pending','paid','system','payment completed', now() - interval '8 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000003','paid','shipped','owner','enviado por mensajería', now() - interval '6 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000004','paid','delivered','owner','entregado', now() - interval '10 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000005','delivered','completed','owner','pedido completado', now() - interval '15 days'),
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000006','pending','cancelled','owner','cancelado a petición de la clienta', now() - interval '3 days');
+
 COMMIT;
