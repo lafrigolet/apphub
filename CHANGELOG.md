@@ -33,6 +33,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     nuevo `subscription_payment_method` (migración 0006) y plan sembrado de
     **100 €/mes, tarjeta** (`seed.sql` §9).
 
+- **Sesión persistente con refresh token (toda la plataforma).** Antes el frontend
+  descartaba el refresh token y la sesión moría al caducar el access token (15 min).
+  Ahora `@apphub/tenant-console-ui` guarda y **rota** el refresh token, auto-renueva
+  en cualquier 401 (con reintento) y expone `refreshSession()`/`ensureSession()`; los
+  portales sobreviven a recargas y refrescan proactivamente. TTL del refresh subido a
+  **90 días** (`PLATFORM_JWT_REFRESH_DAYS`, antes 30). luciapassardi guarda el refresh
+  token y su `/admin` renueva al montar + cada 10 min.
+
 ### Fixed
 - **nginx: `/api/tenants/` enrutaba a `/v1/` en vez de `/v1/tenants/`**, dejando
   inalcanzables los endpoints de detalle/suscripción del tenant (404). Alineado

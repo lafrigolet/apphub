@@ -4,11 +4,11 @@
 //
 // Reads the JWT via the auth module so the host portal's tokenKey choice
 // (configurable via configureAuth) is honored consistently.
-import { getToken, logout } from './auth'
+import { getToken, logout, refreshSession } from './auth'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
-async function request(method, path, body) {
+async function request(method, path, body, _retried = false) {
   const headers = { 'Content-Type': 'application/json' }
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
@@ -20,6 +20,12 @@ async function request(method, path, body) {
   })
 
   if (res.status === 401) {
+    // Access token caducado: intenta renovarlo con el refresh token y reintenta
+    // la petición una sola vez. Sólo si eso falla cae a la pantalla de login.
+    if (!_retried && path !== '/api/auth/refresh') {
+      const fresh = await refreshSession()
+      if (fresh) return request(method, path, body, true)
+    }
     logout()
     window.dispatchEvent(new CustomEvent('apphub:unauthorized'))
     throw Object.assign(new Error('Unauthorized'), { status: 401 })
