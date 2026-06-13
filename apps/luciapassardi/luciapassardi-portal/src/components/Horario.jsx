@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ubicaciones, horarioNota, contacto } from '../data/content.js'
 import { useHorarioLive } from '../hooks/index.js'
+import { useSession } from '../context/SessionContext.jsx'
 import { Arrow } from './icons.jsx'
 
 // Meta de ubicación indexada por id (estático) Y por nombre (datos en vivo, que
@@ -10,6 +11,7 @@ for (const u of ubicaciones) { UBIC[u.id] = u; UBIC[u.nombre] = u }
 
 export default function Horario() {
   const dias = useHorarioLive()
+  const { reservar } = useSession()
   const [loc, setLoc] = useState('todas')
 
   // Opciones de filtro = ubicaciones distintas presentes en los datos (vivos o
@@ -84,6 +86,12 @@ export default function Horario() {
                           <span className={`w-2 h-2 rounded-full shrink-0 ${u.dot}`} />
                           <span className={`text-[11px] leading-tight ${u.text ?? 'text-tinta/60'}`}>{u.nombre}</span>
                         </div>
+                        {c.sessionId && (
+                          <button onClick={() => reservar(c.sessionId, 'appointment', 'Reserva')}
+                            className="mt-2.5 w-full text-[12px] font-semibold text-crema bg-teal-600 hover:bg-teal-700 rounded-full px-3 py-1.5 transition-colors">
+                            Reservar
+                          </button>
+                        )}
                       </div>
                     )
                   })}

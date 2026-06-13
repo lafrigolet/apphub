@@ -1,6 +1,7 @@
 import { hero, contacto, fotos } from '../data/content.js'
 import { fmtFecha } from '../lib/fecha.js'
 import { useProximosEventos } from '../hooks/index.js'
+import { useSession } from '../context/SessionContext.jsx'
 import { Arrow } from './icons.jsx'
 
 // Variante "tarjeta flotante": el hero se mantiene compacto y la agenda vive en
@@ -8,6 +9,7 @@ import { Arrow } from './icons.jsx'
 // original; la agenda queda visible junto a la foto al cargar.
 export default function HeroCard() {
   const proximosEventos = useProximosEventos()
+  const { reservar } = useSession()
   return (
     <section id="inicio" className="relative overflow-hidden pt-[72px]">
       <div className="absolute inset-0 wash-salvia opacity-80" aria-hidden="true" />
@@ -47,21 +49,25 @@ export default function HeroCard() {
                 <ul className="divide-y divide-tinta/10">
                   {proximosEventos.slice(0, 3).map((e) => {
                     const { dia, mes, anio } = fmtFecha(e.date)
+                    const liveId = /^[0-9a-f-]{36}$/i.test(String(e.id))
                     return (
-                      <li key={e.id}>
-                        <a href="#retiros" className="group grid grid-cols-[auto_1fr_auto] items-center gap-3 py-2.5">
-                          <span className="text-center leading-none">
-                            <span className="display block text-xl text-teal-600">{dia}</span>
-                            <span className="block text-[10px] font-semibold tracking-widest text-tinta/45">{mes} {anio}</span>
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block font-semibold text-tinta text-sm truncate">{e.name}</span>
-                            <span className="block text-xs text-tinta/55 truncate">{e.location}</span>
-                          </span>
-                          <span className="text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Arrow className="w-4 h-4" />
-                          </span>
-                        </a>
+                      <li key={e.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-2.5">
+                        <span className="text-center leading-none">
+                          <span className="display block text-xl text-teal-600">{dia}</span>
+                          <span className="block text-[10px] font-semibold tracking-widest text-tinta/45">{mes} {anio}</span>
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-tinta text-sm truncate">{e.name}</span>
+                          <span className="block text-xs text-tinta/55 truncate">{e.location}</span>
+                        </span>
+                        {liveId ? (
+                          <button onClick={() => reservar(e.id, 'event', 'Inscripción')}
+                            className="text-[12px] font-semibold text-crema bg-teal-600 hover:bg-teal-700 rounded-full px-3 py-1.5 transition-colors">
+                            Inscribirme
+                          </button>
+                        ) : (
+                          <a href="#retiros" className="text-teal-600"><Arrow className="w-4 h-4" /></a>
+                        )}
                       </li>
                     )
                   })}

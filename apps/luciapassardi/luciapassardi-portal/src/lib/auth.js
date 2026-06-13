@@ -33,6 +33,19 @@ export async function login({ email, password }) {
   return getIdentity()
 }
 
+// Alta de alumna (rol 'user'). El tenant no requiere aprobación → tras
+// registrarse, hacemos login automático para dejar sesión iniciada.
+export async function register({ name, email, password }) {
+  const res = await fetch(`${BASE}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appId: APP_ID, tenantId: TENANT_ID, email, password, role: 'user' }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json?.error?.message ?? json?.error?.code ?? `HTTP ${res.status}`)
+  return login({ email, password })
+}
+
 export function logout() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(REFRESH_KEY) }
 export function getToken() { return localStorage.getItem(TOKEN_KEY) }
 
