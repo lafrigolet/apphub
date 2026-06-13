@@ -1,10 +1,12 @@
-import { hero, contacto, fotos, proximosEventos } from '../data/content.js'
+import { hero, contacto, fotos } from '../data/content.js'
 import { fmtFecha } from '../lib/fecha.js'
+import { useProximosEventos } from '../hooks/index.js'
 import { Arrow } from './icons.jsx'
 
 // Variante "tira": hero a 100svh con texto+foto arriba y una franja horizontal
 // de eventos anclada abajo. Todo entra en el viewport al cargar.
 export default function HeroStrip() {
+  const proximosEventos = useProximosEventos()
   return (
     <section id="inicio" className="relative overflow-hidden min-h-[100svh] flex flex-col pt-[72px]">
       <div className="absolute inset-0 wash-salvia opacity-80" aria-hidden="true" />

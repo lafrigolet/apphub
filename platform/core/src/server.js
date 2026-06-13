@@ -35,6 +35,7 @@ const moduleDescriptors = [
   { name: 'verifactu',     package: '@apphub/platform-verifactu',     databaseUrl: env.DATABASE_URL_VERIFACTU,     schema: 'platform_verifactu'     },
   { name: 'chat',          package: '@apphub/platform-chat',          databaseUrl: env.DATABASE_URL_CHAT,          schema: 'platform_chat'          },
   { name: 'tpv',           package: '@apphub/platform-tpv',           databaseUrl: env.DATABASE_URL_TPV,           schema: 'platform_tpv'           },
+  { name: 'commerce',      package: '@apphub/platform-commerce',      databaseUrl: env.DATABASE_URL_COMMERCE,      schema: 'platform_commerce'      },
 ]
 
 async function loadModule(descriptor) {
