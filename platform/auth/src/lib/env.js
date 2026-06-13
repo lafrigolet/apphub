@@ -7,7 +7,7 @@ const envSchema = z.object({
   MIGRATION_DATABASE_URL: z.string().url().optional(),
   REDIS_URL:            z.string().url(),
   PLATFORM_JWT_SECRET:  z.string().min(32),
-  PLATFORM_JWT_REFRESH_DAYS: z.coerce.number().default(30),
+  PLATFORM_JWT_REFRESH_DAYS: z.coerce.number().default(90),
   EXPECTED_APP_ID:      z.string().default('platform'),
   LOG_LEVEL:            z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   GOOGLE_CLIENT_ID:     z.string().optional(),

@@ -10,7 +10,7 @@ const FULL_COLUMNS = `
   subscription_currency, subscription_stripe_price_id,
   subscription_stripe_subscription_id, subscription_stripe_customer_id,
   subscription_billing_email, subscription_started_at, subscription_renews_at,
-  subscription_cancel_at_period_end, subscription_notes,
+  subscription_cancel_at_period_end, subscription_notes, subscription_payment_method,
   bootstrap_started_at, bootstrap_completed_at,
   created_at
 `
@@ -107,6 +107,7 @@ const ALLOWED_UPDATE_FIELDS = {
   subscriptionRenewsAt:         'subscription_renews_at',
   subscriptionCancelAtPeriodEnd:'subscription_cancel_at_period_end',
   subscriptionNotes:            'subscription_notes',
+  subscriptionPaymentMethod:    'subscription_payment_method',
 }
 
 // Write-once: una vez `bootstrap_completed_at` está puesto, no vuelve a NULL

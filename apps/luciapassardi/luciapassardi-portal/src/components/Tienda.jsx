@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { productos, categorias, contacto } from '../data/content.js'
+import { productos, categorias } from '../data/content.js'
 import { Leaf, Bag, Arrow } from './icons.jsx'
+import { useCart } from '../context/CartContext.jsx'
 
 const PAGINA = 6
 
@@ -15,13 +16,10 @@ const TILE = {
 }
 const NOMBRE_CAT = Object.fromEntries(categorias.map((c) => [c.id, c.nombre]))
 
-function pedirUrl(nombre) {
-  const txt = encodeURIComponent(`Hola Lucía, me interesa "${nombre}" de la tienda.`)
-  return `${contacto.telefonoLink}?text=${txt}`
-}
 const precioTexto = (p) => (p.desde ? `desde ${p.precio} €` : `${p.precio} €`)
 
 export default function Tienda() {
+  const { addOne } = useCart()
   const [cat, setCat] = useState('todas')
   const [visibles, setVisibles] = useState(PAGINA)
 
@@ -46,7 +44,7 @@ export default function Tienda() {
           <div className="lg:col-span-5 lg:col-start-8 flex items-end reveal reveal-delay-1">
             <p className="text-lg text-tinta/75 leading-relaxed">
               Esterillas, props, ropa y bienestar elegidos con cuidado. Filtra por categoría y
-              pide lo que quieras por WhatsApp.
+              añade a la cesta lo que quieras.
             </p>
           </div>
         </div>
@@ -85,10 +83,11 @@ export default function Tienda() {
                 <p className="text-sm text-tinta/60 leading-relaxed mt-1.5">{p.desc}</p>
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-tinta/8">
                   <span className="display text-2xl text-teal-700">{precioTexto(p)}</span>
-                  <a href={pedirUrl(p.nombre)} target="_blank" rel="noopener noreferrer"
+                  <button
+                    onClick={() => addOne({ itemId: p.id, name: p.nombre, priceCents: Math.round(p.precio * 100) })}
                     className="btn-zen btn-outline !py-2 !px-4 text-[13px]">
-                    <Bag className="w-4 h-4" /> Pedir
-                  </a>
+                    <Bag className="w-4 h-4" /> Añadir
+                  </button>
                 </div>
               </div>
             </article>

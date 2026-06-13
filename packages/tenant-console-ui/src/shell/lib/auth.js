@@ -9,6 +9,65 @@ import { api } from './api'
 let TOKEN_KEY = 'apphub.token'
 let consumed = false
 
+const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+// El refresh token se guarda junto al access token, bajo una clave derivada del
+// mismo TOKEN_KEY que configure el host, para que ambos paquetes (este y el
+// lib/auth propio del portal) coincidan en la convención.
+const refreshKey = () => `${TOKEN_KEY}.refresh`
+
+function decodePayload(token) {
+  try {
+    const [, b64] = token.split('.')
+    return JSON.parse(atob(b64.replace(/-/g, '+').replace(/_/g, '/')))
+  } catch { return null }
+}
+function isExpired(token) {
+  const p = decodePayload(token)
+  return !p || (p.exp && p.exp * 1000 < Date.now())
+}
+function saveSession({ accessToken, refreshToken }) {
+  if (accessToken) localStorage.setItem(TOKEN_KEY, accessToken)
+  if (refreshToken) localStorage.setItem(refreshKey(), refreshToken)
+}
+export function getRefreshToken() { return localStorage.getItem(refreshKey()) }
+
+// Renueva el access token con el refresh token (rotándolo). Usa fetch directo
+// —no el wrapper api— para no recursar en el manejo de 401. Devuelve el nuevo
+// access token, o null si no se pudo (refresh ausente/caducado → sesión muerta).
+let refreshing = null
+export async function refreshSession() {
+  if (refreshing) return refreshing
+  refreshing = (async () => {
+    const rt = getRefreshToken()
+    const at = localStorage.getItem(TOKEN_KEY)
+    const p = at && decodePayload(at)
+    if (!rt || !p) return null
+    try {
+      const res = await fetch(`${BASE}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId: p.app_id, tenantId: p.tenant_id, userId: p.sub, refreshToken: rt }),
+      })
+      if (!res.ok) { logout(); return null }
+      const data = (await res.json().catch(() => ({})))?.data ?? {}
+      if (!data.accessToken) { logout(); return null }
+      saveSession(data)
+      return data.accessToken
+    } catch { return null }
+  })()
+  try { return await refreshing } finally { refreshing = null }
+}
+
+// Sesión válida para arrancar: si el access token sigue vigente lo devuelve; si
+// caducó pero hay refresh token, intenta renovarlo. Lo usan los hosts al montar
+// para sobrevivir a recargas pasados los 15 min del access token.
+export async function ensureSession() {
+  const at = localStorage.getItem(TOKEN_KEY)
+  if (at && !isExpired(at)) return getIdentity()
+  if (getRefreshToken()) { await refreshSession() }
+  return getIdentity()
+}
+
 export function configureAuth({ tokenKey } = {}) {
   if (tokenKey && tokenKey !== TOKEN_KEY) TOKEN_KEY = tokenKey
   // Re-run the fragment consumer with the (possibly new) key. Guarded so
@@ -48,9 +107,9 @@ consumeTokenFromFragment()
 
 export async function login({ email, password }) {
   const res = await api.post('/api/auth/login', { email, password })
-  const accessToken = res?.data?.accessToken ?? res?.accessToken
-  if (!accessToken) throw new Error('Respuesta de login sin token')
-  localStorage.setItem(TOKEN_KEY, accessToken)
+  const data = res?.data ?? res
+  if (!data?.accessToken) throw new Error('Respuesta de login sin token')
+  saveSession(data)
   return getIdentity()
 }
 
@@ -60,14 +119,15 @@ export async function login({ email, password }) {
 // access/refresh listo para usar.
 export async function activate({ token, password }) {
   const res = await api.post('/api/auth/activate', { token, password })
-  const accessToken = res?.data?.accessToken ?? res?.accessToken
-  if (!accessToken) throw new Error('Respuesta de activate sin token')
-  localStorage.setItem(TOKEN_KEY, accessToken)
+  const data = res?.data ?? res
+  if (!data?.accessToken) throw new Error('Respuesta de activate sin token')
+  saveSession(data)
   return getIdentity()
 }
 
 export function logout() {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(refreshKey())
 }
 
 export function getToken() {
@@ -80,10 +140,9 @@ export function getIdentity() {
   try {
     const [, payloadB64] = token.split('.')
     const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')))
-    if (payload.exp && payload.exp * 1000 < Date.now()) {
-      logout()
-      return null
-    }
+    // Caducado: NO hacemos logout aquí — conservamos el token para que
+    // refreshSession() pueda leer sus claims (app/tenant/user) y renovarlo.
+    if (payload.exp && payload.exp * 1000 < Date.now()) return null
     return {
       userId:   payload.sub,
       appId:    payload.app_id,

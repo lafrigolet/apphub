@@ -62,6 +62,30 @@ function signAccess(user) {
   )
 }
 
+// Sesión de invitado para visitantes anónimos de una landing pública: emite un
+// JWT con role='guest' y un userId recién generado (sin fila en BD). Sirve para
+// que módulos con identidad obligatoria (platform/basket, platform/orders)
+// puedan atender la cesta de un visitante sin login. Vida larga (30d) para que
+// la cesta persista entre visitas; el guestUserId opcional permite reanudar una
+// cesta previa guardada en el cliente.
+//
+// Colapso a un tenant por defecto: el JWT NO emite sub_tenant_id (subtenancy
+// reservada). El tenant lo pasa el caller (la landing conoce su tenant único).
+export function guestSession({ appId, tenantId, guestUserId = null }) {
+  const userId = (guestUserId && UUID_RE.test(guestUserId)) ? guestUserId : uuidv4()
+  const accessToken = jwt.sign(
+    {
+      sub:       userId,
+      app_id:    appId,
+      tenant_id: tenantId,
+      role:      'guest',
+    },
+    env.PLATFORM_JWT_SECRET,
+    { expiresIn: '30d' },
+  )
+  return { accessToken, userId, role: 'guest' }
+}
+
 export async function register({ appId, tenantId, email, password, role = 'user' }) {
   // Colapso 1 app → 1 tenant: si el caller no manda tenantId, lo derivamos
   // del app. La subtenancy queda reservada (siempre NULL).

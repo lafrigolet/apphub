@@ -202,4 +202,16 @@ VALUES
   ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000005','delivered','completed','owner','pedido completado', now() - interval '15 days'),
   ('luciapassardi','70000000-0000-0000-0000-000000000001','70000006-0000-0000-0000-000000000006','pending','cancelled','owner','cancelado a petición de la clienta', now() - interval '3 days');
 
+-- ── 9. Suscripción del tenant a la plataforma (hulkstein) ────────────
+-- Plan comercial: 100 €/mes, pago con tarjeta. El owner la activa/desactiva
+-- desde el backoffice (Stripe Checkout, mode=subscription). El staff configura
+-- el subscription_stripe_price_id real para que el cobro se ejecute.
+UPDATE platform_tenants.tenants SET
+  subscription_period         = 'monthly',
+  subscription_amount_cents   = 10000,
+  subscription_currency       = 'eur',
+  subscription_payment_method = 'card',
+  subscription_billing_email  = 'lucia@luciapassardi.local'
+WHERE id = '70000000-0000-0000-0000-000000000001' AND app_id = 'luciapassardi';
+
 COMMIT;

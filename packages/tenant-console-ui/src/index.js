@@ -8,5 +8,5 @@
 
 export { default as AdminShell } from './App.jsx'
 export { AppProvider, useApp }   from './shell/lib/context.jsx'
-export { configureAuth, login, logout, getToken, getIdentity } from './shell/lib/auth.js'
+export { configureAuth, login, logout, getToken, getIdentity, refreshSession, ensureSession } from './shell/lib/auth.js'
 export { api }                   from './shell/lib/api.js'

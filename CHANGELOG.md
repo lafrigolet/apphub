@@ -30,6 +30,46 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     tenants demo a 3 cuentas, **cada una su propia app** (1 app = 1 tenant).
 
 ### Added
+- **Cesta de la compra en la landing de `luciapassardi` (cesta real + checkout).**
+  Reutiliza `platform/basket` (Redis), `platform/orders` y `payments`:
+  - **Token de invitado en `platform/auth`** (capacidad nueva): `POST /v1/auth/guest`
+    emite un JWT `role='guest'` (sin fila en BD, 30d) para que visitantes anónimos
+    operen la cesta y creen pedidos sin login. `guestUserId` opcional reanuda una
+    cesta previa.
+  - **Frontend**: `CartProvider` + panel lateral con badge en el menú, alta/baja de
+    cantidades sobre `platform/basket`, y botón "Añadir" en la tienda. El checkout
+    crea un **pedido real** en `platform/orders` (aparece en el backoffice de Pedidos)
+    e intenta iniciar el pago por Stripe; si el pago no está disponible, el pedido
+    queda registrado y se confirma al cliente.
+- **Secciones de backoffice de `luciapassardi` (gestión real, reutilizando plataforma).**
+  - **Eventos / Calendario / Tienda / Pedidos**: CRUD real sobre
+    `platform/services` (sesiones de eventos y clases con edición/borrado inline
+    sobre el calendario semanal Lun–Dom), `platform/catalog` (productos) y
+    `platform/orders` (pedidos: lista con filtro por estado, detalle con líneas/
+    dirección/historial y transiciones que respetan la FSM del módulo). Datos
+    inicializados en BD (`seed.sql` §6–8: eventos, 17 productos, 6 pedidos).
+  - **Suscripción a Hulkstein**: nueva sección que **extiende `platform/tenant-config`**
+    (la suscripción tenant↔plataforma ya vivía en `platform_tenants`). Switch
+    activar/desactivar que reutiliza el flujo real de Stripe Checkout
+    (`POST /v1/tenants/:id/subscribe`, mode=subscription) y un nuevo
+    `POST /v1/tenants/:id/unsubscribe` (owner/admin del propio tenant). Campo
+    nuevo `subscription_payment_method` (migración 0006) y plan sembrado de
+    **100 €/mes, tarjeta** (`seed.sql` §9).
+
+- **Sesión persistente con refresh token (toda la plataforma).** Antes el frontend
+  descartaba el refresh token y la sesión moría al caducar el access token (15 min).
+  Ahora `@apphub/tenant-console-ui` guarda y **rota** el refresh token, auto-renueva
+  en cualquier 401 (con reintento) y expone `refreshSession()`/`ensureSession()`; los
+  portales sobreviven a recargas y refrescan proactivamente. TTL del refresh subido a
+  **90 días** (`PLATFORM_JWT_REFRESH_DAYS`, antes 30). luciapassardi guarda el refresh
+  token y su `/admin` renueva al montar + cada 10 min.
+
+### Fixed
+- **nginx: `/api/tenants/` enrutaba a `/v1/` en vez de `/v1/tenants/`**, dejando
+  inalcanzables los endpoints de detalle/suscripción del tenant (404). Alineado
+  con la convención del resto de rutas de platform-core (`/api/apps/`→`/v1/apps/`,
+  …).
+
 - **Backoffice de `luciapassardi` (V1) — reutilizando módulos de plataforma.**
   Convierte la landing en una app con tenant + login + consola, sin reinventar:
   - **Módulo nuevo `platform/commerce`** ([ADR 019](docs/adr/019-platform-commerce-orchestration.md)):

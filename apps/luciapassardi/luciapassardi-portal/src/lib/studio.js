@@ -122,6 +122,20 @@ export async function cancelarPedido(id, reason) {
   return req('POST', `/api/orders/${id}/cancel`, { reason: reason || undefined })
 }
 
+// ── Suscripción del tenant a la plataforma (platform/tenant-config) ──
+export async function getSuscripcion() {
+  return req('GET', `/api/tenants/${TENANT_ID}/subscription`)
+}
+// Activar = iniciar Stripe Checkout (mode=subscription). Devuelve { url } para
+// redirigir el navegador. returnUrl es a dónde vuelve Stripe tras pagar/cancelar.
+export async function suscribir(returnUrl) {
+  return req('POST', `/api/tenants/${TENANT_ID}/subscribe`, { returnUrl })
+}
+// Desactivar = cancelar la suscripción (cancel_at_period_end o inactive).
+export async function cancelarSuscripcion() {
+  return req('POST', `/api/tenants/${TENANT_ID}/unsubscribe`)
+}
+
 // Sesiones públicas próximas (kind: 'event' | 'appointment').
 export async function fetchUpcoming(kind, limit) {
   const j = await req('GET', `/api/services/sessions/upcoming?${qs(kind, limit)}`)

@@ -387,8 +387,9 @@ hasta un portal con admin configurable es:
 | `/opendragon-implementa <name>` | Generar los microservicios derivados del prototipo importado (REUSE / EXTEND / IMPLEMENT / CREATE) | [.claude/commands/opendragon-implementa.md](.claude/commands/opendragon-implementa.md) |
 | `/opendragon-add-admin-config <name>` | Descubrir parámetros configurables en la landing y exponerlos en `/admin/<feature>` (precedencia: calculadora js-electric, commit `beb7c0b`) | [.claude/commands/opendragon-add-admin-config.md](.claude/commands/opendragon-add-admin-config.md) |
 | `/opendragon-add-users-management <name>` | Añadir vistas admin de usuarios (list, invite, approve, change role, revoke, resend) — REUSE de `platform/auth` + endpoint `resend-invitation` nuevo | [.claude/commands/opendragon-add-users-management.md](.claude/commands/opendragon-add-users-management.md) |
+| `/opendragon-add-backoffice <name> [secciones…]` | Añadir consola de administración (`/admin`): login + shell reutilizado (`@apphub/tenant-console-ui`) + una sección CRUD por módulo de plataforma (eventos, tienda, pedidos, suscripción, calendario…), sembrada con datos reales y verificada e2e. Incluye **Troubleshooting** (nginx 301/mapeo, rebuilds de imagen, guest/refresh tokens, superusuario `splitpay`) | [.claude/commands/opendragon-add-backoffice.md](.claude/commands/opendragon-add-backoffice.md) |
 
-Los 4 primeros forman el flujo lineal canónico. Los dos `add-*` son
+Los 4 primeros forman el flujo lineal canónico. Los `add-*` son
 **extensiones opcionales** que se invocan tras `/opendragon-implementa`
 en cualquier orden.
 
@@ -397,7 +398,11 @@ Cada paso es opcional según de dónde vengas:
   `/opendragon-html-to-jsx` y vas directo a `/opendragon-importa`.
 - Si el app es marketing puro y reutiliza todo de `platform/`, puede que
   `/opendragon-implementa` sea casi no-op (solo seed) y vayas directo a
-  `/opendragon-add-admin-config` y/o `/opendragon-add-users-management`.
+  `/opendragon-add-admin-config`, `/opendragon-add-users-management` y/o
+  `/opendragon-add-backoffice`.
+- Para dar al owner una consola de gestión real (eventos, tienda, pedidos,
+  suscripción…) reutilizando módulos de plataforma, usa
+  `/opendragon-add-backoffice` (precedencia: el backoffice de luciapassardi).
 
 Para añadir un comando nuevo: crea `.claude/commands/<name>.md` con
 frontmatter `description:` y opcional `argument-hint:`, y añade una

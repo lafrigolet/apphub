@@ -68,6 +68,7 @@ const updateTenantBody = z.object({
   subscriptionRenewsAt:          z.string().datetime().nullable().optional(),
   subscriptionCancelAtPeriodEnd: z.boolean().optional(),
   subscriptionNotes:             z.string().max(2000).nullable().optional(),
+  subscriptionPaymentMethod:     z.enum(['card', 'sepa', 'transfer', 'cash']).nullable().optional(),
 })
 
 const subscribeBody = z.object({
@@ -149,6 +150,13 @@ export async function tenantsRoutes(fastify) {
     return tenantsService.startSubscriptionCheckout(
       req.params.id, req.identity, bearer, body,
     )
+  })
+
+  // Cancela la subscripción a petición del propio tenant (owner/admin) o de
+  // staff. Marca cancel_at_period_end si hay sub Stripe activa, o la deja
+  // inactive si nunca llegó a activarse. El toggle del backoffice la usa.
+  fastify.post('/v1/tenants/:id/unsubscribe', async (req) => {
+    return tenantsService.requestUnsubscribe(req.params.id, req.identity)
   })
 
   // #7 Effective module list for a tenant: its override if set, else the app's.
