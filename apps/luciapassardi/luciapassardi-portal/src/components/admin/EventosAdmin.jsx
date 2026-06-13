@@ -93,8 +93,7 @@ export default function EventosAdmin() {
   }
 
   return (
-    <div className="min-h-screen bg-piedra text-tinta">
-      <AdminBar active="eventos" />
+    <AdminBar active="eventos">
       <div className="max-w-4xl mx-auto px-5 py-10">
         <p className="eyebrow">Backoffice · Próximos eventos</p>
         <h1 className="display text-4xl sm:text-5xl mt-2 mb-2">Eventos</h1>
@@ -161,6 +160,6 @@ export default function EventosAdmin() {
           </ul>
         )}
       </div>
-    </div>
+    </AdminBar>
   )
 }

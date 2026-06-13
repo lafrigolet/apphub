@@ -73,8 +73,7 @@ export default function PedidosAdmin() {
   const buyerEmail = (o) => o.metadata?.buyerEmail || o.metadata?.buyer_email || ''
 
   return (
-    <div className="min-h-screen bg-piedra text-tinta">
-      <AdminBar active="pedidos" />
+    <AdminBar active="pedidos">
       <div className="max-w-5xl mx-auto px-5 py-10">
         <p className="eyebrow">Backoffice · Tienda</p>
         <h1 className="display text-4xl sm:text-5xl mt-2 mb-2">Pedidos</h1>
@@ -189,6 +188,6 @@ export default function PedidosAdmin() {
           </ul>
         )}
       </div>
-    </div>
+    </AdminBar>
   )
 }

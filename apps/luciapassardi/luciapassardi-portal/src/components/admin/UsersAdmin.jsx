@@ -44,8 +44,7 @@ export default function UsersAdmin() {
   const activos = users.filter((u) => !u.pending_approval)
 
   return (
-    <div className="min-h-screen bg-piedra text-tinta">
-      <AdminBar active="usuarios" />
+    <AdminBar active="usuarios">
       <div className="max-w-5xl mx-auto px-5 py-10">
         <p className="eyebrow">Backoffice · Comunidad</p>
         <h1 className="display text-4xl sm:text-5xl mt-2 mb-2">Usuarios</h1>
@@ -118,6 +117,6 @@ export default function UsersAdmin() {
           </>
         )}
       </div>
-    </div>
+    </AdminBar>
   )
 }

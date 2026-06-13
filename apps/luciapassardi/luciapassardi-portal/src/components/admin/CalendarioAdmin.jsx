@@ -100,8 +100,7 @@ export default function CalendarioAdmin() {
     .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))
 
   return (
-    <div className="min-h-screen bg-piedra text-tinta">
-      <AdminBar active="calendario" />
+    <AdminBar active="calendario">
       <div className="max-w-7xl mx-auto px-5 py-10">
         <p className="eyebrow">Backoffice · Calendario</p>
         <h1 className="display text-4xl sm:text-5xl mt-2 mb-2">Calendario de clases</h1>
@@ -183,6 +182,6 @@ export default function CalendarioAdmin() {
           </div>
         )}
       </div>
-    </div>
+    </AdminBar>
   )
 }

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Landing from './views/Landing.jsx'
-import AdminConsole from './components/admin/AdminShell.jsx'
 import EventosAdmin from './components/admin/EventosAdmin.jsx'
 import CalendarioAdmin from './components/admin/CalendarioAdmin.jsx'
 import ProductosAdmin from './components/admin/ProductosAdmin.jsx'
@@ -52,7 +51,7 @@ function AdminRoute() {
   const onExit = () => { logout(); setIdentity(null) }
   return (
     <Routes>
-      <Route index element={<AdminConsole onExit={onExit} />} />
+      <Route index element={<Navigate to="/admin/calendario" replace />} />
       <Route path="calendario" element={<CalendarioAdmin onExit={onExit} />} />
       <Route path="eventos" element={<EventosAdmin onExit={onExit} />} />
       <Route path="productos" element={<ProductosAdmin onExit={onExit} />} />

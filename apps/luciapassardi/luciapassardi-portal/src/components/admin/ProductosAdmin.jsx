@@ -84,8 +84,7 @@ export default function ProductosAdmin() {
   const cats = [...new Set(items.map((i) => i.category || 'Sin categoría'))].sort()
 
   return (
-    <div className="min-h-screen bg-piedra text-tinta">
-      <AdminBar active="productos" />
+    <AdminBar active="productos">
       <div className="max-w-5xl mx-auto px-5 py-10">
         <p className="eyebrow">Backoffice · Tienda</p>
         <h1 className="display text-4xl sm:text-5xl mt-2 mb-2">Productos</h1>
@@ -166,6 +165,6 @@ export default function ProductosAdmin() {
           </div>
         )}
       </div>
-    </div>
+    </AdminBar>
   )
 }

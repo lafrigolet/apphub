@@ -1,36 +1,43 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { logout } from '../../lib/auth.js'
 
-// Barra fina común a las páginas de admin propias del portal (la consola
-// embebida + la sección de Eventos).
-export default function AdminBar({ active }) {
+// Layout del backoffice: barra lateral izquierda (navegación) + área de contenido
+// a la derecha. Cada sección lo usa como envoltorio: <AdminBar active="x">…</AdminBar>.
+const ITEMS = [
+  ['/admin/calendario', 'Calendario', 'calendario'],
+  ['/admin/eventos', 'Eventos', 'eventos'],
+  ['/admin/productos', 'Tienda', 'productos'],
+  ['/admin/pedidos', 'Pedidos', 'pedidos'],
+  ['/admin/suscripcion', 'Suscripción', 'suscripcion'],
+  ['/admin/usuarios', 'Usuarios', 'usuarios'],
+  ['/admin/consultas', 'Consultas', 'consultas'],
+]
+
+export default function AdminBar({ active, children }) {
   const nav = useNavigate()
-  const link = (to, label, key) => (
-    <Link to={to}
-      className={`text-sm font-semibold px-3 py-1.5 rounded-full transition-colors ${
-        active === key ? 'bg-teal-600 text-crema' : 'text-tinta/60 hover:text-teal-600'}`}>
-      {label}
-    </Link>
-  )
   return (
-    <div className="sticky top-0 z-40 bg-crema/90 backdrop-blur border-b border-tinta/10">
-      <div className="max-w-7xl mx-auto px-5 h-14 flex items-center justify-between">
-        <span className="display text-xl">Lucía Passardi · Consola</span>
-        <nav className="flex items-center gap-1.5">
-          {link('/admin', 'Consola', 'consola')}
-          {link('/admin/calendario', 'Calendario', 'calendario')}
-          {link('/admin/eventos', 'Eventos', 'eventos')}
-          {link('/admin/productos', 'Tienda', 'productos')}
-          {link('/admin/pedidos', 'Pedidos', 'pedidos')}
-          {link('/admin/suscripcion', 'Suscripción', 'suscripcion')}
-          {link('/admin/usuarios', 'Usuarios', 'usuarios')}
-          {link('/admin/consultas', 'Consultas', 'consultas')}
+    <div className="min-h-screen bg-piedra text-tinta flex">
+      <aside className="w-52 sm:w-56 shrink-0 sticky top-0 h-screen bg-crema/95 backdrop-blur border-r border-tinta/10 flex flex-col">
+        <div className="px-5 h-16 flex items-center border-b border-tinta/10">
+          <span className="display text-lg leading-tight">Lucía Passardi</span>
+        </div>
+        <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
+          {ITEMS.map(([to, label, key]) => (
+            <Link key={key} to={to}
+              className={`text-sm font-semibold px-3.5 py-2 rounded-xl transition-colors ${
+                active === key ? 'bg-teal-600 text-crema' : 'text-tinta/65 hover:text-teal-600 hover:bg-teal-500/10'}`}>
+              {label}
+            </Link>
+          ))}
+        </nav>
+        <div className="p-3 border-t border-tinta/10">
           <button onClick={() => { logout(); nav('/') }}
-            className="text-sm font-semibold px-3 py-1.5 rounded-full text-tinta/60 hover:text-red-700">
+            className="w-full text-sm font-semibold px-3.5 py-2 rounded-xl text-tinta/60 hover:text-red-700 hover:bg-red-500/10 text-left transition-colors">
             Cerrar sesión
           </button>
-        </nav>
-      </div>
+        </div>
+      </aside>
+      <main className="flex-1 min-w-0">{children}</main>
     </div>
   )
 }
