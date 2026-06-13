@@ -136,6 +136,36 @@ export async function cancelarSuscripcion() {
   return req('POST', `/api/tenants/${TENANT_ID}/unsubscribe`)
 }
 
+// ── Formulario de contacto (platform/inquiries, público) ────────────
+export async function enviarConsulta({ contactName, email, phone, subject, message, website }) {
+  // Barra final: nginx redirige /api/inquiries → /api/inquiries/ (301).
+  return req('POST', '/api/inquiries/', {
+    appId: APP_ID, tenantId: TENANT_ID,
+    contactName, email, phone: phone || undefined,
+    subject: subject || undefined, message,
+    source: 'landing', website: website || undefined, // website = honeypot
+  })
+}
+
+// ── Cuenta de alumna: mis reservas / mis bonos / mis pedidos ─────────
+// Se filtran por el usuario actual (clientUserId/buyerUserId) para no mostrar
+// las del resto del tenant.
+export async function misReservas(userId) {
+  const q = userId ? `clientUserId=${encodeURIComponent(userId)}&` : ''
+  const j = await req('GET', `/api/bookings/?${q}limit=100`)
+  return j?.data ?? j ?? []
+}
+export async function misBonos(userId) {
+  const q = userId ? `?clientUserId=${encodeURIComponent(userId)}` : ''
+  const j = await req('GET', `/api/packages/purchases${q}`)
+  return j?.data ?? j ?? []
+}
+export async function misPedidos(userId) {
+  const q = userId ? `buyerUserId=${encodeURIComponent(userId)}&` : ''
+  const j = await req('GET', `/api/orders/?${q}limit=100`)
+  return Array.isArray(j) ? j : (j?.data ?? [])
+}
+
 // Sesiones públicas próximas (kind: 'event' | 'appointment').
 export async function fetchUpcoming(kind, limit) {
   const j = await req('GET', `/api/services/sessions/upcoming?${qs(kind, limit)}`)
@@ -169,7 +199,9 @@ export function sessionsToHorario(sessions) {
     const tipo = s.service_name || s.session_description || 'Clase'
     const key = `${hora}|${tipo}|${s.location}`
     if (arr.some((c) => c._key === key)) continue
-    arr.push({ _key: key, hora, tipo, ubicacion: s.location || '', nivel: '' })
+    // Guarda el id+fecha de la PRÓXIMA sesión de este hueco semanal (rows vienen
+    // ordenadas asc), para poder reservarla desde el horario.
+    arr.push({ _key: key, hora, tipo, ubicacion: s.location || '', nivel: '', sessionId: s.id, date: s.starts_at })
   }
   return ORDEN.map((d) => ({
     dia: DIAS[d], corto: CORTO[d],
@@ -177,7 +209,11 @@ export function sessionsToHorario(sessions) {
   }))
 }
 
-// Reservar una sesión (requiere sesión de usuario). bookings module.
+// Reservar una sesión por sessionId (requiere sesión de usuario). Reserva con
+// control de aforo en platform/bookings, tanto para eventos (kind=event) como
+// para clases de grupo (kind=appointment con aforo). packageId opcional descuenta
+// del bono. El parámetro `kind` se mantiene por compatibilidad pero ya no cambia
+// el body: bookings deriva ventana/servicio de la propia session.
 export async function reservarSesion({ sessionId, packageId } = {}) {
   return req('POST', '/api/bookings/', { sessionId, packageId })
 }

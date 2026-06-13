@@ -1,4 +1,4 @@
-import { withTenantTransaction } from '../lib/db.js'
+import { pool, withTenantTransaction } from '../lib/db.js'
 import { publish } from '../lib/redis.js'
 import { logger } from '../lib/logger.js'
 import * as repo from '../repositories/commerce.repository.js'
@@ -10,7 +10,7 @@ export class CommerceError extends Error {
 }
 
 const tx = (scope, fn) =>
-  withTenantTransaction(scope.appId, scope.tenantId, scope.subTenantId ?? null, fn)
+  withTenantTransaction(pool, scope.appId, scope.tenantId, scope.subTenantId ?? null, fn)
 
 const toView = (r) => r && ({
   id: r.id, kind: r.kind, refId: r.ref_id, clientUserId: r.client_user_id,

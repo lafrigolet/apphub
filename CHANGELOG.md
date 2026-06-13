@@ -30,6 +30,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     tenants demo a 3 cuentas, **cada una su propia app** (1 app = 1 tenant).
 
 ### Added
+- **Self-service de alumna en la landing de `luciapassardi` (casos de uso pendientes).**
+  Reutilizando módulos de plataforma, la landing pasa de escaparate+WhatsApp a app
+  transaccional:
+  - **Cuenta de alumna** (`platform/auth`): registro/login en modal + drawer "Mi
+    cuenta" con mis reservas/bonos/pedidos (filtrados por usuario). Sesión persistente
+    (refresh token) y reutilizada por la cesta.
+  - **Reservar clase** (#1) y **inscribirse a eventos** (#3) (`platform/bookings`):
+    botón "Reservar" en el horario y "Inscribirme" en los próximos eventos del hero;
+    control de aforo y anti-doble-reserva. Si no hay sesión, se abre el login y la
+    acción se reanuda.
+  - **Comprar bono** (#2) (`comprarBono` → `platform/commerce` + `payments` + `packages`):
+    botón "Comprar bono" en la tienda sobre las plantillas reales.
+  - **Formulario de contacto** (#4) (`platform/inquiries`, público): formulario real
+    en la sección Contacto con honeypot anti-spam; buzón del tenant sembrado.
 - **Cesta de la compra en la landing de `luciapassardi` (cesta real + checkout).**
   Reutiliza `platform/basket` (Redis), `platform/orders` y `payments`:
   - **Token de invitado en `platform/auth`** (capacidad nueva): `POST /v1/auth/guest`
@@ -65,6 +79,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   token y su `/admin` renueva al montar + cada 10 min.
 
 ### Fixed
+- **`platform/commerce` lanzaba 500 (`pool.connect is not a function`)** al crear un
+  checkout: el helper `tx` no pasaba el pool como primer argumento a
+  `withTenantTransaction(pool, appId, tenantId, …)`. Corregido (cubre el caso de uso
+  "comprar bono"). Tests actualizados a la firma de 5 args.
+- **`platform/bookings` no permitía reservar clases de grupo por `sessionId`** (solo
+  eventos): las clases-como-`appointment` con aforo ahora se reservan por sessionId con
+  el mismo control anti-overbooking/anti-doble-reserva que los eventos (el flujo clásico
+  resourceIds+ventana+hold seguía siendo exclusivo, inservible para grupos).
+
 - **nginx: `/api/tenants/` enrutaba a `/v1/` en vez de `/v1/tenants/`**, dejando
   inalcanzables los endpoints de detalle/suscripción del tenant (404). Alineado
   con la convención del resto de rutas de platform-core (`/api/apps/`→`/v1/apps/`,

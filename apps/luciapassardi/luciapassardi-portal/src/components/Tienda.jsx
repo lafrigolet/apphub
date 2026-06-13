@@ -2,8 +2,16 @@ import { useState, useEffect } from 'react'
 import { productos, categorias } from '../data/content.js'
 import { Leaf, Bag, Arrow } from './icons.jsx'
 import { useCart } from '../context/CartContext.jsx'
+import { useSession } from '../context/SessionContext.jsx'
 
 const PAGINA = 6
+
+// Bonos reales (package_templates del seed): se compran con el flujo de bono
+// (commerce + payments → saldo de sesiones), no como producto de la cesta.
+const BONO_TEMPLATES = {
+  p15: { templateId: '70000004-0000-0000-0000-000000000001', amountCents: 6000 },
+  p16: { templateId: '70000004-0000-0000-0000-000000000002', amountCents: 11000 },
+}
 
 // Degradado del "tile" de producto por categoría (clases literales → Tailwind las
 // detecta). Placeholder mientras no haya fotos reales.
@@ -20,6 +28,7 @@ const precioTexto = (p) => (p.desde ? `desde ${p.precio} €` : `${p.precio} €
 
 export default function Tienda() {
   const { addOne } = useCart()
+  const { comprar } = useSession()
   const [cat, setCat] = useState('todas')
   const [visibles, setVisibles] = useState(PAGINA)
 
@@ -83,11 +92,19 @@ export default function Tienda() {
                 <p className="text-sm text-tinta/60 leading-relaxed mt-1.5">{p.desc}</p>
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-tinta/8">
                   <span className="display text-2xl text-teal-700">{precioTexto(p)}</span>
-                  <button
-                    onClick={() => addOne({ itemId: p.id, name: p.nombre, priceCents: Math.round(p.precio * 100) })}
-                    className="btn-zen btn-outline !py-2 !px-4 text-[13px]">
-                    <Bag className="w-4 h-4" /> Añadir
-                  </button>
+                  {BONO_TEMPLATES[p.id] ? (
+                    <button
+                      onClick={() => comprar({ ...BONO_TEMPLATES[p.id], nombre: p.nombre })}
+                      className="btn-zen btn-fill !py-2 !px-4 text-[13px]">
+                      Comprar bono
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => addOne({ itemId: p.id, name: p.nombre, priceCents: Math.round(p.precio * 100) })}
+                      className="btn-zen btn-outline !py-2 !px-4 text-[13px]">
+                      <Bag className="w-4 h-4" /> Añadir
+                    </button>
+                  )}
                 </div>
               </div>
             </article>

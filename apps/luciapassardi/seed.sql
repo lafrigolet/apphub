@@ -214,4 +214,16 @@ UPDATE platform_tenants.tenants SET
   subscription_billing_email  = 'lucia@luciapassardi.local'
 WHERE id = '70000000-0000-0000-0000-000000000001' AND app_id = 'luciapassardi';
 
+-- ── 10. Inquiries: buzón de contacto del tenant ──────────────────────
+-- El módulo platform/inquiries no acepta consultas hasta tener un
+-- contact_inbox_email configurado (las respuestas salen del inbox personal).
+INSERT INTO platform_inquiries.settings
+  (app_id, tenant_id, contact_inbox_email, reply_to_email, user_thanks_subject, user_thanks_body, retention_days)
+VALUES
+  ('luciapassardi','70000000-0000-0000-0000-000000000001','lucia@luciapassardi.local','lucia@luciapassardi.local',
+   '¡Gracias por escribir!','Hola, he recibido tu mensaje y te responderé personalmente lo antes posible. Namasté, Lucía.',365)
+ON CONFLICT (app_id, tenant_id) DO UPDATE SET
+  contact_inbox_email = EXCLUDED.contact_inbox_email, reply_to_email = EXCLUDED.reply_to_email,
+  user_thanks_subject = EXCLUDED.user_thanks_subject, user_thanks_body = EXCLUDED.user_thanks_body;
+
 COMMIT;

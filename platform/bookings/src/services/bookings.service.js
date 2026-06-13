@@ -112,8 +112,11 @@ async function createBookingForSession(ctx, body) {
 
     const svc = await repo.loadServiceFor(c, ctx.appId, ctx.tenantId, session.service_id)
     if (!svc) throw new NotFoundError('service')
-    if (svc.kind !== 'event') {
-      throw new ValidationError('sessionId only valid for services with kind=event')
+    // Reserva por sessionId con control de aforo: válida para eventos y para
+    // clases de grupo (appointment con aforo en la session). El resto de kinds
+    // siguen el flujo clásico (resourceIds + ventana + hold exclusivo).
+    if (svc.kind !== 'event' && svc.kind !== 'appointment') {
+      throw new ValidationError('sessionId booking only valid for kind=event or kind=appointment sessions')
     }
 
     // Doble inscripción del mismo cliente a la misma sesión → 409. El cliente

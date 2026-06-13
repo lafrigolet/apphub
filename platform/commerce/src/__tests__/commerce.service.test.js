@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../lib/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }))
 vi.mock('../lib/db.js', () => ({
-  withTenantTransaction: vi.fn(async (_a, _t, _s, fn) => fn({ query: vi.fn() })),
+  withTenantTransaction: vi.fn(async (_pool, _a, _t, _s, fn) => fn({ query: vi.fn() })),
   pool: {}, configurePool: vi.fn(),
 }))
 vi.mock('../lib/redis.js', () => ({ publish: vi.fn(), configureRedis: vi.fn(), subscribe: vi.fn() }))

@@ -2,6 +2,27 @@ import { useState } from 'react'
 import { navLinks, contacto } from '../data/content.js'
 import { Menu, Close, Leaf, Bag } from './icons.jsx'
 import { useCart } from '../context/CartContext.jsx'
+import { useSession } from '../context/SessionContext.jsx'
+
+// Botón de cuenta: "Acceder" si no hay sesión; inicial + "Mi cuenta" si la hay.
+function AccountButton({ className = '' }) {
+  const { identity, setAuthOpen, setAccountOpen } = useSession()
+  if (!identity || identity.role !== 'user') {
+    return (
+      <button onClick={() => setAuthOpen(true)}
+        className={`text-sm font-semibold px-3 py-1.5 rounded-full text-tinta/70 hover:text-teal-600 transition-colors ${className}`}>
+        Acceder
+      </button>
+    )
+  }
+  const inicial = (identity.email?.[0] || 'A').toUpperCase()
+  return (
+    <button onClick={() => setAccountOpen(true)} aria-label="Mi cuenta"
+      className={`w-9 h-9 rounded-full bg-teal-600 text-crema font-bold flex items-center justify-center hover:bg-teal-700 transition-colors ${className}`}>
+      {inicial}
+    </button>
+  )
+}
 
 // Botón de cesta con badge de unidades.
 function CartButton({ className = '' }) {
@@ -39,6 +60,7 @@ export default function Header() {
         </nav>
 
         <div className="hidden md:flex items-center gap-3 shrink-0">
+          <AccountButton />
           <CartButton />
           <a href={contacto.whatsappMsg} target="_blank" rel="noopener noreferrer"
             className="btn-zen btn-fill text-[14px] py-2.5 px-5">
@@ -47,6 +69,7 @@ export default function Header() {
         </div>
 
         <div className="md:hidden flex items-center gap-1">
+          <AccountButton />
           <CartButton />
           <button className="text-tinta p-2" onClick={() => setOpen(true)} aria-label="Abrir menú">
             <Menu className="w-6 h-6" />
