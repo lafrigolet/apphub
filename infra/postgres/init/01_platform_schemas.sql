@@ -38,6 +38,7 @@ CREATE SCHEMA IF NOT EXISTS platform_scheduler;
 
 -- platform-tpv schema (point-of-sale operations, ADR 015)
 CREATE SCHEMA IF NOT EXISTS platform_tpv;
+CREATE SCHEMA IF NOT EXISTS platform_commerce;
 
 -- platform-core storage module schema
 CREATE SCHEMA IF NOT EXISTS platform_storage;
@@ -148,6 +149,9 @@ BEGIN
   END IF;
 
   -- platform-tpv role
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_commerce') THEN
+    CREATE ROLE svc_platform_commerce LOGIN PASSWORD 'platform_commerce_secret';
+  END IF;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'svc_platform_tpv') THEN
     CREATE ROLE svc_platform_tpv LOGIN PASSWORD 'platform_tpv_secret';
   END IF;
@@ -222,6 +226,7 @@ GRANT USAGE ON SCHEMA platform_scheduler            TO svc_platform_scheduler;
 
 -- USAGE grants (platform-tpv)
 GRANT USAGE ON SCHEMA platform_tpv                  TO svc_platform_tpv;
+GRANT USAGE ON SCHEMA platform_commerce             TO svc_platform_commerce;
 
 -- USAGE grants (platform-core storage module)
 GRANT USAGE ON SCHEMA platform_storage              TO svc_platform_storage;
@@ -329,6 +334,10 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA platform_tpv
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_tpv;
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_tpv
   GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_tpv;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_commerce
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO svc_platform_commerce;
+ALTER DEFAULT PRIVILEGES IN SCHEMA platform_commerce
+  GRANT USAGE, SELECT ON SEQUENCES TO svc_platform_commerce;
 
 -- DML default privs (platform-core storage)
 ALTER DEFAULT PRIVILEGES IN SCHEMA platform_storage

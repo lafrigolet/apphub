@@ -38,7 +38,10 @@ services:
   # menu photos, signatures, dispute evidence, telehealth recordings, etc.
   # In production, swap S3_ENDPOINT for AWS S3 / Cloudflare R2 / Backblaze B2.
   minio:
-    image: minio/minio:latest
+    # Versión FIJADA (no :latest): 'latest' trajo flapping del monitor de drive
+    # ("taking drive /data offline: unable to write+read") → quorum perdido →
+    # InsufficientWriteQuorum, dejando minio unhealthy y bloqueando dependientes.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ':9001'
     restart: unless-stopped
     networks: [data]
@@ -48,17 +51,23 @@ services:
     environment:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-apphub}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-apphub_minio_secret}
+      # Sube el timeout del monitor de drive (default ~30s) para que la latencia
+      # puntual del volumen en Docker/WSL2 no marque el único drive offline.
+      _MINIO_DRIVE_MAX_TIMEOUT: 2m
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ['CMD-SHELL', 'mc ready local || curl -f http://localhost:9000/minio/health/live || exit 1']
+      # `mc` no existe en la imagen de minio (es otro binario) → usamos el
+      # endpoint de salud con curl, que sí está presente.
+      test: ['CMD-SHELL', 'curl -f http://localhost:9000/minio/health/live || exit 1']
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 20s
 
   # One-shot: creates the apphub bucket on first boot. Safe to re-run.
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     networks: [data]
     depends_on:
       minio: { condition: service_healthy }
@@ -114,6 +123,7 @@ services:
       DATABASE_URL_VERIFACTU:     postgresql://svc_platform_verifactu:platform_verifactu_secret@postgres:5432/splitpay
       DATABASE_URL_CHAT:          postgresql://svc_platform_chat:platform_chat_secret@postgres:5432/splitpay
       DATABASE_URL_TPV:           postgresql://svc_platform_tpv:platform_tpv_secret@postgres:5432/splitpay
+      DATABASE_URL_COMMERCE:      postgresql://svc_platform_commerce:platform_commerce_secret@postgres:5432/splitpay
       PLATFORM_CORE_BASE_URL:     http://platform-core:3000
       # Storage module — S3-compatible object store (MinIO in dev, AWS S3/R2 in prod)
       S3_ENDPOINT:         ${S3_ENDPOINT:-http://minio:9000}
@@ -136,6 +146,9 @@ services:
       # Buzón de operaciones para alertas internas a staff (disputes SLA,
       # leads sin contactar/estancados/follow-up sin owner). Vacío → no-op.
       STAFF_OPS_EMAIL:     ${STAFF_OPS_EMAIL:-}
+      # Tenant-config — colapso a un tenant por defecto: super_admin inicial
+      # creado en cada app nueva (activación por email). Override por env.
+      PLATFORM_DEFAULT_SUPERADMIN_EMAIL: ${PLATFORM_DEFAULT_SUPERADMIN_EMAIL:-luisarturo.frigolet@gmail.com}
       # Payments module — Stripe
       PLATFORM_STRIPE_SECRET_KEY:     ${PLATFORM_STRIPE_SECRET_KEY:-sk_test_placeholder}
       PLATFORM_STRIPE_WEBHOOK_SECRET: ${PLATFORM_STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
@@ -162,6 +175,8 @@ services:
       - ./platform/donations/migrations:/app/platform/donations/migrations:ro
       - ./platform/tpv/src:/app/platform/tpv/src:ro
       - ./platform/tpv/migrations:/app/platform/tpv/migrations:ro
+      - ./platform/commerce/src:/app/platform/commerce/src:ro
+      - ./platform/commerce/migrations:/app/platform/commerce/migrations:ro
       - ./packages/platform-sdk/src:/app/packages/platform-sdk/src:ro
     depends_on:
       postgres:    { condition: service_healthy }

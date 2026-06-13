@@ -46,7 +46,9 @@ export function makeAppGuardHook(expectedAppId) {
         userId:     payload.sub,
         appId:      payload.app_id,
         tenantId:   payload.tenant_id,
-        subTenantId: payload.sub_tenant_id ?? null,
+        // Subtenancy reservada — siempre NULL (colapso a tenant por defecto).
+        // Tolerante con tokens legacy que aún la traigan: se ignora.
+        subTenantId: null,
         role:       payload.role,
         email:      payload.email,
       }

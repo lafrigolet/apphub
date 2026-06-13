@@ -1,34 +1,46 @@
 import { useState } from 'react'
 import { navLinks, contacto } from '../data/content.js'
-import { Menu, Close, Leaf } from './icons.jsx'
+import { Menu, Close, Leaf, Bag } from './icons.jsx'
+import { useCart } from '../context/CartContext.jsx'
+import { useSession } from '../context/SessionContext.jsx'
 
-const VARIANTES = [
-  ['strip', 'Tira'],
-  ['bento', 'Bento'],
-  ['card', 'Tarjeta'],
-]
-
-// Control segmentado para alternar la variante del hero (demo de elección).
-function LayoutSwitch({ variant, onVariant, className = '' }) {
+// Botón de cuenta: "Acceder" si no hay sesión; inicial + "Mi cuenta" si la hay.
+function AccountButton({ className = '' }) {
+  const { identity, setAuthOpen, setAccountOpen } = useSession()
+  if (!identity || identity.role !== 'user') {
+    return (
+      <button onClick={() => setAuthOpen(true)}
+        className={`text-sm font-semibold px-3 py-1.5 rounded-full text-tinta/70 hover:text-teal-600 transition-colors ${className}`}>
+        Acceder
+      </button>
+    )
+  }
+  const inicial = (identity.email?.[0] || 'A').toUpperCase()
   return (
-    <div className={`inline-flex items-center gap-0.5 rounded-full border border-tinta/15 bg-crema/60 p-0.5 ${className}`} role="group" aria-label="Layout del hero">
-      {VARIANTES.map(([v, label]) => (
-        <button
-          key={v}
-          onClick={() => onVariant(v)}
-          aria-pressed={variant === v}
-          className={`seg-btn px-3 py-1 rounded-full text-[12px] font-semibold ${
-            variant === v ? 'bg-teal-600 text-crema' : 'text-tinta/60 hover:text-teal-600'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <button onClick={() => setAccountOpen(true)} aria-label="Mi cuenta"
+      className={`w-9 h-9 rounded-full bg-teal-600 text-crema font-bold flex items-center justify-center hover:bg-teal-700 transition-colors ${className}`}>
+      {inicial}
+    </button>
   )
 }
 
-export default function Header({ variant, onVariant }) {
+// Botón de cesta con badge de unidades.
+function CartButton({ className = '' }) {
+  const { count, setOpen } = useCart()
+  return (
+    <button onClick={() => setOpen(true)} aria-label="Abrir cesta"
+      className={`relative p-2 text-tinta/70 hover:text-teal-600 transition-colors ${className}`}>
+      <Bag className="w-6 h-6" />
+      {count > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-teal-600 text-crema text-[11px] font-bold flex items-center justify-center">
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
+
+export default function Header() {
   const [open, setOpen] = useState(false)
 
   return (
@@ -48,20 +60,21 @@ export default function Header({ variant, onVariant }) {
         </nav>
 
         <div className="hidden md:flex items-center gap-3 shrink-0">
-          {/* Control de layout (elige entre las 3 variantes) */}
-          <div className="hidden lg:flex items-center gap-1.5">
-            <span className="text-[11px] uppercase tracking-widest text-tinta/40 font-semibold">Layout</span>
-            <LayoutSwitch variant={variant} onVariant={onVariant} />
-          </div>
+          <AccountButton />
+          <CartButton />
           <a href={contacto.whatsappMsg} target="_blank" rel="noopener noreferrer"
             className="btn-zen btn-fill text-[14px] py-2.5 px-5">
             Reserva una clase
           </a>
         </div>
 
-        <button className="md:hidden text-tinta p-2" onClick={() => setOpen(true)} aria-label="Abrir menú">
-          <Menu className="w-6 h-6" />
-        </button>
+        <div className="md:hidden flex items-center gap-1">
+          <AccountButton />
+          <CartButton />
+          <button className="text-tinta p-2" onClick={() => setOpen(true)} aria-label="Abrir menú">
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Drawer móvil */}
@@ -79,11 +92,6 @@ export default function Header({ variant, onVariant }) {
                 <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="hover:text-teal-600">{l.label}</a>
               ))}
             </nav>
-
-            <div className="mt-8">
-              <span className="block text-[11px] uppercase tracking-widest text-tinta/40 font-semibold mb-2">Layout del hero</span>
-              <LayoutSwitch variant={variant} onVariant={onVariant} />
-            </div>
 
             <a href={contacto.whatsappMsg} target="_blank" rel="noopener noreferrer"
               onClick={() => setOpen(false)} className="btn-zen btn-fill justify-center mt-auto">

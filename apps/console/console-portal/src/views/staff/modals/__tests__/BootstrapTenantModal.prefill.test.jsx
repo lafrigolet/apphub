@@ -37,6 +37,6 @@ describe('BootstrapTenantModal prefill', () => {
 
   it('sin initial arranca vacío (no rompe)', async () => {
     render(<BootstrapTenantModal />)
-    await waitFor(() => expect(screen.getByText('Bootstrap nuevo tenant')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Bootstrap nueva cuenta')).toBeInTheDocument())
   })
 })

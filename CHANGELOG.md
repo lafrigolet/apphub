@@ -6,7 +6,114 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+- **Colapso a un tenant por defecto (ADR 020).** Las apps pasan a ser
+  single-tenant: `app_id` es la frontera de cliente real (1 app = 1 tenant) y la
+  subtenancy queda **reservada (siempre NULL)**. No es una eliminación física —
+  columnas `tenant_id`/`sub_tenant_id`, las políticas RLS y el scoping por
+  `app_id + tenant_id` **se mantienen intactos**; lo que cambia es que `tenant_id`
+  deja de ser un input de gestión y se **deriva de `app_id`**, y `sub_tenant_id`
+  deja de propagarse:
+  - **Identidad** — el JWT (`platform/auth` + OAuth) ya no emite `sub_tenant_id`;
+    el guard (`@apphub/platform-sdk/app-guard`) fuerza `req.identity.subTenantId = null`.
+    Nuevo helper `resolveAppTenant(appId)` en `auth.service` (mismo patrón que
+    `resolveUserTenant`); `register`/`requestMembership`/OAuth derivan el tenant del
+    app cuando no se pasa, y `tenantId` es opcional en sus schemas.
+  - **Provisión** — `tenant-config` impone 1 app = 1 tenant (rechaza un segundo
+    tenant por app) y cada app NUEVA crea un `super_admin` inicial
+    (`PLATFORM_DEFAULT_SUPERADMIN_EMAIL`, default `luisarturo.frigolet@gmail.com`)
+    con activación por email (reutiliza el magic-link del owner). Nueva ruta interna
+    `POST /internal/auth/users` (rol parametrizable).
+  - **Console** — la sección "Tenants" pasa a **"Cuentas"** (gestión por cliente:
+    fiscal, stripe, admins, owner); "Apps" sigue siendo el registro técnico. El
+    bootstrap se reetiqueta a "Bootstrap nueva cuenta". El seed colapsa los 12
+    tenants demo a 3 cuentas, **cada una su propia app** (1 app = 1 tenant).
+
 ### Added
+- **Self-service de alumna en la landing de `luciapassardi` (casos de uso pendientes).**
+  Reutilizando módulos de plataforma, la landing pasa de escaparate+WhatsApp a app
+  transaccional:
+  - **Cuenta de alumna** (`platform/auth`): registro/login en modal + drawer "Mi
+    cuenta" con mis reservas/bonos/pedidos (filtrados por usuario). Sesión persistente
+    (refresh token) y reutilizada por la cesta.
+  - **Reservar clase** (#1) y **inscribirse a eventos** (#3) (`platform/bookings`):
+    botón "Reservar" en el horario y "Inscribirme" en los próximos eventos del hero;
+    control de aforo y anti-doble-reserva. Si no hay sesión, se abre el login y la
+    acción se reanuda.
+  - **Comprar bono** (#2) (`comprarBono` → `platform/commerce` + `payments` + `packages`):
+    botón "Comprar bono" en la tienda sobre las plantillas reales.
+  - **Formulario de contacto** (#4) (`platform/inquiries`, público): formulario real
+    en la sección Contacto con honeypot anti-spam; buzón del tenant sembrado.
+- **Cesta de la compra en la landing de `luciapassardi` (cesta real + checkout).**
+  Reutiliza `platform/basket` (Redis), `platform/orders` y `payments`:
+  - **Token de invitado en `platform/auth`** (capacidad nueva): `POST /v1/auth/guest`
+    emite un JWT `role='guest'` (sin fila en BD, 30d) para que visitantes anónimos
+    operen la cesta y creen pedidos sin login. `guestUserId` opcional reanuda una
+    cesta previa.
+  - **Frontend**: `CartProvider` + panel lateral con badge en el menú, alta/baja de
+    cantidades sobre `platform/basket`, y botón "Añadir" en la tienda. El checkout
+    crea un **pedido real** en `platform/orders` (aparece en el backoffice de Pedidos)
+    e intenta iniciar el pago por Stripe; si el pago no está disponible, el pedido
+    queda registrado y se confirma al cliente.
+- **Secciones de backoffice de `luciapassardi` (gestión real, reutilizando plataforma).**
+  - **Eventos / Calendario / Tienda / Pedidos**: CRUD real sobre
+    `platform/services` (sesiones de eventos y clases con edición/borrado inline
+    sobre el calendario semanal Lun–Dom), `platform/catalog` (productos) y
+    `platform/orders` (pedidos: lista con filtro por estado, detalle con líneas/
+    dirección/historial y transiciones que respetan la FSM del módulo). Datos
+    inicializados en BD (`seed.sql` §6–8: eventos, 17 productos, 6 pedidos).
+  - **Suscripción a Hulkstein**: nueva sección que **extiende `platform/tenant-config`**
+    (la suscripción tenant↔plataforma ya vivía en `platform_tenants`). Switch
+    activar/desactivar que reutiliza el flujo real de Stripe Checkout
+    (`POST /v1/tenants/:id/subscribe`, mode=subscription) y un nuevo
+    `POST /v1/tenants/:id/unsubscribe` (owner/admin del propio tenant). Campo
+    nuevo `subscription_payment_method` (migración 0006) y plan sembrado de
+    **100 €/mes, tarjeta** (`seed.sql` §9).
+
+- **Sesión persistente con refresh token (toda la plataforma).** Antes el frontend
+  descartaba el refresh token y la sesión moría al caducar el access token (15 min).
+  Ahora `@apphub/tenant-console-ui` guarda y **rota** el refresh token, auto-renueva
+  en cualquier 401 (con reintento) y expone `refreshSession()`/`ensureSession()`; los
+  portales sobreviven a recargas y refrescan proactivamente. TTL del refresh subido a
+  **90 días** (`PLATFORM_JWT_REFRESH_DAYS`, antes 30). luciapassardi guarda el refresh
+  token y su `/admin` renueva al montar + cada 10 min.
+
+### Fixed
+- **`platform/commerce` lanzaba 500 (`pool.connect is not a function`)** al crear un
+  checkout: el helper `tx` no pasaba el pool como primer argumento a
+  `withTenantTransaction(pool, appId, tenantId, …)`. Corregido (cubre el caso de uso
+  "comprar bono"). Tests actualizados a la firma de 5 args.
+- **`platform/bookings` no permitía reservar clases de grupo por `sessionId`** (solo
+  eventos): las clases-como-`appointment` con aforo ahora se reservan por sessionId con
+  el mismo control anti-overbooking/anti-doble-reserva que los eventos (el flujo clásico
+  resourceIds+ventana+hold seguía siendo exclusivo, inservible para grupos).
+
+- **nginx: `/api/tenants/` enrutaba a `/v1/` en vez de `/v1/tenants/`**, dejando
+  inalcanzables los endpoints de detalle/suscripción del tenant (404). Alineado
+  con la convención del resto de rutas de platform-core (`/api/apps/`→`/v1/apps/`,
+  …).
+
+- **Backoffice de `luciapassardi` (V1) — reutilizando módulos de plataforma.**
+  Convierte la landing en una app con tenant + login + consola, sin reinventar:
+  - **Módulo nuevo `platform/commerce`** ([ADR 019](docs/adr/019-platform-commerce-orchestration.md)):
+    orquestación de comercio dirigida por eventos — `checkouts` + subscriber a
+    `payment.succeeded` que emite `commerce.purchase.paid`; `platform/packages`
+    crea el bono y `platform/bookings` confirma la reserva al consumirlo. Schema
+    `platform_commerce`, registrado en platform-core, ruta `/api/commerce/`,
+    init/role/compose. +7 tests.
+  - **Aprovisionamiento + seed** (`apps/luciapassardi/seed.sql`): app+tenant+owner
+    (`platform_tenants`/`platform_auth`) y dominio real reutilizando
+    `platform/services` (clases), `platform/resources` (ubicaciones como salas),
+    `platform/packages` (bonos 5/10) y `service_sessions` (horario semanal de las
+    próximas 3 semanas + retiros/talleres).
+  - **Portal admin**: login (`platform/auth`) en `/admin` + consola reutilizada
+    `@apphub/tenant-console-ui` (servicios, recursos, reservas, bonos,
+    notificaciones, usuarios/practicantes). Acceso desde el footer.
+  - **Landing en vivo**: el hero (próximos eventos) y la sección Horario leen
+    datos reales (`/api/services/sessions/upcoming`) con fallback estático;
+    `/api` enrutado en el seed nginx. Helpers `reservarSesion`/`comprarBono`
+    (commerce + payments) listos. **Recordatorios** de clase y caducidad de bono
+    salen gratis del `platform-scheduler`.
 - **Landing `luciapassardi` (yoga) — restyle completo (ADR 017).** Nuevo portal
   landing-only `apps/luciapassardi/luciapassardi-portal` (puerto 5184) servido por
   el contenedor `portals`, en `luciapassardi.hulkstein.local`. Reutiliza el

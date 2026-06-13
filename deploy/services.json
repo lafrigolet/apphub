@@ -34,6 +34,7 @@
         "platform/verifactu/**",
         "platform/chat/**",
         "platform/tpv/**",
+        "platform/commerce/**",
         "packages/platform-sdk/**",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml"

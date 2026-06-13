@@ -72,6 +72,17 @@ export async function bootstrapTenant(payload, actor) {
         if (Array.isArray(app.enabledModules) && app.enabledModules.length) {
           appExisting = await appsRepo.updateEnabledModules(client, app.appId, app.enabledModules)
         }
+      } else {
+        // Colapso a un tenant por defecto (1 app = 1 tenant): un app existente
+        // no puede recibir un segundo tenant. La multi-tenancy se reintroduce
+        // por app llegado el momento, no aquí.
+        const { rows } = await client.query(
+          'SELECT COUNT(*)::int AS count FROM platform_tenants.tenants WHERE app_id = $1',
+          [app.appId],
+        )
+        if ((rows[0]?.count ?? 0) > 0) {
+          throw new ConflictError('App already provisioned (single-tenant per app)')
+        }
       }
 
       const t = await client.query(
@@ -178,6 +189,40 @@ export async function bootstrapTenant(payload, actor) {
     })
   } catch (e) {
     logger.warn({ err: e, tenantId: tenantRow.id }, 'tenant.bootstrap_started publish failed — staff can re-trigger')
+  }
+
+  // Paso 4 — superadmin inicial de plataforma (colapso a un tenant por
+  // defecto): cada app NUEVA arranca con un super_admin que se activa por
+  // email (mismo flujo magic-link que el owner). No-fatal y idempotente: si el
+  // email ya existe (p.ej. coincide con el owner) auth devuelve 409 y seguimos.
+  const superadminEmail = env.PLATFORM_DEFAULT_SUPERADMIN_EMAIL
+  if (isNewApp && superadminEmail && superadminEmail !== owner.email) {
+    try {
+      const sa = await callInternal('/internal/auth/users', {
+        appId:       app.appId,
+        tenantId:    tenantRow.id,
+        email:       superadminEmail,
+        displayName: 'Super Admin',
+        role:        'super_admin',
+      })
+      const saLink = magicLinkUrl(tenantRow.subdomain, sa.plainToken)
+      await publishEvent({
+        type: 'tenant.bootstrap_started',
+        payload: {
+          tenantId:          tenantRow.id,
+          appId:             app.appId,
+          appDisplayName:    appRow.display_name,
+          tenantDisplayName: tenantRow.display_name,
+          ownerEmail:        superadminEmail,
+          ownerDisplayName:  'Super Admin',
+          magicLinkUrl:      saLink,
+          expiresAt:         sa.expiresAt,
+          locale:            tenantInput.defaultLocale ?? 'es',
+        },
+      })
+    } catch (e) {
+      logger.warn({ err: e, appId: app.appId }, 'initial superadmin provisioning failed (non-fatal)')
+    }
   }
 
   return {

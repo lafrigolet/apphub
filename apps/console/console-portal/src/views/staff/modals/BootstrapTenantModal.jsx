@@ -158,7 +158,7 @@ export default function BootstrapTenantModal({ onCreated, initial }) {
 
       const res = await api.post('/api/tenants/tenants/bootstrap', body)
       setResult(res.data)
-      toast(`Tenant ${res.data.tenant.display_name} creado · email enviado a ${res.data.owner.email}`)
+      toast(`Cuenta ${res.data.tenant.display_name} creada · email enviado a ${res.data.owner.email}`)
       onCreated?.(res.data)
     } catch (err) {
       setError(err.message ?? 'Error en bootstrap')
@@ -172,14 +172,14 @@ export default function BootstrapTenantModal({ onCreated, initial }) {
       <>
         <div className="p-6 border-b border-line flex items-center justify-between">
           <div>
-            <div className="font-display text-[24px] tracking-tight">Tenant creado</div>
-            <div className="text-[13px] text-ink3 mt-1">El email con el magic-link se envió al owner.</div>
+            <div className="font-display text-[24px] tracking-tight">Cuenta creada</div>
+            <div className="text-[13px] text-ink3 mt-1">El email con el magic-link se envió al owner (y al super_admin inicial).</div>
           </div>
           <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
         </div>
         <div className="p-6 space-y-4">
           <div className="bg-paper2 border border-line rounded-lg p-4 text-[13px]">
-            <div><span className="text-ink3">Tenant:</span> <span className="font-medium">{result.tenant.display_name}</span></div>
+            <div><span className="text-ink3">Cuenta:</span> <span className="font-medium">{result.tenant.display_name}</span></div>
             <div><span className="text-ink3">Subdomain:</span> <span className="font-mono">{result.tenant.subdomain}</span></div>
             <div><span className="text-ink3">Owner:</span> <span className="font-mono">{result.owner.email}</span></div>
           </div>
@@ -207,9 +207,9 @@ export default function BootstrapTenantModal({ onCreated, initial }) {
     <>
       <div className="p-6 border-b border-line flex items-center justify-between">
         <div>
-          <div className="font-display text-[24px] tracking-tight">Bootstrap nuevo tenant</div>
+          <div className="font-display text-[24px] tracking-tight">Bootstrap nueva cuenta</div>
           <div className="text-[13px] text-ink3 mt-1">
-            Crea app (si no existe), tenant y owner en una sola operación. El owner recibirá un email para fijar contraseña.
+            Crea la app, su cuenta (un único tenant) y el owner en una sola operación. El owner y el super_admin inicial reciben un email para fijar contraseña.
           </div>
         </div>
         <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
@@ -217,7 +217,7 @@ export default function BootstrapTenantModal({ onCreated, initial }) {
 
       <form onSubmit={onSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
 
-        <Section title="App" subtitle="A qué aplicación pertenece este tenant" defaultOpen>
+        <Section title="App" subtitle="Aplicación a la que pertenece esta cuenta" defaultOpen>
           <div className="flex gap-2">
             <button type="button" onClick={() => setAppMode('existing')}
               className={`btn btn-sm ${appMode === 'existing' ? 'btn-primary' : 'btn-ghost'}`}>
@@ -262,13 +262,13 @@ export default function BootstrapTenantModal({ onCreated, initial }) {
           )}
         </Section>
 
-        <Section title="Identidad del tenant" subtitle="Datos comerciales y de contacto" defaultOpen>
+        <Section title="Identidad de la cuenta" subtitle="Datos comerciales y de contacto" defaultOpen>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Display name" required>
               <input className="input" placeholder="Acme Corp"
                 value={tenant.displayName} onChange={(e) => setTenantDisplay(e.target.value)} required />
             </Field>
-            <Field label="Subdomain" required hint={`URL del tenant: ${tenant.subdomain || '<subdomain>'}.hulkstein.com`}>
+            <Field label="Subdomain" required hint={`URL de la cuenta: ${tenant.subdomain || '<subdomain>'}.hulkstein.com`}>
               <input className="input font-mono" placeholder="acme"
                 value={tenant.subdomain}
                 onChange={(e) => { setTenantSubdomainTouched(true); setTenant(t => ({ ...t, subdomain: e.target.value })) }}

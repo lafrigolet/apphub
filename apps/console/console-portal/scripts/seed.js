@@ -31,19 +31,13 @@ const PASSWORD_PLAIN   = 'password123'
 const T = (n) => `10000000-0000-0000-0000-00000000${String(n).padStart(4, '0')}`
 const U = (n) => `20000000-0000-0000-0000-00000000${String(n).padStart(4, '0')}`
 
+// Colapso a un tenant por defecto: 1 app = 1 tenant. Cada cuenta demo es su
+// PROPIA app (app_id = subdomain), con exactamente un tenant. Reducido a 3
+// cuentas para poblar la UI ('Cuentas') sin contradecir el modelo 1:1.
 const TENANTS = [
-  { id: T(1),  displayName: 'Tienda Ana',         subdomain: 'tienda-ana',       legalName: 'Tienda Ana SL',          cif: 'B12345678', country: 'ES', plan: 'PRO',        status: 'active',    stripe: 'VERIFIED',     customDomain: 'tienda-ana.com',  contactEmail: 'hola@tiendaana.com',   volMonth: 147820000, txMonth: 3421,  balance: 0 },
-  { id: T(2),  displayName: 'Pedro Market',       subdomain: 'pedro',             legalName: 'Pedro Digital SL',       cif: 'B87654321', country: 'ES', plan: 'STARTER',    status: 'active',    stripe: 'VERIFIED',     customDomain: null,              contactEmail: 'contacto@pedromarket.com', volMonth: 58210000,  txMonth: 1120,  balance: 0 },
-  { id: T(3),  displayName: 'Marketplace Norte',  subdomain: 'marketplace-norte', legalName: 'MN Digital SL',          cif: 'B22334455', country: 'ES', plan: 'PRO',        status: 'suspended', stripe: 'RESTRICTED',   customDomain: null,              contactEmail: 'info@mnorte.com',          volMonth: 0,         txMonth: 0,     balance: 34000, suspendReason: 'NON_PAYMENT' },
-  { id: T(4),  displayName: 'Artisan Co.',        subdomain: 'artisan',           legalName: 'Artisan Coop LTD',       cif: 'GB7722100', country: 'GB', plan: 'ENTERPRISE', status: 'active',    stripe: 'VERIFIED',     customDomain: 'shop.artisan.co', contactEmail: 'hello@artisan.co',         volMonth: 412400000, txMonth: 8900,  balance: 0 },
-  { id: T(5),  displayName: 'FoodHub',            subdomain: 'foodhub',           legalName: 'FoodHub Tech SAS',       cif: 'FR9911222', country: 'FR', plan: 'PRO',        status: 'active',    stripe: 'PENDING',      customDomain: null,              contactEmail: 'cc@foodhub.fr',            volMonth: 98320000,  txMonth: 2340,  balance: 0 },
-  { id: T(6),  displayName: 'Ciclo Bike',         subdomain: 'ciclo-bike',        legalName: 'Ciclo Iberia SL',        cif: 'B55667788', country: 'ES', plan: 'STARTER',    status: 'active',    stripe: 'VERIFIED',     customDomain: null,              contactEmail: 'taller@ciclobike.es',      volMonth: 23140000,  txMonth: 412,   balance: 0 },
-  { id: T(7),  displayName: 'AulaLab',            subdomain: 'aulalab',           legalName: 'AulaLab Educación SL',   cif: 'B99887766', country: 'ES', plan: 'PRO',        status: 'archived',  stripe: 'DISCONNECTED', customDomain: null,              contactEmail: 'archivo@aulalab.com',      volMonth: 0,         txMonth: 0,     balance: 0, archivedAt: '2025-11-20T00:00:00Z' },
-  { id: T(8),  displayName: 'Rentas Mar',         subdomain: 'rentas-mar',        legalName: 'Rentas del Mar SL',      cif: 'B44556677', country: 'ES', plan: 'PRO',        status: 'active',    stripe: 'VERIFIED',     customDomain: 'rentasmar.es',    contactEmail: 'reservas@rentasmar.es',    volMonth: 201500000, txMonth: 980,   balance: 0 },
-  { id: T(9),  displayName: 'Gimnasio Horizonte', subdomain: 'horizonte',         legalName: 'Horizonte Fit SL',       cif: 'B11223344', country: 'ES', plan: 'STARTER',    status: 'active',    stripe: 'VERIFIED',     customDomain: null,              contactEmail: 'info@gimhorizonte.es',     volMonth: 14800000,  txMonth: 320,   balance: 0 },
-  { id: T(10), displayName: 'CasaVerde',          subdomain: 'casaverde',         legalName: 'CasaVerde Eco SL',       cif: 'B66778899', country: 'ES', plan: 'PRO',        status: 'suspended', stripe: 'VERIFIED',     customDomain: null,              contactEmail: 'admin@casaverde.com',      volMonth: 0,         txMonth: 0,     balance: 0, suspendReason: 'SECURITY_INCIDENT' },
-  { id: T(11), displayName: 'Libros del Sur',     subdomain: 'librosdelsur',      legalName: 'Libros del Sur SL',      cif: 'B00998877', country: 'ES', plan: 'STARTER',    status: 'active',    stripe: 'VERIFIED',     customDomain: null,              contactEmail: 'contacto@librosdelsur.es', volMonth: 8900000,   txMonth: 210,   balance: 0 },
-  { id: T(12), displayName: 'StudioPro',          subdomain: 'studio-pro',        legalName: 'Studio Pro Digital SL',  cif: 'B33445566', country: 'ES', plan: 'ENTERPRISE', status: 'active',    stripe: 'VERIFIED',     customDomain: 'studiopro.io',    contactEmail: 'ops@studiopro.io',         volMonth: 680120000, txMonth: 15200, balance: 0 },
+  { id: T(1), appId: 'tienda-ana', displayName: 'Tienda Ana',  subdomain: 'tienda-ana', legalName: 'Tienda Ana SL',   cif: 'B12345678', country: 'ES', plan: 'PRO',        status: 'active',    stripe: 'VERIFIED',   customDomain: 'tienda-ana.com',  contactEmail: 'hola@tiendaana.com',       volMonth: 147820000, txMonth: 3421, balance: 0 },
+  { id: T(2), appId: 'pedro',      displayName: 'Pedro Market', subdomain: 'pedro',     legalName: 'Pedro Digital SL', cif: 'B87654321', country: 'ES', plan: 'STARTER',    status: 'active',    stripe: 'VERIFIED',   customDomain: null,              contactEmail: 'contacto@pedromarket.com', volMonth: 58210000,  txMonth: 1120, balance: 0 },
+  { id: T(4), appId: 'artisan',    displayName: 'Artisan Co.',  subdomain: 'artisan',   legalName: 'Artisan Coop LTD', cif: 'GB7722100', country: 'GB', plan: 'ENTERPRISE', status: 'active',    stripe: 'VERIFIED',   customDomain: 'shop.artisan.co', contactEmail: 'hello@artisan.co',         volMonth: 412400000, txMonth: 8900, balance: 0 },
 ]
 
 const STAFF_USERS = [
@@ -53,31 +47,29 @@ const STAFF_USERS = [
   { id: U(4), email: 'miguel@voragine.local', role: 'super_admin', displayName: 'Miguel Duque' },
 ]
 
+// Admins/owners de cada cuenta — pertenecen al app de SU cuenta (1 app = 1 tenant).
 const TENANT_ADMINS = [
-  { tenantId: T(1), users: [
+  { tenantId: T(1), appId: 'tienda-ana', users: [
     { id: U(10), email: 'pedro@tiendaana.com',  role: 'owner', displayName: 'Pedro Martínez' },
     { id: U(11), email: 'laura@tiendaana.com',  role: 'admin', displayName: 'Laura Ruiz' },
     { id: U(12), email: 'marcos@tiendaana.com', role: 'admin', displayName: 'Marcos Vila' },
   ] },
-  { tenantId: T(2), users: [
+  { tenantId: T(2), appId: 'pedro', users: [
     { id: U(20), email: 'sara@pedromarket.com',  role: 'owner', displayName: 'Sara López' },
     { id: U(21), email: 'nacho@pedromarket.com', role: 'admin', displayName: 'Nacho Bravo' },
   ] },
-  { tenantId: T(4), users: [
+  { tenantId: T(4), appId: 'artisan', users: [
     { id: U(30), email: 'owner@artisan.co', role: 'owner', displayName: 'Helen Fox' },
   ] },
 ]
 
+// Audit demo — solo sobre las 3 cuentas existentes, cada una en su app.
 const AUDIT_ENTRIES = [
-  { ts: '2026-04-21T09:12:00Z', actorUserId: U(1),  actorRole: 'staff', tenantId: T(3),  action: 'TENANT_SUSPENDED', detail: 'Motivo: NON_PAYMENT',                ip: '81.202.11.44' },
-  { ts: '2026-04-21T08:40:00Z', actorUserId: U(10), actorRole: 'owner', tenantId: T(1),  action: 'INVITE_SENT',       detail: 'marcos@tiendaana.com (ADMIN)',        ip: '91.126.22.1'  },
-  { ts: '2026-04-20T17:55:00Z', actorUserId: U(11), actorRole: 'admin', tenantId: T(1),  action: 'TENANT_UPDATED',    detail: 'teléfono actualizado',                ip: '91.126.22.1'  },
-  { ts: '2026-04-20T14:22:00Z', actorUserId: U(1),  actorRole: 'staff', tenantId: T(5),  action: 'TENANT_CREATED',    detail: 'plan PRO, owner: cc@foodhub.fr',      ip: '81.202.11.44' },
-  { ts: '2026-04-20T11:07:00Z', actorUserId: U(10), actorRole: 'owner', tenantId: T(1),  action: 'ROLE_CHANGED',      detail: 'Laura Ruiz: admin → admin',           ip: '91.126.22.1'  },
-  { ts: '2026-04-19T16:30:00Z', actorUserId: U(2),  actorRole: 'staff', tenantId: T(10), action: 'TENANT_SUSPENDED',  detail: 'Motivo: SECURITY_INCIDENT',           ip: '81.202.11.55' },
-  { ts: '2026-04-19T10:15:00Z', actorUserId: U(20), actorRole: 'owner', tenantId: T(2),  action: 'INVITE_SENT',       detail: 'nacho@pedromarket.com (ADMIN)',       ip: '77.230.5.10'  },
-  { ts: '2026-04-18T13:00:00Z', actorUserId: U(1),  actorRole: 'staff', tenantId: T(7),  action: 'TENANT_ARCHIVED',   detail: 'Retención: 90 días',                  ip: '81.202.11.44' },
-  { ts: '2026-04-17T09:45:00Z', actorUserId: U(11), actorRole: 'admin', tenantId: T(1),  action: 'ADMIN_REVOKED',     detail: 'sergio@tiendaana.com',                ip: '91.126.22.1'  },
+  { ts: '2026-04-21T08:40:00Z', actorUserId: U(10), actorRole: 'owner', appId: 'tienda-ana', tenantId: T(1), action: 'INVITE_SENT',    detail: 'marcos@tiendaana.com (ADMIN)',  ip: '91.126.22.1'  },
+  { ts: '2026-04-20T17:55:00Z', actorUserId: U(11), actorRole: 'admin', appId: 'tienda-ana', tenantId: T(1), action: 'TENANT_UPDATED', detail: 'teléfono actualizado',          ip: '91.126.22.1'  },
+  { ts: '2026-04-20T11:07:00Z', actorUserId: U(10), actorRole: 'owner', appId: 'tienda-ana', tenantId: T(1), action: 'ROLE_CHANGED',   detail: 'Laura Ruiz: admin → admin',     ip: '91.126.22.1'  },
+  { ts: '2026-04-19T10:15:00Z', actorUserId: U(20), actorRole: 'owner', appId: 'pedro',      tenantId: T(2), action: 'INVITE_SENT',    detail: 'nacho@pedromarket.com (ADMIN)', ip: '77.230.5.10'  },
+  { ts: '2026-04-17T09:45:00Z', actorUserId: U(11), actorRole: 'admin', appId: 'tienda-ana', tenantId: T(1), action: 'ADMIN_REVOKED',  detail: 'sergio@tiendaana.com',          ip: '91.126.22.1'  },
 ]
 
 // ── main ───────────────────────────────────────────────────────────────────
@@ -91,7 +83,7 @@ async function main() {
   try {
     await client.query('BEGIN')
 
-    // 1. App entry
+    // 1. App entry — la app del propio console staff.
     await client.query(
       `INSERT INTO platform_tenants.apps (app_id, display_name, subdomain, jwt_audience)
        VALUES ($1, 'Hulkstein Console', $1, $1)
@@ -99,7 +91,17 @@ async function main() {
       [APP_ID],
     )
 
-    // 2. Tenants
+    // 1b. Una app por cuenta demo (colapso 1 app = 1 tenant).
+    for (const t of TENANTS) {
+      await client.query(
+        `INSERT INTO platform_tenants.apps (app_id, display_name, subdomain, jwt_audience)
+         VALUES ($1, $2, $1, $1)
+         ON CONFLICT (app_id) DO NOTHING`,
+        [t.appId, t.displayName],
+      )
+    }
+
+    // 2. Tenants — uno por app.
     for (const t of TENANTS) {
       await client.query(
         `INSERT INTO platform_tenants.tenants (
@@ -110,6 +112,7 @@ async function main() {
          )
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          ON CONFLICT (id) DO UPDATE SET
+           app_id              = EXCLUDED.app_id,
            display_name        = EXCLUDED.display_name,
            subdomain           = EXCLUDED.subdomain,
            status              = EXCLUDED.status,
@@ -126,7 +129,7 @@ async function main() {
            suspend_reason      = EXCLUDED.suspend_reason,
            archived_at         = EXCLUDED.archived_at`,
         [
-          t.id, APP_ID, t.displayName, t.subdomain, t.status,
+          t.id, t.appId, t.displayName, t.subdomain, t.status,
           t.legalName, t.cif, t.country, t.plan, t.stripe, t.customDomain, t.contactEmail,
           t.volMonth, t.txMonth, t.balance,
           t.suspendReason ?? null, t.archivedAt ?? null,
@@ -149,34 +152,37 @@ async function main() {
       )
     }
 
-    // 4. Tenant admins
+    // 4. Tenant admins — pertenecen al app de su cuenta.
     for (const group of TENANT_ADMINS) {
       for (const u of group.users) {
         await client.query(
           `INSERT INTO platform_auth.users (id, app_id, tenant_id, email, password_hash, role, display_name)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (id) DO UPDATE SET
+             app_id        = EXCLUDED.app_id,
              email         = EXCLUDED.email,
              password_hash = EXCLUDED.password_hash,
              role          = EXCLUDED.role,
              display_name  = EXCLUDED.display_name,
              revoked_at    = NULL`,
-          [u.id, APP_ID, group.tenantId, u.email, passwordHash, u.role, u.displayName],
+          [u.id, group.appId, group.tenantId, u.email, passwordHash, u.role, u.displayName],
         )
       }
     }
 
-    // 5. Audit log — wipe and reinsert (idempotent, deterministic order)
+    // 5. Audit log — wipe and reinsert (idempotent, deterministic order).
+    // Cada entrada vive en el app de su cuenta.
+    const demoAppIds = TENANTS.map((t) => t.appId)
     await client.query(
-      `DELETE FROM platform_tenants.audit_log WHERE app_id = $1`,
-      [APP_ID],
+      `DELETE FROM platform_tenants.audit_log WHERE app_id = ANY($1)`,
+      [demoAppIds],
     )
     for (const a of AUDIT_ENTRIES) {
       await client.query(
         `INSERT INTO platform_tenants.audit_log
            (ts, actor_user_id, actor_role, app_id, tenant_id, action, detail, ip)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [a.ts, a.actorUserId, a.actorRole, APP_ID, a.tenantId, a.action, a.detail, a.ip],
+        [a.ts, a.actorUserId, a.actorRole, a.appId, a.tenantId, a.action, a.detail, a.ip],
       )
     }
 
@@ -189,14 +195,14 @@ async function main() {
   }
 
   console.log(`\n✓ Seed complete.`)
-  console.log(`  App:            ${APP_ID}`)
-  console.log(`  Tenants:        ${TENANTS.length}`)
+  console.log(`  Console app:    ${APP_ID}`)
+  console.log(`  Demo accounts:  ${TENANTS.length}  (1 app = 1 tenant each)`)
   console.log(`  Staff users:    ${STAFF_USERS.length}  (platform/${PLATFORM_TENANT})`)
-  console.log(`  Tenant admins:  ${TENANT_ADMINS.reduce((sum, g) => sum + g.users.length, 0)}`)
+  console.log(`  Account admins: ${TENANT_ADMINS.reduce((sum, g) => sum + g.users.length, 0)}`)
   console.log(`  Audit entries:  ${AUDIT_ENTRIES.length}`)
   console.log(`\nLogin with any seeded email + password "${PASSWORD_PLAIN}".`)
   console.log(`  Staff (super_admin):  ana@voragine.local`)
-  console.log(`  Tenant owner:         pedro@tiendaana.com  (tenant ${T(1)})\n`)
+  console.log(`  Account owner:        pedro@tiendaana.com  (app tienda-ana, tenant ${T(1)})\n`)
 }
 
 main()

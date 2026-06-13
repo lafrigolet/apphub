@@ -56,8 +56,8 @@ export default function CreateTenantModal({ onCreated }) {
       <div className="p-6 border-b border-line">
         <div className="flex items-center justify-between">
           <div>
-            <div className="font-display text-[24px] tracking-tight">Nuevo tenant</div>
-            <div className="text-[13px] text-ink3 mt-1">Crea un tenant para {APP_ID}.</div>
+            <div className="font-display text-[24px] tracking-tight">Nueva cuenta</div>
+            <div className="text-[13px] text-ink3 mt-1">Crea una cuenta para {APP_ID}.</div>
           </div>
           <button onClick={closeModal} className="text-ink3 hover:text-ink">{icons.close}</button>
         </div>

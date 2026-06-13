@@ -74,9 +74,12 @@ describe('createBookingForSession', () => {
     await expect(createBooking(ctx, { sessionId: SESS })).rejects.toMatchObject({ statusCode: 404 })
   })
 
-  it('service kind != event → ValidationError 422', async () => {
+  it('service kind no reservable por sesión (ni event ni appointment) → ValidationError 422', async () => {
     repo.loadServiceSession.mockResolvedValue(scheduledSession)
-    repo.loadServiceFor.mockResolvedValue({ ...eventService, kind: 'appointment' })
+    // event y appointment SÍ son reservables por sessionId; cualquier otro kind
+    // cae en la guarda defensiva (en la práctica el CHECK del esquema no permite
+    // otros, pero la guarda protege ante datos inesperados).
+    repo.loadServiceFor.mockResolvedValue({ ...eventService, kind: 'rental' })
     await expect(createBooking(ctx, { sessionId: SESS })).rejects.toMatchObject({ statusCode: 422 })
   })
 

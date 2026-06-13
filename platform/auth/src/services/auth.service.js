@@ -46,12 +46,14 @@ export async function recordEvent({ appId, tenantId, userId = null, eventType, r
 }
 
 function signAccess(user) {
+  // Colapso a un tenant por defecto (ADR): el JWT mantiene `tenant_id`
+  // (el RLS lo necesita) pero ya NO emite `sub_tenant_id` — la subtenancy
+  // queda reservada (siempre NULL) para reintroducirse por app más adelante.
   return jwt.sign(
     {
       sub:          user.id,
       app_id:       user.app_id,
       tenant_id:    user.tenant_id,
-      sub_tenant_id: user.sub_tenant_id ?? undefined,
       role:         user.role,
       email:        user.email,
     },
@@ -60,14 +62,42 @@ function signAccess(user) {
   )
 }
 
-export async function register({ appId, tenantId, subTenantId, email, password, role = 'user' }) {
-  return withTenantTransaction(pool, appId, tenantId, subTenantId, async (client) => {
+// Sesión de invitado para visitantes anónimos de una landing pública: emite un
+// JWT con role='guest' y un userId recién generado (sin fila en BD). Sirve para
+// que módulos con identidad obligatoria (platform/basket, platform/orders)
+// puedan atender la cesta de un visitante sin login. Vida larga (30d) para que
+// la cesta persista entre visitas; el guestUserId opcional permite reanudar una
+// cesta previa guardada en el cliente.
+//
+// Colapso a un tenant por defecto: el JWT NO emite sub_tenant_id (subtenancy
+// reservada). El tenant lo pasa el caller (la landing conoce su tenant único).
+export function guestSession({ appId, tenantId, guestUserId = null }) {
+  const userId = (guestUserId && UUID_RE.test(guestUserId)) ? guestUserId : uuidv4()
+  const accessToken = jwt.sign(
+    {
+      sub:       userId,
+      app_id:    appId,
+      tenant_id: tenantId,
+      role:      'guest',
+    },
+    env.PLATFORM_JWT_SECRET,
+    { expiresIn: '30d' },
+  )
+  return { accessToken, userId, role: 'guest' }
+}
+
+export async function register({ appId, tenantId, email, password, role = 'user' }) {
+  // Colapso 1 app → 1 tenant: si el caller no manda tenantId, lo derivamos
+  // del app. La subtenancy queda reservada (siempre NULL).
+  if (!tenantId) tenantId = await resolveAppTenant(appId)
+  if (!tenantId) throw new AppError('VALIDATION_ERROR', 'appId without a provisioned tenant', 422)
+  return withTenantTransaction(pool, appId, tenantId, null, async (client) => {
     const existing = await userRepo.findByEmail(client, appId, tenantId, email)
     if (existing) throw new ConflictError('Email already registered')
     const passwordHash = await bcrypt.hash(password, 12)
     const id = uuidv4()
-    const user = await userRepo.createUser(client, { id, appId, tenantId, subTenantId: subTenantId ?? null, email, passwordHash, role })
-    await publish({ type: 'user.registered', payload: { userId: id, email, role, appId, tenantId, subTenantId: subTenantId ?? null } })
+    const user = await userRepo.createUser(client, { id, appId, tenantId, subTenantId: null, email, passwordHash, role })
+    await publish({ type: 'user.registered', payload: { userId: id, email, role, appId, tenantId, subTenantId: null } })
     return { id: user.id, email: user.email, role: user.role }
   })
 }
@@ -91,11 +121,33 @@ export async function tenantRequiresApproval(appId, tenantId) {
   }
 }
 
+// Colapso 1 app → 1 tenant: resuelve el tenant único de un app. Boundary
+// leak controlado igual que tenantRequiresApproval — svc_platform_auth tiene
+// GRANT SELECT (id, app_id, ...) sobre platform_tenants.tenants (migration
+// 0014). Si el app tuviera varios tenants (legacy), devolvemos el más antiguo
+// como canónico. Devuelve null si el app aún no tiene tenant aprovisionado.
+export async function resolveAppTenant(appId) {
+  if (!appId) return null
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id FROM platform_tenants.tenants
+       WHERE app_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [appId],
+    )
+    return rows[0]?.id ?? null
+  } finally {
+    client.release()
+  }
+}
+
 // Ruta 1 — Solicitar alta: visitante envía email + nombre (+ notas).
 // Crea un user con password_hash=NULL y pending_approval=TRUE. No
 // devuelve sesión — el flujo se completa cuando el admin aprueba y se
 // dispara el magic-link.
 export async function requestMembership({ appId, tenantId, email, displayName, notes }) {
+  // Colapso 1 app → 1 tenant: derivamos el tenant del app si no llega.
+  if (appId && !tenantId) tenantId = await resolveAppTenant(appId)
   if (!appId || !tenantId || !email) {
     throw new AppError('VALIDATION_ERROR', 'appId, tenantId, email required', 422)
   }
@@ -434,7 +486,6 @@ export async function loginWithMagicLink({ token }) {
       id:            user.id,
       app_id:        user.app_id,
       tenant_id:     user.tenant_id,
-      sub_tenant_id: user.sub_tenant_id ?? null,
       email:         user.email,
       role:          user.role,
     }
@@ -492,7 +543,7 @@ async function withStaffBypassTransaction(fn) {
   }
 }
 
-export async function createOwnerWithActivation({ appId, tenantId, email, displayName, ttlDays = ACTIVATION_TTL_DAYS }) {
+export async function createOwnerWithActivation({ appId, tenantId, email, displayName, role = 'owner', ttlDays = ACTIVATION_TTL_DAYS }) {
   const plainToken = generatePlainToken()
   const tokenHash  = hashToken(plainToken)
   const expiresAt  = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000)
@@ -503,7 +554,7 @@ export async function createOwnerWithActivation({ appId, tenantId, email, displa
     const userId = uuidv4()
     await userRepo.createUser(client, {
       id: userId, appId, tenantId, subTenantId: null,
-      email, passwordHash: null, role: 'owner', displayName,
+      email, passwordHash: null, role, displayName,
       pendingActivation: true,
     })
     const token = await activationRepo.create(client, {
@@ -628,7 +679,6 @@ export async function activate({ token, password }) {
     id:            result.user.id,
     app_id:        result.user.app_id,
     tenant_id:     result.user.tenant_id,
-    sub_tenant_id: result.user.sub_tenant_id ?? null,
     email:         result.user.email,
     role:          result.user.role,
   }
@@ -660,7 +710,7 @@ export function validateToken(token) {
       userId:     payload.sub,
       appId:      payload.app_id,
       tenantId:   payload.tenant_id,
-      subTenantId: payload.sub_tenant_id ?? null,
+      subTenantId: null, // subtenancy reservada — siempre NULL (colapso a tenant por defecto)
       role:       payload.role,
       email:      payload.email,
     }

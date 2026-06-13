@@ -19,6 +19,7 @@ COPY platform/inquiries/package.json               ./platform/inquiries/package.
 COPY platform/verifactu/package.json               ./platform/verifactu/package.json
 COPY platform/chat/package.json                    ./platform/chat/package.json
 COPY platform/tpv/package.json                     ./platform/tpv/package.json
+COPY platform/commerce/package.json                ./platform/commerce/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --filter @apphub/platform-core...
@@ -48,6 +49,8 @@ COPY platform/chat/src                ./platform/chat/src
 COPY platform/tpv/src                 ./platform/tpv/src
 COPY platform/chat/migrations         ./platform/chat/migrations
 COPY platform/tpv/migrations          ./platform/tpv/migrations
+COPY platform/commerce/src            ./platform/commerce/src
+COPY platform/commerce/migrations     ./platform/commerce/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core
@@ -70,6 +73,7 @@ COPY platform/inquiries/package.json               ./platform/inquiries/package.
 COPY platform/verifactu/package.json               ./platform/verifactu/package.json
 COPY platform/chat/package.json                    ./platform/chat/package.json
 COPY platform/tpv/package.json                     ./platform/tpv/package.json
+COPY platform/commerce/package.json                ./platform/commerce/package.json
 COPY platform/core/package.json                    ./platform/core/package.json
 
 RUN pnpm install --no-frozen-lockfile --prod --filter @apphub/platform-core...
@@ -99,6 +103,8 @@ COPY platform/chat/src                ./platform/chat/src
 COPY platform/tpv/src                 ./platform/tpv/src
 COPY platform/chat/migrations         ./platform/chat/migrations
 COPY platform/tpv/migrations          ./platform/tpv/migrations
+COPY platform/commerce/src            ./platform/commerce/src
+COPY platform/commerce/migrations     ./platform/commerce/migrations
 COPY platform/core/src                ./platform/core/src
 
 WORKDIR /app/platform/core

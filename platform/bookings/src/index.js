@@ -3,11 +3,13 @@ import { configureRedis } from './lib/redis.js'
 import { bookingsRoutes } from './routes/bookings.routes.js'
 import { startSessionCancelledSubscriber } from './events/session-cancelled.handler.js'
 import { startWaitlistPromotionSubscriber } from './events/waitlist-promotion.handler.js'
+import { startCommercePaidSubscriber } from './events/commerce-paid.handler.js'
 
 export { runMigrations } from './lib/migrate.js'
 
 let _sub = null
 let _waitlistSub = null
+let _commerceSub = null
 
 export async function register({ app, db, redis, logger }) {
   configurePool(db)
@@ -29,6 +31,10 @@ export async function register({ app, db, redis, logger }) {
   // publica booking.waitlist.notified. Cierra el ciclo de waitlist sin
   // intervención manual del staff.
   if (!_waitlistSub) _waitlistSub = startWaitlistPromotionSubscriber()
+
+  // Subscriber: confirma reservas cuyo pago cierra platform/commerce
+  // (commerce.purchase.paid, kind=booking).
+  if (!_commerceSub) _commerceSub = startCommercePaidSubscriber()
 
   logger?.info('bookings module ready')
 }

@@ -118,7 +118,7 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 </frontend_aesthetics>
 ```
 
-## Identity model — three JWT claims
+## Identity model — JWT claims (single-tenant collapse)
 
 Every JWT issued by `platform/auth` carries:
 
@@ -127,20 +127,27 @@ Every JWT issued by `platform/auth` carries:
   "sub": "user-uuid",
   "app_id": "aikikan",
   "tenant_id": "tenant-uuid",
-  "sub_tenant_id": "sub-tenant-uuid-or-null",
   "role": "user",
   "email": "user@example.com"
 }
 ```
 
-- `app_id` — which app this user belongs to (`aikikan`, `split-pay`, …)
-- `tenant_id` — which deployment of that app (e.g. one aikikan federation chapter)
-- `sub_tenant_id` — sub-unit within the tenant (e.g. a dojo branch), nullable
+- `app_id` — which app this user belongs to (`aikikan`, `split-pay`, …). **This is the
+  effective customer boundary** — one app per customer/brand.
+- `tenant_id` — the app's single tenant. Kept in the token and in every row + RLS policy,
+  but **derived from `app_id` (1 app = 1 tenant)**, never a management input or a UI choice.
+- `sub_tenant_id` — **reserved, always NULL.** Subtenancy was collapsed away (the token no
+  longer emits it; the guard forces `req.identity.subTenantId = null`). Columns stay in the
+  schema so multi-tenancy can be reintroduced **per app** later — either app-local (the
+  app's own `app_<app>` schema/server) or platform-level (re-exposing `tenant_id` in that
+  app's JWT). See ADR 020.
 
 ## Critical rules for AI assistants
 
 1. **Never remove `tenant_id` scoping** from any database query. Every SELECT, INSERT,
-   UPDATE, DELETE must be scoped to the current tenant.
+   UPDATE, DELETE must be scoped to the current tenant. The single-tenant collapse (ADR 020)
+   makes `tenant_id` *derived from `app_id`* and `sub_tenant_id` *always NULL* — but the
+   columns, RLS policies and the `tenant_id` query scoping all STAY. Do not drop them.
 2. **Always include `app_id` scoping** alongside `tenant_id`. An aikikan token must never
    read split-pay data even when `tenant_id` matches.
 3. **Always use idempotency keys** for Stripe API calls. Keys are stored in Redis with a 24h TTL.
@@ -150,7 +157,10 @@ Every JWT issued by `platform/auth` carries:
 5. **Validate webhook signatures** — every incoming Stripe webhook must verify `Stripe-Signature`.
 6. **Split reversals are proportional** — refund each Transfer by the same percentage as the
    original split, never a flat amount.
-7. **sub_tenant_id is nullable** — code must handle both single-level and two-level tenancy.
+7. **sub_tenant_id is reserved (always NULL)** — the single-tenant collapse (ADR 020)
+   disabled subtenancy. Keep the columns and write NULL; never surface a subtenant
+   selector or accept `subTenantId` as input. `tenant_id` is derived from `app_id`
+   (1 app = 1 tenant): when a caller omits it, resolve it via `resolveAppTenant(appId)`.
 8. **Use `appGuard` from `@apphub/platform-sdk`** — never write a custom JWT guard. Set
    `EXPECTED_APP_ID` in the service env; the guard returns `403 APP_MISMATCH` on mismatch.
    In multi-app processes (the `apps-servers` orchestrator, ADR 018) use the scoped
@@ -377,8 +387,9 @@ hasta un portal con admin configurable es:
 | `/opendragon-implementa <name>` | Generar los microservicios derivados del prototipo importado (REUSE / EXTEND / IMPLEMENT / CREATE) | [.claude/commands/opendragon-implementa.md](.claude/commands/opendragon-implementa.md) |
 | `/opendragon-add-admin-config <name>` | Descubrir parámetros configurables en la landing y exponerlos en `/admin/<feature>` (precedencia: calculadora js-electric, commit `beb7c0b`) | [.claude/commands/opendragon-add-admin-config.md](.claude/commands/opendragon-add-admin-config.md) |
 | `/opendragon-add-users-management <name>` | Añadir vistas admin de usuarios (list, invite, approve, change role, revoke, resend) — REUSE de `platform/auth` + endpoint `resend-invitation` nuevo | [.claude/commands/opendragon-add-users-management.md](.claude/commands/opendragon-add-users-management.md) |
+| `/opendragon-add-backoffice <name> [secciones…]` | Añadir consola de administración (`/admin`): login + shell reutilizado (`@apphub/tenant-console-ui`) + una sección CRUD por módulo de plataforma (eventos, tienda, pedidos, suscripción, calendario…), sembrada con datos reales y verificada e2e. Incluye **Troubleshooting** (nginx 301/mapeo, rebuilds de imagen, guest/refresh tokens, superusuario `splitpay`) | [.claude/commands/opendragon-add-backoffice.md](.claude/commands/opendragon-add-backoffice.md) |
 
-Los 4 primeros forman el flujo lineal canónico. Los dos `add-*` son
+Los 4 primeros forman el flujo lineal canónico. Los `add-*` son
 **extensiones opcionales** que se invocan tras `/opendragon-implementa`
 en cualquier orden.
 
@@ -387,7 +398,11 @@ Cada paso es opcional según de dónde vengas:
   `/opendragon-html-to-jsx` y vas directo a `/opendragon-importa`.
 - Si el app es marketing puro y reutiliza todo de `platform/`, puede que
   `/opendragon-implementa` sea casi no-op (solo seed) y vayas directo a
-  `/opendragon-add-admin-config` y/o `/opendragon-add-users-management`.
+  `/opendragon-add-admin-config`, `/opendragon-add-users-management` y/o
+  `/opendragon-add-backoffice`.
+- Para dar al owner una consola de gestión real (eventos, tienda, pedidos,
+  suscripción…) reutilizando módulos de plataforma, usa
+  `/opendragon-add-backoffice` (precedencia: el backoffice de luciapassardi).
 
 Para añadir un comando nuevo: crea `.claude/commands/<name>.md` con
 frontmatter `description:` y opcional `argument-hint:`, y añade una
@@ -430,6 +445,7 @@ Before adding any new horizontal capability, check whether it already exists in 
 | Verifactu (SIF / facturación verificable AEAT: registros, cadena de huellas con huella blindada al vector oficial, eventos, **remisión real a la AEAT** —cola con back-off/DLQ + worker del scheduler + mTLS con namespaces/XSD oficiales—, **certificados PKCS#12 cifrados at-rest**, firma XAdES enveloped, integración por eventos `order.completed`/`donation.created` —POS vía cadena TPV—, cotejo, endpoints autenticados con `appGuard`+`requireRole`) | `platform/verifactu` | `platform_verifactu` | `svc_platform_verifactu` | ✅ Implementado (pendiente sólo: perfil XAdES-EPES de política AEAT y validación XSD estricta en runtime) |
 | Chat (member chat: direct 1:1, group, support; real-time WebSocket gateway, presence, typing, reactions, attachments, threads, pins, forward, @mentions incl. roles, DM requests, invites/public groups, scheduled + ephemeral messages, read/delivered receipts, search, moderation/bans, CSAT, macros) | `platform/chat` | `platform_chat` | `svc_platform_chat` | ✅ Implemented |
 | TPV (terminal devices, cash sessions/arqueo, cash movements, gap-free sequential receipts + full invoices + simplified→invoice conversion, credit notes with manager authorization, X/Z reports, period aggregates + CSV export, per-tenant fiscal issuer settings, Veri*Factu event feed with async QR). Bill engine stays in `platform/pos` (platform-restaurant): tpv consumes `pos.bill.paid`/`pos.bill.cancelled` and adds the till/fiscal layer. Keeps `server.js`+`Dockerfile` ready-to-split ([ADR 015](docs/adr/015-platform-tpv-monolith.md)/[016](docs/adr/016-tpv-folded-into-platform-core.md)) | `platform/tpv` | `platform_tpv` | `svc_platform_tpv` | ✅ Implemented |
+| Commerce orchestration (convierte un pago en compra cumplida sin cruzar esquemas: checkouts + subscriber a `payment.succeeded` → emite `commerce.purchase.paid`, que `packages`/`bookings` consumen para crear el bono / confirmar la reserva; [ADR 019](docs/adr/019-platform-commerce-orchestration.md)) | `platform/commerce` | `platform_commerce` | `svc_platform_commerce` | ✅ Implemented |
 
 ### platform-marketplace (port 3100) — marketplace transactions
 

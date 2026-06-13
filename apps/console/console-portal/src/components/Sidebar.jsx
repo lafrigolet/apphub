@@ -17,7 +17,7 @@ export default function Sidebar() {
   const staffItems = [
     { k: 'dashboard', label: 'Dashboard', icon: icons.dashboard },
     { k: 'apps',      label: 'Apps',      icon: icons.apps },
-    { k: 'tenants',    label: 'Tenants',    icon: icons.tenants },
+    { k: 'tenants',    label: 'Cuentas',    icon: icons.tenants },
     { k: 'onboarding', label: 'Onboarding', icon: icons.tenants },
     { k: 'leads',      label: 'Leads',      icon: icons.spark },
     { k: 'staff',      label: 'Staff',      icon: icons.staff },
