@@ -30,6 +30,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
     tenants demo a 3 cuentas, **cada una su propia app** (1 app = 1 tenant).
 
 ### Added
+- **Acceso unificado + backoffice de usuarios y consultas en `luciapassardi`.**
+  - **Acceso único "Acceder"** en la landing: el modal de login sirve para alumna y
+    para owner/staff; tras autenticar, los roles admin van al backoffice (`/admin`) y
+    las alumnas a "Mi cuenta". `/admin` sin sesión redirige a la landing con
+    `?acceder=1` (un solo punto de entrada; eliminado el `Login` propio de `/admin`).
+  - **Gestión de usuarios** (`platform/auth`): sección admin para listar, invitar,
+    aprobar/rechazar solicitudes, cambiar rol y revocar acceso.
+  - **Consultas de contacto** (`platform/inquiries`, prefijo admin `/v1/inquiries/admin`):
+    sección admin con filtro por estado, detalle del mensaje y transición de estado
+    (nueva→contactada→resuelta→cerrada, spam).
 - **Self-service de alumna en la landing de `luciapassardi` (casos de uso pendientes).**
   Reutilizando módulos de plataforma, la landing pasa de escaparate+WhatsApp a app
   transaccional:

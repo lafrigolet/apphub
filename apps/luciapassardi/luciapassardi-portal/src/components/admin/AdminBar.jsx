@@ -23,6 +23,8 @@ export default function AdminBar({ active }) {
           {link('/admin/productos', 'Tienda', 'productos')}
           {link('/admin/pedidos', 'Pedidos', 'pedidos')}
           {link('/admin/suscripcion', 'Suscripción', 'suscripcion')}
+          {link('/admin/usuarios', 'Usuarios', 'usuarios')}
+          {link('/admin/consultas', 'Consultas', 'consultas')}
           <button onClick={() => { logout(); nav('/') }}
             className="text-sm font-semibold px-3 py-1.5 rounded-full text-tinta/60 hover:text-red-700">
             Cerrar sesión

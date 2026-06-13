@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { getIdentity, login as doLogin, register as doRegister, logout as doLogout, ensureSession } from '../lib/auth.js'
+import { getIdentity, isAdmin, login as doLogin, register as doRegister, logout as doLogout, ensureSession } from '../lib/auth.js'
 import { reservarSesion, comprarBono } from '../lib/studio.js'
 
 const Ctx = createContext(null)
@@ -15,9 +15,19 @@ export function SessionProvider({ children }) {
   const [pending, setPending] = useState(null)   // acción a ejecutar tras login
   const [toast, setToast] = useState(null)        // { type:'ok'|'err', msg }
 
-  // Al cargar, intenta revivir la sesión con el refresh token.
+  // Al cargar, intenta revivir la sesión con el refresh token. Si la URL trae
+  // ?acceder=1 (redirección desde /admin sin sesión), abre el modal de acceso.
   useEffect(() => {
-    if (!identity) ensureSession().then((id) => { if (id) setIdentity(id) })
+    const p = new URLSearchParams(window.location.search)
+    const wantsLogin = p.get('acceder') === '1'
+    if (wantsLogin) { window.history.replaceState({}, '', window.location.pathname) }
+    if (!identity) {
+      ensureSession().then((id) => {
+        if (id && isAdmin(id.role)) { window.location.href = '/admin'; return }
+        if (id) setIdentity(id)
+        else if (wantsLogin) setAuthOpen(true)
+      })
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Toast efímero.

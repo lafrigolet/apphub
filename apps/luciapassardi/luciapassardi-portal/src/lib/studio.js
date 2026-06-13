@@ -136,6 +136,41 @@ export async function cancelarSuscripcion() {
   return req('POST', `/api/tenants/${TENANT_ID}/unsubscribe`)
 }
 
+// ── Admin de usuarios (platform/auth) ───────────────────────────────
+export async function listUsuarios({ role, pending } = {}) {
+  const p = new URLSearchParams({ appId: APP_ID, tenantId: TENANT_ID })
+  if (role) p.set('role', role)
+  if (pending) p.set('pending', pending)
+  const j = await req('GET', `/api/users/?${p.toString()}`)
+  return j?.data ?? j ?? []
+}
+export async function invitarUsuario({ email, role, displayName }) {
+  return req('POST', '/api/users/invite', { appId: APP_ID, tenantId: TENANT_ID, email, role: role || 'user', displayName: displayName || undefined })
+}
+export async function cambiarRol(id, role) {
+  return req('PATCH', `/api/users/${id}/role`, { role })
+}
+export async function aprobarUsuario(id) { return req('POST', `/api/users/${id}/approve`) }
+export async function rechazarUsuario(id, reason) { return req('POST', `/api/users/${id}/reject`, { reason: reason || undefined }) }
+export async function revocarUsuario(id) { return req('DELETE', `/api/users/${id}`) }
+
+// ── Admin de consultas de contacto (platform/inquiries) ─────────────
+// Los endpoints admin viven bajo el prefijo /v1/inquiries/admin (el POST público
+// de la web es /v1/inquiries). nginx: /api/inquiries/ → /v1/inquiries/.
+export async function listConsultas({ status } = {}) {
+  const p = new URLSearchParams()
+  if (status) p.set('status', status)
+  const j = await req('GET', `/api/inquiries/admin/${p.toString() ? `?${p}` : ''}`)
+  return j?.data ?? j ?? []
+}
+export async function getConsulta(id) {
+  const j = await req('GET', `/api/inquiries/admin/${id}`)
+  return j?.data ?? j
+}
+export async function actualizarConsulta(id, body) {
+  return req('PATCH', `/api/inquiries/admin/${id}`, body)
+}
+
 // ── Formulario de contacto (platform/inquiries, público) ────────────
 export async function enviarConsulta({ contactName, email, phone, subject, message, website }) {
   // Barra final: nginx redirige /api/inquiries → /api/inquiries/ (301).
