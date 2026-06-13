@@ -171,9 +171,36 @@ export async function getTenantSubscription(id) {
     renewsAt:                 tenant.subscription_renews_at,
     cancelAtPeriodEnd:        tenant.subscription_cancel_at_period_end,
     notes:                    tenant.subscription_notes,
+    paymentMethod:            tenant.subscription_payment_method,
     priceConfigured:          !!tenant.subscription_stripe_price_id,
     stripeSubscriptionLinked: !!tenant.subscription_stripe_subscription_id,
   }
+}
+
+// Cancelación de la subscripción solicitada por el propio tenant (owner/admin).
+// Si hay una subscripción Stripe activa enlazada, marca cancel_at_period_end
+// (la baja real la confirma el webhook de splitpay); si nunca llegó a activarse
+// vía Stripe, la deja directamente en 'inactive'. Staff/super_admin también
+// pueden ejecutarla.
+export async function requestUnsubscribe(id, identity) {
+  const tenant = await getTenant(id)
+  const isStaff = ['super_admin', 'staff'].includes(identity?.role)
+  if (!isStaff) {
+    if (identity?.tenantId !== id) {
+      throw new ForbiddenError('No puedes cancelar la subscripción de otro tenant')
+    }
+    if (!['owner', 'admin'].includes(identity.role)) {
+      throw new ForbiddenError('Sólo owner o admin del tenant pueden cancelar')
+    }
+  }
+
+  const fields = tenant.subscription_stripe_subscription_id
+    ? { subscriptionCancelAtPeriodEnd: true }
+    : { subscriptionStatus: 'inactive', subscriptionCancelAtPeriodEnd: false }
+
+  await withTransaction(pool, (client) => tenantsRepo.update(client, id, fields))
+  await emit('tenant.subscription.cancel_requested', { tenantId: id })
+  return getTenantSubscription(id)
 }
 
 // Inicia el flujo de Checkout Stripe vía splitpay (mode=subscription,

@@ -6,6 +6,7 @@ import EventosAdmin from './components/admin/EventosAdmin.jsx'
 import CalendarioAdmin from './components/admin/CalendarioAdmin.jsx'
 import ProductosAdmin from './components/admin/ProductosAdmin.jsx'
 import PedidosAdmin from './components/admin/PedidosAdmin.jsx'
+import SuscripcionAdmin from './components/admin/SuscripcionAdmin.jsx'
 import Login from './components/admin/Login.jsx'
 import { getIdentity, isAdmin, logout } from './lib/auth.js'
 
@@ -23,6 +24,7 @@ function AdminRoute() {
       <Route path="eventos" element={<EventosAdmin onExit={onExit} />} />
       <Route path="productos" element={<ProductosAdmin onExit={onExit} />} />
       <Route path="pedidos" element={<PedidosAdmin onExit={onExit} />} />
+      <Route path="suscripcion" element={<SuscripcionAdmin onExit={onExit} />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   )

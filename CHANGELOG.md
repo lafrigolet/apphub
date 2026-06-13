@@ -7,6 +7,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- **Secciones de backoffice de `luciapassardi` (gestión real, reutilizando plataforma).**
+  - **Eventos / Calendario / Tienda / Pedidos**: CRUD real sobre
+    `platform/services` (sesiones de eventos y clases con edición/borrado inline
+    sobre el calendario semanal Lun–Dom), `platform/catalog` (productos) y
+    `platform/orders` (pedidos: lista con filtro por estado, detalle con líneas/
+    dirección/historial y transiciones que respetan la FSM del módulo). Datos
+    inicializados en BD (`seed.sql` §6–8: eventos, 17 productos, 6 pedidos).
+  - **Suscripción a Hulkstein**: nueva sección que **extiende `platform/tenant-config`**
+    (la suscripción tenant↔plataforma ya vivía en `platform_tenants`). Switch
+    activar/desactivar que reutiliza el flujo real de Stripe Checkout
+    (`POST /v1/tenants/:id/subscribe`, mode=subscription) y un nuevo
+    `POST /v1/tenants/:id/unsubscribe` (owner/admin del propio tenant). Campo
+    nuevo `subscription_payment_method` (migración 0006) y plan sembrado de
+    **100 €/mes, tarjeta** (`seed.sql` §9).
+
+### Fixed
+- **nginx: `/api/tenants/` enrutaba a `/v1/` en vez de `/v1/tenants/`**, dejando
+  inalcanzables los endpoints de detalle/suscripción del tenant (404). Alineado
+  con la convención del resto de rutas de platform-core (`/api/apps/`→`/v1/apps/`,
+  …).
+
 - **Backoffice de `luciapassardi` (V1) — reutilizando módulos de plataforma.**
   Convierte la landing en una app con tenant + login + consola, sin reinventar:
   - **Módulo nuevo `platform/commerce`** ([ADR 019](docs/adr/019-platform-commerce-orchestration.md)):
