@@ -1,0 +1,35 @@
+# Override opcional — modo dev de bajo consumo para `portals`.
+#
+# En vez de ~11 procesos vite (HMR, mucha RAM), sirve los portales como
+# ESTÁTICO con un único nginx (stage `static`), montando cada `dist/` desde el
+# host como volumen. Flujo de trabajo:
+#
+#   ./infra/portals/build-portals.sh            # genera apps/*/dist en el host
+#   docker compose -f docker-compose.yml -f docker-compose.portals-static.yml up -d
+#   # editar un portal → ./infra/portals/build-portals.sh <portal> → refrescar
+#   # (NO hace falta reconstruir la imagen Docker)
+#
+# El `docker compose up` normal (sin este override) mantiene vite + HMR.
+# Nota: si un dist/ no existe todavía, ese portal devolverá 404 hasta que se
+# construya. Los puertos (5173/5175–5184) se heredan del base → los upstreams
+# del gateway no cambian.
+
+services:
+  portals:
+    build:
+      target: static
+    # Las VITE_* ya se hornearon en el host al hacer `vite build`; nginx no las usa.
+    environment: !reset null
+    # Reemplaza (no mergea) los bind-mounts de src del base por los dist/ estáticos.
+    volumes: !override
+      - ./apps/portal/dist:/usr/share/nginx/html/portal:ro
+      - ./apps/split-pay/splitpay-portal/dist:/usr/share/nginx/html/splitpay:ro
+      - ./apps/aikikan/aikikan-portal/dist:/usr/share/nginx/html/aikikan:ro
+      - ./apps/console/console-portal/dist:/usr/share/nginx/html/console:ro
+      - ./apps/tenant-console/tenant-console-portal/dist:/usr/share/nginx/html/tenant-console:ro
+      - ./apps/aulavera/aulavera-portal/dist:/usr/share/nginx/html/aulavera:ro
+      - ./apps/js-electric/js-electric-portal/dist:/usr/share/nginx/html/js-electric:ro
+      - ./apps/macabeo/macabeo-portal/dist:/usr/share/nginx/html/macabeo:ro
+      - ./apps/verifactu/verifactu-portal/dist:/usr/share/nginx/html/verifactu:ro
+      - ./apps/tpv/tpv-portal/dist:/usr/share/nginx/html/tpv:ro
+      - ./apps/luciapassardi/luciapassardi-portal/dist:/usr/share/nginx/html/luciapassardi:ro

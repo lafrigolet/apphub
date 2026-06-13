@@ -84,6 +84,18 @@ RUN pnpm --filter @splitpay/portal build \
  && pnpm --filter @tpv/tpv-portal build \
  && pnpm --filter @luciapassardi/luciapassardi-portal build
 
+# ── Static dev (baja RAM) ─────────────────────────────────────────────
+# Igual que production pero SIN hornear los dist/: nginx sirve los `dist/`
+# que se montan como volumen desde el host (docker-compose.portals-static.yml).
+# Flujo: `infra/portals/build-portals.sh` genera dist/ en el host → refrescar,
+# sin reconstruir la imagen. Build de la imagen casi instantáneo (solo confs).
+FROM nginx:alpine AS static
+COPY infra/portals/spa-locations.conf /etc/nginx/snippets/spa-locations.conf
+COPY infra/portals/portals.conf       /etc/nginx/conf.d/default.conf
+EXPOSE 5173 5175 5176 5177 5178 5179 5180 5181 5182 5183 5184
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:5173/_health || exit 1
+
 # ── Production ────────────────────────────────────────────────────────
 FROM nginx:alpine AS production
 COPY --from=build /app/apps/portal/dist                                 /usr/share/nginx/html/portal
